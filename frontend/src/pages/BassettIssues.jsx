@@ -199,7 +199,7 @@ export default function BassettIssues() {
       <StatCard label="Tests Needing Attention" value={metrics?.test_runs.attention ?? "—"} sub="Partial, Fail, or Blocked results" icon={Flag} accent="#f97316" />
       <StatCard label="New" value={metrics?.issues.new ?? "—"} sub="awaiting triage" icon={AlertTriangle} accent="#2563eb" />
       <StatCard label="High impact" value={metrics?.issues.critical ?? "—"} sub="high / critical severity" icon={ShieldAlert} accent="#dc2626" />
-      <StatCard label="Scenario coverage" value={metrics ? `${metrics.test_runs.test_bank_coverage.percent}%` : "—"} sub={metrics ? `${metrics.test_runs.test_bank_coverage.covered}/${metrics.test_runs.test_bank_coverage.total} active scenarios` : "Bassett-only completion"} icon={CheckCircle2} accent="#16a34a" />
+      <StatCard label="Evaluated scenario coverage" value={metrics ? `${metrics.test_runs.test_bank_coverage.percent}%` : "—"} sub={metrics ? `${metrics.test_runs.test_bank_coverage.covered}/${metrics.test_runs.test_bank_coverage.total} scenarios with a completed result` : "Drafts and Not Evaluated runs are excluded"} icon={CheckCircle2} accent="#16a34a" />
     </div>
     <Section title={showingFindings ? "Bassett findings" : "Bassett test runs"} action={<span className="text-xs text-muted-foreground">{shown.length} shown · archived records stay in history</span>}>
       <div className="flex flex-wrap gap-2 mb-4">

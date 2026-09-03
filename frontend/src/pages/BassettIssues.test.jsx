@@ -144,7 +144,7 @@ test("dashboards render canonical attention and coverage metrics", () => {
   const root = createRoot(container);
   act(() => root.render(<BassettIssues />));
   expect(container.textContent).toContain("Tests Needing Attention2");
-  expect(container.textContent).toContain("Scenario coverage75%");
+  expect(container.textContent).toContain("Evaluated scenario coverage75%");
   act(() => root.unmount());
 
   const bankContainer = document.createElement("div");
@@ -223,3 +223,4 @@ test("viewer rows use a named button and the async details drawer traps and rest
   act(() => root.unmount());
   container.remove();
 });
+

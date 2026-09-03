@@ -284,7 +284,7 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
           </thead>
           <tbody>
              {filteredData.length === 0 && <tr><td colSpan={columns.length + 1} className={TABLE_EMPTY_CELL_CLASS}>
-               {data.length === 0 ? `No ${title.toLowerCase()} have been created yet.` : "No records match the current filters."}
+               {data.length === 0 ? `No ${title.toLowerCase()} ${title.toLowerCase().endsWith("evidence") ? "has" : "have"} been created yet.` : "No records match the current filters."}
                {hasFilters && <Button type="button" size="sm" variant="outline" className="ml-3" onClick={clearFilters}>Clear filters</Button>}
              </td></tr>}
             {sortedData.map((row) => (
@@ -411,3 +411,4 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
     </div>
   );
 }
+
