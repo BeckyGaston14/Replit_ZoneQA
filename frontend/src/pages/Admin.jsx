@@ -44,8 +44,8 @@ export default function Admin() {
   const isAdmin = me?.role === "admin";
   const { data: config, refetch } = useQuery({ queryKey: ["config"], queryFn: async () => (await api.get("/config")).data, enabled: isAdmin });
   const { data: users = [], refetch: refetchUsers } = useQuery({ queryKey: ["users"], queryFn: async () => (await api.get("/users")).data, enabled: isAdmin });
-  const { data: emailStatus } = useQuery({ queryKey: ["admin-email-status"], queryFn: async () => (await api.get("/admin/email/status")).data, enabled: isAdmin });
-  const { data: models = [] } = useQuery({ queryKey: ["models"], queryFn: async () => (await api.get("/models")).data, enabled: isAdmin });
+  const { data: emailStatus, refetch: refetchEmailStatus } = useQuery({ queryKey: ["admin-email-status"], queryFn: async () => (await api.get("/admin/email/status")).data, enabled: isAdmin });
+  const { data: models = [], refetch: refetchModels } = useQuery({ queryKey: ["models"], queryFn: async () => (await api.get("/models")).data, enabled: isAdmin });
   const { data: versions = [], refetch: refetchVersions } = useQuery({ queryKey: ["versions"], queryFn: async () => (await api.get("/versions")).data, enabled: isAdmin });
   const [newItem, setNewItem] = useState({});
   const [lookupSearch, setLookupSearch] = useState("");
@@ -61,6 +61,10 @@ export default function Admin() {
   const [welcomeEmailResult, setWelcomeEmailResult] = useState(null);
   const [copiedActivation, setCopiedActivation] = useState(false);
   const [editingVersion, setEditingVersion] = useState(null);
+  const emptyModel = { name: "", provider: "", model_name: "", role_type: "Benchmark", active: true };
+  const [newModel, setNewModel] = useState(emptyModel);
+  const [editingModel, setEditingModel] = useState(null);
+  const [modelSaving, setModelSaving] = useState(false);
   const [confirmingAction, setConfirmingAction] = useState(null);
   const [userStatusFilter, setUserStatusFilter] = useState("active");
   const [userActionBusy, setUserActionBusy] = useState(false);
@@ -236,6 +240,37 @@ export default function Admin() {
     setConfirmingAction({ type: "delete-version", version: v });
   };
 
+  const saveModel = async (event) => {
+    event.preventDefault();
+    const model = editingModel || newModel;
+    if (!model.name?.trim()) return toast.error("Model name is required");
+    setModelSaving(true);
+    try {
+      const payload = {
+        name: model.name.trim(), provider: model.provider?.trim() || "",
+        model_name: model.model_name?.trim() || "", role_type: model.role_type || "Benchmark",
+        active: model.active !== false,
+      };
+      if (editingModel) await api.put(`/models/${editingModel.id}`, withExpectedVersion(editingModel, payload));
+      else await api.post("/models", payload);
+      await refetchModels();
+      setEditingModel(null); setNewModel(emptyModel);
+      toast.success(editingModel ? "Model updated" : "Model added");
+    } catch (e) { toast.error(e.response?.data?.detail || "Failed to save model"); }
+    finally { setModelSaving(false); }
+  };
+
+  const performDeleteModel = async (model) => {
+    setModelSaving(true);
+    try {
+      await api.delete(`/models/${model.id}`);
+      await refetchModels();
+      if (editingModel?.id === model.id) setEditingModel(null);
+      toast.success("Model deleted");
+    } catch (e) { toast.error(e.response?.data?.detail || "Failed to delete model"); }
+    finally { setModelSaving(false); setConfirmingAction(null); }
+  };
+
   const performDeleteUser = async (u) => {
     setUserActionBusy(true);
     try {
@@ -331,11 +366,30 @@ export default function Admin() {
         </TabsContent>
 
         <TabsContent value="models">
+          <form onSubmit={saveModel} className="bg-card border rounded-xl p-4 mb-4 space-y-3" aria-labelledby="model-form-heading">
+            <div className="flex items-center justify-between gap-2">
+              <div><h3 id="model-form-heading" className="font-semibold text-[var(--navy)]">{editingModel ? `Edit ${editingModel.name}` : "Add Model"}</h3><p className="text-xs text-muted-foreground mt-1">Maintain the models available for QA records and reporting.</p></div>
+              {editingModel && <Button type="button" variant="ghost" size="sm" onClick={() => setEditingModel(null)} aria-label="Cancel model edit"><X size={16}/></Button>}
+            </div>
+            {(() => {
+              const model = editingModel || newModel;
+              const setModel = editingModel ? setEditingModel : setNewModel;
+              return <div className="grid md:grid-cols-5 gap-3 items-end">
+                <div><Label htmlFor="model-name">Display name</Label><Input id="model-name" value={model.name || ""} onChange={(e)=>setModel({...model,name:e.target.value})} placeholder="ChatGPT" required /></div>
+                <div><Label htmlFor="model-provider">Provider</Label><Input id="model-provider" value={model.provider || ""} onChange={(e)=>setModel({...model,provider:e.target.value})} placeholder="OpenAI" /></div>
+                <div><Label htmlFor="model-identifier">API model identifier</Label><Input id="model-identifier" value={model.model_name || ""} onChange={(e)=>setModel({...model,model_name:e.target.value})} placeholder="gpt-5.4" /></div>
+                <div><Label htmlFor="model-type">Type</Label><select id="model-type" className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm" value={model.role_type || "Benchmark"} onChange={(e)=>setModel({...model,role_type:e.target.value})}><option value="Primary">Primary</option><option value="Benchmark">Benchmark</option></select></div>
+                <label htmlFor="model-active" className="flex h-9 items-center gap-2 text-sm"><input id="model-active" type="checkbox" checked={model.active !== false} onChange={(e)=>setModel({...model,active:e.target.checked})}/> Active</label>
+                <div className="md:col-span-5 flex gap-2"><Button type="submit" disabled={modelSaving}><Save size={14}/> {editingModel ? "Save changes" : "Add model"}</Button>{editingModel && <Button type="button" variant="outline" onClick={()=>setEditingModel(null)}>Cancel</Button>}</div>
+              </div>;
+            })()}
+          </form>
           <TableSortControls columns={MODEL_COLUMNS} sort={modelSort} setSort={setModelSort} defaultSort={{ key: "name", direction: "asc" }} className="mb-3" />
-          <div className="bg-card border rounded-xl max-w-full overflow-x-auto overscroll-x-contain"><table className="w-full min-w-[560px] text-sm">
-            <thead className="bg-[var(--paper)] text-left"><tr>{MODEL_COLUMNS.map((column) => <SortableTableHeader key={column.key} column={column} sort={modelSort} onSort={(key) => setModelSort((current) => nextSort(current, key))} />)}</tr></thead>
-            <tbody>{sortTableRows(models, MODEL_COLUMNS, modelSort, ["name"]).map((m) => <tr key={m.id} className="border-t"><td className="px-4 py-2 font-semibold text-[var(--navy)]">{m.name}</td><td className="px-4 py-2">{m.provider}</td><td className="px-4 py-2">{m.role_type}</td><td className="px-4 py-2">{m.active ? "Yes" : "No"}</td></tr>)}</tbody>
+          <div className="bg-card border rounded-xl max-w-full overflow-x-auto overscroll-x-contain"><table className="w-full min-w-[700px] text-sm">
+            <thead className="bg-[var(--paper)] text-left"><tr>{MODEL_COLUMNS.map((column) => <SortableTableHeader key={column.key} column={column} sort={modelSort} onSort={(key) => setModelSort((current) => nextSort(current, key))} />)}<th className="px-4 py-2"><span className="sr-only">Actions</span></th></tr></thead>
+            <tbody>{sortTableRows(models, MODEL_COLUMNS, modelSort, ["name"]).map((m) => <tr key={m.id} className="border-t"><td className="px-4 py-2 font-semibold text-[var(--navy)]">{m.name}<div className="text-xs font-normal text-muted-foreground">{m.model_name || "No API identifier"}</div></td><td className="px-4 py-2">{m.provider || "—"}</td><td className="px-4 py-2">{m.role_type}</td><td className="px-4 py-2"><StatusBadge value={m.active === false ? "Inactive" : "Active"} definitions={ACTIVITY_STATUSES}/></td><td className="px-4 py-2"><div className="flex gap-1"><Button type="button" size="sm" variant="outline" onClick={()=>setEditingModel({...m})} aria-label={`Edit ${m.name}`}><Pencil size={14}/></Button><Button type="button" size="sm" variant="outline" onClick={()=>setConfirmingAction({type:"delete-model",model:m})} aria-label={`Delete ${m.name}`}><Trash2 size={14}/></Button></div></td></tr>)}</tbody>
           </table></div>
+          {!models.length && <div className="rounded-b-xl border border-t-0 bg-card p-5 text-center text-sm text-muted-foreground">No models have been added. Add Bassett as the Primary model and ChatGPT or Claude as Benchmark models.</div>}
         </TabsContent>
 
         <TabsContent value="versions">
@@ -508,6 +562,22 @@ export default function Admin() {
               </div>
               <p className="text-xs text-muted-foreground">AI benchmark runs, pre-scoring, and claim extraction remain unavailable until a supported provider is configured.</p>
             </div>
+            <div className="bg-card border rounded-xl p-5 space-y-3" data-testid="gmail-configuration">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="font-semibold font-display text-[var(--navy)] flex items-center gap-2"><Mail size={16}/> Gmail welcome email</h3>
+                <StatusBadge value={emailStatus?.status === "connected" ? "Connected" : "Not connected"} definitions={ACTIVITY_STATUSES}/>
+              </div>
+              <p className="text-sm text-muted-foreground">ZoneQA sends account invitations and password-reset links through Replit’s secure Gmail connection. Gmail credentials are never stored in ZoneQA.</p>
+              {emailStatus?.sender_email && <p className="text-sm"><strong>Sending from:</strong> {emailStatus.sender_email}</p>}
+              <ol className="list-decimal pl-5 space-y-1 text-sm">
+                <li>In Replit, open <strong>Tools → Integrations</strong>.</li>
+                <li>Connect <strong>Gmail</strong> and approve permission to send mail.</li>
+                <li>Set the <strong>ZONEQA_APP_URL</strong> deployment secret to the published ZoneQA address.</li>
+                <li>Republish the app, then refresh this status.</li>
+              </ol>
+              {!emailStatus?.published_url_configured && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" role="alert"><strong>Published app URL is missing.</strong> Add ZONEQA_APP_URL before sending setup links.</div>}
+              <Button type="button" variant="outline" onClick={()=>refetchEmailStatus()}><RefreshCw size={14}/> Refresh Gmail status</Button>
+            </div>
           </div>
           <div className="mt-4">
             <Button data-testid="save-integrations-btn" disabled={!integ} onClick={saveIntegrations} className="bg-[var(--orange)] hover:bg-[var(--orange-600)]">Save Integration Settings</Button>
@@ -517,7 +587,7 @@ export default function Admin() {
       <ConfirmActionDialog
         open={!!confirmation}
         onOpenChange={(open) => !open && setConfirmingAction(null)}
-         title={confirmation?.type === "deactivate" ? `Deactivate ${confirmation.user.name}?` : confirmation?.type === "reactivate" ? `Reactivate ${confirmation.user.name}?` : confirmation?.type === "delete-user" ? `Delete ${confirmation.user.name}?` : confirmation?.type === "resend-welcome" ? `Resend welcome email to ${confirmation.user.name}?` : confirmation?.type === "password-reset" ? `Send password reset link to ${confirmation.user.name}?` : `Delete ${confirmation?.version?.name || "Bassett version"}?`}
+         title={confirmation?.type === "deactivate" ? `Deactivate ${confirmation.user.name}?` : confirmation?.type === "reactivate" ? `Reactivate ${confirmation.user.name}?` : confirmation?.type === "delete-user" ? `Delete ${confirmation.user.name}?` : confirmation?.type === "resend-welcome" ? `Resend welcome email to ${confirmation.user.name}?` : confirmation?.type === "password-reset" ? `Send password reset link to ${confirmation.user.name}?` : confirmation?.type === "delete-model" ? `Delete ${confirmation.model.name}?` : `Delete ${confirmation?.version?.name || "Bassett version"}?`}
         description={confirmation?.type === "deactivate"
           ? "Deactivation prevents future sign-ins and revokes this user’s active sessions. Historical ownership, assignments, evaluations, findings, and audit records will be preserved."
           : confirmation?.type === "reactivate"
@@ -528,7 +598,7 @@ export default function Admin() {
             ? "This invalidates the previous setup link and emails a new single-use link that expires in 24 hours."
            : confirmation?.type === "password-reset"
              ? "This emails a single-use password reset link that expires in one hour. The user creates their own password; administrators never see it."
-            : "This is allowed only when the Bassett version is not referenced by historical evaluations or regression runs."}
+            : confirmation?.type === "delete-model" ? "The model can be deleted only when it is not referenced by responses, evaluations, or test runs. Deactivate it instead when history exists." : "This is allowed only when the Bassett version is not referenced by historical evaluations or regression runs."}
          confirmLabel={confirmation?.type === "deactivate" ? "Deactivate user" : confirmation?.type === "reactivate" ? "Reactivate user" : confirmation?.type === "resend-welcome" ? "Resend welcome email" : confirmation?.type === "password-reset" ? "Send reset link" : "Delete permanently"}
          destructive={confirmation?.type !== "reactivate" && confirmation?.type !== "resend-welcome" && confirmation?.type !== "password-reset"}
          busy={userActionBusy || welcomeEmailBusy === confirmation?.user?.id || passwordResetBusy === confirmation?.user?.id}
@@ -537,6 +607,7 @@ export default function Admin() {
           else if (confirmation?.type === "delete-user") performDeleteUser(confirmation.user);
           else if (confirmation?.type === "resend-welcome") performResendWelcomeEmail(confirmation.user);
           else if (confirmation?.type === "password-reset") performPasswordReset(confirmation.user);
+          else if (confirmation?.type === "delete-model") performDeleteModel(confirmation.model);
           else if (confirmation?.type === "delete-version") performDeleteVersion(confirmation.version);
         }}
       />
