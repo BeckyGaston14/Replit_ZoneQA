@@ -1,4 +1,5 @@
 import axios from "axios";
+import { EVALUATION_RESULT_COLORS } from "./evaluationResults";
 
 // Published traffic is served by the same-origin /api proxy.  Keeping this
 // relative also lets the browser retain the HttpOnly session cookie on refresh.
@@ -49,16 +50,11 @@ export const CRIT_COLORS = {
 };
 
 export const RESULT_COLORS = {
-  "Pass": "#16a34a",
-  "Pass with Notes": "#f59e0b",
-  "Pass with Minor Issues": "#f59e0b",
-  "Needs Improvement": "#f59e0b",
-  "Partial": "#f59e0b",
-  "Blocked": "#f59e0b",
-  "Fail": "#dc2626",
-  "Critical Fail": "#b91c1c",
-  "Not Enough Evidence": "#64748b",
-  "Not Evaluated": "#94a3b8",
+  ...EVALUATION_RESULT_COLORS,
+  "Pass with Notes": EVALUATION_RESULT_COLORS["Pass with Minor Issues"],
+  Partial: EVALUATION_RESULT_COLORS["Needs Improvement"],
+  Blocked: "#64748b",
+  "Not Enough Evidence": EVALUATION_RESULT_COLORS["Not Evaluated"],
 };
 
 export function formatApiErrorDetail(detail) {

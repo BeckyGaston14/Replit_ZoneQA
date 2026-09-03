@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useCollection } from "../lib/hooks";
-import { PageHeader, StatCard, CritBadge, ResultBadge, StatusBadge } from "../components/shared";
+import { PageHeader, StatCard, CritBadge, ResultBadge, StatusBadge, SampleDataBanner, sampleScopeIncludesData } from "../components/shared";
 import { DEMO_STATUSES, FINDING_STATUSES, REGRESSION_DELTA_STATUSES, RELEASE_DECISIONS, readableTextColor, statusDefinition } from "../lib/statusMaps";
 import { ListSelect } from "../components/forms";
 import { Button } from "../components/ui/button";
@@ -130,6 +130,7 @@ export default function ReleaseReadiness() {
           <ListSelect options={versions.map((v) => v.name)} value={version} onChange={chooseVersion} placeholder="Bassett version" testid="readiness-version-select" />
         </div>
       </PageHeader>
+      <SampleDataBanner show={sampleScopeIncludesData({ versions, selectedVersion: version, records: [r] })} />
 
        {versionsError && <QueryState query={versionsQuery} resource="Bassett versions" onRetry={refetchVersions} testId="readiness-versions" />}
        {versionsLoading && <QueryState query={versionsQuery} resource="Bassett versions" testId="readiness-versions" />}

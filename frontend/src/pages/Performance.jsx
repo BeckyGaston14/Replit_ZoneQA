@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { useCollection, useConfig, useSavedView } from "../lib/hooks";
-import { PageHeader, StatCard, WrapTick, SrTable, StatusBadge } from "../components/shared";
+import { PageHeader, StatCard, WrapTick, SrTable, StatusBadge, SampleDataBanner, sampleScopeIncludesData } from "../components/shared";
 import { fmtScore } from "../lib/format";
 import { Trophy, TrendingDown, AlertOctagon, Target, FilterX } from "lucide-react";
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from "recharts";
@@ -104,6 +104,7 @@ export default function Performance() {
   return (
     <div>
       <PageHeader title="Bassett Performance & Reward" subtitle={perf ? `Scope: ${perf.scope}` : "Performance across completed model comparisons."} />
+      <SampleDataBanner show={sampleScopeIncludesData({ versions, selectedVersion: flt.version, records: [perf] })} />
       {savedView.error && <div role="alert" className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">{savedView.error} <button type="button" className="ml-2 font-semibold underline" onClick={savedView.retry}>Retry saved view</button></div>}
       {failed && <QueryState query={failed} resource="performance data" testId="performance" />}
       {loading && !failed && <QueryState query={{ isLoading: true }} resource="performance data" testId="performance" />}

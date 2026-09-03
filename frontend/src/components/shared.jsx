@@ -1,8 +1,9 @@
-import { CRIT_COLORS, RESULT_COLORS } from "../lib/api";
+import { CRIT_COLORS } from "../lib/api";
 import { cn } from "../lib/utils";
 import { Link } from "react-router-dom";
 import { StatusBadge, StatusLegend } from "../lib/statusMaps";
 import { evaluationScoreOrNull, formatEvaluationScore } from "../lib/evaluationScale";
+import { evaluationResultColor, evaluationResultDetails } from "../lib/evaluationResults";
 
 export function CritBadge({ value }) {
   if (!value) return <span className="text-muted-foreground text-xs">—</span>;
@@ -15,13 +16,14 @@ export function CritBadge({ value }) {
 }
 
 export function ResultBadge({ value }) {
-  return <StatusBadge value={value || "Not Evaluated"} />;
+  const details = evaluationResultDetails(value);
+  return <StatusBadge value={details.isWorkflowState ? "Blocked" : details.result} />;
 }
 
 export function ScorePill({ score, status }) {
   const s = evaluationScoreOrNull(score);
   if (s === null) return <span className="text-xs text-muted-foreground" aria-label="Score unavailable">Unavailable</span>;
-  const c = RESULT_COLORS[status] || (s >= 7.5 ? "#16a34a" : s >= 5 ? "#f59e0b" : "#dc2626");
+  const c = status ? evaluationResultColor(status) : (s >= 7.5 ? "#16a34a" : s >= 5 ? "#f59e0b" : "#dc2626");
   const formatted = formatEvaluationScore(s);
   return <span className="inline-flex items-center justify-center rounded-md px-2 py-0.5 text-sm font-bold text-white min-w-[42px]" style={{ background: c }} title={`${status || "Calculated"} score: ${formatted} out of 10`} aria-label={`${status || "Calculated"} score ${formatted} out of 10`}>{formatted}</span>;
 }
@@ -78,6 +80,40 @@ export function PageHeader({ title, subtitle, children }) {
       </div>
       <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">{children}</div>
     </div>
+  );
+}
+
+const SAMPLE_MARKER = /\[SAMPLE\]|\(Sample\)/i;
+
+export function isSampleDataRecord(record) {
+  if (!record || typeof record !== "object") return false;
+  if (record.sample_data === true || record.is_sample === true) return true;
+  return ["name", "title", "version", "bassett_version", "release_number", "environment"]
+    .some((key) => SAMPLE_MARKER.test(String(record[key] || "")));
+}
+
+export function sampleScopeIncludesData({ versions = [], records = [], selectedVersion = "" } = {}) {
+  const selected = typeof selectedVersion === "object"
+    ? selectedVersion
+    : versions.find((version) => version?.id === selectedVersion || version?.name === selectedVersion);
+  if (selectedVersion && (isSampleDataRecord(selected) || SAMPLE_MARKER.test(String(selectedVersion)))) return true;
+  return [...versions, ...records].some(isSampleDataRecord);
+}
+
+export function SampleDataBanner({ show = false }) {
+  if (!show) return null;
+  return (
+    <aside
+      role="note"
+      data-testid="sample-data-banner"
+      className="mb-4 flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-950"
+    >
+      <span className="mt-0.5 text-base" aria-hidden="true">ⓘ</span>
+      <div>
+        <strong className="font-semibold">Demonstration data</strong>
+        <p className="mt-0.5 text-xs text-amber-900">This view includes a sample version or [SAMPLE] record. It is not production QA evidence.</p>
+      </div>
+    </aside>
   );
 }
 

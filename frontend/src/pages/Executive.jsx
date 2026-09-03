@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
-import { PageHeader, StatCard, WrapTick, SrTable } from "../components/shared";
+import { PageHeader, StatCard, WrapTick, SrTable, SampleDataBanner, sampleScopeIncludesData } from "../components/shared";
 import { fmtPct, fmtPts, fmtScore, plural } from "../lib/format";
 import { Button } from "../components/ui/button";
 import { Target, Percent, Trophy, AlertTriangle, TrendingUp, FileDown, Loader2 } from "lucide-react";
@@ -68,6 +68,7 @@ export default function Executive() {
 
   if (query.isLoading || query.isError) return <div><PageHeader title="Executive Summary" subtitle="Shareable QA outcomes and trends." /><QueryState query={query} resource="executive summary" testId="executive-query" /></div>;
   const { kpis: k, trend, failure_modes, categories } = d;
+  const sampleDataShown = sampleScopeIncludesData({ records: [d] });
   const chartCategories = categories.filter((category) => evaluationScoreOrNull(category.avg_score) !== null);
 
   const strongest = categories[0];
@@ -113,6 +114,7 @@ export default function Executive() {
           {exportStatus === "generating" ? "Generating PDF…" : exportStatus === "saving" ? "Saving PDF…" : "Download PDF"}
         </Button>
       </PageHeader>
+      <SampleDataBanner show={sampleDataShown} />
       {exportError && (
         <div role="alert" data-testid="pdf-export-error" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           {exportError}

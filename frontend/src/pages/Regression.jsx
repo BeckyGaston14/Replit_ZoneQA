@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, formatApiErrorDetail, staleUpdateMessage, withExpectedVersion } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { PageHeader, StatCard, ResultBadge, StatusBadge } from "../components/shared";
+import { PageHeader, StatCard, ResultBadge, StatusBadge, SampleDataBanner, sampleScopeIncludesData } from "../components/shared";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
@@ -156,6 +156,7 @@ export default function Regression() {
   return (
     <div>
       <PageHeader title="Regression Testing" subtitle="Bassett release suites rerun against locked historical baselines. This is separate from Bassett-only test runs and model-comparison findings." />
+      <SampleDataBanner show={sampleScopeIncludesData({ versions, records: runs })} />
       {failed && <QueryState query={failed} resource="regression data" onRetry={retry} testId="regression" />}
       {loading && !failed && <QueryState query={{ isLoading: true }} resource="regression data" testId="regression" />}
       {!loading && !failed && versions.length === 0 && canWrite && <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">Create a Bassett version before running a regression suite.</div>}

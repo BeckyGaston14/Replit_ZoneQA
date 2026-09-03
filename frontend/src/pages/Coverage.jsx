@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
-import { PageHeader, StatCard, StatusBadge } from "../components/shared";
+import { PageHeader, StatCard, StatusBadge, SampleDataBanner, sampleScopeIncludesData } from "../components/shared";
 import { COVERAGE_STATUSES, statusDefinition } from "../lib/statusMaps";
 import { Grid3X3, Building2, Tags, AlertTriangle, FlaskConical } from "lucide-react";
 import { QueryState } from "../components/PageState";
@@ -49,6 +49,7 @@ export default function Coverage() {
   return (
     <div>
       <PageHeader title="Test Coverage" subtitle="Where the test suite is thin — municipalities, categories and criticality levels lacking tests." />
+      <SampleDataBanner show={sampleScopeIncludesData({ records: [d] })} />
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
         <StatCard label="Coverage Gaps" value={s.gap_count} accent={s.gap_count ? "#dc2626" : "#16a34a"} icon={AlertTriangle} testid="coverage-gaps" />
         <StatCard label="Total Tests" value={s.total_tests} sub={`${s.evaluated_tests} evaluated`} accent="#16215a" icon={FlaskConical} />

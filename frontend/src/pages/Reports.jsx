@@ -1,5 +1,5 @@
 import { api } from "../lib/api";
-import { PageHeader } from "../components/shared";
+import { PageHeader, SampleDataBanner, sampleScopeIncludesData } from "../components/shared";
 import { Button } from "../components/ui/button";
 import { FileDown, FileText } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -75,6 +75,7 @@ export default function Reports() {
       <PageHeader title="Reports & Exports" subtitle="Generated from persisted QA records — never static.">
         <Button variant="outline" className="w-full sm:w-auto" onClick={exportCSV}><FileDown size={15} className="mr-1" /> Export Test Cases CSV</Button>
       </PageHeader>
+      <SampleDataBanner show={sampleScopeIncludesData({ records: [config] })} />
 
       <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted-foreground">Data exports</h2>
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">

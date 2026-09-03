@@ -13,7 +13,6 @@ const resultIcon = {
   Blocked: Ban,
   Fail: XCircle,
   "Critical Fail": ShieldAlert,
-  "Not Enough Evidence": HelpCircle,
   "Not Evaluated": Circle,
   Incomplete: Clock3,
 };
@@ -21,18 +20,19 @@ const resultIcon = {
 export const RESULT_STATUSES = Object.fromEntries(
   Object.entries({
     Pass: "Meets the approved expectations.",
-    "Pass with Notes": "Passes with reviewer notes or minor concerns.",
+    "Pass with Notes": "Legacy label normalized to Pass with Minor Issues.",
     "Pass with Minor Issues": "Passes with minor issues that do not block acceptance.",
     "Needs Improvement": "Does not yet meet the preferred quality threshold.",
-    Partial: "Only part of the expected behavior was verified.",
+    Partial: "Legacy label normalized to Needs Improvement.",
     Blocked: "Testing could not be completed.",
     Fail: "Does not meet the approved expectations.",
     "Critical Fail": "Has a severe quality or safety failure.",
-    "Not Enough Evidence": "There is not enough verified evidence to decide.",
     "Not Evaluated": "No final evaluation has been recorded.",
-    Incomplete: "A legacy or interrupted run is incomplete.",
+    Incomplete: "Legacy label normalized to Not Evaluated.",
   }).map(([label, description]) => [label, {
-    label: label === "Incomplete" ? "Legacy: Incomplete" : label,
+    label: label === "Pass with Notes" ? "Pass with Minor Issues"
+      : label === "Partial" ? "Needs Improvement"
+        : label === "Incomplete" ? "Not Evaluated" : label,
     description,
     color: RESULT_COLORS?.[label] || "#64748b",
     icon: resultIcon[label] || HelpCircle,

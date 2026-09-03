@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { Link } from "react-router-dom";
-import { StatCard, PageHeader, Section, SrTable } from "../components/shared";
+import { StatCard, PageHeader, Section, SrTable, SampleDataBanner, sampleScopeIncludesData } from "../components/shared";
+import { useCollection } from "../lib/hooks";
 import { Button } from "../components/ui/button";
 import {
   FolderKanban, CheckCircle2, XCircle, AlertTriangle, Flag, Wrench, RefreshCw, Star,
@@ -24,6 +25,7 @@ export default function Dashboard() {
     retry: false,
   });
   const activityQuery = useQuery({ queryKey: ["acts"], queryFn: async () => (await api.get("/activities")).data, retry: false });
+  const versionsQuery = useCollection("versions");
 
   if (stats.isLoading || metrics.isLoading) return <DashboardState title="Loading dashboard…" detail="Loading canonical metrics and project status." />;
   if (stats.isError || metrics.isError) {
@@ -33,6 +35,11 @@ export default function Dashboard() {
 
   const bc = m.bassett_current, ame = m.all_model_evaluations, fnd = m.findings;
   const versionLabel = m.active_version || "No active version";
+  const sampleDataShown = sampleScopeIncludesData({
+    versions: versionsQuery.data || [],
+    selectedVersion: m.active_version || "",
+    records: [m, s, perfQuery.data],
+  });
   const cards = [
     { label: `Bassett Pass Rate (${versionLabel})`, value: bc.pass_rate != null ? `${bc.pass_rate}%` : "—", sub: `${bc.label} · latest eval per test`, title: bc.definition, icon: CheckCircle2, accent: "#16a34a", to: dashboardRecordPath("bassett-pass-rate") },
     { label: "Bassett Failed", value: bc.failed, sub: `of ${bc.evaluated} evaluated tests (${versionLabel})`, title: bc.definition, icon: XCircle, accent: "#dc2626", to: dashboardRecordPath("bassett-failed") },
@@ -60,6 +67,7 @@ export default function Dashboard() {
   return (
     <div>
       <PageHeader title="QA Dashboard" subtitle={`Every card opens its exact canonical record set. Active version: ${versionLabel}.`} />
+      <SampleDataBanner show={sampleDataShown} />
       {!m.active_version && <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
         <span><strong>Set an active Bassett version</strong> to calculate current-version pass rate, average score, regressions, and release-readiness metrics.</span>
         <Button asChild size="sm"><Link to="/admin">Manage Bassett versions</Link></Button>

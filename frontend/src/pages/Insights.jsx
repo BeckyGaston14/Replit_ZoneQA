@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
-import { PageHeader, StatCard, CritBadge, WrapTick, SrTable } from "../components/shared";
+import { PageHeader, StatCard, CritBadge, WrapTick, SrTable, SampleDataBanner, sampleScopeIncludesData } from "../components/shared";
 import { Swords, TrendingDown, Trophy, Gauge } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from "recharts";
 import { EVALUATION_SCORE_DOMAIN, EVALUATION_SCORE_TICKS, evaluationScoreOrNull, formatEvaluationScore } from "../lib/evaluationScale";
@@ -76,6 +76,7 @@ export default function Insights() {
   return (
     <div>
       <PageHeader title="Competitive Insights" subtitle="Exactly where ChatGPT or Claude beat Bassett — and why." />
+      <SampleDataBanner show={sampleScopeIncludesData({ records: [d] })} />
       {comparisonCount === 0 && (
         <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900" role="status">
           No comparable Bassett and benchmark evaluations are in scope yet. Competitive wins, losses, and dimension gaps will appear after the same test cases have evaluated scores for Bassett and at least one benchmark model.

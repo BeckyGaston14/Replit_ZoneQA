@@ -1,6 +1,20 @@
 """Authoritative evaluation scoring and analytical read-model helpers."""
 
 COMPARISON_MODELS = ("Bassett", "ChatGPT", "Claude")
+CANONICAL_EVALUATION_RESULTS = (
+    "Pass",
+    "Pass with Minor Issues",
+    "Needs Improvement",
+    "Fail",
+    "Critical Fail",
+    "Not Evaluated",
+)
+LEGACY_EVALUATION_RESULT_ALIASES = {
+    "Pass with Notes": "Pass with Minor Issues",
+    "Partial": "Needs Improvement",
+    "Incomplete": "Not Evaluated",
+}
+WORKFLOW_RESULT_STATES = frozenset(("Blocked",))
 PASS_RESULTS = frozenset(("Pass", "Pass with Minor Issues"))
 FAIL_RESULTS = frozenset(("Fail", "Critical Fail"))
 EVALUATED_RESULTS = PASS_RESULTS | FAIL_RESULTS
@@ -17,6 +31,28 @@ DERIVED_SCORE_FIELDS = frozenset((
 ))
 
 
+def normalize_evaluation_result(value):
+    """Return the canonical analytical result without changing persisted history.
+
+    ``Blocked`` is intentionally a workflow state, not an evaluation result;
+    treating it as ``Not Evaluated`` keeps it out of pass/fail denominators.
+    """
+    raw = str(value or "").strip()
+    if raw in WORKFLOW_RESULT_STATES:
+        return "Not Evaluated"
+    return LEGACY_EVALUATION_RESULT_ALIASES.get(raw, raw if raw in CANONICAL_EVALUATION_RESULTS else "Not Evaluated")
+
+
+def evaluation_result_details(value):
+    raw = str(value or "").strip() or "Not Evaluated"
+    return {
+        "raw_result": raw,
+        "result": normalize_evaluation_result(raw),
+        "is_workflow_state": raw in WORKFLOW_RESULT_STATES,
+        "is_legacy": raw in LEGACY_EVALUATION_RESULT_ALIASES,
+    }
+
+
 def evaluation_order(evaluation):
     return (evaluation.get("created_at", ""), evaluation.get("id", ""))
 
@@ -29,8 +65,14 @@ def latest_evaluations(evaluations, key):
 
 
 def result_summary(evaluations):
-    passed = [evaluation for evaluation in evaluations if evaluation.get("final_result") in PASS_RESULTS]
-    failed = [evaluation for evaluation in evaluations if evaluation.get("final_result") in FAIL_RESULTS]
+    passed = [
+        evaluation for evaluation in evaluations
+        if normalize_evaluation_result(evaluation.get("final_result")) in PASS_RESULTS
+    ]
+    failed = [
+        evaluation for evaluation in evaluations
+        if normalize_evaluation_result(evaluation.get("final_result")) in FAIL_RESULTS
+    ]
     evaluated = len(passed) + len(failed)
     return {
         "passed_records": passed,

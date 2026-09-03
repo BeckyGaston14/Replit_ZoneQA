@@ -25,13 +25,16 @@ from postgres_store import (
 )
 from bassett_catalog import CANONICAL_SCENARIOS
 from evaluation_metrics import (
+    CANONICAL_EVALUATION_RESULTS,
     COMPARISON_MODELS,
     EVALUATED_RESULTS,
     FAIL_RESULTS,
     PASS_RESULTS,
     authoritative_score_update,
     average_score,
+    evaluation_result_details,
     latest_evaluations,
+    normalize_evaluation_result,
     result_summary,
     score_evaluation,
 )
@@ -1741,6 +1744,8 @@ def _normalize_model(document, *, partial=False):
 
 async def crud_create(coll, body, user):
     doc = dict(body)
+    if coll == "evaluations" and "final_result" in doc:
+        doc["final_result"] = normalize_evaluation_result(doc.get("final_result"))
     if coll == "models":
         if user.get("role") not in ("admin", "qa_manager"):
             raise HTTPException(403, "Only administrators and QA managers can manage models")
@@ -1852,6 +1857,8 @@ async def crud_update(coll, id, body, user):
         await _normalize_project_owner(body)
         _prepare_project_completion_input(body, existing_for_references)
     if coll == "evaluations":
+        if "final_result" in body:
+            body["final_result"] = normalize_evaluation_result(body.get("final_result"))
         await _apply_authoritative_evaluation_fields(body, existing_for_references)
     await _validate_user_references(coll, body, existing_for_references)
     if coll != "testcases":
@@ -2033,7 +2040,7 @@ async def _prepare_comparison_workflow(
     response_input = body.get("responses") if isinstance(body.get("responses"), dict) else {}
     evaluation_input = body.get("evaluations") if isinstance(body.get("evaluations"), dict) else {}
     configured = await db.config.find_one({"id": "global"}, {"_id": 0}) or DEFAULT_CONFIG
-    allowed_results = set(configured.get("pass_results") or DEFAULT_CONFIG["pass_results"])
+    allowed_results = set(CANONICAL_EVALUATION_RESULTS)
     for model in COMPARISON_WORKFLOW_MODELS:
         incoming_response = response_input.get(model)
         incoming_response = incoming_response if isinstance(incoming_response, dict) else {}
@@ -2061,6 +2068,7 @@ async def _prepare_comparison_workflow(
         if model == "Bassett" and not final_result:
             final_result = testcase.get("result")
         final_result = final_result or authoritative["system_recommended"] or "Not Evaluated"
+        final_result = normalize_evaluation_result(final_result)
         if final_result not in allowed_results:
             raise HTTPException(400, detail={"evaluations": f"Invalid {model} evaluation result"})
         evaluations.append({
@@ -2634,13 +2642,18 @@ BASSETT_WRITE_ROLES = {"admin", "qa_manager", "tester", "developer"}
 BASSETT_ISSUE_STATUSES = ("New", "Triaged", "In Progress", "Blocked", "Resolved", "Closed", "Archived")
 BASSETT_WORKFLOW_STAGE_NAMES = ("Research", "Analysis")
 _BASSETT_LEGACY_ANALYSIS_ALIAS = " ".join(("report", "writing"))
-# New test runs always use the first six values.  The final four values were
-# written by the original workspace and deliberately remain accepted/readable:
-# records are historical evidence, not data to silently migrate.
-BASSETT_CANONICAL_RESULTS = ("Pass", "Pass with Notes", "Partial", "Fail", "Blocked", "Not Evaluated")
-BASSETT_LEGACY_RESULTS = ("Pass", "Fail", "Blocked", "Incomplete")
+# New test runs use the canonical result vocabulary. Legacy values remain
+# accepted/readable for historical evidence, not silently migrated.
+BASSETT_CANONICAL_RESULTS = CANONICAL_EVALUATION_RESULTS
+BASSETT_LEGACY_RESULTS = ("Pass with Notes", "Partial", "Blocked", "Incomplete")
 BASSETT_RESULTS = tuple(dict.fromkeys((*BASSETT_CANONICAL_RESULTS, *BASSETT_LEGACY_RESULTS)))
-BASSETT_RESULT_CANONICAL_EQUIVALENTS = {"Incomplete": "Not Evaluated"}
+BASSETT_RESULT_CANONICAL_EQUIVALENTS = {
+    **{value: value for value in BASSETT_CANONICAL_RESULTS},
+    "Pass with Notes": "Pass with Minor Issues",
+    "Partial": "Needs Improvement",
+    "Blocked": "Not Evaluated",
+    "Incomplete": "Not Evaluated",
+}
 BASSETT_ISSUE_FIELDS = {
     "test_id", "title", "question_asked", "exact_bassett_answer", "verified_correct_answer",
     "issue_category", "severity", "priority", "environment", "reported_date", "test_date",
@@ -2858,18 +2871,17 @@ def _require_bassett_manager(user):
 
 def _bassett_result_details(result):
     """Describe a stored run result without mutating its historical value."""
-    raw = str(result or "Not Evaluated")
-    canonical = BASSETT_RESULT_CANONICAL_EQUIVALENTS.get(raw, raw)
-    legacy = raw in BASSETT_LEGACY_RESULTS and raw not in BASSETT_CANONICAL_RESULTS
+    details = evaluation_result_details(result)
+    raw = details["raw_result"]
+    canonical = details["result"]
+    legacy = details["is_legacy"]
     return {
         "result": raw,
         "canonical_result": canonical,
         "legacy_result": legacy,
-        # Pass/Fail/Blocked are valid in both vocabularies, so provenance
-        # cannot be inferred for those values; this makes that compatibility
-        # explicit without relabelling or rewriting the stored value.
+        "workflow_state": raw if details["is_workflow_state"] else None,
         "legacy_compatible_result": raw in BASSETT_LEGACY_RESULTS,
-        "result_label": f"{raw} (legacy; equivalent to {canonical})" if legacy else raw,
+        "result_label": canonical,
     }
 
 
@@ -2898,7 +2910,7 @@ def _validate_bassett_run_result(doc, allow_legacy=False):
     if result not in allowed:
         raise HTTPException(
             400,
-            "Bassett result must be Pass, Pass with Notes, Partial, Fail, Blocked, or Not Evaluated",
+            "Bassett result must be Pass, Pass with Minor Issues, Needs Improvement, Fail, Critical Fail, or Not Evaluated",
         )
     score = doc.get("score")
     if score in (None, ""):
@@ -3870,18 +3882,22 @@ async def bassett_metrics(version_id: Optional[str] = None, environment: Optiona
         metric_runs = [e for e in metric_runs if e.get("version_id") == version_id or e.get("bassett_version") == version_id]
     if environment:
         metric_runs = [e for e in metric_runs if e.get("environment") == environment]
-    # Keep legacy result text intact, but calculate canonical metrics using its
-    # documented equivalent (Incomplete == Not Evaluated).
+    # Keep legacy result text intact, but calculate canonical metrics using
+    # the shared evaluation vocabulary.
     classified = [(e, _canonical_bassett_result(e.get("result"))) for e in metric_runs]
-    completed = [e for e, result in classified if result != "Not Evaluated"]
+    completed = [
+        e for e, result in classified
+        if result != "Not Evaluated" and e.get("result") != "Blocked"
+    ]
     pass_rate_runs = [
-        e for e in completed if _canonical_bassett_result(e.get("result")) != "Blocked"
+        e for e in completed
     ]
     passed_runs = [
-        e for e in pass_rate_runs if _canonical_bassett_result(e.get("result")) in ("Pass", "Pass with Notes")
+        e for e in pass_rate_runs if _canonical_bassett_result(e.get("result")) in PASS_SET
     ]
     attention_runs = [
-        e for e in completed if _canonical_bassett_result(e.get("result")) in ("Partial", "Fail", "Blocked")
+        e for e, result in classified
+        if result in (*FAIL_SET, "Needs Improvement") or e.get("result") == "Blocked"
     ]
     eligible = pass_rate_runs
     active_scenario_ids = {scenario["id"] for scenario in scenarios}
@@ -3889,7 +3905,7 @@ async def bassett_metrics(version_id: Optional[str] = None, environment: Optiona
     passed = passed_runs
     failure_breakdown = Counter(
         (next((s.get("workflow_stage") for s in scenarios if s["id"] == e.get("scenario_id")), "Unclassified"))
-        for e in attention_runs if _canonical_bassett_result(e.get("result")) in ("Partial", "Fail")
+        for e in attention_runs if _canonical_bassett_result(e.get("result")) in (*FAIL_SET, "Needs Improvement")
     )
     all_findings = await db.findings.find({}, {"_id": 0, "id": 1, "bassett_issue_id": 1, "bassett_execution_id": 1}).to_list(5000)
     issue_finding_ids = {
@@ -3921,8 +3937,8 @@ async def bassett_metrics(version_id: Optional[str] = None, environment: Optiona
         "scenarios": {"active": len(scenarios), "with_execution": len(completed_scenarios)},
         "executions": {
             "total": len(metric_runs), "eligible": len(eligible), "passed": len(passed),
-            "failed": len(eligible) - len(passed), "blocked": sum(result == "Blocked" for _, result in classified),
-            "incomplete": sum(result == "Not Evaluated" for _, result in classified),
+            "failed": len(eligible) - len(passed), "blocked": sum(e.get("result") == "Blocked" for e, _ in classified),
+            "incomplete": sum(result == "Not Evaluated" and e.get("result") != "Blocked" for e, result in classified),
             "completion_percent": round(len(completed_scenarios) / len(scenarios) * 100, 1) if scenarios else 0,
             "pass_percent": round(len(passed) / len(eligible) * 100, 1) if eligible else 0,
         },
@@ -3932,13 +3948,13 @@ async def bassett_metrics(version_id: Optional[str] = None, environment: Optiona
             "total": len(metric_runs), "completed": len(completed), "attention": len(attention_runs),
             "eligible": len(pass_rate_runs), "passed": len(passed_runs),
             "failed": len(pass_rate_runs) - len(passed_runs),
-            "blocked": sum(result == "Blocked" for _, result in classified),
-            "incomplete": sum(result == "Not Evaluated" for _, result in classified),
+            "blocked": sum(e.get("result") == "Blocked" for e, _ in classified),
+            "incomplete": sum(result == "Not Evaluated" and e.get("result") != "Blocked" for e, result in classified),
             "actual_findings": len(actual_findings),
             "pass_rate": round(len(passed_runs) / len(pass_rate_runs) * 100, 1) if pass_rate_runs else None,
             "test_bank_coverage": test_bank_coverage,
             "test_bank": {"coverage": test_bank_coverage["percent"], **test_bank_coverage},
-            "definition": "Completed excludes Not Evaluated (and legacy Incomplete). Attention is Partial, Fail, or Blocked. Pass rate excludes Blocked and Not Evaluated.",
+            "definition": "Completed excludes Not Evaluated, legacy Incomplete, and Blocked. Attention is Needs Improvement, Fail, Critical Fail, or Blocked. Pass rate excludes workflow-blocked and unevaluated tests.",
         },
         "failure_breakdown": [{"label": key, "count": value} for key, value in failure_breakdown.most_common()],
         "scope": {"version_id": version_id, "environment": environment},
@@ -4251,7 +4267,8 @@ async def testcase_full(id: str, user=Depends(get_current_user)):
         v_evals = await db.evaluations.find({"testcase_id": v["id"], "model": "Bassett"}, {"_id": 0, "final_result": 1, "created_at": 1}).sort(
             [("created_at", -1), ("id", -1)]
         ).to_list(1)
-        v["latest_result"] = v_evals[0]["final_result"] if v_evals else None
+        v["latest_result"] = normalize_evaluation_result(v_evals[0]["final_result"]) if v_evals else None
+        v["latest_raw_result"] = v_evals[0]["final_result"] if v_evals else None
     parent = await db.testcases.find_one({"id": tc.get("variant_of")}, {"_id": 0, "id": 1, "name": 1}) if tc.get("variant_of") else None
     test_runs = await db.test_runs.find({"testcase_id": id}, {"_id": 0}).sort("run_date", -1).to_list(50)
     latest_comparison = next(
@@ -4287,7 +4304,8 @@ async def testcases_enriched(include_archived: bool = False, user=Depends(get_cu
         bassett_evals = [e for e in eval_by_tc.get(tc["id"], []) if e.get("model") == "Bassett"]
         latest_rows = latest_evaluations(bassett_evals, lambda evaluation: evaluation["testcase_id"])
         latest = latest_rows[0] if latest_rows else None
-        tc["bassett_result"] = latest.get("final_result") if latest else None
+        tc["bassett_result"] = latest.get("normalized_result") if latest else None
+        tc["bassett_raw_result"] = latest.get("final_result") if latest else None
         if not tc.get("test_date") and latest and latest.get("test_date"):
             tc["test_date"] = latest["test_date"]
             tc["test_date_source"] = "Latest Bassett evaluation"
@@ -4604,10 +4622,17 @@ async def _authoritative_evaluation_read_model(evaluations):
     """Recalculate legacy records before any dashboard, export, or comparison read."""
     config = await db.config.find_one({"id": "global"}, {"_id": 0}) or DEFAULT_CONFIG
     dimensions = config.get("eval_dimensions", [])
-    return [
-        {**evaluation, **score_evaluation(evaluation.get("scores"), dimensions)}
-        for evaluation in evaluations
-    ]
+    read_model = []
+    for evaluation in evaluations:
+        result = evaluation_result_details(evaluation.get("final_result"))
+        read_model.append({
+            **evaluation,
+            **score_evaluation(evaluation.get("scores"), dimensions),
+            "normalized_result": result["result"],
+            "result_label": result["result"],
+            "result_workflow_state": result["workflow_state"],
+        })
+    return read_model
 
 
 async def _exclude_incomplete_comparison_evaluations(evaluations):
@@ -4645,7 +4670,7 @@ async def _complete_comparison_evaluations(
     latest_complete = {}
     for slots in groups.values():
         if not all(
-            slots.get(model, {}).get("final_result") not in (None, "", "Not Evaluated")
+            slots.get(model, {}).get("normalized_result") not in (None, "Not Evaluated")
             and slots.get(model, {}).get("overall_score") is not None
             and isinstance(slots.get(model, {}).get("scores"), dict)
             for model in COMPARISON_MODELS
@@ -4790,9 +4815,9 @@ async def analytics_performance(user=Depends(get_current_user),
         by_model.setdefault(m, {"scores": [], "pass": 0, "fail": 0})
         if e.get("overall_score") is not None:
             by_model[m]["scores"].append(e["overall_score"])
-        if e.get("final_result") in PASS_RESULTS:
+        if e.get("normalized_result") in PASS_RESULTS:
             by_model[m]["pass"] += 1
-        elif e.get("final_result") in FAIL_RESULTS:
+        elif e.get("normalized_result") in FAIL_RESULTS:
             by_model[m]["fail"] += 1
     model_summary = [{"model": k, "avg_score": round(sum(v["scores"]) / len(v["scores"]), 1) if v["scores"] else None,
                        "score_count": len(v["scores"]), "passed": v["pass"], "failed": v["fail"]}
@@ -4969,13 +4994,15 @@ async def report_data(kind: str = "qa_summary", user=Depends(get_current_user)):
 
 # ---------- Regression suite execution ----------
 def _delta_status(baseline_result, current_result):
+    baseline_result = normalize_evaluation_result(baseline_result)
+    current_result = normalize_evaluation_result(current_result)
     b_pass = baseline_result in PASS_SET
     b_fail = baseline_result in FAIL_SET
     c_pass = current_result in PASS_SET
     c_fail = current_result in FAIL_SET
-    if not current_result:
+    if current_result == "Not Evaluated":
         return "not_evaluated"
-    if baseline_result is None:
+    if baseline_result == "Not Evaluated":
         return "new"
     if b_fail and c_pass:
         return "improved"
@@ -5031,22 +5058,26 @@ async def execute_regression_suite(id: str, body: Dict[str, Any], user=Depends(r
     for tid in tc_ids:
         cur = latest.get(tid)
         base = baseline_by_tc.get(tid)
-        cur_result = cur.get("final_result") if cur else None
-        base_result = base.get("result") if base else None
+        cur_raw_result = cur.get("final_result") if cur else None
+        base_raw_result = base.get("result") if base else None
+        cur_result = cur.get("normalized_result") if cur else "Not Evaluated"
+        base_result = normalize_evaluation_result(base_raw_result)
         results.append({
             "testcase_id": tid,
             "testcase_name": tcs.get(tid, {}).get("name", "(deleted test case)"),
             "result": cur_result,
+            "raw_result": cur_raw_result,
             "score": cur.get("overall_score") if cur else None,
             "eval_id": cur.get("id") if cur else None,
             "eval_version": cur.get("bassett_version") if cur else None,
             "baseline_result": base_result,
+            "raw_baseline_result": base_raw_result,
             "baseline_score": base.get("score") if base else None,
             "delta": _delta_status(base_result, cur_result),
         })
 
-    passed = len([r for r in results if r["result"] in PASS_SET])
-    failed = len([r for r in results if r["result"] in FAIL_SET])
+    passed = len([r for r in results if normalize_evaluation_result(r["result"]) in PASS_SET])
+    failed = len([r for r in results if normalize_evaluation_result(r["result"]) in FAIL_SET])
     not_evaluated = len([r for r in results if r["delta"] == "not_evaluated"])
     if baseline_run:
         improved = len([r for r in results if r["delta"] == "improved"])
@@ -5153,7 +5184,7 @@ async def release_readiness(version: str, user=Depends(get_current_user)):
     evaluation_summary = result_summary(evals)
     passed = evaluation_summary["passed_records"]
     failed = evaluation_summary["failed_records"]
-    critical_fails = [e for e in evals if e.get("final_result") == "Critical Fail"]
+    critical_fails = [e for e in evals if e.get("normalized_result") == "Critical Fail"]
     evaluated = evaluation_summary["evaluated"]
     pass_rate = evaluation_summary["pass_rate"]
     avg_score = average_score(evals)
@@ -5193,7 +5224,8 @@ async def release_readiness(version: str, user=Depends(get_current_user)):
         recommendation, reason = "GO", "Pass rate ≥ 85%, no critical blockers, no new regressions."
 
     failed_tests = [{"testcase_id": e["testcase_id"], "name": tcs.get(e["testcase_id"], {}).get("name", "?"),
-                     "result": e.get("final_result"), "score": e.get("overall_score"),
+                     "result": e.get("normalized_result"), "raw_result": e.get("final_result"),
+                     "score": e.get("overall_score"),
                      "criticality": tcs.get(e["testcase_id"], {}).get("criticality")} for e in failed]
     decision = await db.release_decisions.find_one({"version": version}, {"_id": 0})
     if decision:
@@ -5722,7 +5754,7 @@ async def analytics_coverage(user=Depends(get_current_user)):
         [
             evaluation for evaluation in evals
             if evaluation.get("model") == "Bassett" and evaluation.get("testcase_id")
-            and evaluation.get("final_result") not in (None, "", "Not Evaluated")
+            and evaluation.get("normalized_result") != "Not Evaluated"
         ],
         lambda evaluation: evaluation["testcase_id"],
     )
@@ -5808,7 +5840,8 @@ async def analytics_competitive(user=Depends(get_current_user)):
                  "benchmark_model": best_m, "benchmark_score": best["overall_score"],
                  "delta": round(best["overall_score"] - bs, 1),
                  "bassett_notes": b.get("notes", ""), "benchmark_notes": best.get("notes", ""),
-                 "bassett_result": b.get("final_result"),
+                 "bassett_result": b.get("normalized_result"),
+                 "bassett_raw_result": b.get("final_result"),
                  "reasons": [{"id": f["id"], "title": f.get("title"), "type": f.get("finding_type")} for f in reason_findings],
                  # weakest Bassett dimensions vs the winning benchmark
                  "dimension_gaps": sorted([
@@ -6166,7 +6199,8 @@ async def variant_comparison(id: str, user=Depends(get_current_user)):
     for t in family:
         e = latest.get(t["id"])
         items.append({"testcase": {k: t.get(k) for k in ("id", "name", "status", "prompts", "criticality", "variant_of")},
-                      "evaluation": {"overall_score": e.get("overall_score"), "final_result": e.get("final_result"),
+                      "evaluation": {"overall_score": e.get("overall_score"), "final_result": e.get("normalized_result"),
+                                     "raw_result": e.get("final_result"),
                                      "notes": e.get("notes", "")} if e else None,
                       "responses": [{"turn": r.get("turn", 1), "response": r.get("response", ""),
                                      "citations": r.get("citations", "")} for r in resp_by_tc.get(t["id"], [])]})
@@ -6318,13 +6352,13 @@ async def dashboard_metric_records(metric: str, user=Depends(get_current_user)):
     latest_regression = _latest_regression_run(runs, version)
 
     definitions = {
-        "bassett-pass-rate": ("Bassett pass-rate denominator", [e for e in current_bassett if e.get("final_result") in EVALUATED_RESULTS],
+        "bassett-pass-rate": ("Bassett pass-rate denominator", [e for e in current_bassett if e.get("normalized_result") in EVALUATED_RESULTS],
                               f"Latest pass/fail Bassett evaluation per active Test Case for {version or 'the active version'}."),
-        "bassett-failed": ("Bassett failed", [e for e in current_bassett if e.get("final_result") in FAIL_SET],
+        "bassett-failed": ("Bassett failed", [e for e in current_bassett if e.get("normalized_result") in FAIL_SET],
                             f"Latest Bassett evaluation per active Test Case for {version or 'the active version'} with a failing result."),
         "bassett-score": ("Bassett score records", [e for e in current_bassett if e.get("overall_score") is not None],
                            f"Scored latest Bassett evaluations for {version or 'the active version'} used by the average."),
-        "all-model-evaluations": ("All model evaluations", [e for e in all_models if e.get("final_result") in EVALUATED_RESULTS],
+        "all-model-evaluations": ("All model evaluations", [e for e in all_models if e.get("normalized_result") in EVALUATED_RESULTS],
                                    "Latest pass/fail evaluation per active Test Case and model."),
         "open-findings": ("Open findings", open_findings, "Findings not in a closed terminal status."),
         "awaiting-fix": ("Awaiting fix", [f for f in open_findings if f.get("developer_status") in FINDING_AWAITING_FIX_STATUSES],
@@ -6350,7 +6384,9 @@ async def dashboard_metric_records(metric: str, user=Depends(get_current_user)):
         if metric in ("bassett-pass-rate", "bassett-failed", "bassett-score", "all-model-evaluations"):
             return {
                 "id": record["id"], "name": (testcase or {}).get("name", record.get("testcase_id", "Unknown Test Case")),
-                "type": record.get("model", "Evaluation"), "status": record.get("final_result") or record.get("status"),
+                "type": record.get("model", "Evaluation"),
+                "status": record.get("normalized_result") or record.get("status"),
+                "raw_status": record.get("final_result"),
                 "value": record.get("overall_score"), "date": (record.get("created_at") or "")[:10],
                 "secondary": record.get("bassett_version") or record.get("environment"), "to": f"/testcases/{record.get('testcase_id')}",
             }
@@ -7174,8 +7210,7 @@ DEFAULT_CONFIG = {
         {"key": "completeness", "label": "Completeness", "weight": 2},
         {"key": "usefulness", "label": "Usefulness", "weight": 3},
     ],
-    "pass_results": ["Pass", "Pass with Minor Issues", "Needs Improvement", "Fail", "Critical Fail",
-                     "Not Enough Evidence", "Not Evaluated"],
+    "pass_results": list(CANONICAL_EVALUATION_RESULTS),
     "roles": ["admin", "qa_manager", "tester", "developer", "viewer"],
     "environments": ["Production", "Staging", "Development", "Experimental"],
     "version_types": ["Major", "Minor", "Patch", "Hotfix", "Experimental"],

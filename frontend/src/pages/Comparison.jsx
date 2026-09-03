@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
-import { PageHeader, CritBadge, ResultBadge, ScorePill, StatusBadge } from "../components/shared";
+import { PageHeader, CritBadge, ResultBadge, ScorePill, StatusBadge, SampleDataBanner, sampleScopeIncludesData } from "../components/shared";
 import { Button } from "../components/ui/button";
 import { Check, ChevronsUpDown, ExternalLink, Flag } from "lucide-react";
 import { formatApiErrorDetail } from "../lib/api";
@@ -167,6 +167,7 @@ export default function Comparison() {
           </div>
         </div>
       </PageHeader>
+      <SampleDataBanner show={sampleScopeIncludesData({ records: [selectedTestCase, data] })} />
       {(testsLoading || testsError) && <QueryState query={testsQuery} resource="comparison test cases" onRetry={refetchTests} testId="comparison-tests" />}
       {!testsLoading && !testsError && tcs.length === 0 && <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">No test cases are available for comparison yet. Create and evaluate a test case first.</div>}
 
