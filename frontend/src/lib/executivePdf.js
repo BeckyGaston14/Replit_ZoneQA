@@ -26,6 +26,7 @@ const CHART_MAX_HEIGHT = 78;
 const TABLE_LINE_HEIGHT = 3.5;
 
 function number(value) {
+  if (value === null || value === undefined || value === "") return null;
   return Number.isFinite(Number(value)) ? Number(value) : null;
 }
 
@@ -273,7 +274,11 @@ export function renderExecutivePdf({ doc, data, chartImages = {}, generated = ne
     kpis.pass_rate == null
       ? "Pass rate is unavailable because no evaluated tests are in scope."
       : `Pass rate is ${fmtPct(kpis.pass_rate)} across ${safeText(kpis.total_evaluated, "0")} evaluated tests.`,
-    `Head-to-head: Bassett won ${safeText(kpis.wins, "0")} tests outright against ChatGPT and Claude and lost ${safeText(kpis.losses, "0")}.`,
+    (Number(kpis.wins || 0) || Number(kpis.losses || 0))
+      ? `Head-to-head: Bassett won ${safeText(kpis.wins, "0")} tests outright against ChatGPT and Claude and lost ${safeText(kpis.losses, "0")}.`
+      : Number(kpis.total_evaluated || 0) > 0
+        ? "No outright head-to-head wins or losses are recorded in the current evaluated scope."
+        : "Head-to-head results are unavailable until comparable model evaluations are recorded.",
     categories.length > 1
       ? `Strongest category: ${categories[0].category} (${fmtScore(categories[0].avg_score)}/10). Weakest: ${categories[categories.length - 1].category} (${fmtScore(categories[categories.length - 1].avg_score)}/10).`
       : null,

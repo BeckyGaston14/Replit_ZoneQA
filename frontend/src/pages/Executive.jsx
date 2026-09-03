@@ -47,7 +47,15 @@ export default function Executive() {
       if (!bytes || bytes.byteLength === 0) throw new Error("The generated PDF was empty.");
       setExportStatus("saving");
       await new Promise((resolve) => requestAnimationFrame(resolve));
-      pdf.save(`Bassett-Executive-Summary-${new Date().toISOString().slice(0, 10)}.pdf`);
+      const blob = new Blob([bytes], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Bassett-Executive-Summary-${new Date().toISOString().slice(0, 10)}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
       toast.success("PDF downloaded — ready to share");
     } catch (e) {
       const message = e instanceof Error && e.message
@@ -64,8 +72,10 @@ export default function Executive() {
 
   const strongest = categories[0];
   const weakest = categories[categories.length - 1];
-  const edge = Number.isFinite(Number(k.bassett_avg)) && Number.isFinite(Number(k.benchmark_avg))
-    ? Math.round((k.bassett_avg - k.benchmark_avg) * 10) / 10
+  const bassettAverage = evaluationScoreOrNull(k.bassett_avg);
+  const benchmarkAverage = evaluationScoreOrNull(k.benchmark_avg);
+  const edge = bassettAverage !== null && benchmarkAverage !== null
+    ? Math.round((bassettAverage - benchmarkAverage) * 10) / 10
     : null;
 
   const takeaways = [
@@ -79,7 +89,9 @@ export default function Executive() {
       : `Pass rate stands at ${fmtPct(k.pass_rate)} across ${plural(k.total_evaluated, "evaluated test")}.`,
     (k.wins || k.losses)
       ? `Head-to-head: Bassett won ${plural(k.wins, "test")} outright against ChatGPT & Claude and lost ${k.losses}.`
-      : "Head-to-head results are unavailable until comparable model evaluations are recorded.",
+      : k.total_evaluated > 0
+        ? "No outright head-to-head wins or losses are recorded in the current evaluated scope."
+        : "Head-to-head results are unavailable until comparable model evaluations are recorded.",
     strongest && weakest && strongest !== weakest
       ? `Strongest category: ${strongest.category} (${fmtScore(strongest.avg_score)}/10). Weakest: ${weakest.category} (${fmtScore(weakest.avg_score)}/10).`
       : null,

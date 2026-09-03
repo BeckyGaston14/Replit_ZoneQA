@@ -56,6 +56,8 @@ function renderPage() {
 beforeEach(() => {
   jest.clearAllMocks();
   useQuery.mockReturnValue({ isLoading: false, isError: false, data });
+  URL.createObjectURL = jest.fn(() => "blob:zoneqa-report");
+  URL.revokeObjectURL = jest.fn();
 });
 
 test("labels wins for Bassett and exposes generating and saving states", async () => {
@@ -65,9 +67,9 @@ test("labels wins for Bassett and exposes generating and saving states", async (
   captureExecutiveChart.mockReturnValue(capturePromise);
   const pdf = {
     output: jest.fn(() => new ArrayBuffer(10)),
-    save: jest.fn(),
   };
   jsPDF.mockImplementation(() => pdf);
+  const downloadClick = jest.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
   const oldRequestAnimationFrame = global.requestAnimationFrame;
   global.requestAnimationFrame = (callback) => { finishFrame = callback; };
   const view = renderPage();
@@ -90,10 +92,12 @@ test("labels wins for Bassett and exposes generating and saving states", async (
 
   expect(renderExecutivePdf).toHaveBeenCalledTimes(1);
   expect(pdf.output).toHaveBeenCalledWith("arraybuffer");
-  expect(pdf.save).toHaveBeenCalledTimes(1);
+  expect(URL.createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
+  expect(downloadClick).toHaveBeenCalledTimes(1);
   expect(toast.success).toHaveBeenCalled();
   expect(button.disabled).toBe(false);
   global.requestAnimationFrame = oldRequestAnimationFrame;
+  downloadClick.mockRestore();
   view.unmount();
 });
 
@@ -116,8 +120,7 @@ test("shows an inline and toast error when PDF generation fails", async () => {
 });
 
 test.each([
-  ["the PDF has no bytes", () => ({ output: jest.fn(() => new ArrayBuffer(0)), save: jest.fn() }), "generated PDF was empty"],
-  ["saving the PDF throws", () => ({ output: jest.fn(() => new ArrayBuffer(10)), save: jest.fn(() => { throw new Error("Download blocked"); }) }), "Download blocked"],
+  ["the PDF has no bytes", () => ({ output: jest.fn(() => new ArrayBuffer(0)) }), "generated PDF was empty"],
 ])("reports an export error when %s", async (_label, createPdf, expectedMessage) => {
   captureExecutiveChart.mockResolvedValue({ dataUrl: "data:image/png;base64,x", width: 10, height: 10 });
   const pdf = createPdf();
@@ -141,3 +144,17 @@ test.each([
   global.requestAnimationFrame = oldRequestAnimationFrame;
   view.unmount();
 });
+
+test("does not manufacture a competitive advantage when scores are unavailable", () => {
+  useQuery.mockReturnValue({
+    isLoading: false,
+    isError: false,
+    data: { ...data, kpis: { ...data.kpis, bassett_avg: null, benchmark_avg: null } },
+  });
+  const view = renderPage();
+  expect(view.container.textContent).toContain("Competitive Edge: —");
+  expect(view.container.textContent).toContain("Competitive score comparison is unavailable");
+  expect(view.container.textContent).not.toContain("outscores the benchmark models");
+  view.unmount();
+});
+

@@ -48,6 +48,7 @@ export default function Admin() {
   const { data: models = [] } = useQuery({ queryKey: ["models"], queryFn: async () => (await api.get("/models")).data, enabled: isAdmin });
   const { data: versions = [], refetch: refetchVersions } = useQuery({ queryKey: ["versions"], queryFn: async () => (await api.get("/versions")).data, enabled: isAdmin });
   const [newItem, setNewItem] = useState({});
+  const [lookupSearch, setLookupSearch] = useState("");
   const [integ, setInteg] = useState(null);
   const [editingUser, setEditingUser] = useState(null);
   const [userConflict, setUserConflict] = useState(null);
@@ -289,17 +290,27 @@ export default function Admin() {
         <TabsList className="max-w-full justify-start overflow-x-auto"><TabsTrigger value="lookups">Lookups</TabsTrigger><TabsTrigger value="dimensions">Scoring Dimensions</TabsTrigger><TabsTrigger value="models">Models</TabsTrigger><TabsTrigger value="versions">Bassett Versions</TabsTrigger><TabsTrigger value="users">Users & Roles</TabsTrigger><TabsTrigger value="integrations" data-testid="tab-integrations">Integrations</TabsTrigger></TabsList>
 
         <TabsContent value="lookups">
+          <div className="mb-4 rounded-xl border bg-card p-4">
+            <Label htmlFor="lookup-search">Find a lookup group or option</Label>
+            <Input id="lookup-search" className="mt-2" placeholder="Search categories, statuses, environments…" value={lookupSearch} onChange={(event) => setLookupSearch(event.target.value)} />
+            <p className="mt-2 text-xs text-muted-foreground">Open only the group you need. Removal controls stay inside the expanded group.</p>
+          </div>
           <div className="grid md:grid-cols-2 gap-4">
-            {LOOKUPS.map(([key, label]) => (
-              <div key={key} className="bg-card border rounded-xl p-4">
-                <h3 className="font-semibold font-display text-[var(--navy)] mb-2 text-sm">{label}</h3>
+            {LOOKUPS.filter(([key, label]) => {
+              const query = lookupSearch.trim().toLowerCase();
+              return !query || label.toLowerCase().includes(query) || key.toLowerCase().includes(query) || (config[key] || []).some((value) => value.toLowerCase().includes(query));
+            }).map(([key, label]) => (
+              <details key={`${key}-${lookupSearch ? "filtered" : "default"}`} open={Boolean(lookupSearch)} className="bg-card border rounded-xl p-4">
+                <summary className="cursor-pointer select-none font-semibold font-display text-[var(--navy)] text-sm">{label} <span className="font-normal text-muted-foreground">({(config[key] || []).length})</span></summary>
+                <div className="mt-3">
                 <div className="flex flex-wrap gap-1.5 mb-2">
                   {(config[key] || []).map((v) => (
                    <span key={v} className="text-xs bg-[var(--paper)] border rounded-full pl-2.5 pr-1 py-0.5 flex items-center gap-1">{v}<button type="button" onClick={() => rmItem(key, v)} aria-label={`Remove ${v} from ${label}`} className="icon-action h-9 w-9 inline-flex items-center justify-center rounded-full hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)]"><X size={12} aria-hidden="true" /></button></span>
                   ))}
                 </div>
                 <div className="flex gap-2"><Input className="h-8 text-sm" placeholder="Add…" aria-label={`Add ${label}`} value={newItem[key] || ""} onChange={(e) => setNewItem({ ...newItem, [key]: e.target.value })} onKeyDown={(e) => e.key === "Enter" && addItem(key)} /><Button type="button" size="icon" className="icon-action" onClick={() => addItem(key)} aria-label={`Add ${label}`}><Plus size={14} aria-hidden="true" /></Button></div>
-              </div>
+                </div>
+              </details>
             ))}
           </div>
         </TabsContent>

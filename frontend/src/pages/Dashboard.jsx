@@ -60,6 +60,10 @@ export default function Dashboard() {
   return (
     <div>
       <PageHeader title="QA Dashboard" subtitle={`Every card opens its exact canonical record set. Active version: ${versionLabel}.`} />
+      {!m.active_version && <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+        <span><strong>Set an active Bassett version</strong> to calculate current-version pass rate, average score, regressions, and release-readiness metrics.</span>
+        <Button asChild size="sm"><Link to="/admin">Manage Bassett versions</Link></Button>
+      </div>}
       <div className="grid gap-4 mb-6 xl:grid-cols-2" aria-label="Dashboard metric groups">
         {groups.map((group) => <section key={group.title} className="rounded-xl border bg-card p-4" data-testid="dashboard-metric-group" aria-labelledby={`dashboard-${group.title.toLowerCase().replace(/\s+/g, "-")}`}>
           <div className="mb-3">
@@ -155,3 +159,4 @@ function InlineError({ error, retry }) {
     <Button size="sm" variant="outline" className="mt-2" onClick={() => retry()}><RefreshCw size={13} className="mr-1" /> Retry</Button>
   </div>;
 }
+
