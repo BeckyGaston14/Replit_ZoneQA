@@ -1448,7 +1448,7 @@ async def reactivate_user(id: str, admin=Depends(require_roles("admin"))):
 
 @api.delete("/users/{id}")
 async def delete_user(id: str, confirm: bool = False, admin=Depends(require_roles("admin"))):
-    if …63119 tokens truncated…ame", "") if active else ""
+    if if id == admin["id"]:        raise HTTPException(409, "You cannot delete your own current account. Ask another active administrator to do this.")ame", "") if active else ""
     current_view = await _evaluation_read_model(
         raw_evaluations, valid_testcase_ids=valid_ids, version=version or None,
     )
