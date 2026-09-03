@@ -70,7 +70,10 @@ jest.mock("../lib/tableSorting", () => ({
 }));
 jest.mock("@tanstack/react-query", () => ({
   useQuery: ({ queryKey }) => ({
-    data: queryKey[0] === "users" ? users : queryKey[0] === "config" ? { environments: [], version_types: [], release_channels: [], integrations: {} } : [],
+    data: queryKey[0] === "users" ? users
+      : queryKey[0] === "config" ? { environments: [], version_types: [], release_channels: [], integrations: {} }
+      : queryKey[0] === "admin-email-status" ? { status: "connected", published_url_configured: true }
+      : [],
     refetch: jest.fn(),
   }),
 }));
@@ -287,3 +290,4 @@ test("the current last active administrator cannot deactivate itself", () => {
   expect(mockApi.post).not.toHaveBeenCalled();
   view.unmount();
 });
+

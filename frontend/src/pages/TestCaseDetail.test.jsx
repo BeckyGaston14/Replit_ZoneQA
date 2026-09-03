@@ -53,7 +53,7 @@ const full = {
   responses: [{ id: "b", model: "Bassett", run_id: "run-1", turn: 1, response: "answer", superseded: false }],
   evaluations: [{
     id: "eval-1", testcase_id: "tc-1", run_id: "run-1", model: "Bassett",
-    scores: { accuracy: 9 }, final_result: "Pass", revision: 2, updated_at: "2026-09-01T04:00:00+00:00",
+    scores: { accuracy: 9 }, final_result: "Pass", notes: "The answer is accurate and supported by the Gold Standard.", revision: 2, updated_at: "2026-09-01T04:00:00+00:00",
   }],
   findings: [], retests: [], activities: [], evidence: [], annotations: [], claims: [], variants: [],
   test_runs: [{ id: "run-1", models: ["Bassett", "ChatGPT", "Claude"], status: "Completed with Errors", slot_status: { Bassett: "completed", ChatGPT: "failed", Claude: "unavailable" } }],
@@ -130,3 +130,4 @@ test("behavior verdict save includes the fetched test case version", async () =>
   }));
   act(() => root.unmount());
 });
+

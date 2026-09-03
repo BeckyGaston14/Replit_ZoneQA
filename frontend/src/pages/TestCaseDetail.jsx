@@ -33,6 +33,7 @@ import { nextSort, sortTableRows, usePersistentTableSort } from "../lib/tableSor
 import { formatTestDate, todayInTimeZone } from "../lib/testDates";
 import { MODEL_COLORS, MODEL_ORDER } from "../lib/modelColors";
 import { QueryState } from "../components/PageState";
+import { SCORE_RUBRIC, hasScoredDimension, scoreRubricReason } from "../lib/scoreRubric";
 
 const ANN_TO_FINDING = {
   "Citation Problem": "citation problem", "Hallucination": "hallucination",
@@ -789,6 +790,9 @@ function EvalModal({ data, setData, config, tc, onDone }) {
   };
   const save = async () => {
     try {
+      if (hasScoredDimension(data.scores) && String(data.notes || "").trim().length < 20) {
+        return toast.error("Explain the selected scores in the Score rationale using at least 20 characters.");
+      }
       const previewResponse = await api.post("/evaluations/score-preview", { scores: data.scores });
       const authoritative = previewResponse.data || {};
       const isOverride = !!authoritative.system_recommended
@@ -832,11 +836,12 @@ function EvalModal({ data, setData, config, tc, onDone }) {
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {DIMS.map(([k, label]) => (
-          <Field key={k} label={label}>
-            <Input type="number" min="0" max="10" value={data.scores[k] ?? ""} onChange={(e) => set(k, e.target.value === "" ? null : Number(e.target.value))} data-testid={`score-${k}`} />
+          <Field key={k} label={label} description={scoreRubricReason(data.scores[k])}>
+            <Input type="number" min="0" max="10" step="1" value={data.scores[k] ?? ""} onChange={(e) => set(k, e.target.value === "" ? null : Number(e.target.value))} data-testid={`score-${k}`} />
           </Field>
         ))}
       </div>
+      <details className="rounded-lg border bg-[var(--paper)] p-3" data-testid="score-rubric"><summary className="cursor-pointer text-sm font-semibold text-[var(--navy)]">View the shared 0–10 scoring rubric</summary><div className="mt-3 grid gap-1 text-xs">{SCORE_RUBRIC.map(([score, reason]) => <div key={score} className="grid grid-cols-[1.5rem_1fr] gap-2"><b>{score}</b><span>{reason}</span></div>)}</div></details>
       {behaviors.length > 0 && (
         <div className="border rounded-lg p-3">
           <div className="text-xs font-bold uppercase text-muted-foreground mb-2">Expected Behaviors — mark each one</div>
@@ -858,7 +863,7 @@ function EvalModal({ data, setData, config, tc, onDone }) {
           <Textarea rows={2} value={data.override_reason || ""} onChange={(e) => setData({ ...data, override_reason: e.target.value })} data-testid="override-reason" />
         </Field>
       )}
-      <Field label="Notes"><Textarea rows={2} value={data.notes || ""} onChange={(e) => setData({ ...data, notes: e.target.value })} /></Field>
+      <Field label="Score rationale" required={hasScoredDimension(data.scores)} description="Identify the answer evidence supporting the scores. Minimum 20 characters when any dimension is scored."><Textarea rows={3} value={data.notes || ""} onChange={(e) => setData({ ...data, notes: e.target.value })} /></Field>
     </FormModal>
   );
 }
@@ -926,3 +931,4 @@ function GoldModal({ open, setOpen, existing, tcId, evidence = [], onDone }) {
     </>
   );
 }
+

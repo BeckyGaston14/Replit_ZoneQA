@@ -71,10 +71,16 @@ export default function Insights() {
   }));
   const dimData = dimensionRows.filter((row) => row.Bassett !== null || row.Benchmarks !== null);
   const weakest = [...dimension_comparison].sort((a, b) => a.gap - b.gap).filter((x) => x.gap < 0).slice(0, 3);
+  const comparisonCount = Object.values(records || {}).reduce((total, record) => total + (record?.wins || 0) + (record?.losses || 0) + (record?.ties || 0), 0);
 
   return (
     <div>
       <PageHeader title="Competitive Insights" subtitle="Exactly where ChatGPT or Claude beat Bassett — and why." />
+      {comparisonCount === 0 && (
+        <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900" role="status">
+          No comparable Bassett and benchmark evaluations are in scope yet. Competitive wins, losses, and dimension gaps will appear after the same test cases have evaluated scores for Bassett and at least one benchmark model.
+        </div>
+      )}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <StatCard label="Benchmark Losses" value={summary.losses} sub={`worst gap −${summary.worst_gap}`} accent="#dc2626" icon={TrendingDown} testid="insights-losses" />
         <StatCard label="Bassett Wins" value={summary.wins} sub="beat best benchmark" accent="#16a34a" icon={Trophy} />
@@ -91,7 +97,7 @@ export default function Insights() {
       <div className="grid lg:grid-cols-2 gap-4 mb-6">
         <div className="space-y-3">
           <h3 className="font-semibold font-display text-[var(--navy)] flex items-center gap-2"><TrendingDown size={16} className="text-red-600" /> Tests where a benchmark beat Bassett ({losses.length})</h3>
-          {losses.length === 0 && <p className="text-sm text-muted-foreground bg-card border rounded-xl p-4">No benchmark losses — Bassett leads or ties on every compared test.</p>}
+          {losses.length === 0 && <p className="text-sm text-muted-foreground bg-card border rounded-xl p-4">{comparisonCount === 0 ? "No head-to-head results are available yet." : "No benchmark losses — Bassett leads or ties on every compared test."}</p>}
           {losses.map((e) => <BattleCard key={e.testcase_id} e={e} type="loss" />)}
           <h3 className="font-semibold font-display text-[var(--navy)] flex items-center gap-2 pt-2"><Trophy size={16} className="text-green-600" /> Tests where Bassett beat both benchmarks ({wins.length})</h3>
           {wins.map((e) => <BattleCard key={e.testcase_id} e={e} type="win" />)}
@@ -116,3 +122,4 @@ export default function Insights() {
     </div>
   );
 }
+
