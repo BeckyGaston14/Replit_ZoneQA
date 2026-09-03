@@ -18,6 +18,7 @@ import { nextSort, sortTableRows, usePersistentTableSort } from "../lib/tableSor
 import { formatTestDate } from "../lib/testDates";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { StatusBadge } from "../lib/statusMaps";
+import { normalizeEvaluationResult } from "../lib/evaluationResults";
 import { ConfirmActionDialog } from "../components/ConfirmActionDialog";
 import {
   TABLE_ACTION_CELL_CLASS, TABLE_CELL_CLASS, TABLE_CLASS, TABLE_EMPTY_CELL_CLASS,
@@ -78,7 +79,7 @@ export default function BassettIssues() {
     { key: "scenario", label: "Scenario", type: "test-id", getValue: (row) => scenarioMap[row.scenario_id]?.stable_id },
     { key: "severity", label: "Severity", type: "severity" },
     { key: "status", label: "Test Status", type: "status", order: testStatuses },
-    { key: "result", label: "Test Result", type: "status", order: ["Pass", "Pass with Notes", "Partial", "Fail", "Blocked", "Not Evaluated", "Incomplete"] },
+    { key: "result", label: "Test Result", type: "status", order: ["Pass", "Pass with Minor Issues", "Needs Improvement", "Fail", "Critical Fail", "Not Evaluated"] },
     { key: "environment", label: "Environment", type: "text" },
     { key: "test_date", label: "Test Date", type: "date" },
   ], [scenarioMap]);
@@ -196,7 +197,7 @@ export default function BassettIssues() {
       {canWrite && !showingFindings && <Button onClick={() => setForm(createBassettTestRunDraft({}, config?.application_timezone))} className="bg-[var(--orange)] hover:bg-[var(--orange-600)]"><Plus size={15} /> New Test Run</Button>}
     </PageHeader>
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-      <StatCard label={showingFindings ? "Open Findings" : "Tests Needing Attention"} value={showingFindings ? (metrics?.findings?.open ?? 0) : (metrics?.test_runs?.attention ?? "—")} sub={showingFindings ? "excludes fixed and closed findings" : "Partial, Fail, or Blocked results"} icon={Flag} accent="#f97316" />
+       <StatCard label={showingFindings ? "Open Findings" : "Tests Needing Attention"} value={showingFindings ? (metrics?.findings?.open ?? 0) : (metrics?.test_runs?.attention ?? "—")} sub={showingFindings ? "excludes fixed and closed findings" : "Needs Improvement, Fail, Critical Fail, or Blocked"} icon={Flag} accent="#f97316" />
       <StatCard label="New" value={showingFindings ? (metrics?.findings?.new ?? 0) : (metrics?.issues?.new ?? "—")} sub="awaiting triage" icon={AlertTriangle} accent="#2563eb" />
       <StatCard label="High impact" value={showingFindings ? (metrics?.findings?.critical ?? 0) : (metrics?.issues?.critical ?? "—")} sub="high / critical severity" icon={ShieldAlert} accent="#dc2626" />
       <StatCard label={showingFindings ? "Total Findings" : "Evaluated scenario coverage"} value={showingFindings ? (metrics?.findings?.total ?? 0) : (metrics ? `${metrics.test_runs.test_bank_coverage.percent}%` : "—")} sub={showingFindings ? "linked to Bassett-only testing" : (metrics ? `${metrics.test_runs.test_bank_coverage.covered}/${metrics.test_runs.test_bank_coverage.total} scenarios with a completed result` : "Drafts and Not Evaluated runs are excluded")} icon={CheckCircle2} accent="#16a34a" />
@@ -266,6 +267,8 @@ function IssueDetail({ id, onClose, onEdit, onRestore, canWrite, canManage, refr
   const drawerRef = useFocusTrap(true, onClose);
   const { data: issue, isLoading } = useQuery({ queryKey: ["bassett-issue", id], queryFn: async () => (await api.get(`/bassett/issues/${id}`)).data });
   if (isLoading || !issue) return <div className="fixed inset-0 z-40 bg-black/20 flex justify-end" role="presentation"><div ref={drawerRef} tabIndex="-1" role="dialog" aria-modal="true" aria-label="Test Run Details" className="bg-card w-full max-w-xl p-6">Loading Test Run Details…</div></div>;
+  const canonicalResult = normalizeEvaluationResult(issue.result);
+  const needsFollowUp = ["Needs Improvement", "Fail", "Critical Fail"].includes(canonicalResult) || issue.status === "Blocked";
   const linkFinding = async () => {
     const findingId = window.prompt("Enter the existing general Finding ID to Link Test Run (no duplicate will be created):");
     if (!findingId) return;

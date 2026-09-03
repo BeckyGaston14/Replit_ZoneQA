@@ -3887,11 +3887,9 @@ async def bassett_metrics(version_id: Optional[str] = None, environment: Optiona
     classified = [(e, _canonical_bassett_result(e.get("result"))) for e in metric_runs]
     completed = [
         e for e, result in classified
-        if result != "Not Evaluated" and e.get("result") != "Blocked"
+        if result != "Not Evaluated" or e.get("result") == "Blocked"
     ]
-    pass_rate_runs = [
-        e for e in completed
-    ]
+    pass_rate_runs = [e for e in completed if e.get("result") != "Blocked"]
     passed_runs = [
         e for e in pass_rate_runs if _canonical_bassett_result(e.get("result")) in PASS_SET
     ]
@@ -3921,7 +3919,10 @@ async def bassett_metrics(version_id: Optional[str] = None, environment: Optiona
     ]
     covered_scenarios = {
         e.get("scenario_id") for e in metric_runs
-        if _bassett_result_details(e.get("result"))["canonical_result"] != "Not Evaluated"
+        if (
+            _bassett_result_details(e.get("result"))["canonical_result"] != "Not Evaluated"
+            or e.get("result") == "Blocked"
+        )
         and e.get("scenario_id") in active_scenario_ids
     }
     test_bank_coverage = {
@@ -5524,7 +5525,7 @@ Return ONLY JSON, no other text:
 
 def _evaluation_recommendation(weighted_score):
     if weighted_score is None:
-        return "Not Enough Evidence"
+        return "Not Evaluated"
     if weighted_score >= 8.5:
         return "Pass"
     if weighted_score >= 7:

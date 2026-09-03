@@ -56,7 +56,7 @@ test("Bassett result colors use green, yellow, and red status semantics", () => 
   expect(RESULT_COLORS["Pass with Minor Issues"]).toBe("#f59e0b");
   expect(RESULT_COLORS["Needs Improvement"]).toBe("#f59e0b");
   expect(RESULT_COLORS.Partial).toBe("#f59e0b");
-  expect(RESULT_COLORS.Blocked).toBe("#f59e0b");
+  expect(RESULT_COLORS.Blocked).toBe("#64748b");
   expect(RESULT_COLORS.Fail).toBe("#dc2626");
   expect(RESULT_COLORS["Critical Fail"]).toBe("#b91c1c");
 });

@@ -416,7 +416,7 @@ def test_bassett_routes_do_not_replace_general_workflows():
 
 
 def test_bassett_canonical_results_keep_legacy_values_visible():
-    assert set(("Pass", "Pass with Notes", "Partial", "Fail", "Blocked", "Not Evaluated")).issubset(
+    assert set(("Pass", "Pass with Minor Issues", "Needs Improvement", "Fail", "Critical Fail", "Not Evaluated")).issubset(
         server.BASSETT_RESULTS
     )
     assert set(("Pass", "Fail", "Blocked", "Incomplete")).issubset(server.BASSETT_RESULTS)
@@ -424,7 +424,8 @@ def test_bassett_canonical_results_keep_legacy_values_visible():
     assert legacy["result"] == "Incomplete"
     assert legacy["canonical_result"] == "Not Evaluated"
     assert legacy["legacy_result"] is True
-    assert "legacy" in legacy["result_label"]
+    assert legacy["result_label"] == "Not Evaluated"
+    assert legacy["legacy_result"] is True
 
 
 def test_latest_regression_run_uses_execution_time_not_test_date():

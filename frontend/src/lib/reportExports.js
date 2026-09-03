@@ -1,5 +1,6 @@
 const COMPARISON_MODELS = new Set(["Bassett", "ChatGPT", "Claude"]);
 import { calculateComparisonScore } from "./comparison";
+import { normalizeEvaluationResult } from "./evaluationResults";
 
 const REPORT_SCOPES = {
   qa_summary: "All persisted QA records.",
@@ -172,13 +173,14 @@ export function buildReportPayload({ kind, stats, testcases = [], findings = [],
     const calculation = calculateComparisonScore(evaluation, evaluationDimensions);
     return {
       ...evaluation,
+      final_result: normalizeEvaluationResult(evaluation.final_result),
       overall_score: calculation.score,
       weighted_score: calculation.score,
       score_mode: calculation.weightsActive ? "weighted" : "average",
       score_label: calculation.scoreLabel,
       weight_explanation: calculation.weightExplanation,
       system_recommended: calculation.score === null
-        ? "Not Enough Evidence"
+        ? "Not Evaluated"
         : calculation.score >= 8.5 ? "Pass"
           : calculation.score >= 7 ? "Pass with Minor Issues"
             : calculation.score >= 5 ? "Needs Improvement"

@@ -19,6 +19,7 @@ import { FormModal, Field, ListSelect } from "../components/forms";
 import { ArrowLeft, Plus, Flag, Columns3, Star, Zap, Play, Loader2, Sparkles, CopyPlus, GitBranch, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { RESULT_COLORS } from "../lib/api";
+import { CANONICAL_EVALUATION_RESULTS, normalizeEvaluationResult } from "../lib/evaluationResults";
 import { SortableTableHeader } from "../components/SortableTableHeader";
 import { TableSortControls } from "../components/TableSortControls";
 import { TestCaseActions } from "../components/TestCaseActions";
@@ -758,7 +759,7 @@ function EvalModal({ data, setData, config, tc, onDone }) {
       .then(({ data: result }) => {
         if (active) setCalculation({
           overall_score: result?.overall_score ?? null,
-          system_recommended: result?.system_recommended || "Not Enough Evidence",
+          system_recommended: result?.system_recommended || "Not Evaluated",
           system_explanation: result?.system_explanation || "No scored dimensions.",
         });
       })
@@ -858,7 +859,7 @@ function EvalModal({ data, setData, config, tc, onDone }) {
         <b className="text-indigo-800">System recommends: {calculationPending ? "Calculating…" : calculationError ? "Unavailable" : sysRec}</b>
         <span className="text-xs text-indigo-700 ml-2">{calculationError || (weighted != null ? `weighted score ${weighted}/10` : "no dimensions scored yet")} {!calculationError && "— the reviewer decision below is final."}</span>
       </div>
-      <Field label="Reviewer Final Result"><ListSelect options={[...(config?.pass_results || []), "Not Enough Evidence", "Not Evaluated"].filter((v, i, a) => a.indexOf(v) === i)} value={data.final_result} onChange={(v) => setData({ ...data, final_result: v })} testid="eval-result" /></Field>
+      <Field label="Reviewer Final Result"><ListSelect options={CANONICAL_EVALUATION_RESULTS} value={normalizeEvaluationResult(data.final_result)} onChange={(v) => setData({ ...data, final_result: v })} testid="eval-result" /></Field>
       {overridden && (
         <Field label={`Override reason (system said ${sysRec})`}>
           <Textarea rows={2} value={data.override_reason || ""} onChange={(e) => setData({ ...data, override_reason: e.target.value })} data-testid="override-reason" />

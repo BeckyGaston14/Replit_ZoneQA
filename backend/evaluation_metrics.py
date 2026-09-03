@@ -134,7 +134,7 @@ def score_evaluation(scores, dimensions):
         else "Arithmetic mean of scored dimensions; missing dimensions are excluded."
     )
     if score is None:
-        recommendation = "Not Enough Evidence"
+        recommendation = "Not Evaluated"
         explanation = "No scored dimensions."
     else:
         recommendation = next(

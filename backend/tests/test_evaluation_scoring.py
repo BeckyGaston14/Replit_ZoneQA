@@ -32,11 +32,11 @@ def test_weighted_score_and_recommendation_use_configured_dimensions(monkeypatch
     assert "Weighted dimension average 8.0/10" in result["system_explanation"]
 
 
-def test_unscored_evaluation_is_not_enough_evidence(monkeypatch):
+def test_unscored_evaluation_is_not_evaluated(monkeypatch):
     monkeypatch.setattr(server, "db", _Db())
     result = asyncio.run(server._evaluation_score_fields({"accuracy": None}))
     assert result["overall_score"] is None
-    assert result["system_recommended"] == "Not Enough Evidence"
+    assert result["system_recommended"] == "Not Evaluated"
 
 
 def test_score_values_outside_zero_to_ten_are_rejected(monkeypatch):
@@ -70,7 +70,7 @@ def test_client_derived_fields_are_ignored_even_without_scores(monkeypatch):
     result = asyncio.run(server._apply_authoritative_evaluation_fields(incoming))
     assert result["overall_score"] is None
     assert result["weighted_score"] is None
-    assert result["system_recommended"] == "Not Enough Evidence"
+    assert result["system_recommended"] == "Not Evaluated"
     assert result["system_explanation"] == "No scored dimensions."
 
 

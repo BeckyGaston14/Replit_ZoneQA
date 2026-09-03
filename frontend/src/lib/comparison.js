@@ -1,3 +1,5 @@
+import { normalizeEvaluationResult } from "./evaluationResults";
+
 export const FALLBACK_COMPARISON_DIMENSIONS = [
   { key: "accuracy", label: "Accuracy" },
   { key: "citation_accuracy", label: "Citation Quality" },
@@ -75,7 +77,7 @@ export function evaluationIsComplete(evaluation, configuredDimensions) {
   return !!evaluation
     && Number.isFinite(Number(score))
     && !!evaluation.final_result
-    && evaluation.final_result !== "Not Evaluated"
+    && normalizeEvaluationResult(evaluation.final_result) !== "Not Evaluated"
     && !!evaluation.scores
     && typeof evaluation.scores === "object";
 }

@@ -1,10 +1,25 @@
 from evaluation_metrics import (
+    CANONICAL_EVALUATION_RESULTS,
     authoritative_score_update,
     average_score,
+    evaluation_result_details,
     latest_evaluations,
+    normalize_evaluation_result,
     result_summary,
     score_evaluation,
 )
+
+
+def test_evaluation_results_normalize_legacy_values_without_losing_provenance():
+    assert CANONICAL_EVALUATION_RESULTS == (
+        "Pass", "Pass with Minor Issues", "Needs Improvement",
+        "Fail", "Critical Fail", "Not Evaluated",
+    )
+    assert normalize_evaluation_result("Pass with Notes") == "Pass with Minor Issues"
+    assert normalize_evaluation_result("Partial") == "Needs Improvement"
+    assert normalize_evaluation_result("Blocked") == "Not Evaluated"
+    assert evaluation_result_details("Blocked")["is_workflow_state"] is True
+    assert evaluation_result_details("Pass with Notes")["is_legacy"] is True
 
 
 DIMENSIONS = [
@@ -31,7 +46,7 @@ def test_score_evaluation_thresholds_and_empty_scores_are_authoritative():
     assert score_evaluation({"accuracy": 5}, DIMENSIONS)["system_recommended"] == "Needs Improvement"
     assert score_evaluation({"accuracy": 3}, DIMENSIONS)["system_recommended"] == "Fail"
     assert score_evaluation({"accuracy": 2.9}, DIMENSIONS)["system_recommended"] == "Critical Fail"
-    assert score_evaluation({}, DIMENSIONS)["system_recommended"] == "Not Enough Evidence"
+    assert score_evaluation({}, DIMENSIONS)["system_recommended"] == "Not Evaluated"
 
 
 def test_latest_and_denominator_helpers_preserve_reviewer_results():
@@ -50,6 +65,20 @@ def test_latest_and_denominator_helpers_preserve_reviewer_results():
     assert summary["evaluated"] == 1
     assert summary["pass_rate"] == 100.0
     assert average_score(latest) == 8.0
+
+
+def test_result_summary_normalizes_legacy_results_and_excludes_blocked():
+    summary = result_summary([
+        {"id": "pass", "final_result": "Pass with Notes"},
+        {"id": "improve", "final_result": "Partial"},
+        {"id": "blocked", "final_result": "Blocked"},
+        {"id": "empty", "final_result": "Not Evaluated"},
+    ])
+
+    assert summary["passed"] == 1
+    assert summary["failed"] == 0
+    assert summary["evaluated"] == 1
+    assert summary["passed_records"][0]["id"] == "pass"
 
 
 def test_authoritative_write_strips_injected_derived_fields():
