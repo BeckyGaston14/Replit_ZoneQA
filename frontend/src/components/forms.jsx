@@ -37,9 +37,10 @@ export function Field({ label, children, required = false, error, description })
 }
 
 // Searchable select with inline "Add new" for relational records
-export function SelectOrAdd({ collection, valueField = "id", labelFn, value, onChange, placeholder, addFields, addDefaults = {}, requiredContext = [], testid, id, required = false, "aria-invalid": ariaInvalid, "aria-describedby": ariaDescribedby }) {
+export function SelectOrAdd({ collection, valueField = "id", labelFn, value, onChange, placeholder, addFields, addDefaults = {}, requiredContext = [], testid, id, required = false, activeOnly = false, "aria-invalid": ariaInvalid, "aria-describedby": ariaDescribedby }) {
   const qc = useQueryClient();
   const { data: items = [] } = useCollection(collection);
+  const visibleItems = activeOnly ? items.filter((item) => item.active !== false && !item.deleted_at) : items;
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({});
   const [pending, setPending] = useState(false);
@@ -83,7 +84,7 @@ export function SelectOrAdd({ collection, valueField = "id", labelFn, value, onC
         <Select value={value || ""} onValueChange={onChange} disabled={pending}>
           <SelectTrigger id={id || testid || addPrefix} data-testid={testid} aria-required={required || undefined} aria-invalid={ariaInvalid || undefined} aria-describedby={ariaDescribedby} className="flex-1"><SelectValue placeholder={placeholder} /></SelectTrigger>
           <SelectContent>
-            {items.map((it) => <SelectItem key={it[valueField]} value={it[valueField]}>{labelFn(it)}</SelectItem>)}
+            {visibleItems.map((it) => <SelectItem key={it[valueField]} value={it[valueField]}>{labelFn(it)}</SelectItem>)}
           </SelectContent>
         </Select>
         {addFields && (

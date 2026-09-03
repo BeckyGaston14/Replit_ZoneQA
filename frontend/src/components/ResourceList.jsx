@@ -176,7 +176,7 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
         ) : f.type === "dim" ? (
           <DimSelect config={config} keyName={f.configKey} value={form[f.key]} onChange={(v) => set(f.key, v)} testid={`field-${f.key}`} required={f.required} />
         ) : f.type === "relation" ? (
-          <SelectOrAdd collection={f.collection} labelFn={f.labelFn} value={form[f.key]} onChange={(v) => set(f.key, v)} placeholder={`Select ${f.label}`} addFields={f.addFields} testid={`field-${f.key}`} required={f.required} />
+          <SelectOrAdd collection={f.collection} labelFn={f.labelFn} value={form[f.key] ?? form[f.canonicalKey]} onChange={(v) => { set(f.key, v); if (f.canonicalKey) set(f.canonicalKey, v); }} placeholder={`Select ${f.label}`} addFields={f.addFields} activeOnly={f.activeOnly} testid={`field-${f.key}`} required={f.required} />
         ) : (
           <Input type={f.type || "text"} min={f.min} max={f.max} value={form[f.key] || ""} onChange={(e) => set(f.key, e.target.value)} data-testid={`field-${f.key}`} />
         )}

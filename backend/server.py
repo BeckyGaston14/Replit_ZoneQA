@@ -847,7 +847,7 @@ USER_ROLE_LABELS = {
     "developer": "Developer", "viewer": "Viewer",
 }
 USER_REFERENCE_FIELDS = {
-    "projects": ("owner_id",),
+    "projects": ("owner_user_id", "owner_id"),
     "testcases": ("assignee_id", "assigned_to_id", "created_by_id"),
     "findings": ("assignee_id", "assigned_to_id", "created_by_id"),
     "retests": ("reviewer_id", "assigned_to_id", "created_by_id"),
@@ -1639,6 +1639,27 @@ async def _validate_user_references(coll, incoming, existing=None):
         if not account:
             raise HTTPException(400, f"{field} must reference an active user")
 
+
+async def _normalize_project_owner(incoming):
+    """Use owner_user_id as the canonical field while keeping legacy clients working."""
+    if "owner_user_id" not in incoming and "owner_id" in incoming:
+        incoming["owner_user_id"] = incoming.get("owner_id")
+    if "owner_user_id" not in incoming:
+        return
+    owner_id = incoming.get("owner_user_id")
+    if owner_id in (None, ""):
+        incoming["owner_user_id"] = None
+        incoming["owner_id"] = None
+        return
+    owner = await db.users.find_one(
+        {"id": str(owner_id), "active": {"$ne": False}, "deleted_at": {"$exists": False}},
+        {"_id": 0, "id": 1},
+    )
+    if not owner:
+        raise HTTPException(400, "owner_user_id must reference an active user")
+    incoming["owner_user_id"] = owner["id"]
+    incoming["owner_id"] = owner["id"]
+
 def _require_fresh_version(existing, supplied):
     """Optional optimistic lock shared by normal JSON edit routes.
 
@@ -1725,6 +1746,8 @@ async def crud_create(coll, body, user):
             raise HTTPException(403, "Only administrators and QA managers can manage models")
         doc = _normalize_model(doc)
     _validate_resource_required_fields(coll, doc)
+    if coll == "projects":
+        await _normalize_project_owner(doc)
     await _validate_user_references(coll, doc)
     if coll == "retests":
         raise HTTPException(409, "Retests must be started from a finding")
@@ -1826,6 +1849,7 @@ async def crud_update(coll, id, body, user):
         raise HTTPException(409, "Archived records are immutable; historical reads are preserved")
     _require_fresh_version(existing_for_references, body)
     if coll == "projects":
+        await _normalize_project_owner(body)
         _prepare_project_completion_input(body, existing_for_references)
     if coll == "evaluations":
         await _apply_authoritative_evaluation_fields(body, existing_for_references)
@@ -4279,7 +4303,7 @@ async def projects_enriched(user=Depends(get_current_user)):
     users = {record["id"]: record for record in await crud_list("users") if record.get("active", True)}
     last_tested = await _current_project_last_tested_dates(projects)
     for project in projects:
-        linked_owner = users.get(project.get("owner_id"), {})
+        linked_owner = users.get(project.get("owner_user_id") or project.get("owner_id"), {})
         project["owner"] = linked_owner.get("name") or project.get("owner")
         project["last_tested_date"] = last_tested.get(project.get("id"))
         project["last_tested_scope"] = (
@@ -6628,9 +6652,9 @@ async def data_integrity(user=Depends(get_current_user)):
     for project_id, project in projects.items():
         if project.get("archived"):
             continue
-        if not project.get("owner_id"):
+        if not project.get("owner_user_id"):
             add("project", project_id, project.get("name", "?"),
-                "Project owner is not linked to a ZoneQA user", "medium",
+                "Project owner is not linked through owner_user_id to a ZoneQA user", "medium",
                 "Select an active user in the project Owner field", "/projects")
         municipality_ids = {
             tc.get("municipality_id") for tc in active_testcases

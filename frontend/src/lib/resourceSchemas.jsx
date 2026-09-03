@@ -57,7 +57,9 @@ export const PROJECT_SCHEMA = {
   fields: [
     { key: "name", label: "Project Name", required: true, col: 2 },
     { key: "description", label: "Description", type: "textarea", col: 2 },
-    { key: "owner_id", label: "Owner", type: "relation", collection: "users", labelFn: (user) => user.name },
+    // Keep owner_id as the form's compatibility key; ResourceList mirrors it
+    // into owner_user_id for the canonical backend field.
+    { key: "owner_id", canonicalKey: "owner_user_id", label: "Owner", type: "relation", collection: "users", labelFn: (user) => user.name, activeOnly: true },
     { key: "priority", label: "Priority", type: "select", options: ["Low", "Medium", "High", "Critical"] },
     { key: "status", label: "Status", type: "select", options: ["Active", "On Hold", "Completed", "Archived"] },
     { key: "bassett_version", label: "Bassett Version", type: "relation", collection: "versions", labelFn: (version) => version.name },
