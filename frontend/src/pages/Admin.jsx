@@ -70,6 +70,7 @@ export default function Admin() {
   const [userActionBusy, setUserActionBusy] = useState(false);
   const [welcomeEmailBusy, setWelcomeEmailBusy] = useState(null);
   const [passwordResetBusy, setPasswordResetBusy] = useState(null);
+  const [sampleDataBusy, setSampleDataBusy] = useState(false);
   const [passwordResetResult, setPasswordResetResult] = useState(null);
   const [copiedReset, setCopiedReset] = useState(false);
   const emptyVersion = { name: "", release_number: "", release_date: "", environment: "Staging", version_type: "", release_channel: "", active: true };
@@ -298,6 +299,20 @@ export default function Admin() {
     setInteg(null); refetch();
   };
 
+  const loadSampleData = async () => {
+    setSampleDataBusy(true);
+    try {
+      const { data } = await api.post("/sample-data?confirm=true");
+      toast.success(data.loaded ? `Sample dataset loaded: ${data.testcases} comparison tests.` : "The sample dataset is already loaded.");
+      await Promise.all([refetchModels(), refetchVersions()]);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Unable to load the sample dataset");
+    } finally {
+      setSampleDataBusy(false);
+      setConfirmingAction(null);
+    }
+  };
+
   if (!isAdmin) return (
     <div>
       <PageHeader title="Administration" subtitle="Administration access is restricted to administrators." />
@@ -450,15 +465,13 @@ export default function Admin() {
               <div><Label htmlFor="new-user-email">Email</Label><Input id="new-user-email" type="email" autoComplete="email" value={newUser.email} onChange={(e) => setNewUser({...newUser, email: e.target.value})} required /></div>
               <div><Label htmlFor="new-user-role">Role</Label><select id="new-user-role" value={newUser.role} onChange={(e) => setNewUser({...newUser, role: e.target.value})} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm" required>{ROLES.map((role) => <option key={role} value={role}>{userRoleLabel(role)}</option>)}</select></div>
               <label htmlFor="new-user-active" className="flex items-center gap-2 pt-6 text-sm"><input id="new-user-active" type="checkbox" checked={newUser.active} onChange={(e) => setNewUser({...newUser, active: e.target.checked})} /> Active now</label>
-                {welcomeEmailReady ? <div className="md:col-span-4 rounded-lg border border-[var(--orange)]/30 bg-[var(--paper)]/60 p-3">
+               {welcomeEmailReady ? <div className="md:col-span-4 rounded-lg border border-[var(--orange)]/30 bg-[var(--paper)]/60 p-3">
                  <label htmlFor="new-user-welcome-email" aria-describedby="new-user-welcome-email-help" className="flex items-start gap-2 text-sm font-semibold text-[var(--navy)]">
-                    <input id="new-user-welcome-email" type="checkbox" className="mt-0.5 h-4 w-4 shrink-0" checked={newUser.send_welcome_email !== false} onChange={(e) => setNewUser({...newUser, send_welcome_email: e.target.checked})} />
+                   <input id="new-user-welcome-email" type="checkbox" className="mt-0.5 h-4 w-4 shrink-0" checked={newUser.send_welcome_email !== false} onChange={(e) => setNewUser({...newUser, send_welcome_email: e.target.checked})} />
                    <span>Send welcome email with secure setup link</span>
                  </label>
-                  <p id="new-user-welcome-email-help" className="ml-6 mt-1 text-xs text-muted-foreground">The recipient will receive a single-use link valid for 24 hours and will create their own password.</p>
-                </div> : <div className="md:col-span-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950" role="status">
-                  Welcome email delivery is unavailable because Gmail or the published app URL is not configured. Create the user, then copy and share the one-time setup link securely.
-                </div>}
+                 <p id="new-user-welcome-email-help" className="ml-6 mt-1 text-xs text-muted-foreground">The recipient will receive a single-use link valid for 24 hours and will create their own password.</p>
+               </div> : <div className="md:col-span-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" role="status">Welcome email delivery is unavailable because Gmail or the published app URL is not configured. Create the user, then copy and share the one-time setup link securely.</div>}
             </div>
             <div className="flex gap-2"><Button type="submit"><Plus size={14} /> Create user</Button><Button type="button" variant="outline" onClick={() => setAddingUser(false)}>Cancel</Button></div>
           </form>}
@@ -509,7 +522,7 @@ export default function Admin() {
                   {u.active === false
                     ? <Button size="sm" variant="outline" onClick={()=>toggleUser(u)} aria-label={`Reactivate ${u.name}`}><UserCheck size={14}/> Reactivate</Button>
                     : <Button size="sm" variant="outline" disabled={!!userActionBlock(u, "deactivate")} title={userActionBlock(u, "deactivate")} onClick={()=>toggleUser(u)} aria-label={`Deactivate ${u.name}`}><UserX size={14}/> Deactivate</Button>}
-                   {welcomeEmailReady && !u.password_login_ready && u.active !== false && !u.deleted_at && <Button size="sm" variant="outline" disabled={welcomeEmailBusy === u.id} onClick={()=>resendWelcomeEmail(u)} aria-label={`Resend welcome email to ${u.name}`} title="Resend the 24-hour setup link"><RefreshCw size={14}/> {welcomeEmailBusy === u.id ? "Sending…" : "Resend invite"}</Button>}
+                  {welcomeEmailReady && !u.password_login_ready && u.active !== false && !u.deleted_at && <Button size="sm" variant="outline" disabled={welcomeEmailBusy === u.id} onClick={()=>resendWelcomeEmail(u)} aria-label={`Resend welcome email to ${u.name}`} title="Resend the 24-hour setup link"><RefreshCw size={14}/> {welcomeEmailBusy === u.id ? "Sending…" : "Resend invite"}</Button>}
                   {u.active === false && <Button size="sm" variant="destructive" disabled={u.id === me?.id} title={u.id === me?.id ? userActionBlock(u, "delete") : undefined} onClick={()=>deleteUser(u)} aria-label={`Delete ${u.name} permanently`}><Trash2 size={14}/> Delete permanently</Button>}
                 </div></td>
               </tr>
@@ -578,6 +591,11 @@ export default function Admin() {
               {!emailStatus?.published_url_configured && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" role="alert"><strong>Published app URL is missing.</strong> Add ZONEQA_APP_URL before sending setup links.</div>}
               <Button type="button" variant="outline" onClick={()=>refetchEmailStatus()}><RefreshCw size={14}/> Refresh Gmail status</Button>
             </div>
+            <div className="bg-card border rounded-xl p-5 space-y-3" data-testid="sample-data-configuration">
+              <h3 className="font-semibold font-display text-[var(--navy)]">Sample metric-verification data</h3>
+              <p className="text-sm text-muted-foreground">Add 10 clearly labeled sample comparisons with linked models, versions, projects, municipalities, evidence, findings, retests, regression runs, and demo records. Existing records are never deleted or overwritten.</p>
+              <Button type="button" variant="outline" disabled={sampleDataBusy} onClick={() => setConfirmingAction({ type: "sample-data" })}>{sampleDataBusy ? "Loading sample data…" : "Load sample dataset"}</Button>
+            </div>
           </div>
           <div className="mt-4">
             <Button data-testid="save-integrations-btn" disabled={!integ} onClick={saveIntegrations} className="bg-[var(--orange)] hover:bg-[var(--orange-600)]">Save Integration Settings</Button>
@@ -587,9 +605,11 @@ export default function Admin() {
       <ConfirmActionDialog
         open={!!confirmation}
         onOpenChange={(open) => !open && setConfirmingAction(null)}
-         title={confirmation?.type === "deactivate" ? `Deactivate ${confirmation.user.name}?` : confirmation?.type === "reactivate" ? `Reactivate ${confirmation.user.name}?` : confirmation?.type === "delete-user" ? `Delete ${confirmation.user.name}?` : confirmation?.type === "resend-welcome" ? `Resend welcome email to ${confirmation.user.name}?` : confirmation?.type === "password-reset" ? `Send password reset link to ${confirmation.user.name}?` : confirmation?.type === "delete-model" ? `Delete ${confirmation.model.name}?` : `Delete ${confirmation?.version?.name || "Bassett version"}?`}
+         title={confirmation?.type === "sample-data" ? "Load the sample QA dataset?" : confirmation?.type === "deactivate" ? `Deactivate ${confirmation.user.name}?` : confirmation?.type === "reactivate" ? `Reactivate ${confirmation.user.name}?` : confirmation?.type === "delete-user" ? `Delete ${confirmation.user.name}?` : confirmation?.type === "resend-welcome" ? `Resend welcome email to ${confirmation.user.name}?` : confirmation?.type === "password-reset" ? `Send password reset link to ${confirmation.user.name}?` : confirmation?.type === "delete-model" ? `Delete ${confirmation.model.name}?` : `Delete ${confirmation?.version?.name || "Bassett version"}?`}
         description={confirmation?.type === "deactivate"
           ? "Deactivation prevents future sign-ins and revokes this user’s active sessions. Historical ownership, assignments, evaluations, findings, and audit records will be preserved."
+          : confirmation?.type === "sample-data"
+            ? "This adds clearly labeled sample records for validating every dashboard and report. Existing records are preserved. Running it again will not create duplicates."
           : confirmation?.type === "reactivate"
             ? "This user will be able to sign in and receive new assignments again. Their historical records have remained unchanged."
           : confirmation?.type === "delete-user"
@@ -599,11 +619,12 @@ export default function Admin() {
            : confirmation?.type === "password-reset"
              ? "This emails a single-use password reset link that expires in one hour. The user creates their own password; administrators never see it."
             : confirmation?.type === "delete-model" ? "The model can be deleted only when it is not referenced by responses, evaluations, or test runs. Deactivate it instead when history exists." : "This is allowed only when the Bassett version is not referenced by historical evaluations or regression runs."}
-         confirmLabel={confirmation?.type === "deactivate" ? "Deactivate user" : confirmation?.type === "reactivate" ? "Reactivate user" : confirmation?.type === "resend-welcome" ? "Resend welcome email" : confirmation?.type === "password-reset" ? "Send reset link" : "Delete permanently"}
-         destructive={confirmation?.type !== "reactivate" && confirmation?.type !== "resend-welcome" && confirmation?.type !== "password-reset"}
+         confirmLabel={confirmation?.type === "sample-data" ? "Load sample dataset" : confirmation?.type === "deactivate" ? "Deactivate user" : confirmation?.type === "reactivate" ? "Reactivate user" : confirmation?.type === "resend-welcome" ? "Resend welcome email" : confirmation?.type === "password-reset" ? "Send reset link" : "Delete permanently"}
+         destructive={confirmation?.type !== "sample-data" && confirmation?.type !== "reactivate" && confirmation?.type !== "resend-welcome" && confirmation?.type !== "password-reset"}
          busy={userActionBusy || welcomeEmailBusy === confirmation?.user?.id || passwordResetBusy === confirmation?.user?.id}
         onConfirm={() => {
-          if (confirmation?.type === "deactivate" || confirmation?.type === "reactivate") performToggleUser(confirmation.user);
+          if (confirmation?.type === "sample-data") loadSampleData();
+          else if (confirmation?.type === "deactivate" || confirmation?.type === "reactivate") performToggleUser(confirmation.user);
           else if (confirmation?.type === "delete-user") performDeleteUser(confirmation.user);
           else if (confirmation?.type === "resend-welcome") performResendWelcomeEmail(confirmation.user);
           else if (confirmation?.type === "password-reset") performPasswordReset(confirmation.user);
