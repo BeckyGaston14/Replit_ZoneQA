@@ -33,7 +33,8 @@ import { nextSort, sortTableRows, usePersistentTableSort } from "../lib/tableSor
 import { formatTestDate, todayInTimeZone } from "../lib/testDates";
 import { MODEL_COLORS, MODEL_ORDER } from "../lib/modelColors";
 import { QueryState } from "../components/PageState";
-import { SCORE_RUBRIC, hasScoredDimension, scoreRubricReason } from "../lib/scoreRubric";
+import { SCORE_RUBRIC, hasScoredDimension } from "../lib/scoreRubric";
+import { ScoreSelect } from "../components/ScoreSelect";
 
 const ANN_TO_FINDING = {
   "Citation Problem": "citation problem", "Hallucination": "hallucination",
@@ -620,7 +621,7 @@ function CompleteRetestModal({ rt, setRt, onDone, applicationTimeZone }) {
       <Field label="Test Date *"><Input required type="date" value={f.test_date} onChange={(e) => set("test_date", e.target.value)} /></Field>
       <Field label="New Bassett Response (raw)"><Textarea rows={4} value={f.new_response} onChange={(e) => set("new_response", e.target.value)} data-testid="retest-response" /></Field>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field label="New Score (0-10)"><Input type="number" min="0" max="10" step="0.1" value={f.new_score} onChange={(e) => set("new_score", e.target.value)} data-testid="retest-score" /></Field>
+        <Field label="New Score (0-10)"><ScoreSelect value={f.new_score} onChange={(value) => set("new_score", value ?? "")} testId="retest-score" ariaLabel="New retest score" /></Field>
         <Field label="New Result"><ListSelect options={["Pass", "Pass with Minor Issues", "Needs Improvement", "Fail", "Critical Fail"]} value={f.new_result} onChange={(v) => set("new_result", v)} /></Field>
       </div>
       <Field label="Reviewer Notes"><Textarea rows={2} value={f.notes} onChange={(e) => set("notes", e.target.value)} /></Field>
@@ -836,8 +837,8 @@ function EvalModal({ data, setData, config, tc, onDone }) {
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {DIMS.map(([k, label]) => (
-          <Field key={k} label={label} description={scoreRubricReason(data.scores[k])}>
-            <Input type="number" min="0" max="10" step="1" value={data.scores[k] ?? ""} onChange={(e) => set(k, e.target.value === "" ? null : Number(e.target.value))} data-testid={`score-${k}`} />
+          <Field key={k} label={label}>
+            <ScoreSelect value={data.scores[k]} onChange={(value) => set(k, value)} testId={`score-${k}`} ariaLabel={`${label} score`} />
           </Field>
         ))}
       </div>
