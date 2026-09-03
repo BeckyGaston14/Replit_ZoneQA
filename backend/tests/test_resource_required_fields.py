@@ -54,3 +54,20 @@ def test_score_preview_has_one_writer_only_route():
     ]
     assert len(routes) == 1
     assert [dependency.call for dependency in routes[0].dependant.dependencies] == [server.require_writer]
+
+
+def test_model_input_is_trimmed_and_defaults_are_consistent():
+    assert server._normalize_model({"name": "  ChatGPT  ", "provider": " OpenAI "}) == {
+        "name": "ChatGPT",
+        "provider": "OpenAI",
+        "role_type": "Benchmark",
+        "active": True,
+    }
+
+
+def test_model_type_must_be_primary_or_benchmark():
+    with pytest.raises(HTTPException) as exc:
+        server._normalize_model({"name": "Unknown", "role_type": "Other"})
+    assert exc.value.status_code == 400
+    assert "Primary or Benchmark" in exc.value.detail
+
