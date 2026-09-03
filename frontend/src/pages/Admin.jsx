@@ -73,6 +73,7 @@ export default function Admin() {
   const [modelSort, setModelSort] = usePersistentTableSort("admin-models", MODEL_COLUMNS, { key: "name", direction: "asc" });
   const [versionSort, setVersionSort] = usePersistentTableSort("admin-versions", VERSION_COLUMNS, { key: "name", direction: "desc" });
   const [userSort, setUserSort] = usePersistentTableSort("admin-users", USER_COLUMNS, { key: "name", direction: "asc" });
+  const welcomeEmailReady = emailStatus?.status === "connected" && emailStatus?.published_url_configured !== false;
 
   const saveList = async (key, list) => { await api.put("/config", { [key]: list }); toast.success("Saved"); refetch(); };
   const addItem = (key) => { const v = (newItem[key] || "").trim(); if (!v) return; saveList(key, [...(config[key] || []), v]); setNewItem({ ...newItem, [key]: "" }); };
@@ -150,7 +151,7 @@ export default function Admin() {
     const { payload, error } = validateNewUser(newUser, users);
     if (error) return toast.error(error);
     try {
-      const { data } = await api.post("/users", payload);
+      const { data } = await api.post("/users", { ...payload, send_welcome_email: welcomeEmailReady && payload.send_welcome_email !== false });
       setActivationPath(data.activation_path);
       setWelcomeEmailResult(data.welcome_email || null);
       setCopiedActivation(false);
@@ -386,10 +387,10 @@ export default function Admin() {
               <label htmlFor="new-user-active" className="flex items-center gap-2 pt-6 text-sm"><input id="new-user-active" type="checkbox" checked={newUser.active} onChange={(e) => setNewUser({...newUser, active: e.target.checked})} /> Active now</label>
                <div className="md:col-span-4 rounded-lg border border-[var(--orange)]/30 bg-[var(--paper)]/60 p-3">
                  <label htmlFor="new-user-welcome-email" aria-describedby="new-user-welcome-email-help" className="flex items-start gap-2 text-sm font-semibold text-[var(--navy)]">
-                   <input id="new-user-welcome-email" type="checkbox" className="mt-0.5 h-4 w-4 shrink-0" checked={newUser.send_welcome_email !== false} onChange={(e) => setNewUser({...newUser, send_welcome_email: e.target.checked})} />
+                   <input id="new-user-welcome-email" type="checkbox" className="mt-0.5 h-4 w-4 shrink-0" checked={welcomeEmailReady && newUser.send_welcome_email !== false} disabled={!welcomeEmailReady} onChange={(e) => setNewUser({...newUser, send_welcome_email: e.target.checked})} />
                    <span>Send welcome email with secure setup link</span>
                  </label>
-                 <p id="new-user-welcome-email-help" className="ml-6 mt-1 text-xs text-muted-foreground">The recipient will receive a single-use link valid for 24 hours and will create their own password.</p>
+                 <p id="new-user-welcome-email-help" className="ml-6 mt-1 text-xs text-muted-foreground">{welcomeEmailReady ? "The recipient will receive a single-use link valid for 24 hours and will create their own password." : "Email delivery is unavailable. Create the user, then copy and share the one-time setup link securely."}</p>
                </div>
             </div>
             <div className="flex gap-2"><Button type="submit"><Plus size={14} /> Create user</Button><Button type="button" variant="outline" onClick={() => setAddingUser(false)}>Cancel</Button></div>
@@ -529,3 +530,4 @@ export default function Admin() {
     </div>
   );
 }
+

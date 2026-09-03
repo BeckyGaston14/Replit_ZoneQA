@@ -7,6 +7,7 @@ import { Button } from "./ui/button";
 import { api } from "../lib/api";
 import { toast } from "sonner";
 import { todayInTimeZone } from "../lib/testDates";
+import { SCORE_RUBRIC, hasScoredDimension, scoreRubricReason } from "../lib/scoreRubric";
 
 export const BASSETT_RESULT_OPTIONS = ["Pass", "Pass with Notes", "Partial", "Fail", "Blocked", "Not Evaluated"];
 export const COMPARISON_RESULT_OPTIONS = ["Pass", "Pass with Minor Issues", "Needs Improvement", "Fail", "Critical Fail", "Not Evaluated"];
@@ -105,10 +106,13 @@ function QuickAdd({ label, value, items, onChange, fields, defaults = {}, disabl
 }
 
 function EvaluationGrid({ model, scores, dimensions, onChange, locked }) {
-  return <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-    {dimensions.map((dimension) => <Field key={dimension.key} label={`${dimension.label} · weight ${dimension.weight}`}>
-      <Input type="number" min="0" max="10" step="0.1" value={scores?.[dimension.key] ?? ""} disabled={locked} onChange={(e) => onChange(model, dimension.key, e.target.value === "" ? null : Number(e.target.value))} />
-    </Field>)}
+  return <div className="space-y-3">
+    <details className="rounded-lg border bg-[var(--paper)] p-3"><summary className="cursor-pointer text-sm font-semibold text-[var(--navy)]">View the shared 0–10 scoring rubric</summary><div className="mt-3 grid gap-1 text-xs">{SCORE_RUBRIC.map(([score, reason]) => <div key={score} className="grid grid-cols-[1.5rem_1fr] gap-2"><b>{score}</b><span>{reason}</span></div>)}</div></details>
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {dimensions.map((dimension) => <Field key={dimension.key} label={`${dimension.label} · weight ${dimension.weight}`} description={scoreRubricReason(scores?.[dimension.key])}>
+        <Input type="number" min="0" max="10" step="1" value={scores?.[dimension.key] ?? ""} disabled={locked} onChange={(e) => onChange(model, dimension.key, e.target.value === "" ? null : Number(e.target.value))} />
+      </Field>)}
+    </div>
   </div>;
 }
 
@@ -155,7 +159,12 @@ function validate(form, mode) {
     const missing = required.find(([key]) => !String(form[key] || "").trim());
     if (missing) return missing[1];
     if (!BASSETT_RESULT_OPTIONS.includes(form.result || "Not Evaluated")) return "Select a valid test result";
+    if (hasScoredDimension(form.evaluation_scores) && String(form.score_rationale || "").trim().length < 20) return "Explain the Bassett scores in the Score rationale using at least 20 characters.";
     return null;
+  }
+  for (const model of ["Bassett", "ChatGPT", "Claude"]) {
+    const evaluation = form.evaluations?.[model];
+    if (hasScoredDimension(evaluation?.scores) && String(evaluation?.rationale || "").trim().length < 20) return `Explain the ${model} scores in the Score rationale using at least 20 characters.`;
   }
   if (form.id) return null;
   const progress = progressFor(form, mode);
@@ -199,6 +208,11 @@ export default function UnifiedTestEntryForm({
       ...(current.evaluations || {}),
       [model]: { ...(current.evaluations?.[model] || {}), final_result: value },
     },
+  }));
+  const updateEvaluationRationale = (model, value) => setForm((current) => ({
+    ...current,
+    evaluations: { ...(current.evaluations || {}), [model]: { ...(current.evaluations?.[model] || {}), rationale: value } },
+    ...(model === "Bassett" ? { score_rationale: value } : {}),
   }));
   const responseFor = (model) => form.responses?.[model] || (model === "Bassett" ? { response: form.exact_bassett_answer } : {});
   const evaluationFor = (model) => form.evaluations?.[model] || { scores: model === "Bassett" ? form.evaluation_scores : {} };
@@ -296,13 +310,12 @@ export default function UnifiedTestEntryForm({
     <GuidedSection index={2} title="3. Bassett Result" active={activeSection === 2} status={sectionStatus(2)} onActivate={activateSection}><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <Field label={isComparison ? "Bassett response" : "Exact Bassett answer"} required error={attemptedSections.has(2) && !String(responseFor("Bassett").response || "").trim() ? "Bassett response is required." : undefined}><Textarea rows={6} value={responseFor("Bassett").response || ""} disabled={lockedCommon} onChange={(e) => updateResponse("Bassett", "response", e.target.value)} /></Field>
       <Field label="Status / verdict"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.result || "Not Evaluated"} onChange={(e) => update("result", e.target.value)}>{(isComparison ? COMPARISON_RESULT_OPTIONS : BASSETT_RESULT_OPTIONS).map((value) => <option key={value}>{value}</option>)}</select></Field>
-      {!isComparison && <Field label="Score (0–100, optional)" description="Legacy display only; canonical evaluation uses the 0–10 dimensions above."><Input type="number" min="0" max="100" value={form.score ?? ""} onChange={(e) => update("score", e.target.value)} /></Field>}
       <Field label="Severity / criticality"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.severity || form.criticality || "Medium"} onChange={(e) => update("severity", e.target.value)}>{["Critical", "High", "Medium", "Low", "1", "2", "3", "4", "5"].map((value) => <option key={value}>{value}</option>)}</select></Field>
       <Field label="Priority"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.priority || "Medium"} onChange={(e) => update("priority", e.target.value)}>{["Critical", "High", "Medium", "Low"].map((value) => <option key={value}>{value}</option>)}</select></Field>
       <Field label="Category"><Input value={form.issue_category || form.category || ""} onChange={(e) => update(isComparison ? "category" : "issue_category", e.target.value)} /></Field>
     </div></GuidedSection>
 
-    <GuidedSection index={3} title="4. Canonical Evaluation" active={activeSection === 3} status={sectionStatus(3)} onActivate={activateSection}><p className="text-xs text-muted-foreground">Every dimension is scored on the absolute 0–10 scale. Blank dimensions remain unavailable and are excluded from the calculated denominator; the server remains authoritative.</p><div className="mt-4"><h4 className="mb-3 font-semibold text-sm text-[var(--navy)]">Bassett evaluation · calculated score</h4><EvaluationGrid model="Bassett" scores={evaluationFor("Bassett").scores} dimensions={dimensions} onChange={updateEvaluation} locked={lockedCommon} /></div></GuidedSection>
+    <GuidedSection index={3} title="4. Canonical Evaluation" active={activeSection === 3} status={sectionStatus(3)} onActivate={activateSection}><p className="text-xs text-muted-foreground">Use the same behavior-based integer rubric for every model and dimension. Score the evidence before choosing a verdict. Blank dimensions remain unavailable and are excluded from the denominator.</p><div className="mt-4 space-y-4"><h4 className="font-semibold text-sm text-[var(--navy)]">Bassett evaluation · calculated score</h4><EvaluationGrid model="Bassett" scores={evaluationFor("Bassett").scores} dimensions={dimensions} onChange={updateEvaluation} locked={lockedCommon} /><Field label="Bassett score rationale" required={hasScoredDimension(evaluationFor("Bassett").scores)} description="Cite the specific answer evidence that supports the selected numbers (minimum 20 characters when scored)."><Textarea rows={3} value={evaluationFor("Bassett").rationale || form.score_rationale || ""} onChange={(e) => updateEvaluationRationale("Bassett", e.target.value)} /></Field></div></GuidedSection>
 
     <GuidedSection index={4} title="5. Findings & Ownership" active={activeSection === 4} status={sectionStatus(4)} onActivate={activateSection}><div className="space-y-4">
       <label className="flex items-center gap-2 text-sm"><Checkbox aria-label="Create a linked Bassett finding" checked={Boolean(form.create_finding)} onCheckedChange={(checked) => update("create_finding", checked === true)} /> Create a linked Bassett finding</label>
@@ -313,7 +326,7 @@ export default function UnifiedTestEntryForm({
     <GuidedSection index={5} title="6. Sources, Documents & Notes" active={activeSection === 5} status={sectionStatus(5)} onActivate={activateSection}><div className="space-y-4">
       <Field label={isComparison ? "Sources / evidence links" : "Evidence / context"}><Textarea rows={3} value={form.source_links || form.evidence || ""} onChange={(e) => update(isComparison ? "source_links" : "evidence", e.target.value)} placeholder="Citations, URLs, source context…" /></Field>
       <Field label="Notes / reproduction steps"><Textarea rows={4} value={form.notes || ""} onChange={(e) => update("notes", e.target.value)} /></Field>
-      <Field label="Documents / images" description={form.attachments?.length ? `${form.attachments.length} file(s) selected` : "Files upload only when the transaction is submitted."}><Input type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.txt,.csv" onChange={(e) => update("attachments", Array.from(e.target.files || []))} /></Field>
+      <Field label="Documents / images" description={form.attachments?.length ? `${form.attachments.length} file(s) selected` : "Files upload after the test record is saved; a failed upload will not discard the test."}><Input type="file" multiple accept=".pdf,.docx,.png,.jpg,.jpeg,.gif,.webp,.txt,.csv" onChange={(e) => update("attachments", Array.from(e.target.files || []))} /></Field>
     </div></GuidedSection>
 
     <GuidedSection index={6} title="7. Follow-up, Retesting & Regression" active={activeSection === 6} status={sectionStatus(6)} onActivate={activateSection}><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -329,7 +342,7 @@ export default function UnifiedTestEntryForm({
         const index = 7 + modelIndex;
         return <GuidedSection key={model} index={index} title={`${model} response, model metadata & settings`} active={activeSection === index} status={sectionStatus(index)} onActivate={activateSection} comparisonOnly><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><Field label={`${model} response`} description="Leave blank to record this response as unavailable."><Textarea rows={6} value={responseFor(model).response || ""} onChange={(e) => updateResponse(model, "response", e.target.value)} placeholder="Leave blank to record unavailable." /></Field><Field label="Model name"><Input value={responseFor(model).model_name || model} onChange={(e) => updateResponse(model, "model_name", e.target.value)} /></Field><Field label="Model version"><Input value={responseFor(model).version || ""} onChange={(e) => updateResponse(model, "version", e.target.value)} /></Field><Field label="Response date"><Input type="date" value={responseFor(model).test_date || form.test_date || ""} onChange={(e) => updateResponse(model, "test_date", e.target.value)} /></Field><Field label="Settings"><Textarea rows={2} value={typeof responseFor(model).settings === "string" ? responseFor(model).settings : JSON.stringify(responseFor(model).settings || {})} onChange={(e) => updateResponse(model, "settings", e.target.value)} placeholder="Temperature, system prompt, tools…" /></Field></div></GuidedSection>;
       })}
-      <GuidedSection index={9} title="Benchmark evaluations & canonical scores" active={activeSection === 9} status={sectionStatus(9)} onActivate={activateSection} comparisonOnly><div className="space-y-6">{["ChatGPT", "Claude"].map((model) => <div key={model}><div className="mb-3 grid grid-cols-1 sm:grid-cols-2 gap-3 items-end"><h4 className="font-semibold text-sm text-[var(--navy)]">{model} evaluation · calculated score</h4><Field label={`${model} verdict`}><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={evaluationFor(model).final_result || "Not Evaluated"} onChange={(e) => updateEvaluationResult(model, e.target.value)}>{COMPARISON_RESULT_OPTIONS.map((value) => <option key={value}>{value}</option>)}</select></Field></div><EvaluationGrid model={model} scores={evaluationFor(model).scores} dimensions={dimensions} onChange={updateEvaluation} /></div>)}</div></GuidedSection>
+      <GuidedSection index={9} title="Benchmark evaluations & canonical scores" active={activeSection === 9} status={sectionStatus(9)} onActivate={activateSection} comparisonOnly><div className="space-y-6">{["ChatGPT", "Claude"].map((model) => <div key={model} className="space-y-3"><div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end"><h4 className="font-semibold text-sm text-[var(--navy)]">{model} evaluation · calculated score</h4><Field label={`${model} verdict`}><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={evaluationFor(model).final_result || "Not Evaluated"} onChange={(e) => updateEvaluationResult(model, e.target.value)}>{COMPARISON_RESULT_OPTIONS.map((value) => <option key={value}>{value}</option>)}</select></Field></div><EvaluationGrid model={model} scores={evaluationFor(model).scores} dimensions={dimensions} onChange={updateEvaluation} /><Field label={`${model} score rationale`} required={hasScoredDimension(evaluationFor(model).scores)} description="Cite specific evidence supporting the selected scores (minimum 20 characters when scored)."><Textarea rows={3} value={evaluationFor(model).rationale || ""} onChange={(e) => updateEvaluationRationale(model, e.target.value)} /></Field></div>)}</div></GuidedSection>
       <GuidedSection index={10} title="Benchmark result & competitive findings" active={activeSection === 10} status={sectionStatus(10)} onActivate={activateSection} comparisonOnly><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><Field label="Bassett-versus-benchmark result"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={comparison.comparison_result || "Incomplete"} onChange={(e) => updateNested("comparison", "comparison_result", e.target.value)}>{COMPARISON_RESULT_OPTIONS.map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Win / loss / tie / shared failure"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={comparison.comparison_classification || "Incomplete"} onChange={(e) => updateNested("comparison", "comparison_classification", e.target.value)}>{COMPARISON_CLASSIFICATIONS.map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Competitive advantage"><Textarea rows={3} value={comparison.competitive_advantage || ""} onChange={(e) => updateNested("comparison", "competitive_advantage", e.target.value)} /></Field><Field label="Competitive gap"><Textarea rows={3} value={comparison.competitive_gap || ""} onChange={(e) => updateNested("comparison", "competitive_gap", e.target.value)} /></Field><Field label="Comparison-specific findings"><Textarea rows={4} value={comparison.findings?.[0]?.description || ""} onChange={(e) => updateNested("comparison", "findings", [{ title: "Comparison finding", description: e.target.value }])} placeholder="Never mixed into Bassett-only findings." /></Field></div></GuidedSection>
     </div>}
     <div className="sticky bottom-0 z-10 flex flex-wrap items-center gap-2 border-t bg-background/95 py-3">
@@ -339,3 +352,4 @@ export default function UnifiedTestEntryForm({
     </div>
   </FormModal>;
 }
+

@@ -77,13 +77,17 @@ export default function Executive() {
     k.pass_rate == null
       ? "Pass rate is unavailable because no evaluated tests are in scope."
       : `Pass rate stands at ${fmtPct(k.pass_rate)} across ${plural(k.total_evaluated, "evaluated test")}.`,
-    `Head-to-head: Bassett won ${plural(k.wins, "test")} outright against ChatGPT & Claude and lost ${k.losses}.`,
+    (k.wins || k.losses)
+      ? `Head-to-head: Bassett won ${plural(k.wins, "test")} outright against ChatGPT & Claude and lost ${k.losses}.`
+      : "Head-to-head results are unavailable until comparable model evaluations are recorded.",
     strongest && weakest && strongest !== weakest
       ? `Strongest category: ${strongest.category} (${fmtScore(strongest.avg_score)}/10). Weakest: ${weakest.category} (${fmtScore(weakest.avg_score)}/10).`
       : null,
     k.open_critical > 0
       ? `${plural(k.open_critical, "open critical finding")} require${k.open_critical === 1 ? "s" : ""} resolution before the next release.`
-      : `No open critical findings — quality risk is currently low.`,
+      : k.total_evaluated > 0
+        ? "No open critical findings are recorded in the current evaluated scope."
+        : "Quality risk cannot be assessed until evaluated tests and findings are recorded.",
     (d.stale_gold_tests || []).length > 0
       ? `Reverification required: ${plural(d.stale_gold_tests.length, "evaluated test relies", "evaluated tests rely")} on a Gold Standard whose supporting evidence is stale (${d.stale_gold_tests.map((t) => t.name).slice(0, 3).join("; ")}).`
       : null,
@@ -178,3 +182,4 @@ export default function Executive() {
     </div>
   );
 }
+

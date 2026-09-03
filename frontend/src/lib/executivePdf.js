@@ -279,7 +279,9 @@ export function renderExecutivePdf({ doc, data, chartImages = {}, generated = ne
       : null,
     kpis.open_critical > 0
       ? `${kpis.open_critical} open critical finding${kpis.open_critical === 1 ? "" : "s"} require resolution before the next release.`
-      : "No open critical findings — quality risk is currently low.",
+      : kpis.total_evaluated > 0
+        ? "No open critical findings are recorded in the current evaluated scope."
+        : "Quality risk cannot be assessed until evaluated tests and findings are recorded.",
     (data?.stale_gold_tests || []).length
       ? `Reverification required for ${(data.stale_gold_tests || []).length} evaluated test${data.stale_gold_tests.length === 1 ? "" : "s"} with stale Gold Standard evidence.`
       : null,
@@ -366,3 +368,4 @@ export async function captureExecutiveChart(element, html2canvas) {
     height: canvas.height,
   };
 }
+

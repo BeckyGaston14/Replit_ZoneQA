@@ -96,18 +96,39 @@ export default function BassettIssues() {
     if (saving) return;
     setSaving(true);
     try {
-      if (form.id) await api.put(`/bassett/issues/${form.id}`, withExpectedVersion(form, form));
-      else {
+      const files = form.attachments || [];
+      let issueId = form.id;
+      if (form.id) {
+        const body = { ...form };
+        delete body.attachments;
+        await api.put(`/bassett/issues/${form.id}`, withExpectedVersion(form, body));
+      } else {
         const body = { ...form };
         delete body.attachments;
         const payload = new FormData();
         payload.append("payload", JSON.stringify(body));
-        (form.attachments || []).forEach((file) => payload.append("files", file));
         const { data } = await api.post("/bassett/issues/workflow", payload);
-        setSelected(data.issue?.id || data.id);
+        issueId = data.issue?.id || data.id;
+        setSelected(issueId);
         localStorage.removeItem("zoneqa:bassett-workflow-draft");
       }
-      toast.success(form.id ? "Test run updated" : "Test run recorded");
+      let uploadFailures = 0;
+      for (const file of files) {
+        const upload = new FormData();
+        upload.append("entity_type", "bassett_issue");
+        upload.append("entity_id", issueId);
+        upload.append("file", file);
+        try {
+          await api.post("/attachments/upload", upload, { timeout: 15000 });
+        } catch {
+          uploadFailures += 1;
+        }
+      }
+      if (uploadFailures) {
+        toast.warning(`Test run saved, but ${uploadFailures} attachment${uploadFailures === 1 ? "" : "s"} could not be uploaded. Open the saved run to retry.`);
+      } else {
+        toast.success(form.id ? "Test run updated" : "Test run recorded");
+      }
       setConflict(null);
       setForm(null);
       qc.invalidateQueries({ queryKey: ["bassett-test-runs"] });
@@ -282,3 +303,4 @@ function IssueDetail({ id, onClose, onEdit, onRestore, canWrite, canManage, refr
 function Info({ label, value }) { return <div><div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">{label}</div><div className="whitespace-pre-wrap">{value}</div></div>; }
 
 export { ScenarioSelector, ScenarioDefinition };
+

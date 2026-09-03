@@ -68,12 +68,12 @@ export function Attachments({ entityType, entityId, canWrite, compact = false })
         fd.append("entity_type", entityType);
         fd.append("entity_id", entityId);
         fd.append("file", f);
-        await api.post("/attachments/upload", fd, { headers: { "Content-Type": "multipart/form-data" } });
+        await api.post("/attachments/upload", fd, { headers: { "Content-Type": "multipart/form-data" }, timeout: 15000 });
       }
       toast.success(`${list.length} file${list.length > 1 ? "s" : ""} attached`);
       refresh();
     } catch (err) {
-      toast.error(formatApiErrorDetail(err.response?.data?.detail) || "Upload failed");
+      toast.error(formatApiErrorDetail(err.response?.data?.detail) || "Upload failed or timed out. The record is still saved; check App Storage and retry.");
     } finally { setUploading(false); if (fileRef.current) fileRef.current.value = ""; }
   };
 
@@ -119,7 +119,7 @@ export function Attachments({ entityType, entityId, canWrite, compact = false })
               {uploading ? "Uploading…" : "Attach files"}
             </Button>
             <input ref={fileRef} type="file" multiple className="hidden" data-testid="attach-file-input"
-              accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.txt,.csv" onChange={upload} />
+              accept=".pdf,.docx,.png,.jpg,.jpeg,.gif,.webp,.txt,.csv" onChange={upload} />
           </>
         )}
       </div>
@@ -169,3 +169,4 @@ export function Attachments({ entityType, entityId, canWrite, compact = false })
     </div>
   );
 }
+
