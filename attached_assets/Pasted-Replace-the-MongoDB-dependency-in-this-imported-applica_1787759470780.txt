@@ -1,0 +1,91 @@
+Replace the MongoDB dependency in this imported application with Replit’s built-in PostgreSQL Database.
+
+Provision a Replit development database and use the automatically provided `DATABASE_URL`. Do not ask me for `MONGO_URL`, MongoDB credentials, or a production database.
+
+Important constraints:
+
+1. Preserve all existing API routes and frontend response formats.
+2. Do not redesign or simplify the application.
+3. Do not replace persistent functionality with mock data, local files, or in-memory storage.
+4. Preserve existing string UUID IDs so frontend routing and relationships continue to work.
+5. Preserve timestamps, created-by fields, update history, and audit activity.
+6. Use database migrations rather than creating tables unpredictably during requests.
+7. Seed only the existing demonstration/test data into the development database.
+8. Do not connect to or alter production data.
+
+Migrate all current MongoDB collections, including:
+
+- users
+- projects
+- municipalities
+- properties
+- test cases
+- responses
+- Gold Standards
+- evidence
+- evaluations
+- findings
+- retests
+- regression suites
+- regression runs
+- demos
+- models
+- Bassett versions
+- comments
+- annotations
+- claims
+- calendar events
+- test runs
+- activities
+- configuration
+- attachments
+- release decisions
+
+Preserve and enforce:
+
+- unique normalized user emails
+- unique entity IDs
+- role-based authorization
+- self-deletion and last-administrator protections
+- soft user deletion
+- historical-reference preservation
+- project and test-case relationships
+- one active Bassett version
+- referenced-version deletion protection
+- attachment parent validation
+- locked regression-run protections
+- test-case child-record safeguards
+
+Use proper relational foreign keys where relationships are stable. Use PostgreSQL JSONB only for genuinely flexible nested structures such as prompts, expected behaviors, scoring dimensions, or stored snapshots.
+
+Replace MongoDB operations such as:
+
+- `find_one`
+- `find`
+- `insert_one`
+- `update_one`
+- `update_many`
+- `find_one_and_update`
+- `delete_one`
+- `delete_many`
+- `count_documents`
+- MongoDB filters and projections
+
+with safe PostgreSQL equivalents.
+
+After migration:
+
+1. remove the `MONGO_URL` requirement
+2. use `DATABASE_URL`
+3. run all backend tests
+4. update tests that depend specifically on MongoDB setup
+5. run the frontend build
+6. verify authentication
+7. verify CRUD for every major entity
+8. verify dashboard calculations
+9. verify findings, retests, and regression workflows
+10. verify document and image attachment metadata
+11. verify data-integrity checks
+12. report any behavior that could not be preserved exactly
+
+Before modifying code, create a checkpoint and provide a migration plan. Then implement and test the migration.

@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap');
+
+:root {
+  --navy: #16215a;
+  --navy-700: #1f2d72;
+  --navy-500: #2f3f96;
+  --orange: #f47b20;
+  --orange-600: #e0680f;
+  --peach: #ffe9d6;
+  --paper: #faf8f5;
+  --ink: #1a2340;
+}
+
+body {
+  margin: 0;
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+h1, h2, h3, h4, .font-display { font-family: 'Poppins', sans-serif; }
+
+@layer base {
+  :root {
+    --background: 40 33% 98%;
+    --foreground: 228 42% 17%;
+    --card: 0 0% 100%;
+    --card-foreground: 228 42% 17%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 228 42% 17%;
+    --primary: 230 60% 22%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 30 40% 94%;
+    --secondary-foreground: 230 60% 22%;
+    --muted: 30 20% 94%;
+    --muted-foreground: 228 15% 45%;
+    --accent: 26 90% 54%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 30 20% 88%;
+    --input: 30 20% 88%;
+    --ring: 26 90% 54%;
+    --radius: 0.75rem;
+    --chart-1: 26 90% 54%;
+    --chart-2: 230 60% 40%;
+    --chart-3: 160 55% 42%;
+    --chart-4: 340 65% 55%;
+    --chart-5: 45 90% 55%;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground; }
+}
+
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-thumb { background: #cdc7bd; border-radius: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+.brand-gradient { background: linear-gradient(135deg, #16215a 0%, #2f3f96 100%); }
+.accent-gradient { background: linear-gradient(135deg, #f47b20 0%, #ffa04d 100%); }
+.card-hover { transition: box-shadow .2s ease, transform .2s ease, border-color .2s ease; }
+.card-hover:hover { box-shadow: 0 8px 30px -12px rgba(22,33,90,.25); transform: translateY(-2px); }
+.prose-response { white-space: pre-wrap; line-height: 1.65; overflow-wrap: anywhere; word-break: break-word; }
+
+/* Keep compact icon actions usable at the narrowest supported viewport. */
+.icon-action { min-width: 2.25rem; min-height: 2.25rem; }
