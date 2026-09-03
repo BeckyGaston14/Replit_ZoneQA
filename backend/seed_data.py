@@ -4,22 +4,34 @@ DIMS = ["accuracy", "current_code", "interpretation", "calculation", "context", 
         "followup", "citation_accuracy", "source_quality", "guidance", "completeness", "usefulness"]
 
 
-async def run_seed_impl(db, new_id, now_iso):
+async def run_seed_impl(db, new_id, now_iso, *, reset=True):
+    """Load the metric-verification dataset.
+
+    ``reset=True`` is reserved for development and clears existing data.  The
+    production sample workflow uses ``reset=False``: it is additive,
+    idempotent, and never deletes a user's records.
+    """
+    if not reset:
+        existing = await db.versions.find_one({"name": "Bassett 9.26 (Sample)"}, {"_id": 0, "id": 1})
+        if existing:
+            return {"loaded": False, "reason": "already_loaded", "testcases": 10}
+
     # Development/demo reset only. Delete dependents before their parents so
     # PostgreSQL's referential safeguards remain active during normal API use.
-    for c in [
+    if reset:
+      for c in [
         "attachments", "saved_views", "release_decisions", "activities", "comments",
         "annotations", "claims", "retests", "findings", "responses", "evaluations",
         "goldstandards", "test_runs", "regression_runs", "demos", "regression_suites",
         "calendar_events",
-    ]:
-        await db[c].delete_many({})
-    # A testcase can be a variant of another testcase, so clear child variants
-    # before parent cases instead of relying on deletion order by UUID.
-    await db.testcases.delete_many({"variant_of": {"$ne": None}})
-    await db.testcases.delete_many({})
-    for c in ["evidence", "properties", "projects", "municipalities", "versions", "models"]:
-        await db[c].delete_many({})
+      ]:
+          await db[c].delete_many({})
+      # A testcase can be a variant of another testcase, so clear child variants
+      # before parent cases instead of relying on deletion order by UUID.
+      await db.testcases.delete_many({"variant_of": {"$ne": None}})
+      await db.testcases.delete_many({})
+      for c in ["evidence", "properties", "projects", "municipalities", "versions", "models"]:
+          await db[c].delete_many({})
 
     ts = now_iso()
 
@@ -32,9 +44,10 @@ async def run_seed_impl(db, new_id, now_iso):
     await db.models.insert_many([dict(m) for m in models])
 
     # Bassett versions
+    existing_active_version = None if reset else await db.versions.find_one({"active": True}, {"_id": 0, "id": 1})
     versions = [
         {"id": new_id(), "name": "Bassett 8.26 (Sample)", "release_number": "8.26", "release_date": "2026-08-01", "environment": "Sample", "active": False, "description": "Prior sample baseline used only for metric verification", "created_at": ts, "created_by": "seed"},
-        {"id": new_id(), "name": "Bassett 9.26 (Sample)", "release_number": "9.26", "release_date": "2026-09-01", "environment": "Sample", "active": True, "description": "Sample current release used only for metric verification", "created_at": ts, "created_by": "seed"},
+        {"id": new_id(), "name": "Bassett 9.26 (Sample)", "release_number": "9.26", "release_date": "2026-09-01", "environment": "Sample", "active": not bool(existing_active_version), "description": "Sample current release used only for metric verification", "created_at": ts, "created_by": "seed"},
     ]
     await db.versions.insert_many([dict(v) for v in versions])
     V18, V19 = "Bassett 8.26 (Sample)", "Bassett 9.26 (Sample)"
@@ -124,6 +137,8 @@ async def run_seed_impl(db, new_id, now_iso):
                 "difficulty": 2, "criticality": 3, "bassett_version": V19, "test_type": "Single Prompt",
                 "in_regression": False, "demo_status": "Not Reviewed", "evidence_ids": [], "expected_behaviors": []}
         base.update(kw)
+        if not reset and base.get("name"):
+            base["name"] = f"[SAMPLE] {base['name']}"
         tc_docs.append(base)
         return tid
 
@@ -371,4 +386,5 @@ async def run_seed_impl(db, new_id, now_iso):
     await db.activities.insert_one({"id": new_id(), "entity_type": "system", "entity_id": "system",
                                     "action": "Seed data loaded", "user": "seed", "detail": "10 sample tests",
                                     "created_at": ts, "_log": True})
+    return {"loaded": True, "testcases": len(tc_docs), "models": len(models), "versions": len(versions)}
 
