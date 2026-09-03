@@ -38,7 +38,18 @@ class ReplitObjectStorage:
             from replit.object_storage import Client
 
             if self._client is None:
-                self._client = Client(self.bucket_id)
+                # Replit's managed runtime resolves the App Storage bucket
+                # declared in .replit when no explicit bucket ID is injected.
+                configured_bucket_id = (
+                    self._bucket_id
+                    or os.environ.get("REPLIT_OBJECT_STORAGE_BUCKET_ID")
+                    or os.environ.get("DEFAULT_OBJECT_STORAGE_BUCKET_ID")
+                )
+                self._client = (
+                    Client(configured_bucket_id)
+                    if configured_bucket_id
+                    else Client()
+                )
             return self._client
         except Exception as exc:
             raise ObjectStorageUnavailable(
@@ -82,8 +93,12 @@ class ReplitObjectStorage:
         await asyncio.to_thread(self._delete, object_name)
 
     async def check_configuration(self) -> str:
-        """Validate bucket configuration without issuing a storage request."""
-        return self.bucket_id
+        """Validate managed client configuration without issuing a storage request."""
+        try:
+            return self.bucket_id
+        except ObjectStorageUnavailable:
+            self._storage_client()
+            return "managed default bucket"
 
 
 app_storage = ReplitObjectStorage()

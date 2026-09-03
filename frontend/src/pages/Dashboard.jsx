@@ -19,7 +19,7 @@ export default function Dashboard() {
   const s = stats.data, m = metrics.data;
   const perfQuery = useQuery({
     queryKey: ["perf", m?.active_version],
-    enabled: !!m,
+    enabled: Boolean(m?.active_version),
     queryFn: async () => (await api.get("/analytics/performance", { params: { version: m.active_version || "" } })).data,
     retry: false,
   });

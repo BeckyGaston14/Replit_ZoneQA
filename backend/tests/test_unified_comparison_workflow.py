@@ -74,6 +74,33 @@ def test_workflow_keeps_missing_benchmarks_unavailable_and_out_of_score_denomina
     assert scores["Claude"]["status"] == "Unavailable"
 
 
+def test_workflow_preserves_relationships_and_embedded_evidence_context(monkeypatch):
+    body = _body(testcase={
+        **_body()["testcase"],
+        "project_id": "project-1",
+        "municipality_id": "municipality-1",
+        "property_id": "property-1",
+        "evidence_ids": ["evidence-1"],
+        "source_links": "https://example.test/ordinance",
+        "create_finding": True,
+        "finding": {"title": "Linked Bassett finding", "description": "Incorrect setback"},
+        "regression_run_id": "regression-1",
+    })
+    testcase, _gold, _responses, _evaluations = _prepare(monkeypatch, body)
+    finding = server._bassett_finding_document(
+        body, "testcase-1", {"name": "Tester"}, "2026-09-03T00:00:00Z"
+    )
+
+    assert testcase["project_id"] == "project-1"
+    assert testcase["municipality_id"] == "municipality-1"
+    assert testcase["property_id"] == "property-1"
+    assert testcase["evidence_ids"] == ["evidence-1"]
+    assert testcase["source_links"] == "https://example.test/ordinance"
+    assert testcase["regression_run_id"] == "regression-1"
+    assert finding["testcase_id"] == "testcase-1"
+    assert finding["project_id"] == "project-1"
+
+
 def test_workflow_recomputes_scores_and_rejects_invalid_client_verdict(monkeypatch):
     body = _body(evaluations={
         "Bassett": {"scores": {"accuracy": 9, "usefulness": 6}},

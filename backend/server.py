@@ -4634,10 +4634,14 @@ async def dashboard_stats(user=Depends(get_current_user)):
     ]
     active = await db.versions.find_one({"active": True}, {"_id": 0})
     active_version = active.get("name", "") if active else ""
-    evaluation_view = await _evaluation_read_model(
-        await crud_list("evaluations"),
-        valid_testcase_ids={testcase["id"] for testcase in tcs},
-        version=active_version or None,
+    evaluation_view = (
+        await _evaluation_read_model(
+            await crud_list("evaluations"),
+            valid_testcase_ids={testcase["id"] for testcase in tcs},
+            version=active_version,
+        )
+        if active_version
+        else {"eligible": [], "all_models": [], "bassett": []}
     )
     demos = await crud_list("demos")
     regruns = await crud_list("regression_runs")
@@ -6144,8 +6148,12 @@ async def metrics_summary(user=Depends(get_current_user)):
     runs = await crud_list("regression_runs")
     active = await db.versions.find_one({"active": True}, {"_id": 0})
     ver = active.get("name", "") if active else ""
-    current_view = await _evaluation_read_model(
-        raw_evaluations, valid_testcase_ids=valid_ids, version=ver or None,
+    current_view = (
+        await _evaluation_read_model(
+            raw_evaluations, valid_testcase_ids=valid_ids, version=ver,
+        )
+        if ver
+        else {"eligible": [], "all_models": [], "bassett": []}
     )
 
     def pack(subset, unit, definition):
