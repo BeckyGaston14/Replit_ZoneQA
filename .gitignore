@@ -57,6 +57,7 @@ dump.rdb
 
 # Python
 __pycache__/
+.pytest_cache/
 *pyc*
 venv/
 .venv/
@@ -68,6 +69,8 @@ chainlit.md
 .ipynb_checkpoints/
 .ac
 /.local/
+/.agents/
+/.emergent/
 
 # Deployment
 .vercel

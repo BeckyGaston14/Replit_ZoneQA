@@ -503,7 +503,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/58/8c/d897dcd32a25b58186c968b15ce4324ca029e9d96460de12325314e390be/pymupdf-1.28.2-cp313-abi3-pyemscripten_2025_0_wasm32.whl", hash = "sha256:2e1b574c0fd2cb238021033fd3c0f9c4388816638df064e4bfb56d9d81736dc8", size = 18399403, upload-time = "2026-08-06T21:39:25.008Z" },
 ]
 
-
 [[package]]
 name = "python-dotenv"
 version = "1.2.3"
@@ -538,7 +537,6 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "python-multipart" },
     { name = "replit-object-storage" },
-    { name = "requests" },
     { name = "uvicorn" },
 ]
 
@@ -555,7 +553,6 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0.1,<2.0.0" },
     { name = "python-multipart", specifier = ">=0.0.9,<1.0.0" },
     { name = "replit-object-storage", specifier = ">=1.0.2" },
-    { name = "requests", specifier = ">=2.31.0,<3.0.0" },
     { name = "uvicorn", specifier = ">=0.25.0,<1.0.0" },
 ]
 
