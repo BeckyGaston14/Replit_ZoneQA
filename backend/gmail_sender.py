@@ -117,10 +117,14 @@ class GmailSender:
 
     async def status(self) -> dict[str, Any]:
         try:
-            await self._profile()
+            profile = await self._profile()
         except (httpx.HTTPError, EmailDeliveryError):
             return {"provider": "Gmail", "status": "disconnected"}
-        return {"provider": "Gmail", "status": "connected"}
+        return {
+            "provider": "Gmail",
+            "status": "connected",
+            "sender_email": profile.get("emailAddress"),
+        }
 
     async def send(
         self,
@@ -272,3 +276,4 @@ def build_email_sender() -> GmailSender | MockEmailSender:
     ):
         return MockEmailSender()
     return GmailSender()
+
