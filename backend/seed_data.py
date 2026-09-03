@@ -26,18 +26,18 @@ async def run_seed_impl(db, new_id, now_iso):
     # Models
     models = [
         {"id": new_id(), "name": "Bassett", "provider": "Zoneomics", "role_type": "Primary", "active": True, "created_at": ts, "created_by": "seed"},
-        {"id": new_id(), "name": "ChatGPT", "provider": "OpenAI", "role_type": "Benchmark", "model_name": "gpt-4o", "active": True, "created_at": ts, "created_by": "seed"},
-        {"id": new_id(), "name": "Claude", "provider": "Anthropic", "role_type": "Benchmark", "model_name": "claude-sonnet-4", "active": True, "created_at": ts, "created_by": "seed"},
+        {"id": new_id(), "name": "ChatGPT", "provider": "OpenAI", "role_type": "Benchmark", "model_name": "gpt-5.4", "active": True, "created_at": ts, "created_by": "seed"},
+        {"id": new_id(), "name": "Claude", "provider": "Anthropic", "role_type": "Benchmark", "model_name": "claude-sonnet-4-6", "active": True, "created_at": ts, "created_by": "seed"},
     ]
     await db.models.insert_many([dict(m) for m in models])
 
     # Bassett versions
     versions = [
-        {"id": new_id(), "name": "Bassett v1.8", "release_number": "1.8.0", "release_date": "2026-03-01", "environment": "Production", "active": False, "description": "Prior production release", "created_at": ts, "created_by": "seed"},
-        {"id": new_id(), "name": "Bassett v1.9", "release_number": "1.9.0", "release_date": "2026-05-15", "environment": "Production", "active": True, "description": "Current production release", "created_at": ts, "created_by": "seed"},
+        {"id": new_id(), "name": "Bassett 8.26 (Sample)", "release_number": "8.26", "release_date": "2026-08-01", "environment": "Sample", "active": False, "description": "Prior sample baseline used only for metric verification", "created_at": ts, "created_by": "seed"},
+        {"id": new_id(), "name": "Bassett 9.26 (Sample)", "release_number": "9.26", "release_date": "2026-09-01", "environment": "Sample", "active": True, "description": "Sample current release used only for metric verification", "created_at": ts, "created_by": "seed"},
     ]
     await db.versions.insert_many([dict(v) for v in versions])
-    V18, V19 = "Bassett v1.8", "Bassett v1.9"
+    V18, V19 = "Bassett 8.26 (Sample)", "Bassett 9.26 (Sample)"
 
     # Municipalities
     munis = [
@@ -371,3 +371,4 @@ async def run_seed_impl(db, new_id, now_iso):
     await db.activities.insert_one({"id": new_id(), "entity_type": "system", "entity_id": "system",
                                     "action": "Seed data loaded", "user": "seed", "detail": "10 sample tests",
                                     "created_at": ts, "_log": True})
+
