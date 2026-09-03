@@ -11,10 +11,65 @@ async def run_seed_impl(db, new_id, now_iso, *, reset=True):
     production sample workflow uses ``reset=False``: it is additive,
     idempotent, and never deletes a user's records.
     """
+    sample_date = "2026-09-03"
+    sample_owner = None
     if not reset:
-        existing = await db.versions.find_one({"name": "Bassett 9.26 (Sample)"}, {"_id": 0, "id": 1})
-        if existing:
-            return {"loaded": False, "reason": "already_loaded", "testcases": 10}
+        sample_owner = await db.users.find_one(
+            {"active": {"$ne": False}, "deleted_at": {"$exists": False}},
+            {"_id": 0, "id": 1, "name": 1},
+        )
+        existing_count = await db.testcases.count_documents({"created_by": "seed"})
+        if existing_count >= 10:
+            owner_patch = {
+                "owner_id": sample_owner.get("id") if sample_owner else None,
+                "owner": sample_owner.get("name") if sample_owner else "Sample QA Owner",
+            }
+            await db.projects.update_many({"created_by": "seed"}, {"$set": owner_patch})
+            await db.testcases.update_many(
+                {"created_by": "seed"}, {"$set": {"test_date": sample_date, "sample_data": True}}
+            )
+            for collection in ["models", "municipalities", "properties", "projects", "evidence"]:
+                await db[collection].update_many({"created_by": "seed"}, {"$set": {"sample_data": True}})
+            authorities = {
+                "NYC ZR §32-00 Use Regulations": "New York City Department of City Planning",
+                "Cool Springs PD Ordinance 2019-14": "City of Franklin Planning and Sustainability Department",
+                "OKC Municipal Code §59-9150 Parking": "City of Oklahoma City Planning Department",
+                "Sterling Heights Setback Table": "City of Sterling Heights Office of Planning",
+            }
+            for title, authority in authorities.items():
+                await db.evidence.update_one(
+                    {"document_name": title, "created_by": "seed"},
+                    {"$set": {"issuing_authority": authority, "sample_data": True}},
+                )
+            await db.versions.update_many(
+                {"created_by": "seed"},
+                {"$set": {"active": False, "version_type": "Minor", "release_channel": "Development", "sample_data": True}},
+            )
+            sample_projects = {
+                "NYC Zoning Resolution Testing": ["NYC C5-3 retail permitted use", "NYC Special Midtown overlay missed", "Setback question without address"],
+                "Parking Requirement Testing": ["OKC I-2 parking — correct answer, wrong cite", "OKC parking regression — worsened in v1.9"],
+                "Planned Development Testing": ["Franklin Cool Springs PD recognized", "Cool Springs FAR calculation", "Multi-turn property context retention", "Franklin permitted use — fixed in v1.9"],
+                "Bassett Release Regression": ["Sterling Heights hallucinated citation"],
+            }
+            for project_name, testcase_names in sample_projects.items():
+                project = await db.projects.find_one({"name": project_name, "created_by": "seed"}, {"_id": 0, "id": 1})
+                if project:
+                    for testcase_name in testcase_names:
+                        await db.testcases.update_one(
+                            {"name": f"[SAMPLE] {testcase_name}", "created_by": "seed"},
+                            {"$set": {"project_id": project["id"]}},
+                        )
+            return {"loaded": False, "repaired": True, "reason": "already_loaded", "testcases": existing_count}
+        if existing_count:
+            # Recover from an interrupted sample import. Only seed-owned records
+            # are removed; user-created and production records are never touched.
+            for collection in [
+                "attachments", "release_decisions", "activities", "comments", "annotations", "claims",
+                "retests", "findings", "responses", "evaluations", "goldstandards", "test_runs",
+                "regression_runs", "demos", "regression_suites", "calendar_events", "testcases",
+                "evidence", "properties", "projects", "municipalities", "versions", "models",
+            ]:
+                await db[collection].delete_many({"created_by": "seed"})
 
     # Development/demo reset only. Delete dependents before their parents so
     # PostgreSQL's referential safeguards remain active during normal API use.
@@ -41,13 +96,15 @@ async def run_seed_impl(db, new_id, now_iso, *, reset=True):
         {"id": new_id(), "name": "ChatGPT", "provider": "OpenAI", "role_type": "Benchmark", "model_name": "gpt-5.4", "active": True, "created_at": ts, "created_by": "seed"},
         {"id": new_id(), "name": "Claude", "provider": "Anthropic", "role_type": "Benchmark", "model_name": "claude-sonnet-4-6", "active": True, "created_at": ts, "created_by": "seed"},
     ]
+    if not reset:
+        for record in models:
+            record["sample_data"] = True
     await db.models.insert_many([dict(m) for m in models])
 
     # Bassett versions
-    existing_active_version = None if reset else await db.versions.find_one({"active": True}, {"_id": 0, "id": 1})
     versions = [
-        {"id": new_id(), "name": "Bassett 8.26 (Sample)", "release_number": "8.26", "release_date": "2026-08-01", "environment": "Sample", "active": False, "description": "Prior sample baseline used only for metric verification", "created_at": ts, "created_by": "seed"},
-        {"id": new_id(), "name": "Bassett 9.26 (Sample)", "release_number": "9.26", "release_date": "2026-09-01", "environment": "Sample", "active": not bool(existing_active_version), "description": "Sample current release used only for metric verification", "created_at": ts, "created_by": "seed"},
+        {"id": new_id(), "name": "Bassett 8.26 (Sample)", "release_number": "8.26", "release_date": "2026-08-01", "environment": "Sample", "version_type": "Minor", "release_channel": "Development", "sample_data": True, "active": False, "description": "Prior sample baseline used only for metric verification", "created_at": ts, "created_by": "seed"},
+        {"id": new_id(), "name": "Bassett 9.26 (Sample)", "release_number": "9.26", "release_date": "2026-09-01", "environment": "Sample", "version_type": "Minor", "release_channel": "Development", "sample_data": True, "active": False, "description": "Sample current release used only for metric verification", "created_at": ts, "created_by": "seed"},
     ]
     await db.versions.insert_many([dict(v) for v in versions])
     V18, V19 = "Bassett 8.26 (Sample)", "Bassett 9.26 (Sample)"
@@ -67,6 +124,9 @@ async def run_seed_impl(db, new_id, now_iso, *, reset=True):
          "primary_code": "Sterling Heights Zoning", "code_url": "", "map_url": "", "code_effective_date": "2022-05-01",
          "last_verified": "2025-12-01", "notes": "Evidence may be stale — verify.", "created_at": ts, "created_by": "seed"},
     ]
+    if not reset:
+        for record in munis:
+            record["sample_data"] = True
     await db.municipalities.insert_many([dict(m) for m in munis])
     M = {m["name"]: m["id"] for m in munis}
 
@@ -82,24 +142,30 @@ async def run_seed_impl(db, new_id, now_iso, *, reset=True):
          "state": "OK", "county": "Oklahoma", "apn": "OK-44-9931", "zoning_district": "I-2", "overlay": "", "special_district": "",
          "property_type": "Industrial", "notes": "", "created_at": ts, "created_by": "seed"},
     ]
+    if not reset:
+        for record in props:
+            record["sample_data"] = True
     await db.properties.insert_many([dict(p) for p in props])
     P = {p["name"]: p["id"] for p in props}
 
     # Projects
     projects = [
         {"id": new_id(), "name": "NYC Zoning Resolution Testing", "description": "Validate Bassett on NYC ZR permitted uses, overlays and dimensional rules.",
-         "owner": "QA Manager", "testers": ["Test Engineer"], "start_date": "2026-04-01", "target_date": "2026-07-01",
+         "owner": sample_owner.get("name") if sample_owner else "Sample QA Owner", "owner_id": sample_owner.get("id") if sample_owner else None, "testers": [], "start_date": "2026-04-01", "target_date": "2026-07-01",
          "status": "Active", "priority": "High", "bassett_version": V19, "completion": 45, "notes": "", "created_at": ts, "created_by": "seed"},
         {"id": new_id(), "name": "Parking Requirement Testing", "description": "Parking/FAR calculation accuracy across jurisdictions.",
-         "owner": "QA Manager", "testers": ["Test Engineer"], "start_date": "2026-04-15", "target_date": "2026-06-30",
+         "owner": sample_owner.get("name") if sample_owner else "Sample QA Owner", "owner_id": sample_owner.get("id") if sample_owner else None, "testers": [], "start_date": "2026-04-15", "target_date": "2026-06-30",
          "status": "Active", "priority": "Medium", "bassett_version": V19, "completion": 30, "notes": "", "created_at": ts, "created_by": "seed"},
         {"id": new_id(), "name": "Planned Development Testing", "description": "Ensure Bassett recognizes PD/PUD ordinances over base districts.",
-         "owner": "QA Manager", "testers": ["Test Engineer"], "start_date": "2026-03-01", "target_date": "2026-06-01",
+         "owner": sample_owner.get("name") if sample_owner else "Sample QA Owner", "owner_id": sample_owner.get("id") if sample_owner else None, "testers": [], "start_date": "2026-03-01", "target_date": "2026-06-01",
          "status": "Active", "priority": "High", "bassett_version": V19, "completion": 60, "notes": "", "created_at": ts, "created_by": "seed"},
         {"id": new_id(), "name": "Bassett Release Regression", "description": "Regression suite run on each Bassett release.",
-         "owner": "QA Manager", "testers": ["Test Engineer"], "start_date": "2026-05-15", "target_date": "2026-05-30",
+         "owner": sample_owner.get("name") if sample_owner else "Sample QA Owner", "owner_id": sample_owner.get("id") if sample_owner else None, "testers": [], "start_date": "2026-05-15", "target_date": "2026-05-30",
          "status": "Active", "priority": "Critical", "bassett_version": V19, "completion": 80, "notes": "", "created_at": ts, "created_by": "seed"},
     ]
+    if not reset:
+        for record in projects:
+            record["sample_data"] = True
     await db.projects.insert_many([dict(p) for p in projects])
     PR = {p["name"]: p["id"] for p in projects}
 
@@ -108,20 +174,23 @@ async def run_seed_impl(db, new_id, now_iso, *, reset=True):
         {"id": new_id(), "municipality_id": M["New York City"], "document_name": "NYC ZR §32-00 Use Regulations", "doc_type": "Ordinance Section",
          "section": "§32-00", "citation": "NYC ZR §32-00", "effective_date": "2025-11-01", "source_url": "https://zr.planning.nyc.gov/article-iii",
          "relevant_text": "Use Group 6 retail uses are permitted as-of-right in C5 districts subject to Special Midtown District provisions.",
-         "verification_status": "Expert Verified", "verified_by": "QA Manager", "verified_date": "2026-05-01", "notes": "", "created_at": ts, "created_by": "seed"},
+         "issuing_authority": "New York City Department of City Planning", "verification_status": "Expert Verified", "verified_by": "QA Manager", "verified_date": "2026-05-01", "notes": "", "created_at": ts, "created_by": "seed"},
         {"id": new_id(), "municipality_id": M["Franklin"], "document_name": "Cool Springs PD Ordinance 2019-14", "doc_type": "Planned Development Ordinance",
          "section": "PD 2019-14 §4", "citation": "Franklin PD 2019-14", "effective_date": "2019-09-01", "source_url": "https://franklintn.gov/pd/2019-14",
          "relevant_text": "Permitted uses, setbacks and density for the Cool Springs PD are governed exclusively by this ordinance and supersede base district standards.",
-         "verification_status": "Municipality Confirmed", "verified_by": "QA Manager", "verified_date": "2026-04-20", "notes": "", "created_at": ts, "created_by": "seed"},
+         "issuing_authority": "City of Franklin Planning and Sustainability Department", "verification_status": "Municipality Confirmed", "verified_by": "QA Manager", "verified_date": "2026-04-20", "notes": "", "created_at": ts, "created_by": "seed"},
         {"id": new_id(), "municipality_id": M["Oklahoma City"], "document_name": "OKC Municipal Code §59-9150 Parking", "doc_type": "Ordinance Section",
          "section": "§59-9150", "citation": "OKC §59-9150", "effective_date": "2023-01-15", "source_url": "https://okc.gov/parking",
          "relevant_text": "Warehouse/industrial (I-2): 1 space per 1,000 sq ft of gross floor area.",
-         "verification_status": "Expert Verified", "verified_by": "QA Manager", "verified_date": "2026-02-01", "notes": "", "created_at": ts, "created_by": "seed"},
+         "issuing_authority": "City of Oklahoma City Planning Department", "verification_status": "Expert Verified", "verified_by": "QA Manager", "verified_date": "2026-02-01", "notes": "", "created_at": ts, "created_by": "seed"},
         {"id": new_id(), "municipality_id": M["Sterling Heights"], "document_name": "Sterling Heights Setback Table", "doc_type": "Ordinance Section",
          "section": "§7.02", "citation": "SH §7.02", "effective_date": "2022-05-01", "source_url": "",
-         "relevant_text": "R-60 front setback: 30 ft.", "verification_status": "Unverified", "verified_by": "", "verified_date": "",
+         "relevant_text": "R-60 front setback: 30 ft.", "issuing_authority": "City of Sterling Heights Office of Planning", "verification_status": "Unverified", "verified_by": "", "verified_date": "",
          "notes": "Effective date is old — verification recommended.", "created_at": ts, "created_by": "seed"},
     ]
+    if not reset:
+        for record in evidence:
+            record["sample_data"] = True
     await db.evidence.insert_many([dict(e) for e in evidence])
     E = {e["document_name"]: e["id"] for e in evidence}
 
@@ -133,9 +202,9 @@ async def run_seed_impl(db, new_id, now_iso, *, reset=True):
 
     def make_tc(**kw):
         tid = new_id()
-        base = {"id": tid, "created_at": ts, "created_by": "seed", "tester": "Test Engineer",
+        base = {"id": tid, "created_at": ts, "created_by": "seed", "tester": "Test Engineer", "test_date": sample_date,
                 "difficulty": 2, "criticality": 3, "bassett_version": V19, "test_type": "Single Prompt",
-                "in_regression": False, "demo_status": "Not Reviewed", "evidence_ids": [], "expected_behaviors": []}
+                "in_regression": False, "demo_status": "Not Reviewed", "sample_data": not reset, "evidence_ids": [], "expected_behaviors": []}
         base.update(kw)
         if not reset and base.get("name"):
             base["name"] = f"[SAMPLE] {base['name']}"
@@ -263,7 +332,7 @@ async def run_seed_impl(db, new_id, now_iso, *, reset=True):
     make_eval(t5, "Claude", scores([8,7,7,7,8,9,9,7,7,8,8,8]), "Pass")
 
     # TEST 6 — Hallucination
-    t6 = make_tc(name="Sterling Heights hallucinated citation", project_id=PR["NYC Zoning Resolution Testing"],
+    t6 = make_tc(name="Sterling Heights hallucinated citation", project_id=PR["Bassett Release Regression"],
                  municipality_id=M["Sterling Heights"], property_id=None, category="Source / Citation Performance",
                  subcategory="source authority", status="Evaluated", criticality=5, difficulty=3,
                  test_type="Adversarial / Edge Case", in_regression=True, scenario="Ask an obscure setback; watch for made-up citation.",
@@ -278,7 +347,7 @@ async def run_seed_impl(db, new_id, now_iso, *, reset=True):
     make_eval(t6, "ChatGPT", scores([6,5,6,6,6,8,7,6,6,7,5,6]), "Pass with Minor Issues")
     make_eval(t6, "Claude", scores([6,5,6,6,6,8,7,6,7,8,5,6]), "Pass with Minor Issues")
     finding_docs.append({"id": new_id(), "title": "Hallucinated ordinance citation (SH §7.08(c))",
-                         "project_id": PR["NYC Zoning Resolution Testing"], "testcase_id": t6, "finding_type": "hallucination",
+                         "project_id": PR["Bassett Release Regression"], "testcase_id": t6, "finding_type": "hallucination",
                          "category": "Source / Citation Performance", "criticality": 5,
                          "description": "Bassett fabricated a citation and setback value for an unverified jurisdiction.",
                          "expected_behavior": "Express uncertainty; recommend verification.", "actual_behavior": "Confident fabricated citation.",
@@ -287,7 +356,7 @@ async def run_seed_impl(db, new_id, now_iso, *, reset=True):
                          "tester": "Test Engineer", "owner": "Product Dev", "status_history": [], "created_at": ts, "created_by": "seed"})
 
     # TEST 7 — Calculation
-    t7 = make_tc(name="Cool Springs FAR calculation", project_id=PR["Parking Requirement Testing"],
+    t7 = make_tc(name="Cool Springs FAR calculation", project_id=PR["Planned Development Testing"],
                  municipality_id=M["Franklin"], property_id=P["Cool Springs Mixed-Use Site"],
                  category="Calculation Performance", subcategory="FAR", status="Evaluated", criticality=3, difficulty=3,
                  test_type="Calculation", in_regression=True, scenario="FAR for 2.0 on a 50,000 sqft lot.",
@@ -303,7 +372,7 @@ async def run_seed_impl(db, new_id, now_iso, *, reset=True):
     make_eval(t7, "Claude", scores([9,7,7,10,8,7,7,6,6,7,8,8]), "Pass")
 
     # TEST 8 — Multi-Turn Context
-    t8 = make_tc(name="Multi-turn property context retention", project_id=PR["NYC Zoning Resolution Testing"],
+    t8 = make_tc(name="Multi-turn property context retention", project_id=PR["Planned Development Testing"],
                  municipality_id=M["Franklin"], property_id=P["Cool Springs Mixed-Use Site"],
                  category="Conversational Performance", subcategory="context retention", status="Evaluated",
                  criticality=4, difficulty=4, test_type="Multi-Turn Conversation", in_regression=True,
@@ -322,7 +391,7 @@ async def run_seed_impl(db, new_id, now_iso, *, reset=True):
     make_eval(t8, "Claude", scores([4,4,4,5,3,4,4,4,5,4,4,4]), "Fail", "Lost context.")
 
     # TEST 9 — Retest (fail on v1.8, fixed in v1.9)
-    t9 = make_tc(name="Franklin permitted use — fixed in v1.9", project_id=PR["Bassett Release Regression"],
+    t9 = make_tc(name="Franklin permitted use — fixed in v1.9", project_id=PR["Planned Development Testing"],
                  municipality_id=M["Franklin"], property_id=P["Cool Springs Mixed-Use Site"],
                  category="Zoning Code Requirements", subcategory="permitted uses", status="Retested",
                  criticality=4, difficulty=3, in_regression=True, bassett_version=V19,
@@ -340,7 +409,7 @@ async def run_seed_impl(db, new_id, now_iso, *, reset=True):
                         "notes": "Fix confirmed; PD ordinance now applied.", "created_at": ts, "created_by": "seed"})
 
     # TEST 10 — Regression (passed before, fails now)
-    t10 = make_tc(name="OKC parking regression — worsened in v1.9", project_id=PR["Bassett Release Regression"],
+    t10 = make_tc(name="OKC parking regression — worsened in v1.9", project_id=PR["Parking Requirement Testing"],
                   municipality_id=M["Oklahoma City"], property_id=P["2219 Bainbridge Warehouse"],
                   category="Calculation Performance", subcategory="parking calculations", status="Evaluated",
                   criticality=4, difficulty=2, in_regression=True, test_type="Regression",
@@ -352,7 +421,7 @@ async def run_seed_impl(db, new_id, now_iso, *, reset=True):
     make_gold(t10, "40 spaces (1 per 1,000 sqft), OKC §59-9150.", "Rate misread in v1.9.", [E["OKC Municipal Code §59-9150 Parking"]])
     make_eval(t10, "Bassett", scores([3,6,4,2,6,6,6,6,7,5,5,4]), "Fail", "Regressed: doubled the count.")
     finding_docs.append({"id": new_id(), "title": "Regression: OKC parking rate misapplied in v1.9",
-                         "project_id": PR["Bassett Release Regression"], "testcase_id": t10, "finding_type": "regression",
+                         "project_id": PR["Parking Requirement Testing"], "testcase_id": t10, "finding_type": "regression",
                          "category": "Calculation Performance", "criticality": 4,
                          "description": "v1.8 computed 40 spaces correctly; v1.9 returns 80 (wrong rate).",
                          "expected_behavior": "40 spaces at 1/1000 sqft.", "actual_behavior": "80 spaces at 1/500 sqft.",
