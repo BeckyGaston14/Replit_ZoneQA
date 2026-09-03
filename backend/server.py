@@ -1095,6 +1095,7 @@ async def email_status(admin=Depends(require_roles("admin"))):
     return {
         "provider": status.get("provider", "Gmail"),
         "status": status.get("status", "disconnected"),
+        "sender_email": status.get("sender_email"),
         "mode": mode or ("mock" if APP_ENV in {"development", "test"} else "gmail"),
         "published_url_configured": bool(_configured_app_url()),
     }
@@ -1696,8 +1697,33 @@ def _validate_resource_required_fields(coll, document):
         raise HTTPException(400, detail=errors)
 
 
+MODEL_ROLE_TYPES = {"Primary", "Benchmark"}
+
+
+def _normalize_model(document, *, partial=False):
+    """Keep model administration predictable without storing provider secrets."""
+    normalized = dict(document)
+    for field in ("name", "provider", "model_name"):
+        if field in normalized:
+            normalized[field] = str(normalized.get(field) or "").strip()
+    if not partial or "role_type" in normalized:
+        role_type = str(normalized.get("role_type") or "Benchmark").strip().title()
+        if role_type not in MODEL_ROLE_TYPES:
+            raise HTTPException(400, "Model type must be Primary or Benchmark")
+        normalized["role_type"] = role_type
+    if "active" in normalized:
+        normalized["active"] = bool(normalized["active"])
+    elif not partial:
+        normalized["active"] = True
+    return normalized
+
+
 async def crud_create(coll, body, user):
     doc = dict(body)
+    if coll == "models":
+        if user.get("role") not in ("admin", "qa_manager"):
+            raise HTTPException(403, "Only administrators and QA managers can manage models")
+        doc = _normalize_model(doc)
     _validate_resource_required_fields(coll, doc)
     await _validate_user_references(coll, doc)
     if coll == "retests":
@@ -1745,6 +1771,8 @@ async def crud_create(coll, body, user):
         duplicate = await db.versions.find_one({"$or": [{"name": doc.get("name")}, {"release_number": doc.get("release_number")}]})
         if duplicate:
             raise HTTPException(409, "A Bassett version with this name or release number already exists")
+    if coll == "models" and await db.models.find_one({"name": doc["name"]}):
+        raise HTTPException(409, "A model with this display name already exists")
     doc["id"] = doc.get("id") or new_id()
     doc["created_at"] = now_iso()
     doc["created_by"] = user["name"]
@@ -1761,6 +1789,10 @@ async def crud_create(coll, body, user):
     return clean(doc)
 
 async def crud_update(coll, id, body, user):
+    if coll == "models":
+        if user.get("role") not in ("admin", "qa_manager"):
+            raise HTTPException(403, "Only administrators and QA managers can manage models")
+        body = _normalize_model(body, partial=True)
     if coll == "versions" and user.get("role") not in ("admin", "qa_manager"):
         raise HTTPException(403, "Only administrators and QA managers can manage Bassett versions")
     if coll == "versions":
@@ -1788,6 +1820,8 @@ async def crud_update(coll, id, body, user):
     if not existing_for_references:
         raise HTTPException(404, "Not found")
     _validate_resource_required_fields(coll, {**existing_for_references, **body})
+    if coll == "models" and body.get("name") and await db.models.find_one({"id": {"$ne": id}, "name": body["name"]}):
+        raise HTTPException(409, "A model with this display name already exists")
     if existing_for_references.get("archived") or existing_for_references.get("status") == "Archived":
         raise HTTPException(409, "Archived records are immutable; historical reads are preserved")
     _require_fresh_version(existing_for_references, body)
@@ -2385,6 +2419,21 @@ async def permanently_delete_testcase(id: str, body: Dict[str, Any], admin=Depen
     return {"ok": True, "id": id, "audit_id": audit["id"]}
 
 async def crud_delete(coll, id, user):
+    if coll == "models":
+        if user.get("role") not in ("admin", "qa_manager"):
+            raise HTTPException(403, "Only administrators and QA managers can manage models")
+        existing = await db.models.find_one({"id": id}, {"_id": 0})
+        if not existing:
+            raise HTTPException(404, "Model not found")
+        name = existing.get("name")
+        references = {
+            "responses": await db.responses.count_documents({"model": name}),
+            "evaluations": await db.evaluations.count_documents({"model": name}),
+            "test_runs": await db.test_runs.count_documents({"models": name}),
+        }
+        references = {collection: count for collection, count in references.items() if count}
+        if references:
+            raise HTTPException(409, f"Model is used by historical records and cannot be deleted: {references}. Deactivate it instead.")
     if coll == "versions" and user.get("role") not in ("admin", "qa_manager"):
         raise HTTPException(403, "Only administrators and QA managers can manage Bassett versions")
     if coll == "versions":
