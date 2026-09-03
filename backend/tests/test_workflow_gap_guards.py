@@ -595,7 +595,7 @@ def test_active_project_metric_uses_enriched_automatic_completion(monkeypatch):
     )
 
     assert result["count"] == 1
-    assert result["records"][0]["value"] == 50
+    assert result["records"][0]["value"] == 100
     assert result["records"][0]["secondary"] == "Linked active test cases · QA"
 
 
