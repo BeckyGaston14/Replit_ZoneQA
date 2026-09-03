@@ -7,7 +7,8 @@ import { Button } from "./ui/button";
 import { api } from "../lib/api";
 import { toast } from "sonner";
 import { todayInTimeZone } from "../lib/testDates";
-import { SCORE_RUBRIC, hasScoredDimension, scoreRubricReason } from "../lib/scoreRubric";
+import { SCORE_RUBRIC, hasScoredDimension } from "../lib/scoreRubric";
+import { ScoreSelect } from "./ScoreSelect";
 
 export const BASSETT_RESULT_OPTIONS = ["Pass", "Pass with Notes", "Partial", "Fail", "Blocked", "Not Evaluated"];
 export const COMPARISON_RESULT_OPTIONS = ["Pass", "Pass with Minor Issues", "Needs Improvement", "Fail", "Critical Fail", "Not Evaluated"];
@@ -109,8 +110,8 @@ function EvaluationGrid({ model, scores, dimensions, onChange, locked }) {
   return <div className="space-y-3">
     <details className="rounded-lg border bg-[var(--paper)] p-3"><summary className="cursor-pointer text-sm font-semibold text-[var(--navy)]">View the shared 0–10 scoring rubric</summary><div className="mt-3 grid gap-1 text-xs">{SCORE_RUBRIC.map(([score, reason]) => <div key={score} className="grid grid-cols-[1.5rem_1fr] gap-2"><b>{score}</b><span>{reason}</span></div>)}</div></details>
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      {dimensions.map((dimension) => <Field key={dimension.key} label={`${dimension.label} · weight ${dimension.weight}`} description={scoreRubricReason(scores?.[dimension.key])}>
-        <Input type="number" min="0" max="10" step="1" value={scores?.[dimension.key] ?? ""} disabled={locked} onChange={(e) => onChange(model, dimension.key, e.target.value === "" ? null : Number(e.target.value))} />
+      {dimensions.map((dimension) => <Field key={dimension.key} label={`${dimension.label} · weight ${dimension.weight}`}>
+        <ScoreSelect value={scores?.[dimension.key]} disabled={locked} ariaLabel={`${model} ${dimension.label} score`} onChange={(value) => onChange(model, dimension.key, value)} />
       </Field>)}
     </div>
   </div>;
