@@ -119,9 +119,9 @@ test("missing benchmark responses and scores remain explicit unavailable inputs 
   const view = renderForm("comparison");
   expect(view.container.querySelector('textarea[placeholder="Leave blank to record unavailable."]')).not.toBeNull();
   expect(view.container.textContent).toContain("excluded from comparison metrics");
-  const scoreInputs = [...view.container.querySelectorAll('input[type="number"]')];
-  expect(scoreInputs.length).toBeGreaterThan(0);
-  expect(scoreInputs.every((input) => input.value === "" && input.min === "0" && input.max === "10")).toBe(true);
+  const scoreSelects = [...view.container.querySelectorAll('select[aria-label$=" score"]')];
+  expect(scoreSelects.length).toBeGreaterThan(0);
+  expect(scoreSelects.every((select) => select.value === "" && select.options.length === 12)).toBe(true);
   act(() => view.root.unmount());
 });
 
@@ -144,3 +144,4 @@ test("comparison editor renders stale-save recovery controls supplied by its pag
   expect(view.container.textContent).toContain("Keep my entries and reapply");
   act(() => view.root.unmount());
 });
+
