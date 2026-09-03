@@ -303,7 +303,7 @@ export default function Admin() {
     setSampleDataBusy(true);
     try {
       const { data } = await api.post("/sample-data?confirm=true");
-      toast.success(data.loaded ? `Sample dataset loaded: ${data.testcases} comparison tests.` : "The sample dataset is already loaded.");
+      toast.success(data.loaded ? `Sample dataset loaded: ${data.testcases} comparison tests.` : data.repaired ? "The existing sample dataset was checked and repaired." : "The sample dataset is already loaded.");
       await Promise.all([refetchModels(), refetchVersions()]);
     } catch (error) {
       toast.error(error.response?.data?.detail || "Unable to load the sample dataset");
@@ -593,7 +593,7 @@ export default function Admin() {
             </div>
             <div className="bg-card border rounded-xl p-5 space-y-3" data-testid="sample-data-configuration">
               <h3 className="font-semibold font-display text-[var(--navy)]">Sample metric-verification data</h3>
-              <p className="text-sm text-muted-foreground">Add 10 clearly labeled sample comparisons with linked models, versions, projects, municipalities, evidence, findings, retests, regression runs, and demo records. Existing records are never deleted or overwritten.</p>
+              <p className="text-sm text-muted-foreground">Add 10 clearly labeled sample comparisons with linked models, versions, projects, municipalities, evidence, findings, retests, regression runs, and demo records. Sample versions remain inactive so they do not replace your current production reporting scope. Existing user-created records are never deleted or overwritten.</p>
               <Button type="button" variant="outline" disabled={sampleDataBusy} onClick={() => setConfirmingAction({ type: "sample-data" })}>{sampleDataBusy ? "Loading sample data…" : "Load sample dataset"}</Button>
             </div>
           </div>
