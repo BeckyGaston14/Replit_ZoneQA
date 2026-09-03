@@ -4631,7 +4631,7 @@ async def _authoritative_evaluation_read_model(evaluations):
             **score_evaluation(evaluation.get("scores"), dimensions),
             "normalized_result": result["result"],
             "result_label": result["result"],
-            "result_workflow_state": result["workflow_state"],
+            "result_workflow_state": result["is_workflow_state"],
         })
     return read_model
 
