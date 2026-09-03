@@ -5,6 +5,7 @@ import Admin from "./Admin";
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 var mockApi;
+var mockEmailStatus;
 let mockUser = { id: "admin-1", role: "admin", name: "Admin User" };
 let mockModels = [];
 const users = [
@@ -30,6 +31,7 @@ mockApi = {
   post: jest.fn(),
   delete: jest.fn(),
 };
+mockEmailStatus = { status: "connected", published_url_configured: true };
 jest.mock("../lib/auth", () => ({ useAuth: () => ({ user: mockUser }) }));
 jest.mock("../components/shared", () => ({
   PageHeader: ({ title, subtitle }) => <header><h1>{title}</h1><p>{subtitle}</p></header>,
@@ -73,7 +75,7 @@ jest.mock("@tanstack/react-query", () => ({
   useQuery: ({ queryKey }) => ({
     data: queryKey[0] === "users" ? users
       : queryKey[0] === "config" ? { environments: [], version_types: [], release_channels: [], integrations: {} }
-      : queryKey[0] === "admin-email-status" ? { status: "connected", published_url_configured: true }
+      : queryKey[0] === "admin-email-status" ? mockEmailStatus
       : queryKey[0] === "models" ? mockModels
       : [],
     refetch: jest.fn(),
@@ -107,6 +109,7 @@ afterEach(() => {
   mockApi.post.mockReset();
   mockApi.delete.mockReset();
   mockUser = { id: "admin-1", role: "admin", name: "Admin User" };
+  mockEmailStatus = { status: "connected", published_url_configured: true };
   mockModels = [];
   document.body.innerHTML = "";
 });
@@ -241,6 +244,18 @@ test("activated users do not show a resend invite action", () => {
   openUsers(view);
   expect(view.container.querySelector('[aria-label="Resend welcome email to Activated User"]')).toBeNull();
   expect(view.container.querySelector('[aria-label="Resend welcome email to Pending User"]')).not.toBeNull();
+  view.unmount();
+});
+
+test("unavailable Gmail configuration hides welcome-email actions and gives specific guidance", () => {
+  mockEmailStatus = { status: "disconnected", published_url_configured: false };
+  const view = renderAdmin();
+  openUsers(view);
+  act(() => view.container.querySelector('[data-testid="add-user-btn"]').click());
+
+  expect(view.container.querySelector("#new-user-welcome-email")).toBeNull();
+  expect(view.container.querySelector('[aria-label="Resend welcome email to Pending User"]')).toBeNull();
+  expect(view.container.textContent).toContain("Welcome email delivery is unavailable because Gmail or the published app URL is not configured.");
   view.unmount();
 });
 

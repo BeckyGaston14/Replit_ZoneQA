@@ -74,7 +74,8 @@ test("Bassett and comparison modes share the core section order while benchmarks
 
 test("guided workflow opens one section at a time and supports Previous and Next navigation", () => {
   const view = renderForm("bassett");
-  const sections = [...view.container.querySelectorAll("details")];
+  const sections = [...view.container.querySelectorAll("summary[data-guided-section]")]
+    .map((summary) => summary.closest("details"));
   expect(sections).toHaveLength(7);
   expect(sections.filter((section) => section.open)).toHaveLength(1);
   expect(sections[0].open).toBe(true);

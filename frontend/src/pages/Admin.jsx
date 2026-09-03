@@ -450,13 +450,15 @@ export default function Admin() {
               <div><Label htmlFor="new-user-email">Email</Label><Input id="new-user-email" type="email" autoComplete="email" value={newUser.email} onChange={(e) => setNewUser({...newUser, email: e.target.value})} required /></div>
               <div><Label htmlFor="new-user-role">Role</Label><select id="new-user-role" value={newUser.role} onChange={(e) => setNewUser({...newUser, role: e.target.value})} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm" required>{ROLES.map((role) => <option key={role} value={role}>{userRoleLabel(role)}</option>)}</select></div>
               <label htmlFor="new-user-active" className="flex items-center gap-2 pt-6 text-sm"><input id="new-user-active" type="checkbox" checked={newUser.active} onChange={(e) => setNewUser({...newUser, active: e.target.checked})} /> Active now</label>
-               <div className="md:col-span-4 rounded-lg border border-[var(--orange)]/30 bg-[var(--paper)]/60 p-3">
+                {welcomeEmailReady ? <div className="md:col-span-4 rounded-lg border border-[var(--orange)]/30 bg-[var(--paper)]/60 p-3">
                  <label htmlFor="new-user-welcome-email" aria-describedby="new-user-welcome-email-help" className="flex items-start gap-2 text-sm font-semibold text-[var(--navy)]">
-                   <input id="new-user-welcome-email" type="checkbox" className="mt-0.5 h-4 w-4 shrink-0" checked={welcomeEmailReady && newUser.send_welcome_email !== false} disabled={!welcomeEmailReady} onChange={(e) => setNewUser({...newUser, send_welcome_email: e.target.checked})} />
+                    <input id="new-user-welcome-email" type="checkbox" className="mt-0.5 h-4 w-4 shrink-0" checked={newUser.send_welcome_email !== false} onChange={(e) => setNewUser({...newUser, send_welcome_email: e.target.checked})} />
                    <span>Send welcome email with secure setup link</span>
                  </label>
-                 <p id="new-user-welcome-email-help" className="ml-6 mt-1 text-xs text-muted-foreground">{welcomeEmailReady ? "The recipient will receive a single-use link valid for 24 hours and will create their own password." : "Email delivery is unavailable. Create the user, then copy and share the one-time setup link securely."}</p>
-               </div>
+                  <p id="new-user-welcome-email-help" className="ml-6 mt-1 text-xs text-muted-foreground">The recipient will receive a single-use link valid for 24 hours and will create their own password.</p>
+                </div> : <div className="md:col-span-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950" role="status">
+                  Welcome email delivery is unavailable because Gmail or the published app URL is not configured. Create the user, then copy and share the one-time setup link securely.
+                </div>}
             </div>
             <div className="flex gap-2"><Button type="submit"><Plus size={14} /> Create user</Button><Button type="button" variant="outline" onClick={() => setAddingUser(false)}>Cancel</Button></div>
           </form>}
@@ -507,7 +509,7 @@ export default function Admin() {
                   {u.active === false
                     ? <Button size="sm" variant="outline" onClick={()=>toggleUser(u)} aria-label={`Reactivate ${u.name}`}><UserCheck size={14}/> Reactivate</Button>
                     : <Button size="sm" variant="outline" disabled={!!userActionBlock(u, "deactivate")} title={userActionBlock(u, "deactivate")} onClick={()=>toggleUser(u)} aria-label={`Deactivate ${u.name}`}><UserX size={14}/> Deactivate</Button>}
-                  {!u.password_login_ready && u.active !== false && !u.deleted_at && <Button size="sm" variant="outline" disabled={welcomeEmailBusy === u.id} onClick={()=>resendWelcomeEmail(u)} aria-label={`Resend welcome email to ${u.name}`} title="Resend the 24-hour setup link"><RefreshCw size={14}/> {welcomeEmailBusy === u.id ? "Sending…" : "Resend invite"}</Button>}
+                   {welcomeEmailReady && !u.password_login_ready && u.active !== false && !u.deleted_at && <Button size="sm" variant="outline" disabled={welcomeEmailBusy === u.id} onClick={()=>resendWelcomeEmail(u)} aria-label={`Resend welcome email to ${u.name}`} title="Resend the 24-hour setup link"><RefreshCw size={14}/> {welcomeEmailBusy === u.id ? "Sending…" : "Resend invite"}</Button>}
                   {u.active === false && <Button size="sm" variant="destructive" disabled={u.id === me?.id} title={u.id === me?.id ? userActionBlock(u, "delete") : undefined} onClick={()=>deleteUser(u)} aria-label={`Delete ${u.name} permanently`}><Trash2 size={14}/> Delete permanently</Button>}
                 </div></td>
               </tr>

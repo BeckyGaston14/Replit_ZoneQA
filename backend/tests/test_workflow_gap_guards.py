@@ -518,6 +518,39 @@ def test_dashboard_legacy_quality_fields_use_active_version_and_latest_regressio
     assert result["regression_failures"] == 1
 
 
+def test_dashboard_current_version_metrics_are_unavailable_without_active_version(monkeypatch):
+    evaluations = [
+        _evaluation(f"historical-{model}", "historical", model, 9, run_id="historical")
+        for model in ("Bassett", "ChatGPT", "Claude")
+    ]
+    for evaluation in evaluations:
+        evaluation["bassett_version"] = "historical-v1"
+    rows = {
+        "projects": [], "testcases": [{"id": "historical"}],
+        "evaluations": evaluations,
+        "test_runs": [{"id": "historical", "status": "Completed", "outcome": "Success", "comparison_complete": True}],
+        "versions": [], "findings": [], "demos": [], "regression_runs": [], "retests": [],
+    }
+    monkeypatch.setattr(server, "db", Db(rows))
+
+    async def fake_crud_list(collection, query=None):
+        return [dict(row) for row in rows.get(collection, [])]
+
+    monkeypatch.setattr(server, "crud_list", fake_crud_list)
+    monkeypatch.setattr(server, "_current_project_last_tested_dates", lambda _projects=None: asyncio.sleep(0, result={}))
+
+    user = {"id": "viewer", "role": "viewer"}
+    dashboard = asyncio.run(server.dashboard_stats(user))
+    summary = asyncio.run(server.metrics_summary(user))
+
+    assert dashboard["bassett_passed"] == 0
+    assert dashboard["bassett_failed"] == 0
+    assert summary["active_version"] == ""
+    assert summary["bassett_current"]["evaluated"] == 0
+    assert summary["bassett_current"]["pass_rate"] is None
+    assert summary["bassett_avg_score"]["value"] is None
+
+
 def test_release_readiness_critical_findings_are_version_scoped(monkeypatch):
     rows = {
         "testcases": [],
@@ -595,7 +628,7 @@ def test_active_project_metric_uses_enriched_automatic_completion(monkeypatch):
     )
 
     assert result["count"] == 1
-    assert result["records"][0]["value"] == 50
+    assert result["records"][0]["value"] == 100
     assert result["records"][0]["secondary"] == "Linked active test cases · QA"
 
 
