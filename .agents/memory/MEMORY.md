@@ -1,0 +1,14 @@
+- [Replit App Storage](replit-app-storage.md) — Attachments use Replit’s managed client; its installable distribution name differs from the docs label.
+- [Preview workflow reliability](preview-workflow-reliability.md) — Keep the webview stable with a same-origin proxy while CRACO supplies hot updates internally.
+- [Production auth storage](production-auth-storage.md) — Keep opaque sessions and atomic bootstrap state in existing indexed PostgreSQL records without a schema migration.
+- [Test Date integrity](test-date-integrity.md) — Execution dates are explicit ISO date-only values; never infer missing historical dates from audit timestamps.
+- [Project testing recency](project-testing-recency.md) — Last Tested Date follows active linked tests and trustworthy completed run dates, never modification timestamps.
+- [Mobile data-table accessibility](mobile-data-table-accessibility.md) — Dense workspace tables must keep every column and action reachable at 320px.
+- [Atomic record edits](atomic-record-edits.md) — Employee-editable records use database-row compare-and-swap; revision checks must never be split from writes.
+- [Bassett workflow terminology](bassett-workflow-terminology.md) — Preserve Research/Analysis naming and keep Bassett-only records separate from full model comparisons.
+- [Evaluation score scale](evaluation-score-scale.md) — Every evaluation visualization uses an absolute 0–10 domain; missing values remain unavailable, never zero.
+- [Frontend Jest module mocks](frontend-jest-module-mocks.md) — Focused CRA tests need virtual mocks for aliased/router modules and lazy mock closures to avoid Jest hoist failures.
+- [Autoscale startup readiness](autoscale-startup-readiness.md) — Serve the SPA probe immediately while keeping backend initialization bounded and failure-visible.
+- [Gmail connector delivery](gmail-connector-delivery.md) — Use the managed Gmail connector proxy in production and a mock sender in development/tests; never persist provider credentials.
+- [Executive PDF layout](executive-pdf-layout.md) — Compose report sections directly in A4 jsPDF; rasterize only individual charts and repeat table headers on page breaks.
+- [Bassett workflow boundaries](bassett-workflow-boundaries.md) — Keep Bassett-only promotion separate from complete model comparisons and reuse evidence links instead of duplicating attachment records.

@@ -1,0 +1,62 @@
+modules = ["nodejs-20", "python-3.12", "web", "bash", "postgresql-16"]
+
+[nix]
+channel = "stable-25_05"
+packages = ["cargo", "freetype", "gumbo", "harfbuzz", "jbig2dec", "libiconv", "libjpeg_turbo", "libxcrypt", "mupdf", "openjpeg", "postgresql", "rustc", "swig", "xcbuild"]
+
+[agent]
+expertMode = true
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "BROWSER=none REACT_APP_BACKEND_URL=\"\" yarn --cwd frontend build && python scripts/serve_frontend.py --smoke-test && exec env APP_ENV=production SERVE_MODE=production HOST=0.0.0.0 PORT=5000 python scripts/start_production.py"
+waitForPort = 5000
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 180000
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[[ports]]
+localPort = 5001
+externalPort = 3001
+exposeLocalhost = true
+
+[[ports]]
+localPort = 5050
+externalPort = 3002
+
+[objectStorage]
+defaultBucketID = "replit-objstore-c6026641-5903-4e1a-a316-ca5db1ca26b7"
+
+[deployment]
+run = ["sh", "-c", "exec env APP_ENV=production SERVE_MODE=production HOST=0.0.0.0 PORT=5000 python scripts/start_production.py"]
+deploymentTarget = "autoscale"
+build = ["sh", "-c", "BROWSER=none REACT_APP_BACKEND_URL= yarn --cwd frontend build"]
+
+[userenv]
+
+[userenv.shared]
+ZONEQA_APP_URL = "https://zone-qa.replit.app"
