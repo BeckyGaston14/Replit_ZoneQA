@@ -7,6 +7,7 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 var mockApi;
 var mockEmailStatus;
 let mockUser = { id: "admin-1", role: "admin", name: "Admin User" };
+let mockModels = [];
 const users = [
   { id: "admin-1", name: "Admin User", email: "admin@example.com", role: "admin", active: true, revision: 1 },
   { id: "tester-1", name: "Tester User", email: "tester@example.com", role: "tester", active: true, revision: 1 },
@@ -75,6 +76,7 @@ jest.mock("@tanstack/react-query", () => ({
     data: queryKey[0] === "users" ? users
       : queryKey[0] === "config" ? { environments: [], version_types: [], release_channels: [], integrations: {} }
       : queryKey[0] === "admin-email-status" ? mockEmailStatus
+      : queryKey[0] === "models" ? mockModels
       : [],
     refetch: jest.fn(),
   }),
@@ -108,7 +110,36 @@ afterEach(() => {
   mockApi.delete.mockReset();
   mockUser = { id: "admin-1", role: "admin", name: "Admin User" };
   mockEmailStatus = { status: "connected", published_url_configured: true };
+  mockModels = [];
   document.body.innerHTML = "";
+});
+
+test("administrators can add a model from the Models tab", async () => {
+  mockApi.post.mockResolvedValueOnce({ data: { id: "model-1" } });
+  const view = renderAdmin();
+  const tab = [...view.container.querySelectorAll('[role="tab"]')].find((item) => item.textContent === "Models");
+  act(() => tab.click());
+  expect(view.container.textContent).toContain("No models have been added");
+  setInput(view.container.querySelector("#model-name"), "ChatGPT");
+  setInput(view.container.querySelector("#model-provider"), "OpenAI");
+  setInput(view.container.querySelector("#model-identifier"), "gpt-5.4");
+  await act(async () => view.container.querySelector('form[aria-labelledby="model-form-heading"]').dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+  expect(mockApi.post).toHaveBeenCalledWith("/models", {
+    name: "ChatGPT", provider: "OpenAI", model_name: "gpt-5.4", role_type: "Benchmark", active: true,
+  });
+  view.unmount();
+});
+
+test("Integrations explains secure Gmail connector configuration", () => {
+  const view = renderAdmin();
+  const tab = [...view.container.querySelectorAll('[role="tab"]')].find((item) => item.textContent === "Integrations");
+  act(() => tab.click());
+  const panel = view.container.querySelector('[data-testid="gmail-configuration"]');
+  expect(panel.textContent).toContain("Gmail welcome email");
+  expect(panel.textContent).toContain("Tools → Integrations");
+  expect(panel.textContent).toContain("ZONEQA_APP_URL");
+  expect(panel.textContent).toContain("never stored in ZoneQA");
+  view.unmount();
 });
 
 test("Admin edit-user fields are associated with stable IDs and lifecycle controls remain visible", () => {
