@@ -1,0 +1,14 @@
+Pull and apply the latest source from GitHub repository BeckyGaston14/Replit_ZoneQA, branch main, specifically commit 14623df7d811b390002c6740334795ca1f341844. This commit contains verified QA reporting and administration usability fixes.
+
+Work in small, reviewable batches. Preserve the existing .replit runtime configuration, all Replit Secrets, production environment variables, PostgreSQL data, user accounts/password hashes, App Storage uploads, deployment settings, and Replit-only metadata. Do not reset, replace, seed, copy development data into production, delete production records, or republish automatically.
+
+First, confirm the GitHub commit and synchronize only the source changes. Then run Python compilation, the complete backend test suite, the complete frontend test suite, and a frontend production build. Fix any genuine regressions caused by the pull, but do not change correct application behavior merely to satisfy a stale test; update stale tests only when the intended behavior is already verified.
+
+After the source is synchronized and tests pass, address these remaining items:
+1. Verify the Administration > Bassett Versions workflow clearly lets an administrator select exactly one active version, and that the dashboard metrics immediately use that version. Do not silently choose or alter a production version.
+2. Verify both Bassett-only and Model Comparison forms save project, test case, property, municipality, evidence, finding, and test-run relationships correctly, including inline creation. Add or correct automated relationship tests. Do not invent links for existing production records. If existing records are unlinked, provide a safe administrator-facing repair workflow or a precise report rather than guessing.
+3. Verify welcome-email delivery supports Gmail configuration through secrets, exposes a clear Send/Resend Welcome Email action only when configured, and gives a specific configuration message when unavailable. Never print, commit, expose, or invent Gmail credentials.
+4. Recheck Executive Summary empty-data calculations, the PDF download, evaluated scenario coverage wording, the missing-active-version guidance, lookup search/collapse behavior, and evidence-page grammar from commit 14623df.
+5. Report anything that still requires an administrator to configure or correct in production data.
+
+Do not redesign unrelated screens, remove working functionality, modify authentication rules, or republish. At completion, report the exact synchronized commit, files changed beyond that commit, test/build results, production-data/configuration actions still required, and whether the app is ready for the user to click Republish.
