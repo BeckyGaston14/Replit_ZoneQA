@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "./api";
+import { useAuth } from "./auth";
 export { useSavedView } from "./savedViews";
 
 const REFERENCE_QUERY_OPTIONS = {
@@ -9,36 +10,44 @@ const REFERENCE_QUERY_OPTIONS = {
   refetchOnMount: false,
 };
 
+function useAuthQueryOptions(defaultKey, options = {}) {
+  const auth = useAuth() || {};
+  const userId = auth.user?.id || null;
+  const authReady = auth.loading === false && Boolean(userId);
+  const { queryKey = defaultKey, enabled = true, ...queryOptions } = options;
+  return {
+    ...REFERENCE_QUERY_OPTIONS,
+    ...queryOptions,
+    queryKey: [...queryKey, userId],
+    enabled: authReady && enabled,
+  };
+}
+
 export function useCollection(name, opts = {}) {
   return useQuery({
-    queryKey: [name],
     queryFn: async () => (await api.get(`/${name}`)).data,
-    ...REFERENCE_QUERY_OPTIONS,
-    ...opts,
+    ...useAuthQueryOptions([name], opts),
   });
 }
 
-export function useConfig() {
+export function useConfig(opts = {}) {
   return useQuery({
-    queryKey: ["config"],
     queryFn: async () => (await api.get("/config")).data,
-    ...REFERENCE_QUERY_OPTIONS,
+    ...useAuthQueryOptions(["config"], opts),
   });
 }
 
 export function useTestCases({ includeArchived = false, ...opts } = {}) {
   return useQuery({
-    queryKey: ["tc-enriched", includeArchived ? "all" : "active"],
     queryFn: async () => (await api.get(`/list/testcases-enriched?include_archived=${includeArchived}`)).data,
-    ...opts,
+    ...useAuthQueryOptions(["tc-enriched", includeArchived ? "all" : "active"], opts),
   });
 }
 
 export function useTestBank({ includeArchived = false, ...opts } = {}) {
   return useQuery({
-    queryKey: ["bassett-scenarios", includeArchived ? "including-archived" : "active"],
     queryFn: async () => (await api.get(`/bassett/test-bank?include_archived=${includeArchived}`)).data,
-    ...opts,
+    ...useAuthQueryOptions(["bassett-scenarios", includeArchived ? "including-archived" : "active"], opts),
   });
 }
 

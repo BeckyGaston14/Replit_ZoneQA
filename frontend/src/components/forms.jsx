@@ -68,7 +68,7 @@ export function SelectOrAdd({ collection, valueField = "id", labelFn, value, onC
     setFieldErrors({});
     try {
       const { data } = await api.post(`/${collection}`, { ...addDefaults, ...form });
-      qc.setQueryData([collection], (current = []) => [...current.filter((item) => item[valueField] !== data[valueField]), data]);
+      qc.setQueriesData?.({ queryKey: [collection] }, (current = []) => [...current.filter((item) => item[valueField] !== data[valueField]), data]);
       await qc.invalidateQueries({ predicate: (query) => query.queryKey.some((key) => String(key).startsWith(collection)) });
       onChange(data[valueField]);
       setAdding(false); setForm({}); setFieldErrors({});

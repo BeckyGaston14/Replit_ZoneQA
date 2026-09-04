@@ -1,5 +1,3 @@
-import { useEffect, useRef } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import "@/App.css";
 import "@/index.css";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
@@ -11,6 +9,7 @@ import ActivateUser from "@/pages/ActivateUser";
 import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
 import { APP_ROUTES } from "@/lib/routeConfig";
+import { AuthQueryCacheBoundary } from "./lib/authQueryCache";
 
 export function Protected({ children, roles }) {
   const { user, loading } = useAuth();
@@ -55,22 +54,6 @@ export function AppRouter() {
       <Route path="*" element={<FallbackRedirect />} />
     </Routes>
   );
-}
-
-function AuthQueryCacheBoundary({ children }) {
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-  const lastUserId = useRef(undefined);
-  const userId = user?.id || null;
-
-  useEffect(() => {
-    if (lastUserId.current !== undefined && lastUserId.current !== userId) {
-      queryClient.clear();
-    }
-    lastUserId.current = userId;
-  }, [queryClient, userId]);
-
-  return children;
 }
 
 function App() {
