@@ -22,8 +22,9 @@ const COLORS = Object.freeze({
   red: "#B91C1C",
 });
 
-const CHART_MAX_HEIGHT = 78;
+const CHART_MAX_HEIGHT = 72;
 const TABLE_LINE_HEIGHT = 3.5;
+const SECTION_GAP = 8;
 
 function number(value) {
   if (value === null || value === undefined || value === "") return null;
@@ -138,7 +139,7 @@ function drawTakeaways(doc, takeaways, y, boxes) {
   return y + height;
 }
 
-function drawLegend(doc, y) {
+function drawLegend(doc, y, boxes, name) {
   let x = A4_PAGE.marginX;
   MODEL_ORDER.forEach((model) => {
     setColor(doc, "setFillColor", MODEL_COLORS[model]);
@@ -148,6 +149,14 @@ function drawLegend(doc, y) {
     doc.setFontSize(8);
     doc.text(model, x + 4.5, y);
     x += 28;
+  });
+  boxes.push({
+    page: doc.internal.getCurrentPageInfo().pageNumber,
+    x: A4_PAGE.marginX,
+    y: y - 3,
+    width: x - A4_PAGE.marginX - 4,
+    height: 5,
+    name: `${name} legend`,
   });
 }
 
@@ -260,7 +269,14 @@ function sectionLeadHeight(doc, section) {
   doc.setFontSize(8.5);
   const noteLines = section.note ? wrapped(doc, section.note, A4_PAGE.contentWidth).length : 0;
   return 5.5 + (noteLines ? noteLines * 3.8 + 2 : 0) +
-    (section.legend ? 6 : 0) + chartDimensions(section.image).height + 4;
+    (section.legend ? 8 : 0) + chartDimensions(section.image).height + 4;
+}
+
+function tableHeight(doc, table) {
+  if (!table) return 0;
+  const headerHeight = 8;
+  const rowsHeight = table.rows.reduce((total, row) => total + tableRow(doc, row, table.widths).height, 0);
+  return headerHeight + rowsHeight;
 }
 
 export function renderExecutivePdf({ doc, data, chartImages = {}, generated = new Date().toLocaleDateString() }) {
@@ -302,7 +318,7 @@ export function renderExecutivePdf({ doc, data, chartImages = {}, generated = ne
   let y = drawSectionTitle(doc, "Executive Summary", A4_PAGE.top, data?.scope || "Scope unavailable");
   y += 2;
   y = drawKpiCards(doc, kpis, y, boxes) + 7;
-  y = drawTakeaways(doc, takeaways, y, boxes);
+  y = drawTakeaways(doc, takeaways, y, boxes) + SECTION_GAP;
 
   const sections = [
     {
@@ -332,20 +348,31 @@ export function renderExecutivePdf({ doc, data, chartImages = {}, generated = ne
   sections.forEach((section) => {
     const width = A4_PAGE.contentWidth;
     const leadHeight = sectionLeadHeight(doc, section);
-    if (y + leadHeight > A4_PAGE.bottom) y = newPage();
+    const fullHeight = leadHeight + tableHeight(doc, section.table) + SECTION_GAP;
+    const firstRowHeight = section.table
+      ? tableRow(doc, section.table.rows[0] || [], section.table.widths).height
+      : 0;
+    const sectionCanFitOnEmptyPage = fullHeight <= A4_PAGE.bottom - A4_PAGE.top;
+    const minimumSectionHeight = leadHeight + (section.table ? 8 + firstRowHeight : 0);
+    if (
+      y + (sectionCanFitOnEmptyPage ? fullHeight : minimumSectionHeight) > A4_PAGE.bottom
+      || y < A4_PAGE.top
+    ) {
+      y = newPage();
+    }
     const start = y;
     const startPage = doc.internal.getCurrentPageInfo().pageNumber;
     y = drawSectionTitle(doc, section.title, y, section.note);
-    if (section.legend) {
-      drawLegend(doc, y);
-      y += 6;
-    }
     boxes.push({ page: startPage, x: A4_PAGE.marginX, y: start, width, height: y - start, name: section.name });
+    if (section.legend) {
+      drawLegend(doc, y + 3, boxes, section.name);
+      y += 8;
+    }
     y = drawChartImage(doc, section.image, y, boxes, `${section.name} chart`) + 4;
     if (section.table) {
       y = drawTable(doc, section.table.headers, section.table.rows, y, section.table.widths, boxes, `${section.name} table`, newPage);
     }
-    y += 8;
+    y += SECTION_GAP;
   });
 
   const totalPages = doc.getNumberOfPages();

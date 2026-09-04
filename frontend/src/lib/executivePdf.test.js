@@ -112,6 +112,39 @@ test("renders a multi-section report into bounded, non-overlapping A4 pages", ()
   }
 });
 
+test("keeps the current sample layout sequential, legend-safe, and balanced", () => {
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const result = renderExecutivePdf({
+    doc,
+    data: reportData(),
+    chartImages: {
+      trend: chart(900, 300),
+      failureModes: chart(900, 280),
+      categories: chart(1000, 520),
+    },
+    generated: "9/2/2026",
+  });
+
+  expect(result.pageCount).toBe(2);
+  assertNoIntersectingLayoutBoxes(result.boxes);
+  result.boxes.filter((box) => box.name.endsWith(" legend")).forEach((legend) => {
+    expect(legend.y).toBeGreaterThanOrEqual(A4_PAGE.top);
+    expect(legend.y + legend.height).toBeLessThanOrEqual(A4_PAGE.bottom);
+    const chartBox = result.boxes.find((box) => box.name === `${legend.name.replace(" legend", "")} chart`);
+    expect(chartBox.page).toBe(legend.page);
+    expect(chartBox.y).toBeGreaterThan(legend.y + legend.height);
+  });
+
+  const categorySection = result.boxes.find((box) => box.name === "Bassett Category Performance");
+  const categoryTable = result.boxes.filter((box) => box.name === "Bassett Category Performance table");
+  expect(categoryTable).toHaveLength(1);
+  expect(categoryTable[0].page).toBe(categorySection.page);
+  expect(doc.internal.pages[categoryTable[0].page].join(" ")).toContain("Average score out of 10");
+
+  const finalPageBoxes = result.boxes.filter((box) => box.page === result.pageCount);
+  expect(Math.max(...finalPageBoxes.map((box) => box.y + box.height))).toBeGreaterThan(A4_PAGE.top + 100);
+});
+
 test("repeats a table header when category rows continue onto another page", () => {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const result = renderExecutivePdf({
@@ -131,6 +164,12 @@ test("repeats a table header when category rows continue onto another page", () 
     if (doc.internal.pages[page].join(" ").includes("Average score out of 10")) categoryHeaderPages.push(page);
   }
   expect(categoryHeaderPages.length).toBeGreaterThanOrEqual(2);
+  result.boxes
+    .filter((box) => box.name === "Bassett Category Performance table")
+    .forEach((segment) => {
+      expect(doc.internal.pages[segment.page].join(" ")).toContain("Average score out of 10");
+      expect(segment.y + segment.height).toBeLessThanOrEqual(A4_PAGE.bottom);
+    });
 });
 
 test("uses wrapped row heights and keeps every continuation segment page-local", () => {
