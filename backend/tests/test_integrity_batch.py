@@ -113,7 +113,7 @@ async def test_batch_repairs_exact_sample_records_and_is_idempotent():
     )
 
     preview = await preview_integrity_batch(database)
-    assert len(preview["records"]) == 8
+    assert len(preview["records"]) == 9
     assert preview["preview_ids"] == [
         "projects:project-0", "projects:project-1", "projects:project-2", "projects:project-3",
         "testcases:tc-date", "testcases:tc-created-date", "evidence:ev-1", "versions:v-8", "config:global",
