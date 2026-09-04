@@ -78,20 +78,23 @@ function RepairDialog({ issue, onClose, onDone }) {
 function SampleRepairDialog({ state, onClose, onConfirm }) {
   const preview = state?.preview;
   const records = preview?.records || [];
+  const datesOnly = state?.scope === "sample_testcase_dates";
   return (
     <AlertDialog open onOpenChange={(open) => !open && onClose()}>
       <AlertDialogContent data-testid="sample-repair-dialog">
         <AlertDialogHeader>
           <AlertDialogTitle className="font-display text-[var(--navy)] flex items-center gap-2">
-            <Wrench size={17} className="text-[var(--orange)]" /> Review deterministic SAMPLE repairs
+             <Wrench size={17} className="text-[var(--orange)]" /> {datesOnly ? "Review SAMPLE Test Dates Only" : "Review deterministic SAMPLE metadata repairs"}
           </AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div className="space-y-3 text-sm text-left">
-              <p>This preview lists the exact SAMPLE records that the existing idempotent repair routine would change. No production data is modified until you confirm.</p>
+               <p>{datesOnly
+                 ? "This scope contains only the SAMPLE Test Case date repairs. It cannot change evidence authorities, version metadata, lookup options, projects, or non-sample records. No data is modified until you confirm."
+                 : "This preview lists the exact SAMPLE records that the existing idempotent metadata repair routine would change. No production data is modified until you confirm."}</p>
               {state?.error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-red-800">{state.error}</div>}
               {state?.loading && <div role="status" className="text-muted-foreground">Loading the repair preview…</div>}
               {!state?.loading && !state?.error && records.length === 0 && (
-                <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-green-800">No deterministic SAMPLE metadata repairs are currently needed.</div>
+                 <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-green-800">{datesOnly ? "No SAMPLE Test Date repairs are currently needed." : "No deterministic SAMPLE metadata repairs are currently needed."}</div>
               )}
               {records.length > 0 && (
                 <div className="max-h-64 overflow-y-auto rounded-lg border bg-[var(--paper)] p-3 space-y-2">
@@ -138,11 +141,11 @@ export default function DataIntegrity() {
     enabled: allowed,
   });
 
-  const previewSampleRepair = async () => {
-    setSampleRepair({ loading: true });
+  const previewSampleRepair = async (scope = "metadata") => {
+    setSampleRepair({ loading: true, scope });
     try {
-      const { data } = await api.get("/admin/integrity/sample-repair/preview");
-      setSampleRepair({ preview: data });
+      const { data } = await api.get("/admin/integrity/sample-repair/preview", { params: { scope } });
+      setSampleRepair({ preview: data, scope });
     } catch (e) {
       setSampleRepair({ error: e.response?.data?.detail || "Unable to load the SAMPLE repair preview." });
     }
@@ -154,9 +157,11 @@ export default function DataIntegrity() {
     try {
       const { data } = await api.post("/admin/integrity/sample-repair", {
         confirm: true,
+        scope: sampleRepair.scope,
         preview_ids: preview.preview_ids,
+        preview_token: preview.preview_token,
       });
-      toast.success(`Applied ${data.result.changed_total} deterministic SAMPLE repairs.`);
+      toast.success(`Applied ${data.result.changed_total} ${sampleRepair.scope === "sample_testcase_dates" ? "SAMPLE Test Date" : "deterministic SAMPLE"} repairs.`);
       setSampleRepair(null);
       qc.invalidateQueries({ queryKey: ["integrity"] });
     } catch (e) {
@@ -169,7 +174,10 @@ export default function DataIntegrity() {
   return (
     <div>
        <PageHeader title="Data Integrity" subtitle="Automated validation of relational consistency, historical snapshots and metric reconciliation. Safe issues offer a one-click repair with guided confirmation — substantive QA judgments always stay manual.">
-         {user.role === "admin" && <Button variant="outline" onClick={previewSampleRepair} data-testid="sample-repair-preview-btn"><Wrench size={14} className="mr-1" /> Review SAMPLE metadata repair</Button>}
+         {user.role === "admin" && <div className="flex flex-wrap gap-2">
+           <Button variant="outline" onClick={() => previewSampleRepair("sample_testcase_dates")} data-testid="sample-test-dates-preview-btn"><Wrench size={14} className="mr-1" /> Review SAMPLE Test Dates Only</Button>
+           <Button variant="outline" onClick={() => previewSampleRepair("metadata")} data-testid="sample-repair-preview-btn"><Wrench size={14} className="mr-1" /> Review SAMPLE metadata repair</Button>
+         </div>}
        </PageHeader>
       {isLoading && <div className="text-muted-foreground" role="status">Running integrity validation…</div>}
       {isError && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">Failed to run integrity checks: {error?.response?.data?.detail || "Request failed."} <Button size="sm" variant="outline" className="ml-2" onClick={() => refetch()}>Retry</Button></div>}

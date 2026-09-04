@@ -785,6 +785,42 @@ def test_integrity_repair_mutation_is_admin_only():
     assert exc.value.status_code == 403
 
 
+def test_sample_testcase_dates_scope_requires_admin_and_fresh_allow_listed_preview(monkeypatch):
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(server.sample_integrity_repair_preview(
+            scope="sample_testcase_dates", user={"role": "qa_manager"},
+        ))
+    assert exc.value.status_code == 403
+
+    preview = {
+        "scope": "sample_testcase_dates",
+        "preview_ids": ["testcases:sample-tc"],
+        "preview_token": "fresh-token",
+        "records": [{
+            "collection": "testcases", "id": "sample-tc",
+            "repair": "testcase_dates", "changes": {"test_date": "2026-09-03"},
+        }],
+        "skipped": [],
+    }
+    monkeypatch.setattr(server, "db", object())
+    monkeypatch.setattr(server, "preview_integrity_batch", lambda *_args, **_kwargs: _async_value(preview))
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(server.sample_integrity_repair({
+            "confirm": True,
+            "scope": "sample_testcase_dates",
+            "preview_ids": preview["preview_ids"],
+            "preview_token": "stale-token",
+        }, {"role": "admin"}))
+    assert exc.value.status_code == 409
+    assert "stale" in str(exc.value.detail).lower()
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(server.sample_integrity_repair_preview(
+            scope="unsafe", user={"role": "admin"},
+        ))
+    assert exc.value.status_code == 400
+
+
 def test_comparison_workflow_update_logs_a_normal_testcase_activity(monkeypatch):
     current = {
         "id": "tc-1", "name": "Existing comparison", "prompts": [{"turn": 1, "text": "Prompt"}],

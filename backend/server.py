@@ -39,7 +39,11 @@ from evaluation_metrics import (
     score_evaluation,
 )
 from gmail_sender import EmailDeliveryError, MockEmailSender, build_email_sender
-from integrity_repairs import preview_integrity_batch, repair_integrity_batch
+from integrity_repairs import (
+    preview_integrity_batch,
+    repair_integrity_batch,
+    validate_integrity_repair_scope,
+)
 
 APP_ENV = os.environ.get("APP_ENV", "development").strip().lower()
 if APP_ENV not in {"development", "test", "production"}:
@@ -6972,10 +6976,14 @@ async def data_integrity(user=Depends(get_current_user)):
 
 # ---------- One-click integrity repairs (admin, guided confirmation in UI) ----------
 @api.get("/admin/integrity/sample-repair/preview")
-async def sample_integrity_repair_preview(user=Depends(get_current_user)):
+async def sample_integrity_repair_preview(scope: str = "metadata", user=Depends(get_current_user)):
     if user["role"] != "admin":
         raise HTTPException(403, "Administrator only")
-    return await preview_integrity_batch(db)
+    try:
+        scope = validate_integrity_repair_scope(scope)
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from error
+    return await preview_integrity_batch(db, scope=scope)
 
 
 @api.post("/admin/integrity/sample-repair")
@@ -6984,8 +6992,12 @@ async def sample_integrity_repair(body: Dict[str, Any], user=Depends(get_current
         raise HTTPException(403, "Administrator only")
     if body.get("confirm") is not True:
         raise HTTPException(400, "Explicit confirmation is required")
+    try:
+        scope = validate_integrity_repair_scope(body.get("scope", "metadata"))
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from error
 
-    preview = await preview_integrity_batch(db)
+    preview = await preview_integrity_batch(db, scope=scope)
     current_ids = sorted(preview.get("preview_ids", []))
     submitted_ids = sorted(body.get("preview_ids") or [])
     if submitted_ids != current_ids:
@@ -6993,13 +7005,19 @@ async def sample_integrity_repair(body: Dict[str, Any], user=Depends(get_current
             409,
             "The deterministic SAMPLE repair scope changed. Preview the records again before confirming.",
         )
-    result = await repair_integrity_batch(db)
+    if body.get("preview_token") != preview.get("preview_token"):
+        raise HTTPException(
+            409,
+            "This repair preview is stale. Preview the records again before confirming.",
+        )
+    result = await repair_integrity_batch(db, scope=scope)
     await log_activity(
         "integrity",
         "sample-data",
-        "deterministic SAMPLE integrity repair",
+        "SAMPLE Test Dates Only integrity repair" if scope == "sample_testcase_dates" else "deterministic SAMPLE integrity repair",
         user,
         json.dumps({
+            "scope": scope,
             "preview_ids": current_ids,
             "testcase_date_source": "latest non-retest evaluation; evaluation record created date fallback when evaluation.test_date is blank",
             "result": result,

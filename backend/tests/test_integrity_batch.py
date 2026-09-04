@@ -83,10 +83,10 @@ async def test_batch_repairs_exact_sample_records_and_is_idempotent():
         "owner": "QA Manager", "sample_data": False,
     })
     testcases = [
-        {"id": "tc-date", "name": "[SAMPLE] comparison", "comparison_mode": True},
-        {"id": "tc-existing", "name": "[SAMPLE] already dated", "comparison_mode": True, "test_date": "2026-01-01"},
-        {"id": "tc-created-date", "name": "[SAMPLE] created date fallback", "comparison_mode": True},
-        {"id": "tc-no-source", "name": "[SAMPLE] no source date", "comparison_mode": True},
+        {"id": "tc-date", "name": "[SAMPLE] comparison", "comparison_mode": True, "sample_data": True},
+        {"id": "tc-existing", "name": "[SAMPLE] already dated", "comparison_mode": True, "test_date": "2026-01-01", "sample_data": True},
+        {"id": "tc-created-date", "name": "[SAMPLE] created date fallback", "comparison_mode": True, "sample_data": True},
+        {"id": "tc-no-source", "name": "[SAMPLE] no source date", "comparison_mode": True, "sample_data": True},
         {"id": "tc-other", "name": "comparison", "comparison_mode": True},
     ]
     database = Database(
@@ -149,6 +149,62 @@ async def test_batch_repairs_exact_sample_records_and_is_idempotent():
     second = await repair_integrity_batch(database)
     assert second["changed_total"] == 0
     assert (await preview_integrity_batch(database))["records"] == []
+
+
+@pytest.mark.asyncio
+async def test_sample_testcase_dates_scope_changes_only_sample_testcase_dates():
+    projects = [{"id": "project-1", "name": "User project", "owner": "Becky Gaston", "sample_data": False}]
+    testcases = [
+        {"id": "sample-tc", "name": "[SAMPLE] date-only case", "sample_data": True, "comparison_mode": True},
+        {"id": "named-but-not-sample", "name": "[SAMPLE] user case", "sample_data": False, "comparison_mode": True},
+        {"id": "user-tc", "name": "User case", "sample_data": False, "comparison_mode": True},
+    ]
+    evidence = [{"id": "evidence-1", "document_name": "User evidence", "issuing_authority": ""}]
+    versions = [{"id": "version-1", "name": "User version", "version_type": "", "release_channel": ""}]
+    config = [{"id": "global", "version_types": ["Minor"], "release_channels": ["Development"]}]
+    database = Database(
+        users=[], projects=projects, testcases=testcases,
+        evaluations=[{
+            "id": "eval-1", "testcase_id": "sample-tc", "model": "Bassett",
+            "test_date": "", "created_at": "2026-08-04T18:30:00+00:00",
+        }],
+        evidence=evidence, versions=versions, config=config,
+    )
+
+    before = copy.deepcopy({
+        "projects": projects, "evidence": evidence, "versions": versions, "config": config,
+        "testcases": testcases,
+    })
+    preview = await preview_integrity_batch(database, scope="sample_testcase_dates")
+    assert preview["scope"] == "sample_testcase_dates"
+    assert preview["counts"] == {"testcase_dates": 1}
+    assert [record["id"] for record in preview["records"]] == ["sample-tc"]
+    assert all(record["collection"] == "testcases" for record in preview["records"])
+    assert preview["records"][0]["source_date_kind"] == "evaluation record created date"
+
+    first = await repair_integrity_batch(database, scope="sample_testcase_dates")
+    assert first["changed"] == {"testcase_dates": 1}
+    assert first["changed_total"] == 1
+    assert testcases[0]["test_date"] == "2026-08-04"
+    assert testcases[1].get("test_date") is None
+    assert testcases[2].get("test_date") is None
+    assert projects == before["projects"]
+    assert evidence == before["evidence"]
+    assert versions == before["versions"]
+    assert config == before["config"]
+
+    second = await repair_integrity_batch(database, scope="sample_testcase_dates")
+    assert second["changed"] == {"testcase_dates": 0}
+    assert second["changed_total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_integrity_repair_scope_is_strictly_allow_listed():
+    database = Database(users=[], projects=[], testcases=[], evaluations=[], evidence=[], versions=[], config=[])
+    with pytest.raises(ValueError, match="Unsupported integrity repair scope"):
+        await preview_integrity_batch(database, scope="all_records")
+    with pytest.raises(ValueError, match="Unsupported integrity repair scope"):
+        await repair_integrity_batch(database, scope="all_records")
 
 
 @pytest.mark.asyncio

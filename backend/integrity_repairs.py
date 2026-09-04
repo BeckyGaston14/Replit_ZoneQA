@@ -2,6 +2,8 @@
 
 from datetime import date
 from collections import Counter
+import hashlib
+import json
 from typing import Any
 
 
@@ -25,6 +27,7 @@ SAMPLE_VERSION_NAMES = frozenset({
 })
 
 COMPARISON_MODELS = frozenset({"Bassett", "ChatGPT", "Claude"})
+INTEGRITY_REPAIR_SCOPES = frozenset({"metadata", "sample_testcase_dates"})
 
 
 def _blank(value: Any) -> bool:
@@ -88,12 +91,93 @@ def _latest_non_retest_evaluation_date(evaluations: list[dict]) -> tuple[str | N
     return source_date, source_kind, latest.get("created_at")
 
 
+def validate_integrity_repair_scope(scope: Any) -> str:
+    if not isinstance(scope, str) or scope not in INTEGRITY_REPAIR_SCOPES:
+        raise ValueError("Unsupported integrity repair scope")
+    return scope
+
+
+def _preview_payload(scope: str, records: list[dict], skipped: list[dict]) -> dict:
+    token_payload = {
+        "scope": scope,
+        "records": sorted(records, key=lambda item: (item.get("collection", ""), item.get("id", ""))),
+        "skipped": sorted(skipped, key=lambda item: (item.get("collection", ""), item.get("id", ""), item.get("reason", ""))),
+    }
+    preview_token = hashlib.sha256(
+        json.dumps(token_payload, sort_keys=True, separators=(",", ":"), default=str).encode()
+    ).hexdigest()
+    return {
+        "ok": True,
+        "scope": scope,
+        "records": records,
+        "preview_ids": [f"{record['collection']}:{record['id']}" for record in records],
+        "counts": dict(Counter(record["repair"] for record in records)),
+        "skipped": skipped,
+        "preview_token": preview_token,
+    }
+
+
+async def _sample_testcase_date_candidates(database) -> tuple[list[dict], list[dict]]:
+    evaluations = await _all(database.evaluations)
+    testcases = await _all(database.testcases)
+    records = []
+    skipped = []
+    for testcase in testcases:
+        if (
+            not _is_active(testcase)
+            or not str(testcase.get("name") or "").startswith("[SAMPLE]")
+            or not _is_sample_record(testcase)
+        ):
+            continue
+        testcase_evaluations = [
+            evaluation for evaluation in evaluations
+            if evaluation.get("testcase_id") == testcase.get("id")
+        ]
+        is_comparison = (
+            testcase.get("comparison_mode") is True
+            or testcase.get("test_type") == "Competitive Benchmark"
+            or any(evaluation.get("model") in COMPARISON_MODELS for evaluation in testcase_evaluations)
+        )
+        source_date, source_kind, source_created_at = _latest_non_retest_evaluation_date(testcase_evaluations)
+        if is_comparison and _blank(testcase.get("test_date")) and source_date:
+            records.append({
+                "repair": "testcase_dates",
+                "collection": "testcases",
+                "id": testcase["id"],
+                "name": testcase.get("name", ""),
+                "source_date": source_date,
+                "source_date_kind": source_kind,
+                "source_evaluation_created_at": source_created_at,
+                "target_test_date": source_date,
+                "changes": {"test_date": source_date},
+                "_current_test_date": testcase.get("test_date"),
+            })
+        elif is_comparison and _blank(testcase.get("test_date")):
+            skipped.append({
+                "repair": "testcase_dates",
+                "collection": "testcases",
+                "id": testcase.get("id"),
+                "name": testcase.get("name", ""),
+                "reason": "no valid non-retest evaluation Test Date or evaluation record created date is available",
+            })
+    return records, skipped
+
+
+def _public_preview_records(records: list[dict]) -> list[dict]:
+    return [{key: value for key, value in record.items() if not key.startswith("_")} for record in records]
+
+
 async def _all(collection, limit=5000):
     return await collection.find({}, {"_id": 0}).to_list(limit)
 
 
-async def preview_integrity_batch(database) -> dict:
+async def preview_integrity_batch(database, scope: str = "metadata") -> dict:
     """Describe only the deterministic SAMPLE records the batch would change."""
+    scope = validate_integrity_repair_scope(scope)
+    if scope == "sample_testcase_dates":
+        records, skipped = await _sample_testcase_date_candidates(database)
+        return _preview_payload(scope, _public_preview_records(records), skipped)
+
     users = await _all(database.users)
     active_admins = [
         user for user in users
@@ -136,41 +220,9 @@ async def preview_integrity_batch(database) -> dict:
             if project.get("owner_user_id") != admin_id or project.get("owner_id") != admin_id
         )
 
-    evaluations = await _all(database.evaluations)
-    testcases = await _all(database.testcases)
-    for testcase in testcases:
-        if not _is_active(testcase) or not str(testcase.get("name") or "").startswith("[SAMPLE]"):
-            continue
-        testcase_evaluations = [
-            evaluation for evaluation in evaluations
-            if evaluation.get("testcase_id") == testcase.get("id")
-        ]
-        is_comparison = (
-            testcase.get("comparison_mode") is True
-            or testcase.get("test_type") == "Competitive Benchmark"
-            or any(evaluation.get("model") in COMPARISON_MODELS for evaluation in testcase_evaluations)
-        )
-        source_date, source_kind, source_created_at = _latest_non_retest_evaluation_date(testcase_evaluations)
-        if is_comparison and _blank(testcase.get("test_date")) and source_date:
-            records.append({
-                "repair": "testcase_dates",
-                "collection": "testcases",
-                "id": testcase["id"],
-                "name": testcase.get("name", ""),
-                "source_date": source_date,
-                "source_date_kind": source_kind,
-                "source_evaluation_created_at": source_created_at,
-                "target_test_date": source_date,
-                "changes": {"test_date": source_date},
-            })
-        elif is_comparison and _blank(testcase.get("test_date")):
-            skipped.append({
-                "repair": "testcase_dates",
-                "collection": "testcases",
-                "id": testcase.get("id"),
-                "name": testcase.get("name", ""),
-                "reason": "no valid non-retest evaluation Test Date is available",
-            })
+    testcase_records, testcase_skipped = await _sample_testcase_date_candidates(database)
+    records.extend(_public_preview_records(testcase_records))
+    skipped.extend(testcase_skipped)
 
     evidence = await _all(database.evidence)
     for record in evidence:
@@ -221,21 +273,45 @@ async def preview_integrity_batch(database) -> dict:
                 "changes": changes,
             })
 
-    return {
+    return _preview_payload(scope, records, skipped)
+
+
+async def _repair_sample_testcase_dates(database) -> dict:
+    candidates, skipped = await _sample_testcase_date_candidates(database)
+    report = {
         "ok": True,
-        "records": records,
-        "preview_ids": [f"{record['collection']}:{record['id']}" for record in records],
-        "counts": dict(Counter(record["repair"] for record in records)),
+        "scope": "sample_testcase_dates",
+        "changed": {"testcase_dates": 0},
+        "matched": {"sample_testcases_without_dates": len(candidates) + len(skipped)},
         "skipped": skipped,
+        "changed_testcase_dates": [],
     }
+    for candidate in candidates:
+        result = await database.testcases.update_one(
+            {
+                "id": candidate["id"],
+                "name": candidate["name"],
+                "test_date": candidate["_current_test_date"],
+            },
+            {"$set": {"test_date": candidate["target_test_date"]}},
+        )
+        if getattr(result, "modified_count", 1):
+            report["changed"]["testcase_dates"] += 1
+            report["changed_testcase_dates"].append(_public_preview_records([candidate])[0])
+    report["changed_total"] = sum(report["changed"].values())
+    return report
 
 
-async def repair_integrity_batch(database) -> dict:
+async def repair_integrity_batch(database, scope: str = "metadata") -> dict:
     """Apply the five exact-match repairs and return an auditable change report.
 
     Every write is guarded by the same blank/legacy predicate used to select it.
     Running this function repeatedly therefore produces no additional changes.
     """
+    scope = validate_integrity_repair_scope(scope)
+    if scope == "sample_testcase_dates":
+        return await _repair_sample_testcase_dates(database)
+
     report = {
         "ok": True,
         "changed": {
