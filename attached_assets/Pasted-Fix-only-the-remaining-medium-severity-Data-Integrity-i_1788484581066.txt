@@ -1,0 +1,17 @@
+Fix only the remaining medium-severity Data Integrity issues and the Test Case editing gap discovered during independent QA.
+
+Current verified state:
+- The four sample projects have already been linked in production to the active user Becky Gaston; do not change those records.
+- Data Integrity originally reported 14 medium issues. The remaining 10 are active [SAMPLE] model-comparison Test Cases with no Test Date.
+- The Test Case detail page currently exposes only Archive under Actions, so an administrator cannot edit a Test Case or enter its Test Date.
+
+Implement:
+1. Add a clear Edit Test Case action on the Test Case detail page and row Actions menu.
+2. Reuse the existing Model Comparison Test Case form and formatting. Editing must load all current values, allow Test Date changes, preserve relationships/evaluations/findings/attachments, show validation and success/error feedback, write the normal audit entry, and return to the same Test Case after save.
+3. Add backend update support only if it is not already present, with authorization, validation, and relationship-integrity checks.
+4. Add a safe administrator-only repair on Data Integrity for these ten clearly labeled [SAMPLE] Test Cases: set Test Date from each case's existing latest non-retest evaluation date. The preview must show each record, source evaluation date, and target Test Date; apply must require explicit confirmation, be idempotent, and refuse non-sample records. Do not invent dates and do not modify production/non-sample data.
+5. Run the repair against the current sample dataset only after tests pass, then rerun integrity validation and confirm medium severity is 0. Leave every low/informational issue untouched.
+6. Add focused backend/frontend tests for edit persistence, relationship preservation, authorization, audit logging, preview/apply/idempotency, and non-sample refusal. Run complete frontend and backend suites and production build.
+7. Commit the isolated change with a precise message. Do not push, publish, change secrets, copy databases, or modify any other data.
+
+Report changed files, exact repaired records/dates, integrity counts before and after, test totals, build result, commit SHA, and clean working tree.
