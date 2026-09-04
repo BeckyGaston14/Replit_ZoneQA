@@ -828,3 +828,53 @@ def test_canonical_report_data_excludes_archived_orphan_and_superseded_records(m
     assert [row["id"] for row in data["evaluations"]] == ["current"]
     assert [row["id"] for row in data["findings"]] == ["current-finding"]
     assert data["regression_runs"][0]["testcase_ids"] == ["active"]
+
+
+def test_canonical_reports_exclude_sample_records_and_versions_by_default(monkeypatch):
+    rows = {
+        "testcases": [
+            {"id": "production-tc", "name": "Production case"},
+            {"id": "sample-tc", "name": "[SAMPLE] seeded case", "sample_data": True},
+        ],
+        "versions": [
+            {"id": "production-version", "name": "Bassett 10.26"},
+            {"id": "sample-version", "name": "Bassett 9.26 (Sample)", "sample_data": True},
+        ],
+        "evaluations": [
+            {"id": "production-eval", "testcase_id": "production-tc", "model": "Bassett", "bassett_version": "Bassett 10.26", "scores": {"accuracy": 8}},
+            {"id": "sample-linked-eval", "testcase_id": "sample-tc", "model": "Bassett", "bassett_version": "Bassett 9.26 (Sample)", "scores": {"accuracy": 9}},
+            {"id": "sample-version-eval", "testcase_id": "production-tc", "model": "ChatGPT", "bassett_version": "Bassett 9.26 (Sample)", "scores": {"accuracy": 9}},
+        ],
+        "findings": [
+            {"id": "production-finding", "testcase_id": "production-tc"},
+            {"id": "sample-finding", "testcase_id": "sample-tc", "sample_data": True},
+        ],
+        "regression_runs": [
+            {"id": "production-run", "bassett_version": "Bassett 10.26", "testcase_ids": ["production-tc"]},
+            {"id": "sample-run", "bassett_version": "Bassett 9.26 (Sample)", "testcase_ids": ["production-tc"]},
+        ],
+        "test_runs": [],
+        "projects": [],
+        "municipalities": [],
+        "config": [],
+    }
+    monkeypatch.setattr(server, "db", Db(rows))
+
+    async def fake_crud_list(collection, query=None, **_kwargs):
+        return [dict(row) for row in rows.get(collection, [])]
+
+    monkeypatch.setattr(server, "crud_list", fake_crud_list)
+    monkeypatch.setattr(server, "compute_stale_gold_map", lambda: asyncio.sleep(0, result={}))
+
+    excluded = asyncio.run(server._canonical_report_data("regression"))
+    assert [row["id"] for row in excluded["testcases"]] == ["production-tc"]
+    assert [row["id"] for row in excluded["evaluations"]] == ["production-eval"]
+    assert [row["id"] for row in excluded["findings"]] == ["production-finding"]
+    assert [row["id"] for row in excluded["regression_runs"]] == ["production-run"]
+
+    included = asyncio.run(server._canonical_report_data("regression", include_sample=True))
+    assert {row["id"] for row in included["testcases"]} == {"production-tc", "sample-tc"}
+    assert {row["id"] for row in included["evaluations"]} == {
+        "production-eval", "sample-linked-eval", "sample-version-eval",
+    }
+    assert {row["id"] for row in included["regression_runs"]} == {"production-run", "sample-run"}

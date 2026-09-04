@@ -20,6 +20,8 @@ jest.mock("../components/shared", () => ({
   CritBadge: () => null,
   WrapTick: () => null,
   SrTable: () => null,
+  SampleDataBanner: () => null,
+  sampleScopeIncludesData: () => false,
 }));
 
 function renderPage(Component) {

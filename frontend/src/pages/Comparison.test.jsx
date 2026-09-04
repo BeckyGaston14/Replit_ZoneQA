@@ -11,7 +11,15 @@ jest.mock("@tanstack/react-query", () => ({ useQuery: (options) => options.query
 jest.mock("../lib/auth", () => ({ useAuth: () => ({ user: { role: "tester" } }) }));
 jest.mock("../lib/api", () => ({ api: { post: jest.fn() }, formatApiErrorDetail: () => "request failed" }));
 jest.mock("sonner", () => ({ toast: { success: jest.fn(), error: jest.fn() } }));
-jest.mock("../components/shared", () => ({ PageHeader: ({ children }) => <div>{children}</div>, CritBadge: () => null, ResultBadge: () => null, ScorePill: () => null, StatusBadge: ({ value, testId }) => <span data-testid={testId}>{value}</span> }));
+jest.mock("../components/shared", () => ({
+  PageHeader: ({ children }) => <div>{children}</div>,
+  CritBadge: () => null,
+  ResultBadge: () => null,
+  ScorePill: () => null,
+  StatusBadge: ({ value, testId }) => <span data-testid={testId}>{value}</span>,
+  SampleDataBanner: () => null,
+  sampleScopeIncludesData: () => false,
+}));
 jest.mock("../components/ui/select", () => ({ Select: ({ children }) => <div>{children}</div>, SelectContent: ({ children }) => <div>{children}</div>, SelectItem: ({ children }) => <div>{children}</div>, SelectTrigger: ({ children, ...props }) => <button {...props}>{children}</button>, SelectValue: () => null }));
 jest.mock("../components/ui/button", () => ({ Button: ({ children, ...props }) => <button {...props}>{children}</button> }));
 const Comparison = require("./Comparison").default;

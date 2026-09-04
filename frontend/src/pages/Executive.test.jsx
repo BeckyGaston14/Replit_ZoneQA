@@ -24,6 +24,8 @@ jest.mock("../components/shared", () => ({
   StatCard: ({ label, value }) => <div>{label}: {value}</div>,
   WrapTick: () => null,
   SrTable: () => null,
+  SampleDataBanner: ({ show }) => show ? <aside data-testid="sample-data-banner">Demonstration data</aside> : null,
+  sampleScopeIncludesData: ({ records = [] }) => records.some((record) => record?.sample_data_included === true),
 }));
 jest.mock("../components/ui/button", () => ({
   Button: ({ children, ...props }) => <button {...props}>{children}</button>,
@@ -44,6 +46,7 @@ const data = {
   failure_modes: [],
   categories: [{ category: "Accuracy", avg_score: 8.1 }],
   stale_gold_tests: [],
+  has_evaluated_data: true,
 };
 
 function renderPage() {
@@ -66,7 +69,11 @@ test("labels wins for Bassett and exposes generating and saving states", async (
   const capturePromise = new Promise((resolve) => { finishCapture = resolve; });
   captureExecutiveChart.mockReturnValue(capturePromise);
   const pdf = {
-    output: jest.fn(() => new ArrayBuffer(10)),
+    output: jest.fn(() => {
+      const bytes = new Uint8Array(128);
+      bytes.set([37, 80, 68, 70, 45, 49, 46, 55]);
+      return bytes.buffer;
+    }),
   };
   jsPDF.mockImplementation(() => pdf);
   const downloadClick = jest.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});

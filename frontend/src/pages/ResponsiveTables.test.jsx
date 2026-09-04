@@ -28,6 +28,8 @@ jest.mock("../components/shared", () => ({
   StatusBadge: () => null,
   StatusLegend: () => null,
   StatCard: () => null,
+  SampleDataBanner: () => null,
+  sampleScopeIncludesData: () => false,
 }));
 jest.mock("../components/forms", () => ({
   FormModal: () => null,

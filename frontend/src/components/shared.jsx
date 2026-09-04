@@ -93,6 +93,7 @@ export function isSampleDataRecord(record) {
 }
 
 export function sampleScopeIncludesData({ versions = [], records = [], selectedVersion = "" } = {}) {
+  if ([...versions, ...records].some((record) => record?.sample_data_included === true)) return true;
   const selected = typeof selectedVersion === "object"
     ? selectedVersion
     : versions.find((version) => version?.id === selectedVersion || version?.name === selectedVersion);

@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { api } from "../lib/api";
-import { PageHeader, SampleDataBanner, sampleScopeIncludesData } from "../components/shared";
+import { PageHeader, SampleDataBanner } from "../components/shared";
 import { Button } from "../components/ui/button";
 import { FileDown, FileText } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -29,11 +30,12 @@ const LIVE_REPORTS = [
 
 export default function Reports() {
   const { data: config } = useConfig();
+  const [includeSample, setIncludeSample] = useState(false);
   const exportData = async (kind) => {
     try {
       const needsRegressionRuns = ["release", "regression"].includes(kind);
       const needsTestRuns = kind === "comparison";
-      const { data } = await api.get(`/reports/data?kind=${encodeURIComponent(kind)}`);
+      const { data } = await api.get(`/reports/data?kind=${encodeURIComponent(kind)}&include_sample=${includeSample}`);
       const payload = buildReportPayload({
         kind,
         stats: data.stats,
@@ -56,7 +58,7 @@ export default function Reports() {
 
   const exportCSV = async () => {
     try {
-      const { data } = await api.get("/reports/data?kind=qa_summary");
+      const { data } = await api.get(`/reports/data?kind=qa_summary&include_sample=${includeSample}`);
       const columns = [
         ["name", "Test Name"], ["project_name", "Project"], ["municipality_name", "Municipality"],
         ["category", "Category"], ["criticality", "Criticality"], ["status", "Status"],
@@ -73,9 +75,12 @@ export default function Reports() {
   return (
     <div>
       <PageHeader title="Reports & Exports" subtitle="Generated from persisted QA records — never static.">
+        <Button variant="outline" className="w-full sm:w-auto" onClick={() => setIncludeSample((value) => !value)} data-testid="include-sample-toggle">
+          {includeSample ? "Hide demonstration data" : "Include demonstration data"}
+        </Button>
         <Button variant="outline" className="w-full sm:w-auto" onClick={exportCSV}><FileDown size={15} className="mr-1" /> Export Test Cases CSV</Button>
       </PageHeader>
-      <SampleDataBanner show={sampleScopeIncludesData({ records: [config] })} />
+      <SampleDataBanner show={includeSample} />
 
       <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted-foreground">Data exports</h2>
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">

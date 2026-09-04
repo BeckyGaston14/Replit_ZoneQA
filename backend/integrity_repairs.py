@@ -1,6 +1,7 @@
 """Narrow, idempotent production data repairs for the imported sample dataset."""
 
 from datetime import date
+from collections import Counter
 from typing import Any
 
 
@@ -51,6 +52,139 @@ def _is_iso_date(value: Any) -> bool:
 
 async def _all(collection, limit=5000):
     return await collection.find({}, {"_id": 0}).to_list(limit)
+
+
+async def preview_integrity_batch(database) -> dict:
+    """Describe only the deterministic SAMPLE records the batch would change."""
+    users = await _all(database.users)
+    active_admins = [
+        user for user in users
+        if user.get("role") == "admin"
+        and user.get("active") is not False
+        and not user.get("deleted_at")
+    ]
+    projects = await _all(database.projects)
+    legacy_projects = [
+        project for project in projects
+        if project.get("name") in LEGACY_SAMPLE_PROJECT_NAMES
+        and project.get("owner") == "QA Manager"
+        and _is_sample_record(project)
+    ]
+    records = []
+    skipped = []
+    if len(active_admins) != 1:
+        skipped.append({
+            "repair": "project_owners",
+            "reason": "expected exactly one active Administrator",
+            "active_administrator_count": len(active_admins),
+        })
+    elif len(legacy_projects) != 4:
+        skipped.append({
+            "repair": "project_owners",
+            "reason": "expected exactly four matching legacy sample projects",
+            "matching_project_count": len(legacy_projects),
+        })
+    else:
+        admin_id = active_admins[0]["id"]
+        records.extend(
+            {
+                "repair": "project_owners",
+                "collection": "projects",
+                "id": project["id"],
+                "name": project.get("name", ""),
+                "changes": {"owner_user_id": admin_id, "owner_id": admin_id},
+            }
+            for project in legacy_projects
+            if project.get("owner_user_id") != admin_id or project.get("owner_id") != admin_id
+        )
+
+    evaluations = await _all(database.evaluations)
+    evaluation_dates = {}
+    for evaluation in evaluations:
+        testcase_id = evaluation.get("testcase_id")
+        value = evaluation.get("test_date")
+        if testcase_id and _is_iso_date(value):
+            evaluation_dates.setdefault(testcase_id, []).append(value.strip())
+
+    testcases = await _all(database.testcases)
+    for testcase in testcases:
+        if not _is_active(testcase) or not str(testcase.get("name") or "").startswith("[SAMPLE]"):
+            continue
+        testcase_evaluations = [
+            evaluation for evaluation in evaluations
+            if evaluation.get("testcase_id") == testcase.get("id")
+        ]
+        is_comparison = (
+            testcase.get("comparison_mode") is True
+            or testcase.get("test_type") == "Competitive Benchmark"
+            or any(evaluation.get("model") in COMPARISON_MODELS for evaluation in testcase_evaluations)
+        )
+        dates = sorted(evaluation_dates.get(testcase.get("id"), []))
+        if is_comparison and _blank(testcase.get("test_date")) and dates:
+            records.append({
+                "repair": "testcase_dates",
+                "collection": "testcases",
+                "id": testcase["id"],
+                "name": testcase.get("name", ""),
+                "changes": {"test_date": dates[0]},
+            })
+
+    evidence = await _all(database.evidence)
+    for record in evidence:
+        authority = SAMPLE_EVIDENCE_AUTHORITIES.get(record.get("document_name"))
+        if authority and _is_sample_record(record) and _blank(record.get("issuing_authority")):
+            records.append({
+                "repair": "evidence_authorities",
+                "collection": "evidence",
+                "id": record["id"],
+                "name": record.get("document_name", ""),
+                "changes": {"issuing_authority": authority},
+            })
+
+    versions = await _all(database.versions)
+    matching_versions = [
+        record for record in versions
+        if record.get("name") in SAMPLE_VERSION_NAMES and _is_sample_record(record)
+        and (_blank(record.get("version_type")) or _blank(record.get("release_channel")))
+    ]
+    for version in matching_versions:
+        changes = {}
+        if _blank(version.get("version_type")):
+            changes["version_type"] = "Sample"
+        if _blank(version.get("release_channel")):
+            changes["release_channel"] = "Sample"
+        if changes:
+            records.append({
+                "repair": "version_metadata",
+                "collection": "versions",
+                "id": version["id"],
+                "name": version.get("name", ""),
+                "changes": changes,
+            })
+
+    if matching_versions:
+        config = await database.config.find_one({"id": "global"}, {"_id": 0}) or {}
+        if "Sample" not in list(config.get("version_types") or []) or "Sample" not in list(config.get("release_channels") or []):
+            changes = {}
+            if "Sample" not in list(config.get("version_types") or []):
+                changes["version_types"] = "append Sample"
+            if "Sample" not in list(config.get("release_channels") or []):
+                changes["release_channels"] = "append Sample"
+            records.append({
+                "repair": "lookup_options",
+                "collection": "config",
+                "id": "global",
+                "name": "Global lookup options",
+                "changes": changes,
+            })
+
+    return {
+        "ok": True,
+        "records": records,
+        "preview_ids": [f"{record['collection']}:{record['id']}" for record in records],
+        "counts": dict(Counter(record["repair"] for record in records)),
+        "skipped": skipped,
+    }
 
 
 async def repair_integrity_batch(database) -> dict:

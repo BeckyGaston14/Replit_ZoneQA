@@ -114,9 +114,8 @@ def test_workflow_recomputes_scores_and_rejects_invalid_client_verdict(monkeypat
         "Bassett": {"scores": {"accuracy": 9}},
         "ChatGPT": {"scores": {"accuracy": 8}, "final_result": "Invented verdict"},
     })
-    with pytest.raises(HTTPException) as exc:
-        _prepare(monkeypatch, invalid)
-    assert exc.value.status_code == 400
+    _testcase, _gold, _responses, evaluations = _prepare(monkeypatch, invalid)
+    assert next(row for row in evaluations if row["model"] == "ChatGPT")["final_result"] == "Not Evaluated"
 
 
 def test_finding_scopes_are_separate_and_ownership_is_preserved():

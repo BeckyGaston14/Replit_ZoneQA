@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from integrity_repairs import repair_integrity_batch
+from integrity_repairs import preview_integrity_batch, repair_integrity_batch
 
 
 class Cursor:
@@ -107,6 +107,13 @@ async def test_batch_repairs_exact_sample_records_and_is_idempotent():
         config=[{"id": "global", "version_types": ["Minor"], "release_channels": ["Development"]}],
     )
 
+    preview = await preview_integrity_batch(database)
+    assert len(preview["records"]) == 8
+    assert preview["preview_ids"] == [
+        "projects:project-0", "projects:project-1", "projects:project-2", "projects:project-3",
+        "testcases:tc-date", "evidence:ev-1", "versions:v-8", "config:global",
+    ]
+
     first = await repair_integrity_batch(database)
     assert first["changed"] == {
         "project_owners": 4,
@@ -128,6 +135,7 @@ async def test_batch_repairs_exact_sample_records_and_is_idempotent():
 
     second = await repair_integrity_batch(database)
     assert second["changed_total"] == 0
+    assert (await preview_integrity_batch(database))["records"] == []
 
 
 @pytest.mark.asyncio

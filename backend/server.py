@@ -39,6 +39,7 @@ from evaluation_metrics import (
     score_evaluation,
 )
 from gmail_sender import EmailDeliveryError, MockEmailSender, build_email_sender
+from integrity_repairs import preview_integrity_batch, repair_integrity_batch
 
 APP_ENV = os.environ.get("APP_ENV", "development").strip().lower()
 if APP_ENV not in {"development", "test", "production"}:
@@ -345,8 +346,15 @@ def _project_last_tested_dates(
     return {project_id: max(values) if values else None for project_id, values in candidates.items()}
 
 
-async def _current_project_last_tested_dates(projects=None):
+async def _current_project_last_tested_dates(projects=None, include_sample=True):
     projects = projects if projects is not None else await crud_list("projects")
+    testcases = await crud_list("testcases")
+    test_runs = await crud_list("test_runs")
+    if not include_sample:
+        projects = [project for project in projects if not _is_sample_record(project)]
+        testcases = [testcase for testcase in testcases if not _is_sample_record(testcase)]
+        versions = await crud_list("versions")
+        test_runs = _exclude_sample_scope(test_runs, versions, include_sample)
     active_scenario_ids = {
         scenario["id"] for scenario in await db.bassett_scenarios.find(
             {"archived": {"$ne": True}}, {"_id": 0, "id": 1}
@@ -354,13 +362,18 @@ async def _current_project_last_tested_dates(projects=None):
     }
     issues = await db.bassett_issues.find({"archived": {"$ne": True}}, {"_id": 0}).to_list(5000)
     executions = await db.bassett_executions.find({"archived": {"$ne": True}}, {"_id": 0}).to_list(5000)
+    if not include_sample:
+        issues = [issue for issue in issues if not _is_sample_record(issue)]
+        executions = [execution for execution in executions if not _is_sample_record(execution)]
     evaluations = await _exclude_incomplete_comparison_evaluations(
         await _authoritative_evaluation_read_model(await crud_list("evaluations"))
     )
+    if not include_sample:
+        evaluations = _exclude_sample_scope(evaluations, await crud_list("versions"), include_sample)
     return _project_last_tested_dates(
         projects,
-        await crud_list("testcases"),
-        await crud_list("test_runs"),
+        testcases,
+        test_runs,
         _canonical_bassett_lineages(issues, executions, active_scenario_ids=active_scenario_ids),
         evaluations=evaluations,
     )
@@ -4723,19 +4736,39 @@ async def _evaluation_read_model(
     return {"eligible": eligible, "all_models": all_models, "bassett": bassett}
 
 @api.get("/dashboard/stats")
-async def dashboard_stats(user=Depends(get_current_user)):
+async def dashboard_stats(user=Depends(get_current_user), include_sample: bool = True):
     projects = await crud_list("projects")
     tcs = await crud_list("testcases")
+    if not include_sample:
+        projects = [project for project in projects if not _is_sample_record(project)]
+        tcs = [testcase for testcase in tcs if not _is_sample_record(testcase)]
     findings = [
         finding for finding in await crud_list("findings")
         if not finding.get("archived") and finding.get("status") != "Archived"
         and finding.get("testcase_id") in {testcase["id"] for testcase in tcs}
     ]
-    active = await db.versions.find_one({"active": True}, {"_id": 0})
+    versions = await crud_list("versions")
+    active_versions = [version for version in versions if version.get("active")]
+    if not include_sample:
+        active_versions = [version for version in active_versions if not _is_sample_record(version)]
+    active = active_versions[0] if active_versions else None
     active_version = active.get("name", "") if active else ""
+    eligible_evaluations = [
+        evaluation for evaluation in await crud_list("evaluations")
+        if include_sample or not _is_sample_record(evaluation)
+    ]
+    if not include_sample:
+        sample_versions = {
+            version.get("name") for version in versions if _is_sample_record(version)
+        }
+        eligible_evaluations = [
+            evaluation for evaluation in eligible_evaluations
+            if evaluation.get("bassett_version") not in sample_versions
+            and evaluation.get("version") not in sample_versions
+        ]
     evaluation_view = (
         await _evaluation_read_model(
-            await crud_list("evaluations"),
+            eligible_evaluations,
             valid_testcase_ids={testcase["id"] for testcase in tcs},
             version=active_version,
         )
@@ -4743,9 +4776,22 @@ async def dashboard_stats(user=Depends(get_current_user)):
         else {"eligible": [], "all_models": [], "bassett": []}
     )
     demos = await crud_list("demos")
+    if not include_sample:
+        demos = [demo for demo in demos if not _is_sample_record(demo)]
     regruns = await crud_list("regression_runs")
+    if not include_sample:
+        sample_versions = {version.get("name") for version in versions if _is_sample_record(version)}
+        regruns = [
+            run for run in regruns
+            if not _is_sample_record(run)
+            and run.get("bassett_version") not in sample_versions
+        ]
     latest_regression = _latest_regression_run(regruns, active_version)
-    project_last_tested_dates = await _current_project_last_tested_dates(projects)
+    project_last_tested_dates = (
+        await _current_project_last_tested_dates(projects)
+        if include_sample
+        else await _current_project_last_tested_dates(projects, include_sample=False)
+    )
 
     def cnt(items, key, val):
         return len([i for i in items if i.get(key) == val])
@@ -4891,7 +4937,43 @@ async def compute_stale_gold_map():
     return out
 
 # ---------- Canonical export population ----------
-async def _canonical_report_data(kind):
+SAMPLE_MARKER = re.compile(r"\[SAMPLE\]|\(Sample\)", re.IGNORECASE)
+
+
+def _is_sample_record(record):
+    if not isinstance(record, dict):
+        return False
+    if record.get("sample_data") is True or record.get("is_sample") is True:
+        return True
+    return any(SAMPLE_MARKER.search(str(record.get(key) or "")) for key in (
+        "name", "title", "version", "bassett_version", "release_number", "environment",
+    ))
+
+
+def _is_sample_testcase(testcase):
+    return _is_sample_record(testcase)
+
+
+def _sample_version_names(versions):
+    return {
+        version.get("name") for version in versions
+        if version.get("name") and _is_sample_record(version)
+    }
+
+
+def _exclude_sample_scope(records, versions, include_sample):
+    if include_sample:
+        return list(records)
+    sample_versions = _sample_version_names(versions)
+    return [
+        record for record in records
+        if not _is_sample_record(record)
+        and record.get("bassett_version") not in sample_versions
+        and record.get("version") not in sample_versions
+    ]
+
+
+async def _canonical_report_data(kind, include_sample=False):
     """Return the current, link-valid records that may populate an export.
 
     Exports must not reconstruct this population in the browser: doing so used
@@ -4901,9 +4983,12 @@ async def _canonical_report_data(kind):
     if kind not in {"qa_summary", "release", "regression", "comparison", "critical", "municipality"}:
         raise HTTPException(400, "Unknown report type")
 
+    versions = await crud_list("versions")
+    sample_versions = _sample_version_names(versions)
     testcases = [
         testcase for testcase in await crud_list("testcases")
         if not testcase.get("archived") and testcase.get("status") != "Archived"
+        and (include_sample or not _is_sample_record(testcase))
     ]
     testcase_ids = {testcase["id"] for testcase in testcases}
     projects = {project["id"]: project for project in await crud_list("projects")}
@@ -4923,6 +5008,7 @@ async def _canonical_report_data(kind):
         if not evaluation.get("archived") and not evaluation.get("superseded")
         and evaluation.get("testcase_id") in testcase_ids
     ]
+    raw_evaluations = _exclude_sample_scope(raw_evaluations, versions, include_sample)
     # A linked run must be a completed, non-partial run.  Unlinked legacy
     # evaluations remain supported, but a dangling run link is not evidence.
     raw_evaluations = await _exclude_incomplete_comparison_evaluations(raw_evaluations)
@@ -4947,7 +5033,12 @@ async def _canonical_report_data(kind):
     ]
     runs = []
     for run in await crud_list("regression_runs"):
-        if run.get("archived"):
+        if run.get("archived") or (
+            not include_sample and (
+                _is_sample_record(run)
+                or run.get("bassett_version") in sample_versions
+            )
+        ):
             continue
         result_ids = {
             result.get("testcase_id") for result in run.get("results", [])
@@ -4970,7 +5061,13 @@ async def _canonical_report_data(kind):
 
     if kind != "regression":
         # A release report is current state, not a regression-history export.
-        active = await db.versions.find_one({"active": True}, {"_id": 0})
+        active = next(
+            (
+                version for version in versions
+                if version.get("active") and (include_sample or not _is_sample_record(version))
+            ),
+            None,
+        )
         latest = _latest_regression_run(
             [run for run in runs if not active or run.get("bassett_version") == active.get("name")]
         )
@@ -4988,10 +5085,14 @@ async def _canonical_report_data(kind):
 
 
 @api.get("/reports/data")
-async def report_data(kind: str = "qa_summary", user=Depends(get_current_user)):
+async def report_data(kind: str = "qa_summary", include_sample: bool = False, user=Depends(get_current_user)):
     """Canonical source records for a JSON report export."""
-    records = await _canonical_report_data(kind)
-    return {**records, "stats": await dashboard_stats(user)}
+    records = await _canonical_report_data(kind, include_sample=include_sample)
+    return {
+        **records,
+        "stats": await dashboard_stats(user, include_sample=include_sample),
+        "sample_data_included": include_sample,
+    }
 
 # ---------- Regression suite execution ----------
 def _delta_status(baseline_result, current_result):
@@ -5636,15 +5737,19 @@ async def put_view(page: str, body: Dict[str, Any], user=Depends(get_current_use
     return {"ok": True}
 
 # ---------- Executive summary ----------
-def _is_sample_testcase(testcase):
-    return bool(testcase.get("sample_data"))
-
-
 @api.get("/analytics/executive")
-async def analytics_executive(user=Depends(get_current_user)):
-    tcs = {t["id"]: t for t in await crud_list("testcases") if not _is_sample_testcase(t)}
+async def analytics_executive(user=Depends(get_current_user), include_sample: bool = False):
+    versions = await crud_list("versions")
+    sample_versions = _sample_version_names(versions)
+    tcs = {
+        t["id"]: t for t in await crud_list("testcases")
+        if include_sample or not _is_sample_testcase(t)
+    }
+    raw_evaluations = _exclude_sample_scope(
+        await crud_list("evaluations"), versions, include_sample,
+    )
     evaluation_view = await _evaluation_read_model(
-        await crud_list("evaluations"), valid_testcase_ids=tcs,
+        raw_evaluations, valid_testcase_ids=tcs,
     )
     evals = evaluation_view["all_models"]
     # Findings are retained for audit/history after archival, but are not current
@@ -5654,7 +5759,11 @@ async def analytics_executive(user=Depends(get_current_user)):
         if not finding.get("archived") and finding.get("status") != "Archived"
         and finding.get("testcase_id") in tcs
     ]
-    scope = "Scope: latest evaluation per test case per model · sample data excluded · all Bassett versions · retests excluded · Pass includes 'Pass with Minor Issues'"
+    scope = (
+        "Scope: latest evaluation per test case per model · "
+        f"sample data {'included' if include_sample else 'excluded'} · "
+        "all Bassett versions · retests excluded · Pass includes 'Pass with Minor Issues'"
+    )
 
     def quarter_of(iso):
         try:
@@ -5736,7 +5845,8 @@ async def analytics_executive(user=Depends(get_current_user)):
                      "wins": wins, "losses": losses, "open_critical": open_critical,
                      "total_evaluated": passed + failed, "total_findings": len(findings)},
             "trend": trend, "failure_modes": failure_modes, "categories": categories, "scope": scope,
-            "stale_gold_tests": stale_gold}
+            "stale_gold_tests": stale_gold, "sample_data_included": include_sample,
+            "has_evaluated_data": bool(evals)}
 
 # ---------- Test Coverage ----------
 @api.get("/analytics/coverage")
@@ -6854,6 +6964,39 @@ async def data_integrity(user=Depends(get_current_user)):
             "checked_at": now_iso()}
 
 # ---------- One-click integrity repairs (admin, guided confirmation in UI) ----------
+@api.get("/admin/integrity/sample-repair/preview")
+async def sample_integrity_repair_preview(user=Depends(get_current_user)):
+    if user["role"] != "admin":
+        raise HTTPException(403, "Administrator only")
+    return await preview_integrity_batch(db)
+
+
+@api.post("/admin/integrity/sample-repair")
+async def sample_integrity_repair(body: Dict[str, Any], user=Depends(get_current_user)):
+    if user["role"] != "admin":
+        raise HTTPException(403, "Administrator only")
+    if body.get("confirm") is not True:
+        raise HTTPException(400, "Explicit confirmation is required")
+
+    preview = await preview_integrity_batch(db)
+    current_ids = sorted(preview.get("preview_ids", []))
+    submitted_ids = sorted(body.get("preview_ids") or [])
+    if submitted_ids != current_ids:
+        raise HTTPException(
+            409,
+            "The deterministic SAMPLE repair scope changed. Preview the records again before confirming.",
+        )
+    result = await repair_integrity_batch(db)
+    await log_activity(
+        "integrity",
+        "sample-data",
+        "deterministic SAMPLE integrity repair",
+        user,
+        json.dumps({"preview_ids": current_ids, "result": result}),
+    )
+    return {"ok": True, "preview": preview, "result": result}
+
+
 @api.post("/admin/integrity/repair")
 async def integrity_repair(body: Dict[str, Any], user=Depends(get_current_user)):
     if user["role"] != "admin":

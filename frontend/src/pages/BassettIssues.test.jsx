@@ -131,7 +131,7 @@ test("attention test runs expose current result and follow-up actions", () => {
     root.render(<ScenarioDetail id="scenario-1" canManage={false} canExecute close={jest.fn()} edit={jest.fn()} run={jest.fn()} archive={jest.fn()} />);
   });
   expect(container.textContent).toContain("Canonical Bassett Test Runs");
-  expect(container.textContent).toContain("Partial");
+  expect(container.textContent).toContain("Needs Improvement");
   expect(container.textContent).toContain("Test Date:");
   expect(container.textContent).toContain("Open Run");
   expect(container.querySelector('a').getAttribute("href")).toBe("/bassett/issues?open=run-1");
@@ -156,14 +156,14 @@ test("dashboards render canonical attention and coverage metrics", () => {
   act(() => bankRoot.unmount());
 });
 
-test("test results use the current vocabulary and visibly mark legacy incomplete results", () => {
+test("test results use the current vocabulary when legacy values are supplied", () => {
   const container = document.createElement("div");
   const root = createRoot(container);
   act(() => {
     root.render(<><ResultPill value="Pass with Notes" /><ResultPill value="Incomplete" /></>);
   });
-  expect(container.textContent).toContain("Pass with Notes");
-  expect(container.textContent).toContain("Legacy: Incomplete");
+  expect(container.textContent).toContain("Pass with Minor Issues");
+  expect(container.textContent).toContain("Not Evaluated");
   act(() => root.unmount());
 });
 

@@ -16,17 +16,23 @@ import { QueryState } from "../components/PageState";
 import { SafeResponsiveContainer } from "../components/SafeResponsiveContainer";
 
 export default function Executive() {
-  const query = useQuery({ queryKey: ["executive"], queryFn: async () => (await api.get("/analytics/executive")).data });
+  const [includeSample, setIncludeSample] = useState(false);
+  const query = useQuery({
+    queryKey: ["executive", includeSample],
+    queryFn: async () => (await api.get(`/analytics/executive?include_sample=${includeSample}`)).data,
+  });
   const { data: d } = query;
   const trendChartRef = useRef(null);
   const failureModesChartRef = useRef(null);
   const categoriesChartRef = useRef(null);
   const [exportStatus, setExportStatus] = useState("idle");
   const [exportError, setExportError] = useState("");
+  const [exportSuccess, setExportSuccess] = useState("");
   const exporting = exportStatus !== "idle";
 
   const downloadPdf = async () => {
     setExportError("");
+    setExportSuccess("");
     setExportStatus("generating");
     try {
       // Only chart SVGs are rasterized. Text, cards, section boundaries, tables,
@@ -44,7 +50,11 @@ export default function Executive() {
         generated: new Date().toLocaleDateString(),
       });
       const bytes = pdf.output("arraybuffer");
+      const header = bytes && bytes.byteLength >= 5
+        ? String.fromCharCode(...new Uint8Array(bytes).slice(0, 5))
+        : "";
       if (!bytes || bytes.byteLength === 0) throw new Error("The generated PDF was empty.");
+      if (header !== "%PDF-") throw new Error("The generated file was not a valid PDF.");
       setExportStatus("saving");
       await new Promise((resolve) => requestAnimationFrame(resolve));
       const blob = new Blob([bytes], { type: "application/pdf" });
@@ -54,8 +64,11 @@ export default function Executive() {
       link.download = `Bassett-Executive-Summary-${new Date().toISOString().slice(0, 10)}.pdf`;
       document.body.appendChild(link);
       link.click();
-      link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      window.setTimeout(() => {
+        link.remove();
+        URL.revokeObjectURL(url);
+      }, 1000);
+      setExportSuccess("PDF downloaded successfully and is ready to share.");
       toast.success("PDF downloaded — ready to share");
     } catch (e) {
       const message = e instanceof Error && e.message
@@ -69,6 +82,7 @@ export default function Executive() {
   if (query.isLoading || query.isError) return <div><PageHeader title="Executive Summary" subtitle="Shareable QA outcomes and trends." /><QueryState query={query} resource="executive summary" testId="executive-query" /></div>;
   const { kpis: k, trend, failure_modes, categories } = d;
   const sampleDataShown = sampleScopeIncludesData({ records: [d] });
+  const hasEvaluatedData = d.has_evaluated_data ?? Number(k.total_evaluated || 0) > 0;
   const chartCategories = categories.filter((category) => evaluationScoreOrNull(category.avg_score) !== null);
 
   const strongest = categories[0];
@@ -108,7 +122,10 @@ export default function Executive() {
 
   return (
     <div data-testid="exec-pdf-surface">
-      <PageHeader title="Executive Summary" subtitle={`${d.scope || ""} · Generated ${new Date().toLocaleDateString()}.`}>
+       <PageHeader title="Executive Summary" subtitle={`${d.scope || ""} · Generated ${new Date().toLocaleDateString()}.`}>
+         <Button variant="outline" data-testid="include-sample-toggle" onClick={() => setIncludeSample((value) => !value)} data-html2canvas-ignore="true">
+           {includeSample ? "Hide demonstration data" : "Include demonstration data"}
+         </Button>
         <Button data-html2canvas-ignore="true" data-testid="download-pdf-btn" onClick={downloadPdf} disabled={exporting} className="bg-[var(--navy)] hover:bg-[#232f73]">
           {exporting ? <Loader2 size={15} className="mr-1 animate-spin" /> : <FileDown size={15} className="mr-1" />}
           {exportStatus === "generating" ? "Generating PDF…" : exportStatus === "saving" ? "Saving PDF…" : "Download PDF"}
@@ -118,6 +135,16 @@ export default function Executive() {
       {exportError && (
         <div role="alert" data-testid="pdf-export-error" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           {exportError}
+        </div>
+      )}
+      {exportSuccess && (
+        <div role="status" data-testid="pdf-export-success" className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+          {exportSuccess}
+        </div>
+      )}
+      {!hasEvaluatedData && (
+        <div role="status" data-testid="executive-empty-state" className="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+          No {includeSample ? "" : "non-sample "}evaluations are available in this scope. Enable demonstration data only if you want to review seeded example records.
         </div>
       )}
 

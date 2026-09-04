@@ -75,10 +75,59 @@ function RepairDialog({ issue, onClose, onDone }) {
   );
 }
 
+function SampleRepairDialog({ state, onClose, onConfirm }) {
+  const preview = state?.preview;
+  const records = preview?.records || [];
+  return (
+    <AlertDialog open onOpenChange={(open) => !open && onClose()}>
+      <AlertDialogContent data-testid="sample-repair-dialog">
+        <AlertDialogHeader>
+          <AlertDialogTitle className="font-display text-[var(--navy)] flex items-center gap-2">
+            <Wrench size={17} className="text-[var(--orange)]" /> Review deterministic SAMPLE repairs
+          </AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div className="space-y-3 text-sm text-left">
+              <p>This preview lists the exact SAMPLE records that the existing idempotent repair routine would change. No production data is modified until you confirm.</p>
+              {state?.error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-red-800">{state.error}</div>}
+              {state?.loading && <div role="status" className="text-muted-foreground">Loading the repair preview…</div>}
+              {!state?.loading && !state?.error && records.length === 0 && (
+                <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-green-800">No deterministic SAMPLE metadata repairs are currently needed.</div>
+              )}
+              {records.length > 0 && (
+                <div className="max-h-64 overflow-y-auto rounded-lg border bg-[var(--paper)] p-3 space-y-2">
+                  {records.map((record) => (
+                    <div key={`${record.collection}:${record.id}`} className="border-b last:border-0 pb-2 last:pb-0">
+                      <div className="font-semibold text-[var(--navy)]">{record.name}</div>
+                      <div className="text-xs text-muted-foreground">{record.collection} · {record.repair}</div>
+                      <div className="text-xs">Changes: {Object.entries(record.changes || {}).map(([key, value]) => `${key} → ${value}`).join(", ")}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel data-testid="sample-repair-cancel">Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={state?.loading || Boolean(state?.error) || records.length === 0}
+            onClick={(event) => { event.preventDefault(); onConfirm(); }}
+            data-testid="sample-repair-confirm"
+            className="bg-[var(--navy)] hover:bg-[#232f73]"
+          >
+            Apply listed repairs
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 export default function DataIntegrity() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [repairing, setRepairing] = useState(null);
+  const [sampleRepair, setSampleRepair] = useState(null);
   const defaultSort = { key: "severity", direction: "asc" };
   const [sort, setSort] = usePersistentTableSort("data-integrity", INTEGRITY_COLUMNS, defaultSort);
   const allowed = user && ["admin", "qa_manager"].includes(user.role);
@@ -88,11 +137,39 @@ export default function DataIntegrity() {
     enabled: allowed,
   });
 
+  const previewSampleRepair = async () => {
+    setSampleRepair({ loading: true });
+    try {
+      const { data } = await api.get("/admin/integrity/sample-repair/preview");
+      setSampleRepair({ preview: data });
+    } catch (e) {
+      setSampleRepair({ error: e.response?.data?.detail || "Unable to load the SAMPLE repair preview." });
+    }
+  };
+
+  const confirmSampleRepair = async () => {
+    const preview = sampleRepair?.preview;
+    if (!preview) return;
+    try {
+      const { data } = await api.post("/admin/integrity/sample-repair", {
+        confirm: true,
+        preview_ids: preview.preview_ids,
+      });
+      toast.success(`Applied ${data.result.changed_total} deterministic SAMPLE repairs.`);
+      setSampleRepair(null);
+      qc.invalidateQueries({ queryKey: ["integrity"] });
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "SAMPLE repair failed. Preview the records again.");
+    }
+  };
+
   if (!allowed) return <div className="bg-card border rounded-xl p-8 text-center text-muted-foreground" data-testid="integrity-forbidden">Data Integrity is restricted to Administrators and QA Managers.</div>;
 
   return (
     <div>
-      <PageHeader title="Data Integrity" subtitle="Automated validation of relational consistency, historical snapshots and metric reconciliation. Safe issues offer a one-click repair with guided confirmation — substantive QA judgments always stay manual." />
+       <PageHeader title="Data Integrity" subtitle="Automated validation of relational consistency, historical snapshots and metric reconciliation. Safe issues offer a one-click repair with guided confirmation — substantive QA judgments always stay manual.">
+         {user.role === "admin" && <Button variant="outline" onClick={previewSampleRepair} data-testid="sample-repair-preview-btn"><Wrench size={14} className="mr-1" /> Review SAMPLE metadata repair</Button>}
+       </PageHeader>
       {isLoading && <div className="text-muted-foreground" role="status">Running integrity validation…</div>}
       {isError && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">Failed to run integrity checks: {error?.response?.data?.detail || "Request failed."} <Button size="sm" variant="outline" className="ml-2" onClick={() => refetch()}>Retry</Button></div>}
       {d && (
@@ -141,6 +218,7 @@ export default function DataIntegrity() {
       <p className="text-xs text-muted-foreground mt-3">Last checked: {new Date(d.checked_at).toLocaleString()}</p>
 
       {repairing && <RepairDialog issue={repairing} onClose={() => setRepairing(null)} onDone={() => qc.invalidateQueries({ queryKey: ["integrity"] })} />}
+      {sampleRepair && <SampleRepairDialog state={sampleRepair} onClose={() => setSampleRepair(null)} onConfirm={confirmSampleRepair} />}
         </>
       )}
     </div>
