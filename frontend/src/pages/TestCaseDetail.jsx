@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, formatApiErrorDetail, staleUpdateMessage, withExpectedVersion } from "../lib/api";
-import { useConfig } from "../lib/hooks";
+import { useCollection, useConfig } from "../lib/hooks";
 import { useAuth } from "../lib/auth";
 import { CritBadge, ResultBadge, ScorePill } from "../components/shared";
 import { AnnotatedResponse } from "../components/AnnotatedResponse";
@@ -36,6 +36,7 @@ import { MODEL_COLORS, MODEL_ORDER } from "../lib/modelColors";
 import { QueryState } from "../components/PageState";
 import { SCORE_RUBRIC, hasScoredDimension } from "../lib/scoreRubric";
 import { ScoreSelect } from "../components/ScoreSelect";
+import UnifiedTestEntryForm, { createComparisonEditDraft } from "../components/UnifiedTestEntryForm";
 
 const ANN_TO_FINDING = {
   "Citation Problem": "citation problem", "Hallucination": "hallucination",
@@ -60,6 +61,12 @@ export default function TestCaseDetail() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const { data: config } = useConfig();
+  const { data: scenarios = [] } = useQuery({ queryKey: ["bassett-scenarios"], queryFn: async () => (await api.get("/bassett/test-bank")).data });
+  const { data: projects = [] } = useCollection("projects");
+  const { data: municipalities = [] } = useCollection("municipalities");
+  const { data: properties = [] } = useCollection("properties");
+  const { data: users = [] } = useCollection("users");
+  const { data: versions = [] } = useCollection("versions");
   const { data, isLoading, isError, error, refetch } = useQuery({ queryKey: ["tc-full", id], queryFn: async () => (await api.get(`/testcases/${id}/full`)).data });
   const [respModal, setRespModal] = useState(null);
   const [evalModal, setEvalModal] = useState(null);
@@ -87,6 +94,9 @@ export default function TestCaseDetail() {
   }, [requestedTab, sp, setSp]);
   const [running, setRunning] = useState(false);
   const [runModal, setRunModal] = useState(null);
+  const [editForm, setEditForm] = useState(null);
+  const [editError, setEditError] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
 
   const roleCanWrite = user && user.role !== "viewer";
   const { data: allTcs = [] } = useQuery({ queryKey: ["tc-nav"], queryFn: async () => (await api.get("/testcases")).data });
@@ -163,6 +173,44 @@ export default function TestCaseDetail() {
   const TAB_COUNTS = { responses: responses.filter((r) => !r.superseded).length, claims: claims.length, evidence: evidence.length, evaluation: evaluations.length, findings: findings.length, retests: retests.length, discussion: comments.filter((c) => !c.deleted).length, activity: activities.length };
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["tc-full", id] });
+
+  const openEdit = () => {
+    setEditError("");
+    setEditForm(createComparisonEditDraft(data, config?.application_timezone));
+  };
+
+  const saveEdit = async () => {
+    if (!editForm || editSaving) return;
+    setEditSaving(true);
+    setEditError("");
+    const body = {
+      testcase: { ...editForm },
+      responses: editForm.responses || {},
+      evaluations: editForm.evaluations || {},
+      comparison: editForm.comparison || {},
+      source_bassett_issue_id: editForm.source_bassett_issue_id,
+      expected_revision: editForm.expected_revision,
+    };
+    delete body.testcase.attachments;
+    const payload = new FormData();
+    payload.append("payload", JSON.stringify(body));
+    (editForm.attachments || []).forEach((file) => payload.append("files", file));
+    try {
+      await api.post(`/testcases/${id}/comparison-workflow`, payload);
+      toast.success("Model comparison updated");
+      setEditForm(null);
+      refresh();
+    } catch (error) {
+      const message = error?.response?.status === 409
+        ? staleUpdateMessage(error) || "Someone else saved this test case first. Reload and try again."
+        : formatApiErrorDetail(error?.response?.data?.detail) || "Unable to update model comparison.";
+      setEditError(`Your entries are still here. ${message}`);
+      toast.error(message);
+      if (error?.response?.status === 409) refresh();
+    } finally {
+      setEditSaving(false);
+    }
+  };
 
   const runModels = async () => {
     const { models, test_date } = runModal;
@@ -251,7 +299,7 @@ export default function TestCaseDetail() {
           <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1 flex-wrap"><span>{project?.name} · {municipality ? `${municipality.name}, ${municipality.state}` : "No municipality"}{property ? ` · ${property.name}` : ""}</span><StatusBadge value={tc.archived ? "Archived" : (tc.status || "Unknown")} definitions={TEST_CASE_STATUSES} compact />{bassettEval?.bassett_version && <span>· {bassettEval.bassett_version}</span>}{tc.environment && <span>· {tc.environment}</span>}</div>
         </div>
          <div className="flex w-full flex-wrap gap-2 items-center lg:w-auto">
-          <TestCaseActions testcase={tc} user={user} onDeleted={() => nav("/testcases")} />
+          <TestCaseActions testcase={tc} user={user} onEdit={openEdit} onDeleted={() => nav("/testcases")} />
           <AssigneePicker entityType="testcases" entityId={id} assigneeId={tc.assignee_id} assigneeName={tc.assignee_name} canWrite={canWrite} onChanged={refresh} />
           {canWrite && <Button variant="outline" onClick={() => setVariantModal(true)} data-testid="clone-variant-btn"><CopyPlus size={15} className="mr-1" /> Clone Variant</Button>}
            <Button variant="outline" className="flex-1 sm:flex-none" onClick={() => nav(`/comparison?tc=${id}`)}><Columns3 size={15} className="mr-1" /> AI Comparison</Button>
@@ -591,6 +639,23 @@ export default function TestCaseDetail() {
         <Field label="Test Date *"><Input required type="date" value={runModal.test_date} onChange={(e) => setRunModal({ ...runModal, test_date: e.target.value })} /></Field>
         <p className="text-xs text-muted-foreground">One Test Date applies to every model response in this comparison.</p>
       </FormModal>}
+      {editForm && <UnifiedTestEntryForm
+        mode="comparison"
+        form={editForm}
+        setForm={setEditForm}
+        scenarios={scenarios}
+        versions={versions}
+        projects={projects}
+        municipalities={municipalities}
+        properties={properties}
+        users={users}
+        config={config}
+        onSubmit={saveEdit}
+        onCancel={() => setEditForm(null)}
+        submitting={editSaving}
+        conflictNotice={editError ? <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">{editError}</div> : null}
+        lockedCommon={Boolean(tc.source_bassett_issue_id)}
+      />}
     </div>
   );
 }

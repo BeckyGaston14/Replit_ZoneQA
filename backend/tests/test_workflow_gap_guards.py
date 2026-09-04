@@ -785,6 +785,52 @@ def test_integrity_repair_mutation_is_admin_only():
     assert exc.value.status_code == 403
 
 
+def test_comparison_workflow_update_logs_a_normal_testcase_activity(monkeypatch):
+    current = {
+        "id": "tc-1", "name": "Existing comparison", "prompts": [{"turn": 1, "text": "Prompt"}],
+        "revision": 4, "updated_at": "2026-09-01T00:00:00Z", "archived": False,
+    }
+    prepared_testcase = {**current, "name": "Edited comparison", "prompts": current["prompts"]}
+    prepared_gold = {"id": "gold-1", "answer": "Verified"}
+    prepared_responses = [{"id": "response-1", "model": "Bassett", "response": "Answer"}]
+    prepared_evaluations = [{"id": "evaluation-1", "model": "Bassett", "final_result": "Pass"}]
+    stored = {**prepared_testcase, "revision": 5}
+    activity = []
+
+    class WorkflowDb:
+        async def update_testcase_workflow(self, *args, **kwargs):
+            assert args[0] == "tc-1"
+            assert args[3] == prepared_evaluations
+            assert kwargs["expected_revision"] == 4
+            return stored
+
+    async def fake_prepare(body, user, require_scenario=True):
+        assert body["testcase"]["id"] == "tc-1"
+        return prepared_testcase, prepared_gold, prepared_responses, prepared_evaluations
+
+    async def fake_log(*args):
+        activity.append(args)
+
+    monkeypatch.setattr(server, "crud_get", lambda *_args, **_kwargs: _async_value(current))
+    monkeypatch.setattr(server, "_prepare_comparison_workflow", fake_prepare)
+    monkeypatch.setattr(server, "db", WorkflowDb())
+    monkeypatch.setattr(server, "log_activity", fake_log)
+
+    response = asyncio.run(server.update_testcase_workflow(
+        "tc-1",
+        payload='{"testcase":{"name":"Edited comparison"},"responses":{},"evaluations":{},"comparison":{},"expected_revision":4}',
+        files=[],
+        user={"id": "admin-1", "name": "Administrator", "role": "admin"},
+    ))
+
+    assert response["testcase"]["revision"] == 5
+    assert activity == [(
+        "testcases", "tc-1", "updated",
+        {"id": "admin-1", "name": "Administrator", "role": "admin"},
+        "Model comparison workflow updated; linked responses, evaluations, findings, and attachments preserved.",
+    )]
+
+
 def test_release_and_regression_helpers_use_comparison_eligibility(monkeypatch):
     db = Db({"test_runs": [{"id": "bad", "status": "Failed", "comparison_complete": False},
                             {"id": "good", "status": "Completed", "comparison_complete": True}]})

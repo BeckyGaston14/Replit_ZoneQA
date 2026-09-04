@@ -14,7 +14,10 @@ jest.mock("@tanstack/react-query", () => ({
   useQuery: ({ queryKey }) => ({ data: queryKey[0] === "tc-full" ? full : [], isLoading: false, isError: false }),
   useQueryClient: () => ({ invalidateQueries: jest.fn() }),
 }));
-jest.mock("../lib/hooks", () => ({ useConfig: () => ({ data: {} }) }));
+jest.mock("../lib/hooks", () => ({
+  useConfig: () => ({ data: {} }),
+  useCollection: () => ({ data: [] }),
+}));
 jest.mock("../lib/auth", () => ({ useAuth: () => ({ user: { role: "admin" } }) }));
 jest.mock("../lib/api", () => ({
   api: { get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() },
@@ -32,7 +35,9 @@ jest.mock("../components/CommentsThread", () => ({ CommentsThread: () => null })
 jest.mock("../components/AssigneePicker", () => ({ AssigneePicker: () => null }));
 jest.mock("../components/ClaimsPanel", () => ({ ClaimsPanel: () => null }));
 jest.mock("../components/Attachments", () => ({ Attachments: () => null }));
-jest.mock("../components/TestCaseActions", () => ({ TestCaseActions: () => null }));
+jest.mock("../components/TestCaseActions", () => ({
+  TestCaseActions: ({ onEdit }) => <button data-testid="detail-edit-action" onClick={onEdit}>Edit test case</button>,
+}));
 jest.mock("./Resources", () => ({ VerificationBadge: () => null }));
 jest.mock("../components/ui/tabs", () => ({ Tabs: ({ children, value }) => <div data-testid="detail-tabs" data-value={value}>{children}</div>, TabsList: ({ children }) => <div>{children}</div>, TabsTrigger: ({ children }) => <button>{children}</button>, TabsContent: ({ children }) => <div>{children}</div> }));
 jest.mock("../components/ui/button", () => ({ Button: ({ children, ...props }) => <button {...props}>{children}</button> }));
@@ -88,6 +93,17 @@ test("shows all comparison slots and labels failed slots incomplete", () => {
   expect(container.querySelector('[aria-label="Resume incomplete ChatGPT response"]')).not.toBeNull();
   expect(container.querySelector('[aria-label="Resume incomplete Claude response"]')).not.toBeNull();
   expect(container.querySelector("[data-testid='resp-col-ChatGPT']").className).toContain("min-w-0");
+  act(() => root.unmount());
+});
+
+test("detail-page edit action opens the hydrated comparison editor", () => {
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  act(() => root.render(<TestCaseDetail />));
+  act(() => container.querySelector("[data-testid='detail-edit-action']").click());
+  expect(container.querySelector("[data-modal-title='Edit Model Comparison']")).not.toBeNull();
+  expect(container.textContent).toContain("Prompt");
+  expect(container.textContent).toContain("answer");
   act(() => root.unmount());
 });
 

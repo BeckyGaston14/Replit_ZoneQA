@@ -99,7 +99,8 @@ function SampleRepairDialog({ state, onClose, onConfirm }) {
                     <div key={`${record.collection}:${record.id}`} className="border-b last:border-0 pb-2 last:pb-0">
                       <div className="font-semibold text-[var(--navy)]">{record.name}</div>
                       <div className="text-xs text-muted-foreground">{record.collection} · {record.repair}</div>
-                      <div className="text-xs">Changes: {Object.entries(record.changes || {}).map(([key, value]) => `${key} → ${value}`).join(", ")}</div>
+                       {record.source_date && <div className="text-xs">Source ({record.source_date_kind}): <b>{record.source_date}</b>{record.source_date_kind === "evaluation record created date" && <span className="text-muted-foreground"> (not an original business Test Date)</span>} · Target Test Date: <b>{record.target_test_date}</b></div>}
+                       <div className="text-xs">Changes: {Object.entries(record.changes || {}).map(([key, value]) => `${key} → ${value}`).join(", ")}</div>
                     </div>
                   ))}
                 </div>

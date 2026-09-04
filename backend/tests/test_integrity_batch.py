@@ -85,6 +85,8 @@ async def test_batch_repairs_exact_sample_records_and_is_idempotent():
     testcases = [
         {"id": "tc-date", "name": "[SAMPLE] comparison", "comparison_mode": True},
         {"id": "tc-existing", "name": "[SAMPLE] already dated", "comparison_mode": True, "test_date": "2026-01-01"},
+        {"id": "tc-created-date", "name": "[SAMPLE] created date fallback", "comparison_mode": True},
+        {"id": "tc-no-source", "name": "[SAMPLE] no source date", "comparison_mode": True},
         {"id": "tc-other", "name": "comparison", "comparison_mode": True},
     ]
     database = Database(
@@ -94,7 +96,10 @@ async def test_batch_repairs_exact_sample_records_and_is_idempotent():
         evaluations=[
             {"id": "eval-late", "testcase_id": "tc-date", "model": "Bassett", "test_date": "2026-05-02"},
             {"id": "eval-early", "testcase_id": "tc-date", "model": "ChatGPT", "test_date": "2026-04-01"},
+            {"id": "eval-latest", "testcase_id": "tc-date", "model": "Claude", "test_date": "2026-06-01"},
+            {"id": "eval-retest", "testcase_id": "tc-date", "model": "Bassett", "test_date": "2026-07-01", "is_retest": True},
             {"id": "eval-existing", "testcase_id": "tc-existing", "model": "Bassett", "test_date": "2025-01-01"},
+            {"id": "eval-created-date", "testcase_id": "tc-created-date", "model": "Bassett", "test_date": "", "created_at": "2026-08-04T18:30:00+00:00"},
         ],
         evidence=[
             {"id": "ev-1", "document_name": "NYC ZR §32-00 Use Regulations", "issuing_authority": "", "created_by": "seed"},
@@ -111,20 +116,28 @@ async def test_batch_repairs_exact_sample_records_and_is_idempotent():
     assert len(preview["records"]) == 8
     assert preview["preview_ids"] == [
         "projects:project-0", "projects:project-1", "projects:project-2", "projects:project-3",
-        "testcases:tc-date", "evidence:ev-1", "versions:v-8", "config:global",
+        "testcases:tc-date", "testcases:tc-created-date", "evidence:ev-1", "versions:v-8", "config:global",
     ]
+    assert preview["records"][4]["source_date"] == "2026-06-01"
+    assert preview["records"][4]["source_date_kind"] == "evaluation Test Date"
+    assert preview["records"][5]["source_date"] == "2026-08-04"
+    assert preview["records"][5]["source_date_kind"] == "evaluation record created date"
+    assert preview["records"][5]["target_test_date"] == "2026-08-04"
+    assert any(item["id"] == "tc-no-source" for item in preview["skipped"])
 
     first = await repair_integrity_batch(database)
     assert first["changed"] == {
         "project_owners": 4,
-        "testcase_dates": 1,
+        "testcase_dates": 2,
         "evidence_authorities": 1,
         "version_metadata": 1,
         "lookup_options": 2,
     }
     assert all(project.get("owner_user_id") == "admin-1" for project in projects[:4])
     assert projects[4].get("owner_user_id") is None
-    assert next(tc for tc in testcases if tc["id"] == "tc-date")["test_date"] == "2026-04-01"
+    assert next(tc for tc in testcases if tc["id"] == "tc-date")["test_date"] == "2026-06-01"
+    assert next(tc for tc in testcases if tc["id"] == "tc-created-date")["test_date"] == "2026-08-04"
+    assert next(tc for tc in testcases if tc["id"] == "tc-no-source").get("test_date") is None
     assert next(tc for tc in testcases if tc["id"] == "tc-existing")["test_date"] == "2026-01-01"
     assert database.evidence.records[0]["issuing_authority"] == "New York City Department of City Planning"
     assert database.evidence.records[1]["issuing_authority"] == ""

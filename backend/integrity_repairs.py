@@ -50,6 +50,44 @@ def _is_iso_date(value: Any) -> bool:
     return True
 
 
+def _is_retest_evaluation(evaluation: dict) -> bool:
+    """Recognize explicit retest markers without treating ordinary evaluations as retests."""
+    if evaluation.get("is_retest") is True or evaluation.get("retest") is True:
+        return True
+    if any(evaluation.get(key) for key in ("retest_id", "retest_run_id")):
+        return True
+    for key in ("evaluation_type", "evaluation_kind", "run_type", "type"):
+        if str(evaluation.get(key) or "").strip().lower().replace("-", "_") == "retest":
+            return True
+    return False
+
+
+def _evaluation_record_date(evaluation: dict) -> tuple[str | None, str]:
+    test_date = evaluation.get("test_date")
+    if _is_iso_date(test_date):
+        return test_date.strip(), "evaluation Test Date"
+    created_at = str(evaluation.get("created_at") or "").strip()
+    created_date = created_at[:10]
+    if _is_iso_date(created_date):
+        return created_date, "evaluation record created date"
+    return None, ""
+
+
+def _latest_non_retest_evaluation_date(evaluations: list[dict]) -> tuple[str | None, str, str | None]:
+    eligible = [
+        evaluation for evaluation in evaluations
+        if not _is_retest_evaluation(evaluation) and _evaluation_record_date(evaluation)[0]
+    ]
+    if not eligible:
+        return None, "", None
+    latest = max(
+        eligible,
+        key=lambda evaluation: (str(evaluation.get("created_at") or ""), str(evaluation.get("id") or "")),
+    )
+    source_date, source_kind = _evaluation_record_date(latest)
+    return source_date, source_kind, latest.get("created_at")
+
+
 async def _all(collection, limit=5000):
     return await collection.find({}, {"_id": 0}).to_list(limit)
 
@@ -99,13 +137,6 @@ async def preview_integrity_batch(database) -> dict:
         )
 
     evaluations = await _all(database.evaluations)
-    evaluation_dates = {}
-    for evaluation in evaluations:
-        testcase_id = evaluation.get("testcase_id")
-        value = evaluation.get("test_date")
-        if testcase_id and _is_iso_date(value):
-            evaluation_dates.setdefault(testcase_id, []).append(value.strip())
-
     testcases = await _all(database.testcases)
     for testcase in testcases:
         if not _is_active(testcase) or not str(testcase.get("name") or "").startswith("[SAMPLE]"):
@@ -119,14 +150,26 @@ async def preview_integrity_batch(database) -> dict:
             or testcase.get("test_type") == "Competitive Benchmark"
             or any(evaluation.get("model") in COMPARISON_MODELS for evaluation in testcase_evaluations)
         )
-        dates = sorted(evaluation_dates.get(testcase.get("id"), []))
-        if is_comparison and _blank(testcase.get("test_date")) and dates:
+        source_date, source_kind, source_created_at = _latest_non_retest_evaluation_date(testcase_evaluations)
+        if is_comparison and _blank(testcase.get("test_date")) and source_date:
             records.append({
                 "repair": "testcase_dates",
                 "collection": "testcases",
                 "id": testcase["id"],
                 "name": testcase.get("name", ""),
-                "changes": {"test_date": dates[0]},
+                "source_date": source_date,
+                "source_date_kind": source_kind,
+                "source_evaluation_created_at": source_created_at,
+                "target_test_date": source_date,
+                "changes": {"test_date": source_date},
+            })
+        elif is_comparison and _blank(testcase.get("test_date")):
+            skipped.append({
+                "repair": "testcase_dates",
+                "collection": "testcases",
+                "id": testcase.get("id"),
+                "name": testcase.get("name", ""),
+                "reason": "no valid non-retest evaluation Test Date is available",
             })
 
     evidence = await _all(database.evidence)
@@ -259,13 +302,6 @@ async def repair_integrity_batch(database) -> dict:
                 report["changed"]["project_owners"] += 1
 
     evaluations = await _all(database.evaluations)
-    evaluation_dates = {}
-    for evaluation in evaluations:
-        testcase_id = evaluation.get("testcase_id")
-        value = evaluation.get("test_date")
-        if testcase_id and _is_iso_date(value):
-            evaluation_dates.setdefault(testcase_id, []).append(value.strip())
-
     testcases = await _all(database.testcases)
     sample_comparison_testcases = []
     for testcase in testcases:
@@ -284,16 +320,34 @@ async def repair_integrity_batch(database) -> dict:
             sample_comparison_testcases.append(testcase)
     report["matched"]["sample_testcases_without_dates"] = len(sample_comparison_testcases)
     for testcase in sample_comparison_testcases:
-        dates = sorted(evaluation_dates.get(testcase.get("id"), []))
-        if not dates:
+        testcase_evaluations = [
+            evaluation for evaluation in evaluations
+            if evaluation.get("testcase_id") == testcase.get("id")
+        ]
+        latest_date, source_kind, source_created_at = _latest_non_retest_evaluation_date(testcase_evaluations)
+        if not latest_date:
+            report["skipped"].append({
+                "repair": "testcase_dates",
+                "collection": "testcases",
+                "id": testcase.get("id"),
+                "name": testcase.get("name", ""),
+                "reason": "no valid non-retest evaluation Test Date is available",
+            })
             continue
-        earliest = dates[0]
         result = await database.testcases.update_one(
             {"id": testcase["id"], "name": testcase["name"], "test_date": testcase.get("test_date")},
-            {"$set": {"test_date": earliest}},
+            {"$set": {"test_date": latest_date}},
         )
         if getattr(result, "modified_count", 1):
             report["changed"]["testcase_dates"] += 1
+            report.setdefault("changed_testcase_dates", []).append({
+                "id": testcase["id"],
+                "name": testcase.get("name", ""),
+                "source_date": latest_date,
+                "source_date_kind": source_kind,
+                "source_evaluation_created_at": source_created_at,
+                "target_test_date": latest_date,
+            })
 
     evidence = await _all(database.evidence)
     matching_evidence = [

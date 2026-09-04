@@ -2,6 +2,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import UnifiedTestEntryForm, {
   createBassettTestRunDraft,
+  createComparisonEditDraft,
   createComparisonTestDraft,
 } from "./UnifiedTestEntryForm";
 import { toast } from "sonner";
@@ -133,6 +134,27 @@ test("comparison drafts save locally without File objects", () => {
   expect(saved.attachments).toEqual([]);
   expect(toast.success).toHaveBeenCalledWith("Draft saved on this device");
   act(() => view.root.unmount());
+});
+
+test("comparison edit hydration retains the existing records and revision", () => {
+  const draft = createComparisonEditDraft({
+    testcase: {
+      id: "tc-1", name: "Existing comparison", revision: 7,
+      updated_at: "2026-09-01T00:00:00Z", prompts: [{ turn: 1, text: "Existing prompt" }],
+      comparison_result: "Pass", comparison_classification: "Tie",
+    },
+    gold_standard: { answer: "Verified answer" },
+    responses: [{ id: "response-1", model: "Bassett", response: "Bassett response" }],
+    evaluations: [{ id: "evaluation-1", model: "Bassett", scores: { accuracy: 9 }, final_result: "Pass" }],
+    findings: [{ id: "finding-1", finding_scope: "comparison", title: "Comparison issue" }],
+  });
+  expect(draft.id).toBe("tc-1");
+  expect(draft.expected_revision).toBe(7);
+  expect(draft.question_asked).toBe("Existing prompt");
+  expect(draft.gold_standard_answer).toBe("Verified answer");
+  expect(draft.responses.Bassett.id).toBe("response-1");
+  expect(draft.evaluations.Bassett.id).toBe("evaluation-1");
+  expect(draft.comparison.findings).toEqual([{ id: "finding-1", finding_scope: "comparison", title: "Comparison issue" }]);
 });
 
 test("comparison editor renders stale-save recovery controls supplied by its page", () => {

@@ -54,6 +54,38 @@ export function createComparisonTestDraft(overrides = {}, timeZone, now = new Da
   };
 }
 
+export function createComparisonEditDraft(full, timeZone, now = new Date()) {
+  const testcase = full?.testcase || full || {};
+  const responses = Object.fromEntries((full?.responses || []).map((response) => [response.model, response]));
+  const evaluations = Object.fromEntries((full?.evaluations || []).map((evaluation) => [evaluation.model, evaluation]));
+  const gold = full?.gold_standard || full?.goldstandard || {};
+  const bassettResponse = responses.Bassett?.response || "";
+  return {
+    ...createComparisonTestDraft({}, timeZone, now),
+    ...testcase,
+    id: testcase.id,
+    name: testcase.name || "",
+    question_asked: testcase.prompts?.[0]?.text || "",
+    gold_standard_answer: gold.answer || gold.verified_correct_answer || "",
+    verified_correct_answer: gold.answer || gold.verified_correct_answer || "",
+    exact_bassett_answer: bassettResponse,
+    responses,
+    evaluations,
+    evaluation_scores: evaluations.Bassett?.scores || {},
+    result: evaluations.Bassett?.final_result || testcase.bassett_result || "Not Evaluated",
+    comparison: {
+      comparison_result: testcase.comparison_result || "Incomplete",
+      comparison_classification: testcase.comparison_classification || "Incomplete",
+      competitive_advantage: testcase.competitive_advantage || "",
+      competitive_gap: testcase.competitive_gap || "",
+      findings: (full?.findings || []).filter((finding) => finding.finding_scope === "comparison"),
+    },
+    expected_revision: testcase.revision || 1,
+    expected_updated_at: testcase.updated_at,
+    attachments: [],
+  };
+}
+
 export function ScenarioSelector({ scenarios, value, onChange, error }) {
   const id = useId();
   const [query, setQuery] = useState("");

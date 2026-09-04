@@ -2315,6 +2315,13 @@ async def update_testcase_workflow(
     if stored.get("error") == "archived":
         await _uploaded_storage_cleanup(uploaded_paths)
         raise HTTPException(409, "Archived test cases are immutable")
+    await log_activity(
+        "testcases",
+        id,
+        "updated",
+        user,
+        "Model comparison workflow updated; linked responses, evaluations, findings, and attachments preserved.",
+    )
     return {
         "testcase": clean(stored),
         "responses": [clean(item) for item in responses],
@@ -6992,7 +6999,11 @@ async def sample_integrity_repair(body: Dict[str, Any], user=Depends(get_current
         "sample-data",
         "deterministic SAMPLE integrity repair",
         user,
-        json.dumps({"preview_ids": current_ids, "result": result}),
+        json.dumps({
+            "preview_ids": current_ids,
+            "testcase_date_source": "latest non-retest evaluation; evaluation record created date fallback when evaluation.test_date is blank",
+            "result": result,
+        }),
     )
     return {"ok": True, "preview": preview, "result": result}
 
