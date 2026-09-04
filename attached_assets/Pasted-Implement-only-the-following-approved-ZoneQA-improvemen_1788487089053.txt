@@ -1,0 +1,33 @@
+Implement only the following approved ZoneQA improvements. Preserve current behavior, calculations, sample scoping, record relationships, colors, PDF layout, authorization, and production data.
+
+1. Loading performance
+- Profile Dashboard, Bassett Test Bank, AI Comparison, Executive Summary, and Data Integrity.
+- Remove duplicate/serial requests, cache safe shared lookups/metrics, batch related reads, and prevent avoidable rerenders.
+- Do not show stale cross-user data. Invalidate caches after mutations.
+- Replace blocking full-page loading with stable skeletons and progressive rendering.
+- Target useful content within about 2 seconds on warm production navigation and document before/after measurements for each page.
+
+2. Simplify both test-entry forms
+- Keep Bassett-only and Model Comparison forms visually consistent; Model Comparison adds only benchmark sections.
+- Use numbered workflow sections, clear Required/Optional labels, concise help text, and collapsible advanced sections.
+- Add a visible progress indicator based on required sections.
+- Keep Save Draft and primary Continue/Create actions persistently available without covering content.
+- Add a review summary before final creation.
+- Preserve draft values, attachments, relationship selectors, scoring rubric dropdowns, edit mode, validation, and audit behavior.
+- Avoid adding extra pages or fields.
+
+3. Accessibility
+- Meet WCAG 2.2 AA for affected pages/forms.
+- Programmatically associate every input/select/textarea with its visible label and help/error text.
+- Give icon buttons and table row actions unique accessible names.
+- Support keyboard-only use for navigation, dialogs, custom selects, score dropdowns, collapsible sections, tables, review, and submission.
+- Add visible focus indicators, logical focus order, focus trapping/restoration, live-region success/error feedback, and error-summary links.
+- Verify color contrast and do not use color alone for state.
+
+4. Metric explanations
+- Standardize a reusable “How calculated” disclosure for dashboard cards, Performance, Coverage, Competitive Insights, Executive Summary, and Reports.
+- Keep formulas, scope, version/model filters, sample inclusion, retest/variant treatment, missing-data handling, denominator, rounding, and record drill-down available.
+- Replace repetitive always-visible paragraphs with concise labels plus accessible disclosure; never hide critical warnings or sample-data banners.
+- Ensure every displayed metric reconciles to its drill-down records.
+
+Add focused frontend/backend tests plus accessibility tests (axe or existing equivalent), performance/request-count regressions, keyboard workflows, draft preservation, review summary, and metric reconciliation. Run complete frontend and backend suites and the production build. Visually inspect affected desktop and narrow layouts. Commit the isolated work with a precise message. Do not push, publish, change secrets, copy databases, send email, or mutate production data. Report changed files, before/after timings and request counts, accessibility results, test totals, build result, commit SHA, and clean working tree.
