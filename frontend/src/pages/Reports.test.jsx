@@ -12,6 +12,7 @@ jest.mock("../lib/hooks", () => ({ useConfig: () => ({ data: { eval_dimensions: 
 jest.mock("../components/shared", () => ({
   PageHeader: ({ title, children }) => <header><h1>{title}</h1>{children}</header>,
   SampleDataBanner: ({ show }) => show ? <aside data-testid="sample-data-banner">Demonstration data</aside> : null,
+  HowCalculated: () => null,
 }));
 jest.mock("../components/ui/button", () => ({
   Button: ({ children, asChild, ...props }) => asChild ? children : <button {...props}>{children}</button>,

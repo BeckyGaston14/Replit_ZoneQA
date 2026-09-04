@@ -1,3 +1,5 @@
+import { useEffect, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import "@/App.css";
 import "@/index.css";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
@@ -55,13 +57,31 @@ export function AppRouter() {
   );
 }
 
+function AuthQueryCacheBoundary({ children }) {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const lastUserId = useRef(undefined);
+  const userId = user?.id || null;
+
+  useEffect(() => {
+    if (lastUserId.current !== undefined && lastUserId.current !== userId) {
+      queryClient.clear();
+    }
+    lastUserId.current = userId;
+  }, [queryClient, userId]);
+
+  return children;
+}
+
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Toaster position="top-right" richColors />
-        <AppRouter />
-      </BrowserRouter>
+      <AuthQueryCacheBoundary>
+        <BrowserRouter>
+          <Toaster position="top-right" richColors />
+          <AppRouter />
+        </BrowserRouter>
+      </AuthQueryCacheBoundary>
     </AuthProvider>
   );
 }

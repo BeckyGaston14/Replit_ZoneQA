@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { api, formatApiErrorDetail, staleUpdateMessage, withExpectedVersion } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { PageHeader, Section, StatCard } from "../components/shared";
+import { PageHeader, Section, StatCard, HowCalculated } from "../components/shared";
 import { StatusBadge } from "../lib/statusMaps";
 import { Attachments } from "../components/Attachments";
 import { Button } from "../components/ui/button";
@@ -24,7 +24,7 @@ import { formatTestDate } from "../lib/testDates";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { TABLE_ACTION_CELL_CLASS, TABLE_CELL_CLASS, TABLE_CLASS, TABLE_EMPTY_CELL_CLASS, TABLE_HEAD_CLASS } from "../lib/tableStyles";
 import { ConfirmActionDialog } from "../components/ConfirmActionDialog";
-import { useSavedView } from "../lib/hooks";
+import { useCollection, useConfig, useSavedView, useTestBank } from "../lib/hooks";
 import { focusFormError, validateScenarioDraft } from "../lib/formValidation";
 
 const emptyScenario = {
@@ -77,13 +77,13 @@ export default function BassettTestBank() {
   const [showArchived, setShowArchived] = useState(false);
   const [stageDraft, setStageDraft] = useState({ name: "", code: "", position: "", active: true });
   const [stageConflict, setStageConflict] = useState(null);
-  const { data: scenarios = [], isLoading } = useQuery({ queryKey: ["bassett-scenarios", "including-archived"], queryFn: async () => (await api.get("/bassett/test-bank?include_archived=true")).data });
+  const { data: scenarios = [], isLoading } = useTestBank({ includeArchived: true });
   const { data: metrics } = useQuery({ queryKey: ["bassett-metrics"], queryFn: async () => (await api.get("/bassett/metrics")).data });
-  const { data: projects = [] } = useQuery({ queryKey: ["projects"], queryFn: async () => (await api.get("/projects")).data });
-  const { data: testcases = [] } = useQuery({ queryKey: ["testcases"], queryFn: async () => (await api.get("/testcases")).data });
-  const { data: versions = [] } = useQuery({ queryKey: ["versions"], queryFn: async () => (await api.get("/versions")).data });
-  const { data: config } = useQuery({ queryKey: ["config"], queryFn: async () => (await api.get("/config")).data });
-  const { data: workflowStages = [] } = useQuery({ queryKey: ["bassett-workflow-stages"], queryFn: async () => (await api.get("/bassett/workflow-stages")).data });
+  const { data: projects = [] } = useCollection("projects");
+  const { data: testcases = [] } = useCollection("testcases");
+  const { data: versions = [] } = useCollection("versions");
+  const { data: config } = useConfig();
+  const { data: workflowStages = [] } = useCollection("bassett/workflow-stages");
   const testBankColumns = useMemo(() => TEST_BANK_SORT_COLUMNS.map((column) => column.key === "workflow_stage"
     ? { ...column, type: "status", order: workflowStages.map((item) => typeof item === "string" ? item : item.name || item.workflow_stage).filter(Boolean) }
     : column), [workflowStages]);
@@ -209,13 +209,13 @@ export default function BassettTestBank() {
       toast.success(stageDraft.id ? "Workflow stage updated" : "Workflow stage created");
       setStageConflict(null);
       setStageDraft({ name: "", code: "", position: "", active: true });
-      qc.invalidateQueries({ queryKey: ["bassett-workflow-stages"] });
+      qc.invalidateQueries({ queryKey: ["bassett/workflow-stages"] });
     } catch (error) {
       if (error?.response?.status === 409 && stageDraft.id) {
         const latest = workflowStages.find((stage) => stage.id === stageDraft.id);
         setStageConflict(latest || { revision: error?.response?.data?.detail?.current_revision });
         toast.error(staleUpdateMessage(error) || "This workflow stage changed elsewhere. Review your entries before reapplying them.");
-        qc.invalidateQueries({ queryKey: ["bassett-workflow-stages"] });
+        qc.invalidateQueries({ queryKey: ["bassett/workflow-stages"] });
       } else toast.error(importError(error, "Unable to save workflow stage"));
     }
   };
@@ -236,6 +236,16 @@ export default function BassettTestBank() {
       <StatCard label="Pass rate" value={metrics?.test_runs.pass_rate != null ? `${metrics.test_runs.pass_rate}%` : "—"} sub={metrics ? `${metrics.test_runs.passed}/${metrics.test_runs.eligible} eligible test runs` : "Pass or Pass with Notes ÷ eligible runs"} icon={CheckCircle2} accent="#16a34a" />
       <StatCard label="Tests Needing Attention" value={metrics?.test_runs.attention ?? "—"} sub="Partial, Fail, or Blocked results" icon={XCircle} accent="#dc2626" />
     </div>
+     <HowCalculated
+       definition="Bassett Test Bank metrics describe active reusable scenarios and their canonical Bassett-only executions."
+       calculation={{
+         formula: "Coverage counts active scenarios with at least one completed canonical result; pass rate is Pass or Pass with Notes divided by eligible completed runs.",
+         scope: "Active, non-archived Bassett Test Bank scenarios and linked Bassett-only runs.",
+         treatment: "Archived definitions are hidden from the active denominator; incomplete and blocked runs are not silently counted as passes.",
+         drillDown: "/bassett/test-bank",
+       }}
+       className="mb-5"
+     />
     <Section title="Scenario library" action={<span className="text-xs text-muted-foreground">{shown.length} active scenario(s)</span>}>
       <div className="flex flex-wrap gap-2 mb-4">
          <div className="relative flex-1 min-w-[240px]"><Search size={15} className="absolute left-3 top-2.5 text-muted-foreground" /><Input aria-label="Search Test Bank scenarios" className="pl-9" placeholder="Search ID, scenario, report type, purpose…" value={search} onChange={(e) => setViewFilter("search", e.target.value)} /></div>

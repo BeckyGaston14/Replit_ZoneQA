@@ -167,3 +167,15 @@ test("comparison editor renders stale-save recovery controls supplied by its pag
   act(() => view.root.unmount());
 });
 
+test("review summary exposes required and optional sections while preserving autosaved draft content", () => {
+  jest.useFakeTimers();
+  const view = renderForm("bassett", { question_asked: "Keep this question" });
+  expect(view.container.querySelector('[data-testid="workflow-review-summary"]')).not.toBeNull();
+  expect(view.container.querySelector('[data-testid="workflow-review-summary"]').textContent).toContain("(Required)");
+  expect(view.container.querySelector('[data-testid="workflow-review-summary"]').textContent).toContain("(Optional)");
+  act(() => jest.advanceTimersByTime(500));
+  expect(JSON.parse(localStorage.getItem("zoneqa:bassett-workflow-draft")).question_asked).toBe("Keep this question");
+  jest.useRealTimers();
+  act(() => view.root.unmount());
+});
+

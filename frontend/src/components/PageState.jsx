@@ -13,7 +13,15 @@ export function classifyRequestError(error) {
 export function QueryState({ query, resource, onRetry, notFoundAction, testId = "query-state" }) {
   if (!query?.isLoading && !query?.isError) return null;
   if (query.isLoading) {
-    return <div role="status" aria-live="polite" data-testid={`${testId}-loading`} className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">Loading {resource.toLowerCase()}…</div>;
+    return <div role="status" aria-live="polite" data-testid={`${testId}-loading`} className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
+      <span className="sr-only">Loading {resource.toLowerCase()}…</span>
+      <div className="mb-3 h-4 w-40 animate-pulse rounded bg-muted" aria-hidden="true" />
+      <div className="space-y-2" aria-hidden="true">
+        <div className="h-3 w-full animate-pulse rounded bg-muted" />
+        <div className="h-3 w-5/6 animate-pulse rounded bg-muted" />
+        <div className="h-3 w-2/3 animate-pulse rounded bg-muted" />
+      </div>
+    </div>;
   }
 
   const kind = classifyRequestError(query.error);

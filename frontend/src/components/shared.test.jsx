@@ -1,9 +1,9 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { ResultBadge, ScorePill } from "./shared";
+import { HowCalculated, ResultBadge, ScorePill } from "./shared";
 
 jest.mock("react-router-dom", () => ({
-  Link: ({ children, ...props }) => <a {...props}>{children}</a>,
+  Link: ({ children, to, ...props }) => <a href={to} {...props}>{children}</a>,
 }), { virtual: true });
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -26,4 +26,26 @@ test.each([
 
   act(() => root.unmount());
   container.remove();
+});
+
+test("How calculated disclosure exposes the metric contract and exact-record link", () => {
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  act(() => root.render(<HowCalculated
+    definition="A persisted QA metric"
+    calculation={{
+      formula: "passed ÷ eligible",
+      scope: "Current release",
+      filters: "Selected version",
+      treatment: "Retests excluded; missing scores unavailable",
+      denominator: "Eligible evaluated tests",
+      rounding: "One decimal place",
+    }}
+    drillDown="/dashboard/records/example"
+  />));
+  expect(container.textContent).toContain("How calculated");
+  expect(container.textContent).toContain("passed ÷ eligible");
+  expect(container.textContent).toContain("Retests excluded");
+  expect(container.querySelector('a[href="/dashboard/records/example"]').textContent).toBe("Open exact records");
+  act(() => root.unmount());
 });

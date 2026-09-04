@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
-import { PageHeader, StatCard, WrapTick, SrTable, SampleDataBanner, sampleScopeIncludesData } from "../components/shared";
+import { PageHeader, StatCard, WrapTick, SrTable, SampleDataBanner, sampleScopeIncludesData, HowCalculated } from "../components/shared";
 import { fmtPct, fmtPts, fmtScore, plural } from "../lib/format";
 import { Button } from "../components/ui/button";
 import { Target, Percent, Trophy, AlertTriangle, TrendingUp, FileDown, Loader2 } from "lucide-react";
@@ -132,6 +132,15 @@ export default function Executive() {
         </Button>
       </PageHeader>
       <SampleDataBanner show={sampleDataShown} />
+      <HowCalculated
+        definition="Executive KPIs and charts summarize persisted QA evaluations, findings, and model comparisons for the displayed scope."
+        calculation={{
+          formula: "Pass rate is passing evaluated tests divided by evaluated tests; scores are arithmetic means of available 0–10 scores; competitive edge is Bassett average minus benchmark average.",
+          scope: d.scope || "Current non-sample reporting scope.",
+          treatment: "Sample data is excluded by default and is included only through the explicit demonstration-data toggle. Missing scores are unavailable, not zero; stale Gold Standards are surfaced for reverification.",
+        }}
+        className="mb-5"
+      />
       {exportError && (
         <div role="alert" data-testid="pdf-export-error" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           {exportError}

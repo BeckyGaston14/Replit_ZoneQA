@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api, formatApiErrorDetail, withExpectedVersion, staleUpdateMessage } from "../lib/api";
-import { useConfig, useSave, useCollection, useSavedView } from "../lib/hooks";
+import { useConfig, useSave, useCollection, useSavedView, useTestBank, useTestCases } from "../lib/hooks";
 import {
   ALL_TEST_CASES,
   DEFAULT_TEST_CASE_SORT,
@@ -51,14 +51,14 @@ export default function TestCases() {
   const { state: view, updateState: updateView, error: viewError, retry: retryView, loading: viewLoading } = useSavedView(
     "testcases", DEFAULT_TEST_CASE_VIEW, normalizeTestCaseView,
   );
-  const { data = [], isLoading, isError, error, refetch } = useQuery({ queryKey: ["tc-enriched", view.filters.archived], queryFn: async () => (await api.get(`/list/testcases-enriched?include_archived=${view.filters.archived !== "active"}`)).data });
+  const { data = [], isLoading, isError, error, refetch } = useTestCases({ includeArchived: view.filters.archived !== "active" });
   const projectsQuery = useCollection("projects");
   const { data: projects = [] } = projectsQuery;
-  const { data: scenarios = [] } = useQuery({ queryKey: ["bassett-scenarios"], queryFn: async () => (await api.get("/bassett/test-bank")).data });
-  const { data: municipalities = [] } = useQuery({ queryKey: ["municipalities"], queryFn: async () => (await api.get("/municipalities")).data });
-  const { data: properties = [] } = useQuery({ queryKey: ["properties"], queryFn: async () => (await api.get("/properties")).data });
-  const { data: users = [] } = useQuery({ queryKey: ["users"], queryFn: async () => (await api.get("/users")).data });
-  const { data: versions = [] } = useQuery({ queryKey: ["versions"], queryFn: async () => (await api.get("/versions")).data });
+  const { data: scenarios = [] } = useTestBank();
+  const { data: municipalities = [] } = useCollection("municipalities");
+  const { data: properties = [] } = useCollection("properties");
+  const { data: users = [] } = useCollection("users");
+  const { data: versions = [] } = useCollection("versions");
   const save = useSave("testcases");
   const [open, setOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);

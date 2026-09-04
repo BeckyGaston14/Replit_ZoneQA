@@ -19,6 +19,7 @@ jest.mock("../components/shared", () => ({
   StatusBadge: ({ value, testId }) => <span data-testid={testId}>{value}</span>,
   SampleDataBanner: () => null,
   sampleScopeIncludesData: () => false,
+  HowCalculated: ({ children }) => <div data-testid="how-calculated">{children}</div>,
 }));
 jest.mock("../components/ui/select", () => ({ Select: ({ children }) => <div>{children}</div>, SelectContent: ({ children }) => <div>{children}</div>, SelectItem: ({ children }) => <div>{children}</div>, SelectTrigger: ({ children, ...props }) => <button {...props}>{children}</button>, SelectValue: () => null }));
 jest.mock("../components/ui/button", () => ({ Button: ({ children, ...props }) => <button {...props}>{children}</button> }));

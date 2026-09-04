@@ -31,6 +31,10 @@ jest.mock("../lib/api", () => ({ api: { get: jest.fn() } }));
 jest.mock("../components/ui/button", () => ({
   Button: ({ children, asChild, ...props }) => asChild ? children : <button {...props}>{children}</button>,
 }));
+jest.mock("../components/shared", () => {
+  const actual = jest.requireActual("../components/shared");
+  return { ...actual, HowCalculated: ({ children }) => <div data-testid="how-calculated">{children}</div> };
+});
 jest.mock("recharts", () => ({
   ResponsiveContainer: ({ children }) => <div>{children}</div>, BarChart: ({ children }) => <div>{children}</div>,
   Bar: ({ children }) => <div>{children}</div>, Cell: () => null, XAxis: () => null, YAxis: () => null, CartesianGrid: () => null, Tooltip: () => null,

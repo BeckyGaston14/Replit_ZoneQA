@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api } from "../lib/api";
-import { PageHeader, SampleDataBanner } from "../components/shared";
+import { PageHeader, SampleDataBanner, HowCalculated } from "../components/shared";
 import { Button } from "../components/ui/button";
 import { FileDown, FileText } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -81,6 +81,16 @@ export default function Reports() {
         <Button variant="outline" className="w-full sm:w-auto" onClick={exportCSV}><FileDown size={15} className="mr-1" /> Export Test Cases CSV</Button>
       </PageHeader>
       <SampleDataBanner show={includeSample} />
+      <HowCalculated
+        definition="Exports are generated from the canonical persisted report population at the moment an export is requested."
+        calculation={{
+          formula: "The selected export endpoint assembles the requested test cases, findings, evaluations, and related snapshots into one JSON or CSV payload.",
+          scope: includeSample ? "Requested report scope including explicitly selected demonstration data." : "Requested report scope excluding sample/demo records by default.",
+          treatment: "Retests, variants, missing values, and evidence relationships retain the same rules as the corresponding live report; missing values remain explicit rather than fabricated.",
+          rounding: "Exported source values are not rounded by the card display.",
+        }}
+        className="mb-5"
+      />
 
       <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted-foreground">Data exports</h2>
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">

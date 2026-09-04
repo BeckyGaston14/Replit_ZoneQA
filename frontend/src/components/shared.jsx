@@ -30,7 +30,37 @@ export function ScorePill({ score, status }) {
 
 export { StatusBadge, StatusLegend };
 
-export function StatCard({ label, value, accent, icon: Icon, sub, testid, onClick, title, to }) {
+const DEFAULT_CALCULATION = {
+  formula: "Calculated by the canonical reporting service from persisted QA records.",
+  scope: "The current page scope and selected version or filters.",
+  filters: "Page filters are applied when present; a value of “—” means the required data is unavailable.",
+  treatment: "Sample data follows the page’s explicit sample scope. Retests and variants follow the page’s displayed scope.",
+  denominator: "Only records with the required persisted values are included; missing values are not treated as zero.",
+  rounding: "Values are rounded for display only; underlying persisted values remain unchanged.",
+};
+
+export function HowCalculated({ definition, calculation = {}, drillDown, className = "" }) {
+  const details = { ...DEFAULT_CALCULATION, ...calculation, definition };
+  return (
+    <details className={cn("mt-3 border-t border-border/70 pt-2 text-xs", className)} data-testid="how-calculated">
+      <summary className="cursor-pointer rounded-sm font-semibold text-[var(--navy)] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)]">
+        How calculated
+      </summary>
+      <div className="mt-2 space-y-1.5 text-muted-foreground">
+        {details.definition && <p><strong className="text-foreground">Definition:</strong> {details.definition}</p>}
+        {details.formula && <p><strong className="text-foreground">Formula:</strong> {details.formula}</p>}
+        {details.scope && <p><strong className="text-foreground">Scope:</strong> {details.scope}</p>}
+        {details.filters && <p><strong className="text-foreground">Filters:</strong> {details.filters}</p>}
+        {details.treatment && <p><strong className="text-foreground">Data handling:</strong> {details.treatment}</p>}
+        {details.denominator && <p><strong className="text-foreground">Denominator:</strong> {details.denominator}</p>}
+        {details.rounding && <p><strong className="text-foreground">Rounding:</strong> {details.rounding}</p>}
+        {drillDown && <Link to={drillDown} className="inline-flex font-semibold text-[var(--orange)] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)]">Open exact records</Link>}
+      </div>
+    </details>
+  );
+}
+
+export function StatCard({ label, value, accent, icon: Icon, sub, testid, onClick, title, to, calculation }) {
   const descriptionId = testid ? `${testid}-description` : undefined;
   const content = (
     <>
@@ -51,12 +81,18 @@ export function StatCard({ label, value, accent, icon: Icon, sub, testid, onClic
   );
   const accessibleName = title || `${label}: ${value}${sub ? `. ${sub}` : ""}`;
   if (to) {
-    return <Link data-testid={testid} to={to} title={title} aria-label={accessibleName} aria-describedby={descriptionId} className={classes}>{content}</Link>;
+    return <div className={classes}>
+      <Link data-testid={testid} to={to} title={title} aria-label={accessibleName} aria-describedby={descriptionId} className="block rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)] focus-visible:ring-offset-2">{content}</Link>
+      <HowCalculated definition={title || `${label}: ${value}`} calculation={calculation} drillDown={to} />
+    </div>;
   }
   if (onClick) {
-    return <button type="button" data-testid={testid} onClick={onClick} title={title} aria-label={accessibleName} aria-describedby={descriptionId} className={cn(classes, "w-full text-left")}>{content}</button>;
+    return <div className={classes}>
+      <button type="button" data-testid={testid} onClick={onClick} title={title} aria-label={accessibleName} aria-describedby={descriptionId} className="w-full rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)] focus-visible:ring-offset-2">{content}</button>
+      <HowCalculated definition={title || `${label}: ${value}`} calculation={calculation} />
+    </div>;
   }
-  return <div data-testid={testid} className={classes}>{content}</div>;
+  return <div data-testid={testid} className={classes}>{content}<HowCalculated definition={title || `${label}: ${value}`} calculation={calculation} /></div>;
 }
 
 export function Section({ title, children, action }) {

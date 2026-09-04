@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { FormModal, Field } from "./forms";
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
@@ -92,7 +92,7 @@ export function ScenarioSelector({ scenarios, value, onChange, error }) {
   const shown = scenarios.filter((scenario) => [scenario.stable_id, scenario.test_scenario, scenario.workflow_stage, scenario.priority]
     .some((field) => String(field || "").toLowerCase().includes(query.toLowerCase())));
   const errorId = `${id}-error`;
-  return <Field label="Test Bank scenario" required>
+  return <Field label="Test Bank scenario" required controlId={`${id}-scenario`}>
     <Input aria-label="Search Test Bank scenarios" placeholder="Search ID, scenario, stage, or priority…" value={query} onChange={(e) => setQuery(e.target.value)} />
     <select required aria-label="Test Bank scenario" aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} className="mt-2 h-9 w-full rounded-md border bg-background px-3 text-sm" value={value || ""} onChange={(e) => onChange(e.target.value)}>
       <option value="">Select a scenario</option>
@@ -108,7 +108,7 @@ export function ScenarioDefinition({ scenario }) {
   return <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">{fields.map(([label, value]) => <div key={label}><div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">{label}</div><div className="whitespace-pre-wrap">{value || "—"}</div></div>)}</div>;
 }
 
-function QuickAdd({ label, value, items, onChange, fields, defaults = {}, disabled }) {
+function QuickAdd({ label, value, items, onChange, fields, defaults = {}, disabled, id: controlId }) {
   const id = useId();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState({});
@@ -126,7 +126,7 @@ function QuickAdd({ label, value, items, onChange, fields, defaults = {}, disabl
   };
   return <div className="space-y-2">
     <div className="flex flex-wrap gap-2">
-      <select id={`${id}-select`} aria-label={label} className="h-9 min-w-0 flex-[1_1_12rem] rounded-md border bg-background px-3 text-sm" value={value || ""} onChange={(e) => onChange(e.target.value)} disabled={disabled}>
+      <select id={controlId || `${id}-select`} aria-label={label} className="h-9 min-w-0 flex-[1_1_12rem] rounded-md border bg-background px-3 text-sm" value={value || ""} onChange={(e) => onChange(e.target.value)} disabled={disabled}>
         <option value="">Not linked</option>{options.map((item) => <option key={item.id} value={item.id}>{item.name || item.title || item.address}</option>)}
       </select>
       <Button type="button" variant="outline" size="sm" aria-expanded={open} aria-controls={`${id}-quick-add`} onClick={() => setOpen(!open)} disabled={disabled}>+ Add {label}</Button>
@@ -165,7 +165,7 @@ function GuidedSection({ index, title, active, status, onActivate, children, com
     >
       <span className="flex min-w-0 items-center justify-between gap-2">
         <span className="min-w-0">{title}</span>
-        <span className={`shrink-0 text-xs font-medium ${status === "Needs attention" ? "text-red-700" : "text-muted-foreground"}`}>{status}</span>
+         <span className={`shrink-0 text-right text-xs font-medium ${status === "Needs attention" ? "text-red-700" : "text-muted-foreground"}`}>{status} · {index < 3 ? "Required" : "Optional"}</span>
       </span>
       {comparisonOnly && <span className="mt-1 block text-[11px] font-normal text-muted-foreground">Comparison only</span>}
     </summary>
@@ -206,6 +206,33 @@ function validate(form, mode) {
   return null;
 }
 
+function ReviewSummary({ mode, progress, sectionStatus, sectionIssue, activateSection, totalSections }) {
+  const labels = mode === "comparison"
+    ? ["Test setup", "Linked records & prompt", "Bassett result", "Canonical evaluation", "Findings & ownership", "Sources, documents & notes", "Follow-up, retesting & regression", "ChatGPT response", "Claude response", "Benchmark evaluations", "Benchmark result"]
+    : ["Test setup", "Linked records & prompt", "Bassett result", "Canonical evaluation", "Findings & ownership", "Sources, documents & notes", "Follow-up, retesting & regression"];
+  return <section className="rounded-xl border border-[var(--navy)]/20 bg-[var(--paper)] p-4" aria-labelledby="workflow-review-title" data-testid="workflow-review-summary">
+    <div className="flex flex-wrap items-start justify-between gap-2">
+      <div>
+        <h3 id="workflow-review-title" className="font-semibold text-[var(--navy)]">Review before saving</h3>
+        <p className="mt-1 text-xs text-muted-foreground">Required fields are checked before submit. Optional sections can stay blank and remain unavailable in reporting.</p>
+      </div>
+      <span className="text-xs font-semibold text-[var(--navy)]" aria-live="polite">{progress.complete}/{progress.total} required fields ready</span>
+    </div>
+    <ol className="mt-3 grid gap-1.5 sm:grid-cols-2">
+      {labels.slice(0, totalSections).map((label, index) => {
+        const issue = sectionIssue(index);
+        const status = sectionStatus(index);
+        return <li key={label}>
+          <button type="button" onClick={() => activateSection(index)} className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)]">
+            <span><span className="font-semibold">{index + 1}.</span> {label} <span className="text-muted-foreground">({index < 3 ? "Required" : "Optional"})</span></span>
+            <span className={issue ? "font-semibold text-red-700" : "text-muted-foreground"}>{issue ? "Needs attention" : status}</span>
+          </button>
+        </li>;
+      })}
+    </ol>
+  </section>;
+}
+
 export default function UnifiedTestEntryForm({
   mode = "bassett", form, setForm, scenarios = [], versions = [], projects = [],
   municipalities = [], properties = [], users = [], config = {}, onSubmit, onCancel,
@@ -221,6 +248,13 @@ export default function UnifiedTestEntryForm({
   const [draftAvailable] = useState(() => {
     try { return Boolean(localStorage.getItem(DRAFT_KEYS[mode])); } catch { return false; }
   });
+  useEffect(() => {
+    if (form.id) return undefined;
+    const timeout = globalThis.setTimeout?.(() => {
+      try { localStorage.setItem(DRAFT_KEYS[mode], JSON.stringify({ ...form, attachments: [] })); } catch { /* local draft storage is best effort */ }
+    }, 500);
+    return () => globalThis.clearTimeout?.(timeout);
+  }, [form, mode]);
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
   const updateNested = (key, child, value) => setForm((current) => ({ ...current, [key]: { ...(current[key] || {}), [child]: value } }));
   const updatePrompt = (value) => setForm((current) => ({ ...current, question_asked: value, prompts: [{ turn: 1, text: value }] }));
@@ -378,11 +412,13 @@ export default function UnifiedTestEntryForm({
       })}
       <GuidedSection index={9} title="Benchmark evaluations & canonical scores" active={activeSection === 9} status={sectionStatus(9)} onActivate={activateSection} comparisonOnly><div className="space-y-6">{["ChatGPT", "Claude"].map((model) => <div key={model} className="space-y-3"><div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end"><h4 className="font-semibold text-sm text-[var(--navy)]">{model} evaluation · calculated score</h4><Field label={`${model} verdict`}><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={normalizeEvaluationResult(evaluationFor(model).final_result)} onChange={(e) => updateEvaluationResult(model, e.target.value)}>{COMPARISON_RESULT_OPTIONS.map((value) => <option key={value}>{value}</option>)}</select></Field></div><EvaluationGrid model={model} scores={evaluationFor(model).scores} dimensions={dimensions} onChange={updateEvaluation} /><Field label={`${model} score rationale`} required={hasScoredDimension(evaluationFor(model).scores)} description="Cite specific evidence supporting the selected scores (minimum 20 characters when scored)."><Textarea rows={3} value={evaluationFor(model).rationale || ""} onChange={(e) => updateEvaluationRationale(model, e.target.value)} /></Field></div>)}</div></GuidedSection>
       <GuidedSection index={10} title="Benchmark result & competitive findings" active={activeSection === 10} status={sectionStatus(10)} onActivate={activateSection} comparisonOnly><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><Field label="Bassett-versus-benchmark result"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={comparison.comparison_result || "Incomplete"} onChange={(e) => updateNested("comparison", "comparison_result", e.target.value)}>{COMPARISON_RESULT_OPTIONS.map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Win / loss / tie / shared failure"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={comparison.comparison_classification || "Incomplete"} onChange={(e) => updateNested("comparison", "comparison_classification", e.target.value)}>{COMPARISON_CLASSIFICATIONS.map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Competitive advantage"><Textarea rows={3} value={comparison.competitive_advantage || ""} onChange={(e) => updateNested("comparison", "competitive_advantage", e.target.value)} /></Field><Field label="Competitive gap"><Textarea rows={3} value={comparison.competitive_gap || ""} onChange={(e) => updateNested("comparison", "competitive_gap", e.target.value)} /></Field><Field label="Comparison-specific findings"><Textarea rows={4} value={comparison.findings?.[0]?.description || ""} onChange={(e) => updateNested("comparison", "findings", [{ title: "Comparison finding", description: e.target.value }])} placeholder="Never mixed into Bassett-only findings." /></Field></div></GuidedSection>
-    </div>}
-    <div className="sticky bottom-0 z-10 flex flex-wrap items-center gap-2 border-t bg-background/95 py-3">
+     </div>}
+     <ReviewSummary mode={mode} progress={progress} sectionStatus={sectionStatus} sectionIssue={sectionIssue} activateSection={activateSection} totalSections={totalSections} />
+     <div className="sticky bottom-0 z-10 flex flex-wrap items-center gap-2 border-t bg-background/95 py-3">
       <Button type="button" variant="outline" disabled={activeSection === 0} onClick={() => activateSection(activeSection - 1)}>Previous</Button>
       {activeSection < totalSections - 1 && <Button type="button" onClick={() => activateSection(activeSection + 1)}>Next</Button>}
-      {!form.id && <Button type="button" variant="outline" className="sm:ml-auto" onClick={saveDraft}>Save draft</Button>}
+       {!form.id && <Button type="button" variant="outline" className="sm:ml-auto" onClick={saveDraft}>Save draft</Button>}
+       <Button type="submit" disabled={submitting} className={!form.id ? "" : "sm:ml-auto"}>{submitting ? "Saving…" : form.id ? "Save changes" : "Create test"}</Button>
     </div>
   </FormModal>;
 }

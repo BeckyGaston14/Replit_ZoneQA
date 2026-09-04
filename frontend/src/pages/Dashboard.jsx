@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { Link } from "react-router-dom";
-import { StatCard, PageHeader, Section, SrTable, SampleDataBanner, sampleScopeIncludesData } from "../components/shared";
+import { StatCard, PageHeader, Section, SrTable, SampleDataBanner, sampleScopeIncludesData, HowCalculated } from "../components/shared";
 import { useCollection } from "../lib/hooks";
 import { Button } from "../components/ui/button";
 import {
@@ -89,6 +89,14 @@ export default function Dashboard() {
           <Section title="Bassett vs. Benchmark Models — Average Score">
             <p className="text-xs text-muted-foreground mb-3">{perfQuery.data?.scope || `Latest evaluations; Bassett limited to ${versionLabel}.`}</p>
             <p className="text-xs text-muted-foreground mb-3">Scale: 0–10. Missing model scores are unavailable and are not plotted as zero.</p>
+             <HowCalculated
+               definition="Average score for the latest eligible evaluation for each model in the active dashboard scope."
+               calculation={{
+                 formula: "Arithmetic mean of each model’s available 0–10 evaluation scores; unavailable dimensions and models are excluded from their denominator.",
+                 scope: `Latest eligible evaluations; Bassett is limited to ${versionLabel}.`,
+                 treatment: "Retest evaluations are excluded from the canonical latest-evaluation comparison. Sample records appear only when the page scope includes them.",
+               }}
+             />
             {perfQuery.isLoading ? <DashboardState compact title="Loading chart…" detail="Loading active-version model scores." /> : perfQuery.isError ? (
               <InlineError error={perfQuery.error} retry={perfQuery.refetch} />
             ) : modelData.length === 0 ? (

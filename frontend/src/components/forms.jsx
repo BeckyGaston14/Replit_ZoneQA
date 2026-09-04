@@ -10,9 +10,9 @@ import { api, formatApiErrorDetail } from "../lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCollection } from "../lib/hooks";
 
-export function Field({ label, children, required = false, error, description }) {
+export function Field({ label, children, required = false, error, description, controlId }) {
   const generatedId = useId();
-  const id = isValidElement(children) && children.props.id ? children.props.id : generatedId;
+  const id = controlId || (isValidElement(children) && children.props.id ? children.props.id : generatedId);
   const errorId = `${id}-error`;
   const describedBy = [
     children?.props?.["aria-describedby"],
@@ -29,6 +29,7 @@ export function Field({ label, children, required = false, error, description })
     <Label htmlFor={id} className="text-xs font-semibold text-muted-foreground">
       {label}{required && <span className="text-red-700" aria-hidden="true"> *</span>}
       {required && <span className="sr-only"> (required)</span>}
+      <span className="ml-1 font-normal text-[11px] text-muted-foreground">({required ? "Required" : "Optional"})</span>
     </Label>
     {description && <p id={`${id}-description`} className="text-xs text-muted-foreground">{description}</p>}
     {control}
@@ -151,7 +152,7 @@ export function FormModal({ open, onOpenChange, title, description = "Complete t
           <DialogDescription className="sr-only">{description}</DialogDescription>
         </DialogHeader>
         <form className="space-y-4 py-2" onSubmit={handleSubmit} aria-busy={submitDisabled}>
-          {errorEntries.length > 0 && <div role="alert" aria-label="Form errors" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          {errorEntries.length > 0 && <div role="alert" aria-live="assertive" tabIndex="-1" aria-label="Form errors" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
             <p className="font-semibold">Please fix {errorEntries.length === 1 ? "the highlighted field" : "the highlighted fields"} before saving.</p>
             <ul className="mt-1 list-disc pl-5">{errorEntries.map(([key, message]) => <li key={key}><button type="button" className="underline text-left" onClick={() => onFocusFirstError?.(key)}>{message}</button></li>)}</ul>
           </div>}

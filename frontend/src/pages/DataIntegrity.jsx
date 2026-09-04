@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { PageHeader, StatCard, StatusBadge } from "../components/shared";
+import { PageHeader, StatCard, StatusBadge, HowCalculated } from "../components/shared";
 import { INTEGRITY_CHECK_STATUSES, INTEGRITY_SEVERITIES } from "../lib/statusMaps";
 import { Button } from "../components/ui/button";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "../components/ui/alert-dialog";
@@ -179,6 +179,15 @@ export default function DataIntegrity() {
            <Button variant="outline" onClick={() => previewSampleRepair("metadata")} data-testid="sample-repair-preview-btn"><Wrench size={14} className="mr-1" /> Review SAMPLE metadata repair</Button>
          </div>}
        </PageHeader>
+       <HowCalculated
+         definition="Data Integrity counts are the number of currently detected consistency issues by severity."
+         calculation={{
+           formula: "Each persisted validation issue contributes once to its highest applicable severity bucket; clean means no issues were returned.",
+           scope: "Authorized administrator or QA manager integrity validation scope.",
+           treatment: "Automatic repair actions are limited to explicitly safe, previewed records. Manual-review issues and substantive QA judgments are never changed by these metrics.",
+         }}
+         className="mb-5"
+       />
       {isLoading && <div className="text-muted-foreground" role="status">Running integrity validation…</div>}
       {isError && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">Failed to run integrity checks: {error?.response?.data?.detail || "Request failed."} <Button size="sm" variant="outline" className="ml-2" onClick={() => refetch()}>Retry</Button></div>}
       {d && (
