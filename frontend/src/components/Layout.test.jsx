@@ -35,6 +35,7 @@ jest.mock("../lib/api", () => ({
 
 jest.mock("@tanstack/react-query", () => ({
   useQuery: () => ({ data: {} }),
+  useQueryClient: () => ({ setQueryData: jest.fn(), invalidateQueries: jest.fn() }),
 }));
 
 jest.mock("./GlobalSearch", () => ({

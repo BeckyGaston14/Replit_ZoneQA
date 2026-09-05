@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api } from "../lib/api";
-import { PageHeader, SampleDataBanner, HowCalculated } from "../components/shared";
+import { PageHeader, HowCalculated } from "../components/shared";
 import { Button } from "../components/ui/button";
 import { FileDown, FileText } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -30,12 +30,11 @@ const LIVE_REPORTS = [
 
 export default function Reports() {
   const { data: config } = useConfig();
-  const [includeSample, setIncludeSample] = useState(false);
   const exportData = async (kind) => {
     try {
       const needsRegressionRuns = ["release", "regression"].includes(kind);
       const needsTestRuns = kind === "comparison";
-      const { data } = await api.get(`/reports/data?kind=${encodeURIComponent(kind)}&include_sample=${includeSample}`);
+      const { data } = await api.get(`/reports/data?kind=${encodeURIComponent(kind)}`);
       const payload = buildReportPayload({
         kind,
         stats: data.stats,
@@ -58,7 +57,7 @@ export default function Reports() {
 
   const exportCSV = async () => {
     try {
-      const { data } = await api.get(`/reports/data?kind=qa_summary&include_sample=${includeSample}`);
+      const { data } = await api.get("/reports/data?kind=qa_summary");
       const columns = [
         ["name", "Test Name"], ["project_name", "Project"], ["municipality_name", "Municipality"],
         ["category", "Category"], ["criticality", "Criticality"], ["status", "Status"],
@@ -75,17 +74,13 @@ export default function Reports() {
   return (
     <div>
       <PageHeader title="Reports & Exports" subtitle="Generated from persisted QA records — never static.">
-        <Button variant="outline" className="w-full sm:w-auto" onClick={() => setIncludeSample((value) => !value)} data-testid="include-sample-toggle">
-          {includeSample ? "Hide demonstration data" : "Include demonstration data"}
-        </Button>
         <Button variant="outline" className="w-full sm:w-auto" onClick={exportCSV}><FileDown size={15} className="mr-1" /> Export Test Cases CSV</Button>
       </PageHeader>
-      <SampleDataBanner show={includeSample} />
       <HowCalculated
         definition="Exports are generated from the canonical persisted report population at the moment an export is requested."
         calculation={{
           formula: "The selected export endpoint assembles the requested test cases, findings, evaluations, and related snapshots into one JSON or CSV payload.",
-          scope: includeSample ? "Requested report scope including explicitly selected demonstration data." : "Requested report scope excluding sample/demo records by default.",
+          scope: "The authenticated user's Show sample records preference controls the report scope.",
           treatment: "Retests, variants, missing values, and evidence relationships retain the same rules as the corresponding live report; missing values remain explicit rather than fabricated.",
           rounding: "Exported source values are not rounded by the card display.",
         }}

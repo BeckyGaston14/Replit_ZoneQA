@@ -1,4 +1,5 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./api";
 import { useAuth } from "./auth";
 export { useSavedView } from "./savedViews";
@@ -35,6 +36,43 @@ export function useConfig(opts = {}) {
     queryFn: async () => (await api.get("/config")).data,
     ...useAuthQueryOptions(["config"], opts),
   });
+}
+
+export function useSampleVisibility() {
+  const auth = useAuth() || {};
+  const userId = auth.user?.id || null;
+  const qc = useQueryClient();
+  const [optimisticValue, setOptimisticValue] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const query = useQuery({
+    queryFn: async () => (await api.get("/preferences/sample-visibility")).data,
+    ...useAuthQueryOptions(["sample-visibility"]),
+  });
+  useEffect(() => setOptimisticValue(null), [userId]);
+  const setIncludeSampleRecords = async (includeSampleRecords) => {
+    const nextValue = Boolean(includeSampleRecords);
+    setOptimisticValue(nextValue);
+    setIsSaving(true);
+    try {
+      const { data } = await api.put("/preferences/sample-visibility", {
+        include_sample_records: nextValue,
+      });
+      setOptimisticValue(data.include_sample_records === true);
+      qc?.setQueryData(["sample-visibility", userId], data);
+      qc?.invalidateQueries();
+    } catch (error) {
+      setOptimisticValue(null);
+      throw error;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+  return {
+    ...query,
+    includeSampleRecords: optimisticValue ?? query.data?.include_sample_records === true,
+    setIncludeSampleRecords,
+    isSaving,
+  };
 }
 
 export function useTestCases({ includeArchived = false, ...opts } = {}) {

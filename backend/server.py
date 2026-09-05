@@ -5,6 +5,7 @@ load_dotenv(ROOT_DIR / '.env')
 
 import os, uuid, logging, json, re, hashlib, hmac, secrets, ipaddress, csv, io, base64, math, time
 from collections import Counter
+from contextvars import ContextVar
 from functools import cmp_to_key
 from urllib.parse import urlsplit
 from datetime import date, datetime, timezone, timedelta
@@ -99,6 +100,12 @@ api = APIRouter(prefix="/api")
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("zoneqa")
+
+# Sample visibility is resolved once per authenticated request.  The context
+# keeps nested read-model helpers on the same scope without adding a separate
+# include_sample argument to every internal function.
+_sample_visibility_context = ContextVar("zoneqa_sample_visibility", default=True)
+_sample_scope_context = ContextVar("zoneqa_sample_scope", default=None)
 
 
 def _positive_timeout(name: str, default: float) -> float:
@@ -350,7 +357,11 @@ def _project_last_tested_dates(
     return {project_id: max(values) if values else None for project_id, values in candidates.items()}
 
 
-async def _current_project_last_tested_dates(projects=None, include_sample=True):
+async def _current_project_last_tested_dates(projects=None, include_sample=None):
+    if include_sample is None:
+        include_sample = _sample_visibility_context.get()
+        if include_sample is None:
+            include_sample = True
     projects = projects if projects is not None else await crud_list("projects")
     testcases = await crud_list("testcases")
     test_runs = await crud_list("test_runs")
@@ -472,7 +483,9 @@ async def get_user_from_session(raw_session: str):
     return user
 
 async def get_current_user(request: Request):
-    return await get_user_from_session(request.cookies.get(SESSION_COOKIE))
+    user = await get_user_from_session(request.cookies.get(SESSION_COOKIE))
+    await _set_sample_scope_for_user(user)
+    return user
 
 def _csrf_is_valid(session, supplied: str, cookie_value: str) -> bool:
     return bool(
@@ -1537,16 +1550,18 @@ def clean(doc):
     doc.pop("_id", None)
     return doc
 
-async def crud_list(coll, filt=None, include_archived=False):
+async def crud_list(coll, filt=None, include_archived=False, include_sample=None):
     filt = filt or {}
     if coll in ("testcases", "projects", "municipalities", "properties") and not include_archived and "archived" not in filt:
         filt = {**filt, "archived": {"$ne": True}}
     docs = await db[coll].find(filt, {"_id": 0}).to_list(5000)
-    return docs
+    return _filter_sample_scope(coll, docs, include_sample)
 
-async def crud_get(coll, id):
+async def crud_get(coll, id, include_sample=None):
     doc = await db[coll].find_one({"id": id}, {"_id": 0})
     if not doc:
+        raise HTTPException(404, f"{coll} not found")
+    if not _filter_sample_scope(coll, [doc], include_sample):
         raise HTTPException(404, f"{coll} not found")
     return doc
 
@@ -2968,7 +2983,7 @@ async def _bassett_ref(collection, identifier, label, allow_archived=True):
     if not identifier:
         return None
     record = await db[collection].find_one({"id": str(identifier)}, {"_id": 0})
-    if not record:
+    if not record or not _filter_sample_scope(collection, [record]):
         raise HTTPException(400, f"{label} does not exist")
     if not allow_archived and (record.get("archived") or record.get("archived_at")):
         raise HTTPException(400, f"{label} is archived")
@@ -3054,8 +3069,14 @@ async def _bassett_history(entity_type, entity_id, action, user, changes=None):
     return entry
 
 async def _bassett_scenario_links(scenario_id):
-    issues = await db.bassett_issues.find({"scenario_id": scenario_id}, {"_id": 0}).to_list(5000)
-    executions = await db.bassett_executions.find({"scenario_id": scenario_id}, {"_id": 0}).to_list(5000)
+    issues = _filter_sample_scope(
+        "bassett_issues",
+        await db.bassett_issues.find({"scenario_id": scenario_id}, {"_id": 0}).to_list(5000),
+    )
+    executions = _filter_sample_scope(
+        "bassett_executions",
+        await db.bassett_executions.find({"scenario_id": scenario_id}, {"_id": 0}).to_list(5000),
+    )
     return issues, executions
 
 @api.get("/bassett/issues")
@@ -3078,9 +3099,10 @@ async def bassett_list_issues(
             **({"$gte": date_from} if date_from else {}),
             **({"$lte": date_to} if date_to else {}),
         }
-    return await db.bassett_issues.find(query, {"_id": 0}).sort(
+    issues = await db.bassett_issues.find(query, {"_id": 0}).sort(
         [("test_date", -1), ("created_at", -1)]
     ).to_list(5000)
+    return _filter_sample_scope("bassett_issues", issues)
 
 @api.get("/bassett/issues/{id}")
 async def bassett_get_issue(id: str, user=Depends(get_current_user)):
@@ -3636,17 +3658,28 @@ async def bassett_list_scenarios(
     query = {} if include_archived else {"archived": {"$ne": True}}
     scenarios = [
         _normalize_bassett_stage_record(scenario)
-        for scenario in await db.bassett_scenarios.find(query, {"_id": 0}).to_list(5000)
+        for scenario in _filter_sample_scope(
+            "bassett_scenarios",
+            await db.bassett_scenarios.find(query, {"_id": 0}).to_list(5000),
+        )
     ]
-    all_issues = await db.bassett_issues.find({}, {"_id": 0}).to_list(5000)
-    all_executions = await db.bassett_executions.find({}, {"_id": 0}).to_list(5000)
+    all_issues = _filter_sample_scope(
+        "bassett_issues", await db.bassett_issues.find({}, {"_id": 0}).to_list(5000)
+    )
+    all_executions = _filter_sample_scope(
+        "bassett_executions", await db.bassett_executions.find({}, {"_id": 0}).to_list(5000)
+    )
     lineage_runs = _canonical_bassett_lineages(
         all_issues, all_executions,
         active_scenario_ids={scenario["id"] for scenario in scenarios},
     )
     for scenario in scenarios:
-        scenario["issue_count"] = await db.bassett_issues.count_documents({"scenario_id": scenario["id"]})
-        scenario["legacy_execution_count"] = await db.bassett_executions.count_documents({"scenario_id": scenario["id"]})
+        scenario["issue_count"] = sum(
+            issue.get("scenario_id") == scenario["id"] for issue in all_issues
+        )
+        scenario["legacy_execution_count"] = sum(
+            execution.get("scenario_id") == scenario["id"] for execution in all_executions
+        )
         scenario["execution_count"] = sum(
             run.get("scenario_id") == scenario["id"] for run in lineage_runs
         )
@@ -3813,7 +3846,10 @@ async def bassett_restore_scenario(id: str, user=Depends(get_current_user)):
 @api.get("/bassett/executions")
 async def bassett_list_executions(scenario_id: Optional[str] = None, user=Depends(get_current_user)):
     query = {"scenario_id": scenario_id} if scenario_id else {}
-    executions = await db.bassett_executions.find(query, {"_id": 0}).sort("executed_at", -1).to_list(5000)
+    executions = _filter_sample_scope(
+        "bassett_executions",
+        await db.bassett_executions.find(query, {"_id": 0}).sort("executed_at", -1).to_list(5000),
+    )
     return [_decorate_bassett_execution(execution) for execution in executions]
 
 @api.post("/bassett/scenarios/{id}/executions")
@@ -3830,9 +3866,17 @@ async def bassett_findings(
     user=Depends(get_current_user),
 ):
     """Return only findings explicitly linked to a Bassett issue or test run."""
-    findings = await db.findings.find({}, {"_id": 0}).to_list(5000)
-    issues = await db.bassett_issues.find({}, {"_id": 0, "id": 1, "finding_id": 1}).to_list(5000)
-    executions = await db.bassett_executions.find({}, {"_id": 0, "id": 1, "finding_id": 1}).to_list(5000)
+    findings = _filter_sample_scope(
+        "findings", await db.findings.find({}, {"_id": 0}).to_list(5000)
+    )
+    issues = _filter_sample_scope(
+        "bassett_issues",
+        await db.bassett_issues.find({}, {"_id": 0, "id": 1, "finding_id": 1}).to_list(5000),
+    )
+    executions = _filter_sample_scope(
+        "bassett_executions",
+        await db.bassett_executions.find({}, {"_id": 0, "id": 1, "finding_id": 1}).to_list(5000),
+    )
     issue_links = {issue.get("finding_id"): issue["id"] for issue in issues if issue.get("finding_id")}
     execution_links = {run.get("finding_id"): run["id"] for run in executions if run.get("finding_id")}
     linked = []
@@ -3894,9 +3938,18 @@ async def bassett_execution_create_finding(id: str, body: Dict[str, Any] = None,
 @api.get("/bassett/metrics")
 async def bassett_metrics(version_id: Optional[str] = None, environment: Optional[str] = None,
                            user=Depends(get_current_user)):
-    scenarios = await db.bassett_scenarios.find({"archived": {"$ne": True}}, {"_id": 0}).to_list(5000)
-    issues = await db.bassett_issues.find({"archived": {"$ne": True}}, {"_id": 0}).to_list(5000)
-    executions = await db.bassett_executions.find({}, {"_id": 0}).to_list(10000)
+    scenarios = _filter_sample_scope(
+        "bassett_scenarios",
+        await db.bassett_scenarios.find({"archived": {"$ne": True}}, {"_id": 0}).to_list(5000),
+    )
+    issues = _filter_sample_scope(
+        "bassett_issues",
+        await db.bassett_issues.find({"archived": {"$ne": True}}, {"_id": 0}).to_list(5000),
+    )
+    executions = _filter_sample_scope(
+        "bassett_executions",
+        await db.bassett_executions.find({}, {"_id": 0}).to_list(10000),
+    )
     # A linked legacy execution and canonical issue describe one run.  Never
     # allow the migration representation to inflate coverage or pass rates.
     metric_runs = _canonical_bassett_lineages(
@@ -4010,7 +4063,9 @@ async def bassett_export_csv(resource: str, include_archived: bool = False, user
         raise HTTPException(404, "Unknown Bassett export")
     collection = "bassett_" + resource
     scope = {} if include_archived else {"archived": {"$ne": True}}
-    docs = await db[collection].find(scope, {"_id": 0}).sort("created_at", 1).to_list(10000)
+    docs = _filter_sample_scope(
+        collection, await db[collection].find(scope, {"_id": 0}).sort("created_at", 1).to_list(10000)
+    )
     return Response(content=_bassett_csv_rows(resource, docs), media_type="text/csv",
                     headers={
                         "Content-Disposition": f'attachment; filename="bassett-{resource}-{"all" if include_archived else "active"}.csv"',
@@ -4265,15 +4320,27 @@ async def testcase_full(id: str, user=Depends(get_current_user)):
     annotations = await crud_list("annotations", {"testcase_id": id})
     claims = await crud_list("claims", {"testcase_id": id})
     gold = await db.goldstandards.find_one({"testcase_id": id}, {"_id": 0})
+    if gold and not _filter_sample_scope("goldstandards", [gold]):
+        gold = None
     evals = await db.evaluations.find({"testcase_id": id}, {"_id": 0}).sort(
         [("created_at", -1), ("id", -1)]
     ).to_list(5000)
+    evals = _filter_sample_scope("evaluations", evals)
     evals = await _authoritative_evaluation_read_model(evals)
     findings = await crud_list("findings", {"testcase_id": id})
     retests = await crud_list("retests", {"testcase_id": id})
-    activities = await db.activities.find({"entity_id": id, "source": {"$ne": "automated_test"}}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    activities = _filter_sample_scope(
+        "activities",
+        await db.activities.find(
+            {"entity_id": id, "source": {"$ne": "automated_test"}}, {"_id": 0}
+        ).sort("created_at", -1).to_list(200),
+    )
     evidence_ids = tc.get("evidence_ids", [])
-    evidence = await db.evidence.find({"id": {"$in": evidence_ids}}, {"_id": 0}).to_list(200) if evidence_ids else []
+    evidence = _filter_sample_scope(
+        "evidence",
+        await db.evidence.find({"id": {"$in": evidence_ids}}, {"_id": 0}).to_list(200)
+        if evidence_ids else [],
+    )
     # Freshness: flag evidence older than the municipality's latest known ordinance amendment
     munis_map = {m["id"]: m for m in await crud_list("municipalities")}
     for ev in evidence:
@@ -4443,7 +4510,10 @@ async def all_activities(user=Depends(get_current_user), include_test_data: str 
     filt = {}
     if not (include_test_data.lower() == "true" and user["role"] in ("admin", "qa_manager")):
         filt = {"source": {"$ne": "automated_test"}}
-    activities = await db.activities.find(filt, {"_id": 0}).sort("created_at", -1).to_list(300)
+    activities = _filter_sample_scope(
+        "activities",
+        await db.activities.find(filt, {"_id": 0}).sort("created_at", -1).to_list(300),
+    )
     return [_public_activity(activity, user["role"]) for activity in activities]
 
 
@@ -4747,7 +4817,8 @@ async def _evaluation_read_model(
     return {"eligible": eligible, "all_models": all_models, "bassett": bassett}
 
 @api.get("/dashboard/stats")
-async def dashboard_stats(user=Depends(get_current_user), include_sample: bool = True):
+async def dashboard_stats(user=Depends(get_current_user), include_sample: Optional[bool] = None):
+    include_sample = _sample_scope_enabled(user, include_sample)
     projects = await crud_list("projects")
     tcs = await crud_list("testcases")
     if not include_sample:
@@ -4798,11 +4869,7 @@ async def dashboard_stats(user=Depends(get_current_user), include_sample: bool =
             and run.get("bassett_version") not in sample_versions
         ]
     latest_regression = _latest_regression_run(regruns, active_version)
-    project_last_tested_dates = (
-        await _current_project_last_tested_dates(projects)
-        if include_sample
-        else await _current_project_last_tested_dates(projects, include_sample=False)
-    )
+    project_last_tested_dates = await _current_project_last_tested_dates(projects)
 
     def cnt(items, key, val):
         return len([i for i in items if i.get(key) == val])
@@ -4949,6 +5016,9 @@ async def compute_stale_gold_map():
 
 # ---------- Canonical export population ----------
 SAMPLE_MARKER = re.compile(r"\[SAMPLE\]|\(Sample\)", re.IGNORECASE)
+SAMPLE_VISIBILITY_PAGE = "__sample_visibility__"
+_SAMPLE_SCOPE_CACHE = None
+_SAMPLE_SCOPE_CACHE_AT = 0.0
 
 
 def _is_sample_record(record):
@@ -4982,6 +5052,114 @@ def _exclude_sample_scope(records, versions, include_sample):
         and record.get("bassett_version") not in sample_versions
         and record.get("version") not in sample_versions
     ]
+
+
+def _sample_scope_enabled(user=None, requested=None):
+    """Resolve the one request-wide sample scope.
+
+    The query parameter is retained for backwards-compatible report callers,
+    while normal application requests use the authenticated user's persisted
+    preference.  Frontend pages do not pass an override.
+    """
+    include_sample = bool(user.get("include_sample_records", False)) if user else False
+    if requested is not None:
+        include_sample = bool(requested)
+    _sample_visibility_context.set(include_sample)
+    return include_sample
+
+
+async def _sample_preference(user_id):
+    view = await db.saved_views.find_one(
+        {"user_id": user_id, "page": SAMPLE_VISIBILITY_PAGE}, {"_id": 0, "state": 1}
+    )
+    return bool((view or {}).get("state", {}).get("include_sample_records", False))
+
+
+async def _build_sample_scope():
+    """Build relationship-aware IDs from the canonical sample flag."""
+    global _SAMPLE_SCOPE_CACHE, _SAMPLE_SCOPE_CACHE_AT
+    if _SAMPLE_SCOPE_CACHE is not None and time.monotonic() - _SAMPLE_SCOPE_CACHE_AT < 60:
+        return _SAMPLE_SCOPE_CACHE
+    scope = {
+        "projects": set(), "testcases": set(), "municipalities": set(),
+        "properties": set(), "evidence": set(), "versions": set(),
+    }
+    for collection in tuple(scope):
+        records = await db[collection].find({}, {"_id": 0}).to_list(5000)
+        scope[collection] = {
+            record.get("id") for record in records if record.get("id") and _is_sample_record(record)
+        }
+        if collection == "versions":
+            scope["version_names"] = {
+                record.get("name") for record in records if record.get("name") and _is_sample_record(record)
+            }
+    _SAMPLE_SCOPE_CACHE = scope
+    _SAMPLE_SCOPE_CACHE_AT = time.monotonic()
+    return scope
+
+
+def _sample_scope_has_reference(record, scope):
+    if _is_sample_record(record):
+        return True
+    if record.get("project_id") in scope["projects"]:
+        return True
+    if record.get("testcase_id") in scope["testcases"]:
+        return True
+    if record.get("municipality_id") in scope["municipalities"]:
+        return True
+    if record.get("property_id") in scope["properties"]:
+        return True
+    if record.get("evidence_id") in scope["evidence"]:
+        return True
+    if record.get("version_id") in scope["versions"]:
+        return True
+    scope_ids = {
+        identifier
+        for identifiers in scope.values()
+        if isinstance(identifiers, set)
+        for identifier in identifiers
+    }
+    if record.get("entity_id") in scope_ids or record.get("linked_entity_id") in scope_ids:
+        return True
+    if record.get("bassett_version") in scope["version_names"] or record.get("version") in scope["version_names"]:
+        return True
+    for key in ("testcase_ids", "test_case_ids"):
+        if any(identifier in scope["testcases"] for identifier in (record.get(key) or [])):
+            return True
+    for result in record.get("results") or []:
+        if isinstance(result, dict) and result.get("testcase_id") in scope["testcases"]:
+            return True
+    return False
+
+
+def _filter_sample_scope(collection, records, include_sample=None):
+    if include_sample is None:
+        include_sample = _sample_visibility_context.get()
+    if include_sample or not records:
+        return list(records)
+    scope = _sample_scope_context.get() or {}
+    if not scope:
+        return list(records)
+    return [
+        record for record in records
+        if not _sample_scope_has_reference(record, scope)
+        and not (
+            collection == "regression_suites"
+            and any(identifier in scope["testcases"] for identifier in (record.get("tests") or []))
+        )
+    ]
+
+
+async def _set_sample_scope_for_user(user, requested=None):
+    include_sample = _sample_scope_enabled(user, requested)
+    if include_sample:
+        _sample_scope_context.set({})
+    else:
+        cached = _sample_scope_context.get()
+        if cached is None:
+            _sample_scope_context.set(await _build_sample_scope())
+    user["include_sample_records"] = include_sample
+    return include_sample
 
 
 async def _canonical_report_data(kind, include_sample=False):
@@ -5096,8 +5274,9 @@ async def _canonical_report_data(kind, include_sample=False):
 
 
 @api.get("/reports/data")
-async def report_data(kind: str = "qa_summary", include_sample: bool = False, user=Depends(get_current_user)):
+async def report_data(kind: str = "qa_summary", include_sample: Optional[bool] = None, user=Depends(get_current_user)):
     """Canonical source records for a JSON report export."""
+    include_sample = _sample_scope_enabled(user, include_sample)
     records = await _canonical_report_data(kind, include_sample=include_sample)
     return {
         **records,
@@ -5747,9 +5926,33 @@ async def put_view(page: str, body: Dict[str, Any], user=Depends(get_current_use
                                               "state": body.get("state", {}), "updated_at": now_iso()}}, upsert=True)
     return {"ok": True}
 
+# ---------- Per-user sample visibility ----------
+@api.get("/preferences/sample-visibility")
+async def get_sample_visibility(user=Depends(get_current_user)):
+    return {"include_sample_records": bool(user.get("include_sample_records", False))}
+
+
+@api.put("/preferences/sample-visibility")
+async def put_sample_visibility(body: Dict[str, Any], user=Depends(get_current_user)):
+    include_sample = body.get("include_sample_records")
+    if not isinstance(include_sample, bool):
+        raise HTTPException(400, "include_sample_records must be a boolean")
+    await db.saved_views.update_one(
+        {"user_id": user["id"], "page": SAMPLE_VISIBILITY_PAGE},
+        {"$set": {
+            "user_id": user["id"], "page": SAMPLE_VISIBILITY_PAGE,
+            "state": {"include_sample_records": include_sample}, "updated_at": now_iso(),
+        }},
+        upsert=True,
+    )
+    _sample_scope_enabled({**user, "include_sample_records": include_sample})
+    _sample_scope_context.set({} if include_sample else await _build_sample_scope())
+    return {"include_sample_records": include_sample}
+
 # ---------- Executive summary ----------
 @api.get("/analytics/executive")
-async def analytics_executive(user=Depends(get_current_user), include_sample: bool = False):
+async def analytics_executive(user=Depends(get_current_user), include_sample: Optional[bool] = None):
+    include_sample = _sample_scope_enabled(user, include_sample)
     versions = await crud_list("versions")
     sample_versions = _sample_version_names(versions)
     tcs = {
@@ -5862,12 +6065,12 @@ async def analytics_executive(user=Depends(get_current_user), include_sample: bo
 # ---------- Test Coverage ----------
 @api.get("/analytics/coverage")
 async def analytics_coverage(user=Depends(get_current_user)):
-    tcs = [t for t in await crud_list("testcases") if not _is_sample_testcase(t)]
+    tcs = await crud_list("testcases")
     used_municipality_ids = {t.get("municipality_id") for t in tcs if t.get("municipality_id")}
     munis = [
         municipality
         for municipality in await crud_list("municipalities")
-        if municipality.get("id") in used_municipality_ids or not municipality.get("sample_data")
+        if municipality.get("id") in used_municipality_ids
     ]
     cfg = await db.config.find_one({"id": "global"}, {"_id": 0}) or {}
     evals = await _authoritative_evaluation_read_model(await crud_list("evaluations"))
@@ -5918,7 +6121,7 @@ async def analytics_coverage(user=Depends(get_current_user)):
 # ---------- Competitive Insights ----------
 @api.get("/analytics/competitive")
 async def analytics_competitive(user=Depends(get_current_user)):
-    tcs = {t["id"]: t for t in await crud_list("testcases") if not _is_sample_testcase(t)}
+    tcs = {t["id"]: t for t in await crud_list("testcases")}
     evaluation_view = await _evaluation_read_model(
         await crud_list("evaluations"), valid_testcase_ids=tcs,
     )
@@ -6057,6 +6260,20 @@ ATTACH_ENTITY_COLLECTIONS = {
 ATTACH_ENTITIES = set(ATTACH_ENTITY_COLLECTIONS)
 ATTACHMENT_RESTORE_RETENTION = timedelta(days=30)
 
+async def _attachment_is_visible(attachment):
+    parent_checks = [
+        (attachment.get("entity_type"), attachment.get("entity_id")),
+        (attachment.get("linked_entity_type"), attachment.get("linked_entity_id")),
+    ]
+    for entity_type, entity_id in parent_checks:
+        collection = ATTACH_ENTITY_COLLECTIONS.get(entity_type)
+        if not collection or not entity_id:
+            continue
+        parent = await db[collection].find_one({"id": entity_id}, {"_id": 0})
+        if parent and not _filter_sample_scope(collection, [parent]):
+            return False
+    return True
+
 async def _require_mutable_attachment_parent(entity_type, entity_id):
     """Attachments inherit their parent's archive lock, not just testcase's lock."""
     collection = ATTACH_ENTITY_COLLECTIONS.get(entity_type)
@@ -6134,6 +6351,10 @@ async def list_attachments(entity_type: str, entity_id: str, user=Depends(get_cu
         {"linked_entity_type": entity_type, "linked_entity_id": entity_id}, {"_id": 0}
     ).to_list(200)
     attachments = list({item["id"]: item for item in [*direct, *linked]}.values())
+    attachments = [
+        attachment for attachment in attachments
+        if await _attachment_is_visible(attachment)
+    ]
     now = datetime.now(timezone.utc)
     visible = []
     for attachment in attachments:
@@ -6157,7 +6378,7 @@ async def list_attachments(entity_type: str, entity_id: str, user=Depends(get_cu
 @api.get("/attachments/{id}/download")
 async def download_attachment(id: str, user=Depends(get_current_user)):
     rec = await db.attachments.find_one({"id": id, "is_deleted": False}, {"_id": 0})
-    if not rec:
+    if not rec or not await _attachment_is_visible(rec):
         raise HTTPException(404, "Attachment not found")
     if rec.get("storage_provider") != "replit":
         raise HTTPException(409, "Attachment has not been migrated to Replit App Storage")
@@ -6304,6 +6525,7 @@ async def variant_comparison(id: str, user=Depends(get_current_user)):
     variants = await db.testcases.find(
         {"variant_of": root_id, "archived": {"$ne": True}}, {"_id": 0}
     ).to_list(50)
+    variants = _filter_sample_scope("testcases", variants)
     family = [root] + sorted(variants, key=lambda v: v.get("created_at", ""))
     ids = [t["id"] for t in family]
     evals = await _authoritative_evaluation_read_model(
@@ -6313,7 +6535,12 @@ async def variant_comparison(id: str, user=Depends(get_current_user)):
         evaluation["testcase_id"]: evaluation
         for evaluation in latest_evaluations(evals, lambda evaluation: evaluation["testcase_id"])
     }
-    resps = await db.responses.find({"model": "Bassett", "testcase_id": {"$in": ids}}, {"_id": 0}).to_list(500)
+    resps = _filter_sample_scope(
+        "responses",
+        await db.responses.find(
+            {"model": "Bassett", "testcase_id": {"$in": ids}}, {"_id": 0}
+        ).to_list(500),
+    )
     resp_by_tc = {}
     for r in sorted(resps, key=lambda x: (x.get("turn", 1), x.get("created_at", ""))):
         resp_by_tc.setdefault(r["testcase_id"], []).append(r)
@@ -6384,7 +6611,10 @@ async def metrics_summary(user=Depends(get_current_user)):
     findings = await crud_list("findings")
     retests = _canonical_retest_executions(await crud_list("retests"), tcs)
     runs = await crud_list("regression_runs")
-    active = await db.versions.find_one({"active": True}, {"_id": 0})
+    active_versions = _filter_sample_scope(
+        "versions", await db.versions.find({"active": True}, {"_id": 0}).to_list(100)
+    )
+    active = active_versions[0] if active_versions else None
     ver = active.get("name", "") if active else ""
     current_view = (
         await _evaluation_read_model(
@@ -6463,7 +6693,10 @@ async def dashboard_metric_records(metric: str, user=Depends(get_current_user)):
     projects = _enrich_project_completions(projects, tcs)
     demos = await crud_list("demos")
     runs = await crud_list("regression_runs")
-    active = await db.versions.find_one({"active": True}, {"_id": 0})
+    active_versions = _filter_sample_scope(
+        "versions", await db.versions.find({"active": True}, {"_id": 0}).to_list(100)
+    )
+    active = active_versions[0] if active_versions else None
     version = active.get("name", "") if active else ""
     current_view = await _evaluation_read_model(
         raw_evaluations, valid_testcase_ids=valid_ids, version=version or None,
@@ -7208,7 +7441,9 @@ async def global_search(q: str = "", user=Depends(get_current_user)):
 
     async def find(coll, fields, limit=5):
         or_ = [{f: rx} for f in fields] + [{"id": q}]
-        return await db[coll].find({"$or": or_}, {"_id": 0}).to_list(limit)
+        return _filter_sample_scope(
+            coll, await db[coll].find({"$or": or_}, {"_id": 0}).to_list(limit)
+        )
 
     groups = []
     tcs = await find("testcases", ["name", "description", "prompt", "category"])

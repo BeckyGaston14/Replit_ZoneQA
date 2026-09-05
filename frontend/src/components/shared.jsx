@@ -4,6 +4,8 @@ import { Link } from "react-router-dom";
 import { StatusBadge, StatusLegend } from "../lib/statusMaps";
 import { evaluationScoreOrNull, formatEvaluationScore } from "../lib/evaluationScale";
 import { evaluationResultColor, evaluationResultDetails } from "../lib/evaluationResults";
+import { useSampleVisibility } from "../lib/hooks";
+import { Switch } from "./ui/switch";
 
 export function CritBadge({ value }) {
   if (!value) return <span className="text-muted-foreground text-xs">—</span>;
@@ -116,6 +118,56 @@ export function PageHeader({ title, subtitle, children }) {
       </div>
       <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">{children}</div>
     </div>
+  );
+}
+
+export function SampleRecordsControl({ compact = false }) {
+  const {
+    includeSampleRecords,
+    setIncludeSampleRecords,
+    isLoading,
+    isSaving,
+  } = useSampleVisibility();
+  const busy = isLoading || isSaving;
+  return (
+    <label
+      className={cn(
+        "inline-flex items-center gap-2 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs text-foreground",
+        busy && "opacity-70",
+      )}
+      data-testid="sample-records-control"
+    >
+      <Switch
+        checked={includeSampleRecords}
+        onCheckedChange={setIncludeSampleRecords}
+        disabled={busy}
+        aria-label="Show sample records"
+        data-testid="show-sample-records-toggle"
+      />
+      <span className={compact ? "sr-only sm:not-sr-only" : ""}>Show sample records</span>
+    </label>
+  );
+}
+
+export function SampleRecordsHiddenNotice() {
+  const { includeSampleRecords, setIncludeSampleRecords, isLoading, isSaving } = useSampleVisibility();
+  if (includeSampleRecords || isLoading) return null;
+  return (
+    <aside
+      role="status"
+      data-testid="sample-records-hidden-notice"
+      className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs text-muted-foreground"
+    >
+      <span>Sample records hidden</span>
+      <button
+        type="button"
+        className="font-semibold text-[var(--navy)] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)]"
+        onClick={() => setIncludeSampleRecords(true)}
+        disabled={isSaving}
+      >
+        Show them
+      </button>
+    </aside>
   );
 }
 

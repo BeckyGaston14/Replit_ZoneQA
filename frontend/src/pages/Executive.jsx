@@ -16,10 +16,9 @@ import { QueryState } from "../components/PageState";
 import { SafeResponsiveContainer } from "../components/SafeResponsiveContainer";
 
 export default function Executive() {
-  const [includeSample, setIncludeSample] = useState(false);
   const query = useQuery({
-    queryKey: ["executive", includeSample],
-    queryFn: async () => (await api.get(`/analytics/executive?include_sample=${includeSample}`)).data,
+    queryKey: ["executive"],
+    queryFn: async () => (await api.get("/analytics/executive")).data,
   });
   const { data: d } = query;
   const trendChartRef = useRef(null);
@@ -123,9 +122,6 @@ export default function Executive() {
   return (
     <div data-testid="exec-pdf-surface">
        <PageHeader title="Executive Summary" subtitle={`${d.scope || ""} · Generated ${new Date().toLocaleDateString()}.`}>
-         <Button variant="outline" data-testid="include-sample-toggle" onClick={() => setIncludeSample((value) => !value)} data-html2canvas-ignore="true">
-           {includeSample ? "Hide demonstration data" : "Include demonstration data"}
-         </Button>
         <Button data-html2canvas-ignore="true" data-testid="download-pdf-btn" onClick={downloadPdf} disabled={exporting} className="bg-[var(--navy)] hover:bg-[#232f73]">
           {exporting ? <Loader2 size={15} className="mr-1 animate-spin" /> : <FileDown size={15} className="mr-1" />}
           {exportStatus === "generating" ? "Generating PDF…" : exportStatus === "saving" ? "Saving PDF…" : "Download PDF"}
@@ -136,8 +132,8 @@ export default function Executive() {
         definition="Executive KPIs and charts summarize persisted QA evaluations, findings, and model comparisons for the displayed scope."
         calculation={{
           formula: "Pass rate is passing evaluated tests divided by evaluated tests; scores are arithmetic means of available 0–10 scores; competitive edge is Bassett average minus benchmark average.",
-          scope: d.scope || "Current non-sample reporting scope.",
-          treatment: "Sample data is excluded by default and is included only through the explicit demonstration-data toggle. Missing scores are unavailable, not zero; stale Gold Standards are surfaced for reverification.",
+          scope: d.scope || "Current reporting scope.",
+          treatment: "Sample data follows the authenticated user's Show sample records preference. Missing scores are unavailable, not zero; stale Gold Standards are surfaced for reverification.",
         }}
         className="mb-5"
       />
@@ -153,7 +149,7 @@ export default function Executive() {
       )}
       {!hasEvaluatedData && (
         <div role="status" data-testid="executive-empty-state" className="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
-          No {includeSample ? "" : "non-sample "}evaluations are available in this scope. Enable demonstration data only if you want to review seeded example records.
+          No {d.sample_data_included ? "" : "non-sample "}evaluations are available in this scope. Use the global “Show sample records” control if you want to review seeded example records.
         </div>
       )}
 

@@ -57,7 +57,7 @@ test("fetches the canonical report population in one operation", async () => {
     await Promise.resolve();
   });
 
-  expect(api.get).toHaveBeenCalledWith("/reports/data?kind=qa_summary&include_sample=false");
+  expect(api.get).toHaveBeenCalledWith("/reports/data?kind=qa_summary");
   expect(click).toHaveBeenCalled();
   click.mockRestore();
   delete URL.createObjectURL;

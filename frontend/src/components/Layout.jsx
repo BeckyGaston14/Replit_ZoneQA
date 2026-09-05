@@ -18,6 +18,7 @@ import {
 import { userRoleLabel } from "../lib/userValidation";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { NAV_SECTIONS as CONFIGURED_SECTIONS } from "../lib/navigationConfig";
+import { SampleRecordsControl, SampleRecordsHiddenNotice } from "./shared";
 
 export const SECTIONS = CONFIGURED_SECTIONS;
 
@@ -157,9 +158,15 @@ export default function Layout({ children }) {
         <header className="h-14 bg-card/80 backdrop-blur border-b flex items-center px-3 sm:px-6 gap-3 sticky top-0 z-20">
           <button type="button" className="lg:hidden rounded p-2 hover:bg-muted focus-visible:ring-2 focus-visible:ring-[var(--orange)]" onClick={() => setMobileOpen(true)} aria-label="Open navigation" aria-controls="primary-navigation" aria-expanded={mobileOpen}><Menu size={20} /></button>
           <GlobalSearch />
-          <div className="ml-auto text-xs text-muted-foreground hidden lg:block">Internal QA Platform · Zoneomics</div>
+           <div className="ml-auto flex items-center gap-2">
+             <SampleRecordsControl compact />
+             <div className="text-xs text-muted-foreground hidden lg:block">Internal QA Platform · Zoneomics</div>
+           </div>
         </header>
-        <main className="flex-1 p-3 sm:p-6 max-w-[1500px] w-full">{children}</main>
+         <main className="flex-1 p-3 sm:p-6 max-w-[1500px] w-full">
+           <SampleRecordsHiddenNotice />
+           {children}
+         </main>
       </div>
     </div>
   );
