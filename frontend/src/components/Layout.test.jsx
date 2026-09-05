@@ -117,6 +117,8 @@ test("permission-filtered navigation omits administrator-only links", () => {
   const view = renderLayout("/admin");
   expect(view.container.querySelector('[data-testid="nav-integrity"]')).toBeNull();
   expect(view.container.querySelector('[data-testid="nav-administration"]')).toBeNull();
+  expect(view.container.querySelector('[data-testid="show-sample-records-toggle"]')).toBeNull();
+  expect(view.container.textContent).not.toContain("Sample records hidden");
   view.unmount();
 });
 

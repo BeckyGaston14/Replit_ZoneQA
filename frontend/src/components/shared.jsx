@@ -121,7 +121,7 @@ export function PageHeader({ title, subtitle, children }) {
   );
 }
 
-export function SampleRecordsControl({ compact = false }) {
+export function SampleRecordsControl() {
   const {
     includeSampleRecords,
     setIncludeSampleRecords,
@@ -144,30 +144,8 @@ export function SampleRecordsControl({ compact = false }) {
         aria-label="Show sample records"
         data-testid="show-sample-records-toggle"
       />
-      <span className={compact ? "sr-only sm:not-sr-only" : ""}>Show sample records</span>
+      <span>Show sample records</span>
     </label>
-  );
-}
-
-export function SampleRecordsHiddenNotice() {
-  const { includeSampleRecords, setIncludeSampleRecords, isLoading, isSaving } = useSampleVisibility();
-  if (includeSampleRecords || isLoading) return null;
-  return (
-    <aside
-      role="status"
-      data-testid="sample-records-hidden-notice"
-      className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs text-muted-foreground"
-    >
-      <span>Sample records hidden</span>
-      <button
-        type="button"
-        className="font-semibold text-[var(--navy)] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)]"
-        onClick={() => setIncludeSampleRecords(true)}
-        disabled={isSaving}
-      >
-        Show them
-      </button>
-    </aside>
   );
 }
 

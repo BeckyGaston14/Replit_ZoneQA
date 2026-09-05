@@ -149,7 +149,7 @@ export default function Executive() {
       )}
       {!hasEvaluatedData && (
         <div role="status" data-testid="executive-empty-state" className="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
-          No {d.sample_data_included ? "" : "non-sample "}evaluations are available in this scope. Use the global “Show sample records” control if you want to review seeded example records.
+          No {d.sample_data_included ? "" : "non-sample "}evaluations are available in this scope.
         </div>
       )}
 

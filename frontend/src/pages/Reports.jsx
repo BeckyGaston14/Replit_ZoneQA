@@ -80,7 +80,7 @@ export default function Reports() {
         definition="Exports are generated from the canonical persisted report population at the moment an export is requested."
         calculation={{
           formula: "The selected export endpoint assembles the requested test cases, findings, evaluations, and related snapshots into one JSON or CSV payload.",
-          scope: "The authenticated user's Show sample records preference controls the report scope.",
+          scope: "The report uses the authenticated user's current visibility scope.",
           treatment: "Retests, variants, missing values, and evidence relationships retain the same rules as the corresponding live report; missing values remain explicit rather than fabricated.",
           rounding: "Exported source values are not rounded by the card display.",
         }}

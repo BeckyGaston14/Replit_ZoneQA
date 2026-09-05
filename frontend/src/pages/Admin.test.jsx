@@ -36,6 +36,12 @@ jest.mock("../lib/auth", () => ({ useAuth: () => ({ user: mockUser }) }));
 jest.mock("../components/shared", () => ({
   PageHeader: ({ title, subtitle }) => <header><h1>{title}</h1><p>{subtitle}</p></header>,
   StatusBadge: ({ value }) => <span>{value}</span>,
+  SampleRecordsControl: () => (
+    <label data-testid="sample-records-control">
+      <button type="button" role="switch" aria-label="Show sample records" data-testid="show-sample-records-toggle" />
+      <span>Show sample records</span>
+    </label>
+  ),
 }));
 jest.mock("../components/ui/tabs", () => ({
   Tabs: ({ children }) => <div>{children}</div>,
@@ -139,6 +145,18 @@ test("Integrations explains secure Gmail connector configuration", () => {
   expect(panel.textContent).toContain("Tools → Integrations");
   expect(panel.textContent).toContain("ZONEQA_APP_URL");
   expect(panel.textContent).toContain("never stored in ZoneQA");
+  view.unmount();
+});
+
+test("administrators get exactly one sample-record visibility control in the existing Sample Records section", () => {
+  const view = renderAdmin();
+  const section = view.container.querySelector('[data-testid="sample-data-configuration"]');
+
+  expect(section).not.toBeNull();
+  expect(section.querySelector("h3").textContent).toBe("Sample Records");
+  expect(section.querySelectorAll('[data-testid="show-sample-records-toggle"]')).toHaveLength(1);
+  expect(view.container.querySelectorAll('[data-testid="show-sample-records-toggle"]')).toHaveLength(1);
+  expect(section.querySelector('[aria-label="Show sample records"]')).not.toBeNull();
   view.unmount();
 });
 
@@ -323,6 +341,8 @@ test.each([
   expect(view.container.textContent).toContain("Access denied");
   expect(view.container.querySelector('[data-testid="add-user-btn"]')).toBeNull();
   expect(view.container.querySelector('[aria-label^="Deactivate"]')).toBeNull();
+  expect(view.container.querySelector('[data-testid="show-sample-records-toggle"]')).toBeNull();
+  expect(view.container.textContent).not.toContain("Sample records hidden");
   view.unmount();
 });
 

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, staleUpdateMessage, withExpectedVersion } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { PageHeader, StatusBadge } from "../components/shared";
+import { PageHeader, StatusBadge, SampleRecordsControl } from "../components/shared";
 import { ACTIVITY_STATUSES } from "../lib/statusMaps";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
@@ -591,8 +591,11 @@ export default function Admin() {
               {!emailStatus?.published_url_configured && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" role="alert"><strong>Published app URL is missing.</strong> Add ZONEQA_APP_URL before sending setup links.</div>}
               <Button type="button" variant="outline" onClick={()=>refetchEmailStatus()}><RefreshCw size={14}/> Refresh Gmail status</Button>
             </div>
-            <div className="bg-card border rounded-xl p-5 space-y-3" data-testid="sample-data-configuration">
-              <h3 className="font-semibold font-display text-[var(--navy)]">Sample metric-verification data</h3>
+             <div className="bg-card border rounded-xl p-5 space-y-3" data-testid="sample-data-configuration">
+               <div className="flex flex-wrap items-center justify-between gap-3">
+                 <h3 className="font-semibold font-display text-[var(--navy)]">Sample Records</h3>
+                 <SampleRecordsControl />
+               </div>
               <p className="text-sm text-muted-foreground">Add 10 clearly labeled sample comparisons with linked models, versions, projects, municipalities, evidence, findings, retests, regression runs, and demo records. Sample versions remain inactive so they do not replace your current production reporting scope. Existing user-created records are never deleted or overwritten.</p>
               <Button type="button" variant="outline" disabled={sampleDataBusy} onClick={() => setConfirmingAction({ type: "sample-data" })}>{sampleDataBusy ? "Loading sample data…" : "Load sample dataset"}</Button>
             </div>
