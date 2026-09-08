@@ -10,8 +10,8 @@ import { toast } from "sonner";
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 jest.mock("./forms", () => ({
-  FormModal: ({ children, onSubmit }) => <div>{children}<button data-testid="submit" onClick={onSubmit}>Submit</button></div>,
-  Field: ({ label, children }) => <label>{label}{children}</label>,
+  FormModal: ({ children, onSubmit, submitLabel = "Save" }) => <div>{children}<button type="submit" data-testid="submit" onClick={(event) => { event.preventDefault(); onSubmit(); }}>{submitLabel}</button></div>,
+  Field: ({ label, description, children }) => <label>{label}{description && <span>{description}</span>}{children}</label>,
 }));
 jest.mock("./ui/input", () => ({ Input: (props) => <input {...props} /> }));
 jest.mock("./ui/textarea", () => ({ Textarea: (props) => <textarea {...props} /> }));
@@ -122,8 +122,32 @@ test("missing benchmark responses and scores remain explicit unavailable inputs 
   expect(view.container.textContent).toContain("excluded from comparison metrics");
   const scoreSelects = [...view.container.querySelectorAll('select[aria-label$=" score"]')];
   expect(scoreSelects.length).toBeGreaterThan(0);
-  expect(scoreSelects.every((select) => select.value === "" && select.options.length === 12)).toBe(true);
+   expect(scoreSelects.every((select) => select.value === "" && select.options.length === 13)).toBe(true);
   act(() => view.root.unmount());
+});
+
+test("both form modes expose all twelve plain-language scoring questions and one primary save action", () => {
+  const expectedQuestions = [
+    "Did the answer get the facts right?",
+    "Did it identify the correct current code or regulation?",
+    "Did it interpret the law or regulation correctly?",
+    "Did it calculate numbers, areas, or thresholds correctly?",
+    "Did it understand the property, jurisdiction, and user context?",
+    "Did it recognize important missing information?",
+    "Did it handle follow-up questions and clarifications appropriately?",
+    "Were the cited sources accurate and correctly connected to the claims?",
+    "Did it use authoritative, relevant sources?",
+    "Did it provide clear, practical next-step guidance?",
+    "Did it cover all important parts of the question?",
+    "Would this answer be professionally useful as delivered?",
+  ];
+  for (const mode of ["bassett", "comparison"]) {
+    const view = renderForm(mode, { id: `${mode}-edit` });
+    expectedQuestions.forEach((question) => expect(view.container.textContent).toContain(question));
+    expect([...view.container.querySelectorAll('button[type="submit"]')]).toHaveLength(1);
+    expect(view.container.querySelector('button[type="submit"]').textContent).toBe("Save changes");
+    act(() => view.root.unmount());
+  }
 });
 
 test("comparison drafts save locally without File objects", () => {

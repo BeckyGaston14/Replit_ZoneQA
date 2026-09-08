@@ -11,9 +11,10 @@ export function ScoreSelect({ value, onChange, disabled = false, id, testId, ari
         className="h-10 w-full rounded-md border bg-background px-3 text-sm"
         value={selected}
         disabled={disabled}
-        onChange={(event) => onChange(event.target.value === "" ? null : Number(event.target.value))}
+        onChange={(event) => onChange(event.target.value === "" || event.target.value === "N/A" ? null : Number(event.target.value))}
       >
-        <option value="">Not scored — insufficient evidence or not applicable</option>
+        <option value="">Not scored — insufficient evidence</option>
+        <option value="N/A">N/A — Not Applicable (excluded from score)</option>
         {SCORE_RUBRIC.map(([score, reason]) => (
           <option key={score} value={score}>{score} — {reason}</option>
         ))}

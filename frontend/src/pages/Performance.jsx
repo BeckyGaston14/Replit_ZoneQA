@@ -15,6 +15,7 @@ import { SafeResponsiveContainer } from "../components/SafeResponsiveContainer";
 import { EVALUATION_SCALE_LABEL, EVALUATION_SCORE_DOMAIN, EVALUATION_SCORE_TICKS, evaluationScoreOrNull, formatEvaluationScore } from "../lib/evaluationScale";
 import { MODEL_COLORS } from "../lib/modelColors";
 import { Button } from "../components/ui/button";
+import { REPORTING_GROUPS } from "../lib/scoringGroups";
 import { QueryState } from "../components/PageState";
 
 const DIM_LABELS = { accuracy: "Accuracy", current_code: "Current Code", interpretation: "Interpretation", calculation: "Calculation", context: "Context", missing_info: "Missing Info", followup: "Follow-Up", citation_accuracy: "Citation", source_quality: "Source Quality", guidance: "Guidance", completeness: "Completeness", usefulness: "Usefulness" };
@@ -87,7 +88,7 @@ export default function Performance() {
 
   const bassett = (perf?.model_summary || []).find((m) => m.model === "Bassett");
   const RADAR_SHORT = { accuracy: "Accuracy", citation_accuracy: "Citation", interpretation: "Interpret.", calculation: "Calc.", context: "Context", completeness: "Complete.", usefulness: "Useful.", current_code: "Current Code", missing_info: "Missing Info", followup: "Follow-Up", source_quality: "Source Qual.", guidance: "Guidance" };
-  const dimensionRows = Object.entries(perf?.dimension_averages || {}).map(([k, v]) => ({ dim: RADAR_SHORT[k] || (DIM_LABELS[k] || k).slice(0, 12), full: DIM_LABELS[k] || k, score: evaluationScoreOrNull(v) }));
+  const dimensionRows = (perf?.reporting_groups || REPORTING_GROUPS.map((group) => ({ ...group, score: null }))).map((group) => ({ dim: group.label, full: group.label, score: evaluationScoreOrNull(group.score), underlying: group.underlyingDimensions || group.dimensions }));
   const radar = dimensionRows.filter((dimension) => dimension.score !== null);
   const categoryRows = [...(perf?.by_category || [])].sort((a, b) => Number(b.avg_score ?? -1) - Number(a.avg_score ?? -1));
   const cat = categoryRows.filter((category) => evaluationScoreOrNull(category.avg_score) !== null);
@@ -140,8 +141,8 @@ export default function Performance() {
 
       <div className="grid lg:grid-cols-2 gap-4 mb-4">
         <div className="bg-card border rounded-xl p-5">
-          <h3 className="font-semibold font-display text-[var(--navy)] mb-3">Bassett Evaluation Dimensions</h3>
-          <p className="text-xs text-muted-foreground mb-2">{EVALUATION_SCALE_LABEL}. Each ring is 2 points; unavailable dimensions are not plotted.</p>
+           <h3 className="font-semibold font-display text-[var(--navy)] mb-3">Bassett Reporting Groups</h3>
+           <p className="text-xs text-muted-foreground mb-2">{EVALUATION_SCALE_LABEL}. Groups use configured-weight averages of applicable underlying dimensions; missing and N/A values are not zero.</p>
           <SafeResponsiveContainer height={300} testId="performance-radar-chart">
             <RadarChart data={radar}>
               <PolarGrid gridType="polygon" /><PolarAngleAxis dataKey="dim" tick={{ fontSize: 10 }} />
@@ -150,7 +151,7 @@ export default function Performance() {
               <Radar dataKey="score" stroke={MODEL_COLORS.Bassett} fill={MODEL_COLORS.Bassett} fillOpacity={0.4} />
             </RadarChart>
           </SafeResponsiveContainer>
-          <SrTable caption="Bassett evaluation dimension averages. Scale: 0 to 10. Missing dimensions are unavailable and are not zero." columns={["Dimension", "Average score out of 10"]} rows={dimensionRows.map((r) => [r.full, formatEvaluationScore(r.score)])} />
+           <SrTable caption="Bassett reporting-group averages. Scale: 0 to 10. Missing and N/A dimensions are unavailable and are not zero." columns={["Reporting group", "Average score out of 10", "Underlying dimensions"]} rows={dimensionRows.map((r) => [r.full, formatEvaluationScore(r.score), (r.underlying || []).map((item) => item.label || item.key || item).join(", ")])} />
         </div>
         <div className="bg-card border rounded-xl p-5">
           <h3 className="font-semibold font-display text-[var(--navy)] mb-3">Bassett Performance by Category</h3>

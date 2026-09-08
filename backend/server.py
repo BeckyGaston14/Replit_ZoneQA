@@ -36,6 +36,7 @@ from evaluation_metrics import (
     evaluation_result_details,
     latest_evaluations,
     normalize_evaluation_result,
+    reporting_group_averages,
     result_summary,
     score_evaluation,
 )
@@ -5065,9 +5066,24 @@ async def analytics_performance(user=Depends(get_current_user),
     # dimension averages Bassett
     dim_avg = {}
     b = [e for e in evals if e.get("model") == "Bassett"]
+    config = await db.config.find_one({"id": "global"}, {"_id": 0}) or DEFAULT_CONFIG
     for d in dims:
-        vals = [e["scores"][d] for e in b if e.get("scores", {}).get(d) is not None]
+        vals = []
+        for evaluation in b:
+            raw_value = evaluation.get("scores", {}).get(d)
+            if raw_value in (None, "", "N/A"):
+                continue
+            try:
+                value = float(raw_value)
+            except (TypeError, ValueError):
+                continue
+            if 0 <= value <= 10:
+                vals.append(value)
         dim_avg[d] = round(sum(vals) / len(vals), 1) if vals else None
+    reporting_groups = reporting_group_averages(
+        [evaluation for evaluation in b if isinstance(evaluation.get("scores"), dict)],
+        config.get("eval_dimensions", []),
+    )
 
     # competitive: wins/losses/shared failures
     wins = losses = shared_fail = 0
@@ -5088,6 +5104,7 @@ async def analytics_performance(user=Depends(get_current_user),
             shared_fail += 1
 
     return {"model_summary": model_summary, "by_category": by_category, "dimension_averages": dim_avg,
+            "reporting_groups": reporting_groups,
             "wins": wins, "losses": losses, "shared_failures": shared_fail, "scope": scope}
 
 @api.get("/comparison/{testcase_id}")
@@ -5957,6 +5974,8 @@ async def _evaluation_score_fields(scores, *, allow_unknown=False):
             continue
         if value in (None, ""):
             continue
+        if value == "N/A":
+            continue
         if isinstance(value, bool):
             raise HTTPException(400, detail={"scores": f"{key} must be a number between 0 and 10"})
         try:
@@ -6072,6 +6091,7 @@ async def analytics_executive(user=Depends(get_current_user), include_sample: Op
         raw_evaluations, valid_testcase_ids=tcs,
     )
     evals = evaluation_view["all_models"]
+    config = await db.config.find_one({"id": "global"}, {"_id": 0}) or DEFAULT_CONFIG
     # Findings are retained for audit/history after archival, but are not current
     # analytical evidence.
     findings = [
@@ -6153,6 +6173,7 @@ async def analytics_executive(user=Depends(get_current_user), include_sample: Op
         cat.setdefault(c, []).append(e["overall_score"])
     categories = sorted([{"category": k, "avg_score": round(sum(v) / len(v), 1), "count": len(v)}
                          for k, v in cat.items()], key=lambda x: -x["avg_score"])
+    reporting_groups = reporting_group_averages(scored, config.get("eval_dimensions", []))
 
     bench_scores = [e["overall_score"] for e in evals if e.get("model") != "Bassett" and e.get("overall_score") is not None]
     bench_avg = round(sum(bench_scores) / len(bench_scores), 1) if bench_scores else None
@@ -6164,7 +6185,8 @@ async def analytics_executive(user=Depends(get_current_user), include_sample: Op
     return {"kpis": {"bassett_avg": bassett_avg, "benchmark_avg": bench_avg, "pass_rate": pass_rate,
                      "wins": wins, "losses": losses, "open_critical": open_critical,
                      "total_evaluated": passed + failed, "total_findings": len(findings)},
-            "trend": trend, "failure_modes": failure_modes, "categories": categories, "scope": scope,
+             "trend": trend, "failure_modes": failure_modes, "categories": categories,
+             "reporting_groups": reporting_groups, "scope": scope,
             "stale_gold_tests": stale_gold, "sample_data_included": include_sample,
             "has_evaluated_data": bool(evals)}
 
@@ -7717,18 +7739,18 @@ DEFAULT_CONFIG = {
                       "failure to ask follow-up", "unnecessary follow-up", "poor guidance", "UX issue",
                       "competitor advantage", "Bassett advantage", "enhancement opportunity", "regression", "other"],
     "eval_dimensions": [
-        {"key": "accuracy", "label": "Accuracy", "weight": 3},
-        {"key": "current_code", "label": "Current Code Identification", "weight": 2},
-        {"key": "interpretation", "label": "Legal / Regulatory Interpretation", "weight": 3},
-        {"key": "calculation", "label": "Calculation Accuracy", "weight": 2},
-        {"key": "context", "label": "Context Understanding", "weight": 2},
-        {"key": "missing_info", "label": "Missing Information Recognition", "weight": 2},
-        {"key": "followup", "label": "Follow-Up Handling", "weight": 1},
-        {"key": "citation_accuracy", "label": "Citation Accuracy", "weight": 2},
-        {"key": "source_quality", "label": "Source Quality", "weight": 1},
-        {"key": "guidance", "label": "Guidance Quality", "weight": 1},
-        {"key": "completeness", "label": "Completeness", "weight": 2},
-        {"key": "usefulness", "label": "Usefulness", "weight": 3},
+        {"key": "accuracy", "label": "Accuracy", "question": "Did the answer get the facts right?", "weight": 3},
+        {"key": "current_code", "label": "Current Code Identification", "question": "Did it identify the correct current code or regulation?", "weight": 2},
+        {"key": "interpretation", "label": "Legal / Regulatory Interpretation", "question": "Did it interpret the law or regulation correctly?", "weight": 3},
+        {"key": "calculation", "label": "Calculation Accuracy", "question": "Did it calculate numbers, areas, or thresholds correctly?", "weight": 2},
+        {"key": "context", "label": "Context Understanding", "question": "Did it understand the property, jurisdiction, and user context?", "weight": 2},
+        {"key": "missing_info", "label": "Missing Information Recognition", "question": "Did it recognize important missing information?", "weight": 2},
+        {"key": "followup", "label": "Follow-Up Handling", "question": "Did it handle follow-up questions and clarifications appropriately?", "weight": 1},
+        {"key": "citation_accuracy", "label": "Citation Accuracy", "question": "Were the cited sources accurate and correctly connected to the claims?", "weight": 2},
+        {"key": "source_quality", "label": "Source Quality", "question": "Did it use authoritative, relevant sources?", "weight": 1},
+        {"key": "guidance", "label": "Guidance Quality", "question": "Did it provide clear, practical next-step guidance?", "weight": 1},
+        {"key": "completeness", "label": "Completeness", "question": "Did it cover all important parts of the question?", "weight": 2},
+        {"key": "usefulness", "label": "Usefulness", "question": "Would this answer be professionally useful as delivered?", "weight": 3},
     ],
     "pass_results": list(CANONICAL_EVALUATION_RESULTS),
     "roles": ["admin", "qa_manager", "tester", "developer", "viewer"],

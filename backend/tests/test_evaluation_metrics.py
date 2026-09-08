@@ -6,6 +6,7 @@ from evaluation_metrics import (
     latest_evaluations,
     normalize_evaluation_result,
     result_summary,
+    reporting_group_averages,
     score_evaluation,
 )
 
@@ -103,3 +104,28 @@ def test_authoritative_write_strips_injected_derived_fields():
     assert created["system_recommended"] == "Fail"
     assert created["final_result"] == "Pass"
     assert metadata_only_update == {"notes": "reviewed"}
+
+
+def test_reporting_groups_cover_all_dimensions_and_exclude_na_and_history_gaps():
+    dimensions = [
+        {"key": "accuracy", "label": "Accuracy", "weight": 3},
+        {"key": "current_code", "label": "Current Code", "weight": 2},
+        {"key": "calculation", "label": "Calculation", "weight": 2},
+        {"key": "interpretation", "label": "Interpretation", "weight": 3},
+        {"key": "context", "label": "Context", "weight": 2},
+        {"key": "missing_info", "label": "Missing Info", "weight": 2},
+        {"key": "followup", "label": "Follow-Up", "weight": 1},
+        {"key": "citation_accuracy", "label": "Citation", "weight": 2},
+        {"key": "source_quality", "label": "Source Quality", "weight": 1},
+        {"key": "guidance", "label": "Guidance", "weight": 1},
+        {"key": "completeness", "label": "Completeness", "weight": 2},
+        {"key": "usefulness", "label": "Usefulness", "weight": 3},
+    ]
+    groups = reporting_group_averages([
+        {"scores": {"accuracy": 10, "current_code": 0, "interpretation": "N/A"}},
+        {"scores": {"accuracy": 0}},
+    ], dimensions)
+    assert len(groups) == 7
+    assert groups[0]["score"] == 3.8
+    assert groups[0]["scored_value_count"] == 3
+    assert groups[1]["score"] is None

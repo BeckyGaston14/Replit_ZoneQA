@@ -138,6 +138,18 @@ export default function Dashboard() {
           </div>
         </Section>
       </div>
+      <Section title="Bassett Reporting Groups">
+        <p className="mb-3 text-xs text-muted-foreground">Seven reporting groups consolidate the 12 stored scoring dimensions. Configured weights apply only to applicable scored values; missing and N/A values are excluded, never treated as zero.</p>
+        <SrTable
+          caption="Bassett reporting groups. Scale: 0 to 10. Underlying dimensions remain available in evaluation records and exports."
+          columns={["Reporting group", "Average score out of 10", "Underlying dimensions"]}
+          rows={(perfQuery.data?.reporting_groups || []).map((group) => [
+            group.label,
+            formatEvaluationScore(evaluationScoreOrNull(group.score)),
+            (group.underlyingDimensions || group.dimensions || []).map((dimension) => dimension.label || dimension.key || dimension).join(", "),
+          ])}
+        />
+      </Section>
     </div>
   );
 }

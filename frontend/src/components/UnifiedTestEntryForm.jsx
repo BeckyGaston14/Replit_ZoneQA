@@ -17,12 +17,12 @@ export const BASSETT_RESULT_OPTIONS = [...CANONICAL_EVALUATION_RESULTS];
 export const COMPARISON_RESULT_OPTIONS = [...CANONICAL_EVALUATION_RESULTS];
 export const COMPARISON_CLASSIFICATIONS = ["Bassett win", "ChatGPT win", "Claude win", "Tie", "Shared failure", "Incomplete"];
 export const DEFAULT_DIMENSIONS = [
-  ["accuracy", "Accuracy", 3], ["current_code", "Current Code Identification", 2],
-  ["interpretation", "Legal / Regulatory Interpretation", 3], ["calculation", "Calculation Accuracy", 2],
-  ["context", "Context Understanding", 2], ["missing_info", "Missing Information Recognition", 2],
-  ["followup", "Follow-Up Handling", 1], ["citation_accuracy", "Citation Accuracy", 2],
-  ["source_quality", "Source Quality", 1], ["guidance", "Guidance Quality", 1],
-  ["completeness", "Completeness", 2], ["usefulness", "Usefulness", 3],
+  ["accuracy", "Accuracy", 3, "Did the answer get the facts right?"], ["current_code", "Current Code Identification", 2, "Did it identify the correct current code or regulation?"],
+  ["interpretation", "Legal / Regulatory Interpretation", 3, "Did it interpret the law or regulation correctly?"], ["calculation", "Calculation Accuracy", 2, "Did it calculate numbers, areas, or thresholds correctly?"],
+  ["context", "Context Understanding", 2, "Did it understand the property, jurisdiction, and user context?"], ["missing_info", "Missing Information Recognition", 2, "Did it recognize important missing information?"],
+  ["followup", "Follow-Up Handling", 1, "Did it handle follow-up questions and clarifications appropriately?"], ["citation_accuracy", "Citation Accuracy", 2, "Were the cited sources accurate and correctly connected to the claims?"],
+  ["source_quality", "Source Quality", 1, "Did it use authoritative, relevant sources?"], ["guidance", "Guidance Quality", 1, "Did it provide clear, practical next-step guidance?"],
+  ["completeness", "Completeness", 2, "Did it cover all important parts of the question?"], ["usefulness", "Usefulness", 3, "Would this answer be professionally useful as delivered?"],
 ];
 const DRAFT_KEYS = { bassett: "zoneqa:bassett-workflow-draft", comparison: "zoneqa:comparison-workflow-draft" };
 
@@ -146,7 +146,7 @@ function EvaluationGrid({ model, scores, dimensions, onChange, locked }) {
   return <div className="space-y-3">
     <details className="rounded-lg border bg-[var(--paper)] p-3"><summary className="cursor-pointer text-sm font-semibold text-[var(--navy)]">View the shared 0–10 scoring rubric</summary><div className="mt-3 grid gap-1 text-xs">{SCORE_RUBRIC.map(([score, reason]) => <div key={score} className="grid grid-cols-[1.5rem_1fr] gap-2"><b>{score}</b><span>{reason}</span></div>)}</div></details>
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      {dimensions.map((dimension) => <Field key={dimension.key} label={`${dimension.label} · weight ${dimension.weight}`}>
+       {dimensions.map((dimension) => <Field key={dimension.key} label={`${dimension.label} · weight ${dimension.weight}`} description={dimension.question}>
         <ScoreSelect value={scores?.[dimension.key]} disabled={locked} ariaLabel={`${model} ${dimension.label} score`} onChange={(value) => onChange(model, dimension.key, value)} />
       </Field>)}
     </div>
@@ -305,7 +305,10 @@ export default function UnifiedTestEntryForm({
 }) {
   const isComparison = mode === "comparison";
   const selectedScenario = scenarios.find((scenario) => scenario.id === form.scenario_id) || form.scenario;
-  const dimensions = config.eval_dimensions?.length ? config.eval_dimensions : DEFAULT_DIMENSIONS.map(([key, label, weight]) => ({ key, label, weight }));
+   const dimensions = (config.eval_dimensions?.length ? config.eval_dimensions : DEFAULT_DIMENSIONS.map(([key, label, weight, question]) => ({ key, label, weight, question }))).map((dimension) => {
+     const fallback = DEFAULT_DIMENSIONS.find(([key]) => key === dimension.key);
+     return { ...dimension, question: dimension.question || fallback?.[3] || `Was ${dimension.label || dimension.key} handled well?` };
+   });
   const filteredProperties = useMemo(() => properties.filter((item) => !form.municipality_id || !item.municipality_id || item.municipality_id === form.municipality_id), [properties, form.municipality_id]);
   const progress = progressFor(form, mode);
   const [activeSection, setActiveSection] = useState(0);
@@ -491,7 +494,6 @@ export default function UnifiedTestEntryForm({
       <Button type="button" variant="outline" disabled={activeSection === 0} onClick={() => activateSection(activeSection - 1)}>Previous</Button>
       {activeSection < totalSections - 1 && <Button type="button" onClick={() => activateSection(activeSection + 1)}>Next</Button>}
        {!form.id && <Button type="button" variant="outline" className="sm:ml-auto" onClick={saveDraft}>Save draft</Button>}
-       <Button type="submit" disabled={submitting} className={!form.id ? "" : "sm:ml-auto"}>{submitting ? "Saving…" : form.id ? "Save changes" : "Create test"}</Button>
     </div>
   </FormModal>;
 }

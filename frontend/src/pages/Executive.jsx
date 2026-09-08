@@ -80,12 +80,13 @@ export default function Executive() {
 
   if (query.isLoading || query.isError) return <div><PageHeader title="Executive Summary" subtitle="Shareable QA outcomes and trends." /><QueryState query={query} resource="executive summary" testId="executive-query" /></div>;
   const { kpis: k, trend, failure_modes, categories } = d;
+  const reportingGroups = d.reporting_groups || [];
   const sampleDataShown = sampleScopeIncludesData({ records: [d] });
   const hasEvaluatedData = d.has_evaluated_data ?? Number(k.total_evaluated || 0) > 0;
-  const chartCategories = categories.filter((category) => evaluationScoreOrNull(category.avg_score) !== null);
+   const chartCategories = (reportingGroups.length ? reportingGroups : categories).filter((category) => evaluationScoreOrNull(category.score ?? category.avg_score) !== null);
 
-  const strongest = categories[0];
-  const weakest = categories[categories.length - 1];
+   const strongest = chartCategories[0];
+   const weakest = chartCategories[chartCategories.length - 1];
   const bassettAverage = evaluationScoreOrNull(k.bassett_avg);
   const benchmarkAverage = evaluationScoreOrNull(k.benchmark_avg);
   const edge = bassettAverage !== null && benchmarkAverage !== null
@@ -107,7 +108,7 @@ export default function Executive() {
         ? "No outright head-to-head wins or losses are recorded in the current evaluated scope."
         : "Head-to-head results are unavailable until comparable model evaluations are recorded.",
     strongest && weakest && strongest !== weakest
-      ? `Strongest category: ${strongest.category} (${fmtScore(strongest.avg_score)}/10). Weakest: ${weakest.category} (${fmtScore(weakest.avg_score)}/10).`
+       ? `Strongest reporting group: ${strongest.label || strongest.category} (${fmtScore(strongest.score ?? strongest.avg_score)}/10). Weakest: ${weakest.label || weakest.category} (${fmtScore(weakest.score ?? weakest.avg_score)}/10).`
       : null,
     k.open_critical > 0
       ? `${plural(k.open_critical, "open critical finding")} require${k.open_critical === 1 ? "s" : ""} resolution before the next release.`
@@ -209,21 +210,21 @@ export default function Executive() {
       </div>
 
       <div className="bg-card border rounded-xl p-5 mt-4">
-        <h3 className="font-semibold font-display text-[var(--navy)] mb-3">Bassett Category Performance</h3>
-        <p className="text-xs text-muted-foreground mb-2">Scale: 0–10.</p>
+         <h3 className="font-semibold font-display text-[var(--navy)] mb-3">Bassett Reporting Group Performance</h3>
+         <p className="text-xs text-muted-foreground mb-2">Scale: 0–10. Configured-weight averages of applicable underlying dimensions; missing and N/A values are excluded.</p>
          <div ref={categoriesChartRef} data-testid="exec-categories-chart-render" className="min-w-0">
            <SafeResponsiveContainer height={Math.max(200, chartCategories.length * 44)} testId="exec-categories-responsive-chart">
-             <BarChart data={chartCategories} layout="vertical" margin={{ left: 20 }}>
+              <BarChart data={chartCategories.map((item) => ({ ...item, category: item.label || item.category, avg_score: item.score ?? item.avg_score }))} layout="vertical" margin={{ left: 20 }}>
                <XAxis type="number" domain={EVALUATION_SCORE_DOMAIN} ticks={EVALUATION_SCORE_TICKS} tick={{ fontSize: 11 }} />
                <YAxis type="category" dataKey="category" width={200} tick={<WrapTick width={195} />} interval={0} />
                <Tooltip formatter={(v) => [formatEvaluationScore(v), "Avg score (0–10)"]} />
-               <Bar dataKey="avg_score" radius={[0, 6, 6, 0]}>
-                 {chartCategories.map((c, i) => <Cell key={i} fill={c.avg_score >= 7.5 ? "#16a34a" : c.avg_score >= 5 ? "#f59e0b" : "#dc2626"} />)}
+                <Bar dataKey="avg_score" radius={[0, 6, 6, 0]}>
+                  {chartCategories.map((c, i) => { const score = c.score ?? c.avg_score; return <Cell key={i} fill={score >= 7.5 ? "#16a34a" : score >= 5 ? "#f59e0b" : "#dc2626"} />; })}
                </Bar>
              </BarChart>
            </SafeResponsiveContainer>
          </div>
-        <SrTable caption="Bassett category performance. Scale: 0 to 10." columns={["Category", "Average score out of 10"]} rows={categories.map((c) => [c.category, formatEvaluationScore(c.avg_score)])} />
+         <SrTable caption="Bassett reporting-group performance. Scale: 0 to 10." columns={["Reporting group", "Average score out of 10", "Underlying dimensions"]} rows={chartCategories.map((c) => [(c.label || c.category), formatEvaluationScore(c.score ?? c.avg_score), (c.dimensions || c.underlyingDimensions || []).map((item) => item.label || item.key || item).join(", ")])} />
       </div>
     </div>
   );

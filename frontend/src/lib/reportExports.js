@@ -1,6 +1,7 @@
 const COMPARISON_MODELS = new Set(["Bassett", "ChatGPT", "Claude"]);
 import { calculateComparisonScore } from "./comparison";
 import { normalizeEvaluationResult } from "./evaluationResults";
+import { aggregateReportingGroups, calculateReportingGroups } from "./scoringGroups";
 
 const REPORT_SCOPES = {
   qa_summary: "All persisted QA records.",
@@ -196,6 +197,12 @@ export function buildReportPayload({ kind, stats, testcases = [], findings = [],
     ...(testRuns === undefined ? {} : { test_runs: testRuns }),
   });
   const records = (BUILDERS[kind] || BUILDERS.qa_summary)(source);
+  const bassettEvaluations = records.evaluations.filter((evaluation) => evaluation.model === "Bassett");
+  const reportingGroups = aggregateReportingGroups(bassettEvaluations, evaluationDimensions || []);
+  const detailedEvaluations = records.evaluations.map((evaluation) => ({
+    ...evaluation,
+    reporting_groups: calculateReportingGroups(evaluation, evaluationDimensions || []),
+  }));
   return {
     generated,
     report: kind,
@@ -208,6 +215,8 @@ export function buildReportPayload({ kind, stats, testcases = [], findings = [],
     },
     stats,
     ...records,
+    evaluations: detailedEvaluations,
+    reporting_groups: reportingGroups,
     record_counts: Object.fromEntries(
       Object.entries(records)
         .filter(([, value]) => Array.isArray(value))

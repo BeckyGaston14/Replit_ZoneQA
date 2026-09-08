@@ -46,7 +46,14 @@ const ANN_TO_FINDING = {
 
 const MODELS = MODEL_ORDER;
 const TESTCASE_TABS = ["overview", "responses", "claims", "gold", "evidence", "evaluation", "findings", "retests", "discussion", "activity"];
-const DIMS = [["accuracy", "Accuracy"], ["current_code", "Current Code"], ["interpretation", "Interpretation"], ["calculation", "Calculation"], ["context", "Context"], ["missing_info", "Missing Info"], ["followup", "Follow-Up"], ["citation_accuracy", "Citation"], ["source_quality", "Source Quality"], ["guidance", "Guidance"], ["completeness", "Completeness"], ["usefulness", "Usefulness"]];
+const DIMS = [
+  ["accuracy", "Accuracy", "Did the answer get the facts right?"], ["current_code", "Current Code", "Did it identify the correct current code or regulation?"],
+  ["interpretation", "Interpretation", "Did it interpret the law or regulation correctly?"], ["calculation", "Calculation", "Did it calculate numbers, areas, or thresholds correctly?"],
+  ["context", "Context", "Did it understand the property, jurisdiction, and user context?"], ["missing_info", "Missing Info", "Did it recognize important missing information?"],
+  ["followup", "Follow-Up", "Did it handle follow-up questions and clarifications appropriately?"], ["citation_accuracy", "Citation", "Were the cited sources accurate and correctly connected to the claims?"],
+  ["source_quality", "Source Quality", "Did it use authoritative, relevant sources?"], ["guidance", "Guidance", "Did it provide clear, practical next-step guidance?"],
+  ["completeness", "Completeness", "Did it cover all important parts of the question?"], ["usefulness", "Usefulness", "Would this answer be professionally useful as delivered?"],
+];
 const EVALUATION_COLUMNS = [
   { key: "model", label: "Model", type: "natural" },
   { key: "score", label: "Weighted", type: "score", getValue: (row) => row.evaluation?.overall_score },
@@ -902,8 +909,8 @@ function EvalModal({ data, setData, config, tc, onDone }) {
         </Button>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {DIMS.map(([k, label]) => (
-          <Field key={k} label={label}>
+        {DIMS.map(([k, label, question]) => (
+          <Field key={k} label={label} description={question}>
             <ScoreSelect value={data.scores[k]} onChange={(value) => set(k, value)} testId={`score-${k}`} ariaLabel={`${label} score`} />
           </Field>
         ))}

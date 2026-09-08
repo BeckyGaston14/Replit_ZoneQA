@@ -13,7 +13,7 @@ export const SCORE_RUBRIC = Object.freeze([
 ]);
 
 export function scoreRubricReason(value) {
-  if (value === null || value === undefined || value === "" || !Number.isFinite(Number(value))) return "Not scored — use blank when evidence is insufficient or the dimension does not apply.";
+  if (value === null || value === undefined || value === "" || value === "N/A" || !Number.isFinite(Number(value))) return "Not scored — missing evidence and Not Applicable (N/A) dimensions are excluded from the score, never treated as zero.";
   const score = Math.max(0, Math.min(10, Math.round(Number(value))));
   return SCORE_RUBRIC.find(([number]) => number === score)?.[1] || "";
 }

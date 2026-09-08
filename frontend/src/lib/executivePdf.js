@@ -281,7 +281,7 @@ function tableHeight(doc, table) {
 
 export function renderExecutivePdf({ doc, data, chartImages = {}, generated = new Date().toLocaleDateString() }) {
   const kpis = data?.kpis || {};
-  const categories = data?.categories || [];
+  const categories = data?.reporting_groups?.length ? data.reporting_groups : (data?.categories || []);
   const failureModes = data?.failure_modes || [];
   const takeaways = [
     number(kpis.bassett_avg) !== null && number(kpis.benchmark_avg) !== null
@@ -296,7 +296,7 @@ export function renderExecutivePdf({ doc, data, chartImages = {}, generated = ne
         ? "No outright head-to-head wins or losses are recorded in the current evaluated scope."
         : "Head-to-head results are unavailable until comparable model evaluations are recorded.",
     categories.length > 1
-      ? `Strongest category: ${categories[0].category} (${fmtScore(categories[0].avg_score)}/10). Weakest: ${categories[categories.length - 1].category} (${fmtScore(categories[categories.length - 1].avg_score)}/10).`
+       ? `Strongest reporting group: ${categories[0].label || categories[0].category} (${fmtScore(categories[0].score ?? categories[0].avg_score)}/10). Weakest: ${categories[categories.length - 1].label || categories[categories.length - 1].category} (${fmtScore(categories[categories.length - 1].score ?? categories[categories.length - 1].avg_score)}/10).`
       : null,
     kpis.open_critical > 0
       ? `${kpis.open_critical} open critical finding${kpis.open_critical === 1 ? "" : "s"} require resolution before the next release.`
@@ -337,11 +337,13 @@ export function renderExecutivePdf({ doc, data, chartImages = {}, generated = ne
       table: { headers: ["Failure mode", "Count"], widths: [145, 37], rows: failureModes.map((item) => [item.mode, item.count]) },
     },
     {
-      name: "Bassett Category Performance",
-      title: "Bassett Category Performance",
-      note: "Scale: 0–10. Averages use scored Bassett evaluations in the report scope.",
+       // Keep the internal box name stable for layout/audit consumers; the
+       // visible title and table headers use the reporting-group terminology.
+       name: "Bassett Category Performance",
+       title: "Bassett Reporting Group Performance",
+       note: "Scale: 0–10. Configured-weight averages use applicable underlying dimensions in the report scope.",
       image: chartImages.categories,
-      table: { headers: ["Category", "Average score out of 10"], widths: [145, 37], rows: categories.map((item) => [item.category, formatEvaluationScore(item.avg_score)]) },
+       table: { headers: ["Reporting group", "Average score out of 10"], widths: [145, 37], rows: categories.map((item) => [item.label || item.category, formatEvaluationScore(item.score ?? item.avg_score)]) },
     },
   ];
 

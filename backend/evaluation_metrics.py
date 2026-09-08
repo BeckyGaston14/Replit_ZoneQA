@@ -1,6 +1,15 @@
 """Authoritative evaluation scoring and analytical read-model helpers."""
 
 COMPARISON_MODELS = ("Bassett", "ChatGPT", "Claude")
+REPORTING_GROUPS = (
+    {"key": "answer_accuracy", "label": "Answer Accuracy", "dimensions": ("accuracy", "current_code", "calculation")},
+    {"key": "regulatory_analysis", "label": "Regulatory Analysis", "dimensions": ("interpretation",)},
+    {"key": "context_limitations", "label": "Context & Limitations", "dimensions": ("context", "missing_info")},
+    {"key": "conversation_handling", "label": "Conversation Handling", "dimensions": ("followup",)},
+    {"key": "evidence_quality", "label": "Evidence Quality", "dimensions": ("citation_accuracy", "source_quality")},
+    {"key": "completeness", "label": "Completeness", "dimensions": ("completeness",)},
+    {"key": "professional_usefulness", "label": "Professional Usefulness", "dimensions": ("guidance", "usefulness")},
+)
 CANONICAL_EVALUATION_RESULTS = (
     "Pass",
     "Pass with Minor Issues",
@@ -154,6 +163,58 @@ def score_evaluation(scores, dimensions):
         "score_label": score_label,
         "weight_explanation": weight_explanation,
     }
+
+
+def reporting_group_averages(evaluations, dimensions):
+    """Aggregate applicable stored dimension values into reporting-only groups.
+
+    This intentionally aggregates weighted values and weights across all
+    evaluations instead of averaging per-evaluation or per-dimension averages.
+    """
+    configured = {
+        dimension.get("key"): {
+            "label": dimension.get("label") or dimension.get("key"),
+            "weight": _safe_weight(dimension.get("weight")),
+        }
+        for dimension in dimensions or []
+        if dimension.get("key")
+    }
+    groups = []
+    for group in REPORTING_GROUPS:
+        numerator = 0.0
+        denominator = 0.0
+        scored_value_count = 0
+        for evaluation in evaluations or []:
+            scores = evaluation.get("scores") or {}
+            for key in group["dimensions"]:
+                raw_value = scores.get(key)
+                if raw_value in (None, "", "N/A"):
+                    continue
+                try:
+                    value = float(raw_value)
+                except (TypeError, ValueError):
+                    continue
+                if not 0 <= value <= 10:
+                    continue
+                weight = configured.get(key, {}).get("weight", 1)
+                numerator += value * weight
+                denominator += weight
+                scored_value_count += 1
+        groups.append({
+            **group,
+            "dimensions": [
+                {
+                    "key": key,
+                    "label": configured.get(key, {}).get("label", key),
+                    "weight": configured.get(key, {}).get("weight", 1),
+                }
+                for key in group["dimensions"]
+            ],
+            "score": round(numerator / denominator, 1) if denominator else None,
+            "scored_value_count": scored_value_count,
+            "evaluation_count": len(evaluations or []),
+        })
+    return groups
 
 
 def _safe_weight(value):

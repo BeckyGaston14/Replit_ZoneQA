@@ -39,6 +39,12 @@ def test_unscored_evaluation_is_not_evaluated(monkeypatch):
     assert result["system_recommended"] == "Not Evaluated"
 
 
+def test_not_applicable_is_accepted_as_unscored(monkeypatch):
+    monkeypatch.setattr(server, "db", _Db())
+    result = asyncio.run(server._evaluation_score_fields({"accuracy": "N/A", "usefulness": 8}))
+    assert result["overall_score"] == 8.0
+
+
 def test_score_values_outside_zero_to_ten_are_rejected(monkeypatch):
     monkeypatch.setattr(server, "db", _Db())
     with pytest.raises(HTTPException) as exc:
