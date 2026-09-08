@@ -5,9 +5,16 @@ import { Attachments } from "./Attachments";
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 let mockQueryState;
 jest.mock("@tanstack/react-query", () => ({ useQuery: () => mockQueryState, useQueryClient: () => ({ invalidateQueries: jest.fn() }) }));
-jest.mock("../lib/api", () => ({ api: { post: jest.fn(() => Promise.resolve({})), delete: jest.fn(), get: jest.fn() }, formatApiErrorDetail: () => "attachments unavailable" }));
+jest.mock("../lib/api", () => ({
+  api: { post: jest.fn(() => Promise.resolve({})), delete: jest.fn(), get: jest.fn() },
+  formatApiErrorDetail: (detail) => detail || "attachments unavailable",
+}));
 jest.mock("./ui/button", () => ({ Button: ({ children, ...props }) => <button {...props}>{children}</button> }));
 jest.mock("sonner", () => ({ toast: { success: jest.fn(), error: jest.fn() } }));
+
+beforeEach(() => {
+  jest.clearAllMocks();
+});
 
 function render() {
   const container = document.createElement("div"); const root = createRoot(container);
@@ -42,5 +49,51 @@ test.each([320, 375])("long attachment names wrap and icon actions stay named an
   expect(name.className).not.toContain("truncate");
   expect(download.className).toContain("icon-action");
   expect(remove.className).toContain("icon-action");
+  act(() => view.root.unmount());
+});
+
+test("successful upload refreshes the list and authorized download opens the blob", async () => {
+  const { api } = require("../lib/api");
+  api.post.mockResolvedValueOnce({ data: { id: "new-attachment" } });
+  api.get.mockResolvedValueOnce({ data: new Blob(["evidence"], { type: "text/plain" }) });
+  global.URL.createObjectURL = jest.fn(() => "blob:evidence");
+  global.URL.revokeObjectURL = jest.fn();
+  mockQueryState = { data: [], isError: false, isLoading: false };
+  const view = render();
+  const input = view.container.querySelector('[data-testid="attach-file-input"]');
+  const file = new File(["evidence"], "evidence.txt", { type: "text/plain" });
+  Object.defineProperty(input, "files", { configurable: true, value: [file] });
+  await act(async () => {
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    await Promise.resolve();
+  });
+  expect(api.post).toHaveBeenCalledWith("/attachments/upload", expect.any(FormData), expect.objectContaining({ timeout: 15000 }));
+  expect(require("sonner").toast.success).toHaveBeenCalledWith("1 file attached");
+
+  mockQueryState = { data: [{ id: "a3", original_filename: "evidence.txt", content_type: "text/plain", size: 8, uploaded_by: "Tester" }], isError: false, isLoading: false };
+  act(() => view.root.unmount());
+  const reopened = render();
+  await act(async () => {
+    reopened.container.querySelector('[data-testid="attachment-download"]').click();
+    await Promise.resolve();
+  });
+  expect(api.get).toHaveBeenCalledWith("/attachments/a3/download", { responseType: "blob" });
+  expect(global.URL.createObjectURL).toHaveBeenCalled();
+  act(() => reopened.root.unmount());
+});
+
+test("failed upload is announced without hiding the saved record", async () => {
+  const { api } = require("../lib/api");
+  api.post.mockRejectedValueOnce({ response: { data: { detail: "Storage unavailable" } } });
+  mockQueryState = { data: [], isError: false, isLoading: false };
+  const view = render();
+  const input = view.container.querySelector('[data-testid="attach-file-input"]');
+  Object.defineProperty(input, "files", { configurable: true, value: [new File(["evidence"], "evidence.txt")] });
+  await act(async () => {
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    await Promise.resolve();
+  });
+  expect(require("sonner").toast.error).toHaveBeenCalledWith("Storage unavailable");
+  expect(view.container.textContent).toContain("No files yet");
   act(() => view.root.unmount());
 });

@@ -3591,7 +3591,8 @@ async def bassett_create_workflow(
                 "idempotent_replay": True,
             }
         return {
-            "issue": result, "finding": finding, "attachments": attachment_documents,
+            "issue": result, "finding": finding,
+            "attachments": [_public_attachment(item) for item in attachment_documents],
             "evaluation": authoritative, "idempotent_replay": False,
         }
     except Exception:
@@ -3732,10 +3733,11 @@ async def bassett_convert_to_finding(id: str, body: Dict[str, Any] = None, user=
         if issue.get("test_type") != "Multi-turn" or turn_id not in valid_turn_ids:
             raise HTTPException(400, "Finding turn linkage must reference a valid multi-turn")
     finding = {
-        "id": new_id(), "title": issue.get("title") or issue.get("question_asked", "")[:120],
-        "description": issue.get("exact_bassett_answer", ""), "expected_behavior": issue.get("verified_correct_answer", ""),
+        "id": new_id(), "title": body.get("title") or issue.get("title") or issue.get("question_asked", "")[:120],
+        "description": body.get("description") or issue.get("exact_bassett_answer", ""),
+        "expected_behavior": body.get("expected_behavior") or issue.get("verified_correct_answer", ""),
         "project_id": issue.get("project_id"), "testcase_id": issue.get("testcase_id"),
-        "developer_status": "New", "criticality": issue.get("severity", "Medium"),
+        "developer_status": "New", "criticality": body.get("criticality") or issue.get("severity", "Medium"),
         "bassett_issue_id": id, "created_at": now_iso(), "created_by": user.get("name"),
         "bassett_turn_id": turn_id or None,
         "updated_at": now_iso(),
@@ -6364,6 +6366,12 @@ ATTACH_ENTITY_COLLECTIONS = {
 ATTACH_ENTITIES = set(ATTACH_ENTITY_COLLECTIONS)
 ATTACHMENT_RESTORE_RETENTION = timedelta(days=30)
 
+def _public_attachment(document):
+    """Return attachment metadata without exposing the private storage key."""
+    item = clean(document)
+    item.pop("storage_path", None)
+    return item
+
 async def _attachment_is_visible(attachment):
     parent_checks = [
         (attachment.get("entity_type"), attachment.get("entity_id")),
@@ -6444,7 +6452,7 @@ async def upload_attachment(entity_type: str = Form(...), entity_id: str = Form(
                          path, cleanup_error)
         raise
     await log_activity(entity_type, entity_id, "attachment uploaded", user, file.filename)
-    return clean(doc)
+    return _public_attachment(doc)
 
 @api.get("/attachments")
 async def list_attachments(entity_type: str, entity_id: str, user=Depends(get_current_user)):
@@ -6464,7 +6472,7 @@ async def list_attachments(entity_type: str, entity_id: str, user=Depends(get_cu
     for attachment in attachments:
         if user.get("role") == "viewer" and attachment.get("is_deleted"):
             continue
-        item = clean(attachment)
+        item = _public_attachment(attachment)
         if item.get("is_deleted"):
             item["status"] = "deleted"
             try:

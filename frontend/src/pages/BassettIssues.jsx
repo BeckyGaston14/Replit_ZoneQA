@@ -27,6 +27,46 @@ import {
 const testStatuses = ["New", "Triaged", "In Progress", "Blocked", "Resolved", "Closed"];
 const DEFAULT_RUN_SORT = { key: "test_date", direction: "desc" };
 
+export async function persistBassettTestRun(form, apiClient = api) {
+  const files = form.attachments || [];
+  let issueId = form.id;
+  let createdData = null;
+  if (form.id) {
+    const body = { ...form };
+    delete body.attachments;
+    await apiClient.put(`/bassett/issues/${form.id}`, withExpectedVersion(form, body));
+    if (form.create_finding && !form.finding_id) {
+      await apiClient.post(`/bassett/issues/${form.id}/convert-to-finding`, {
+        title: form.finding?.title,
+        description: form.finding?.description,
+        turn_id: form.finding_turn_id || undefined,
+      });
+    }
+  } else {
+    const body = { ...form };
+    delete body.attachments;
+    const payload = new FormData();
+    payload.append("payload", JSON.stringify(body));
+    for (const file of files) payload.append("files", file);
+    const { data } = await apiClient.post("/bassett/issues/workflow", payload);
+    createdData = data;
+    issueId = data.issue?.id || data.id;
+  }
+  let uploadFailures = 0;
+  for (const file of form.id ? files : []) {
+    const upload = new FormData();
+    upload.append("entity_type", "bassett_issue");
+    upload.append("entity_id", issueId);
+    upload.append("file", file);
+    try {
+      await apiClient.post("/attachments/upload", upload, { timeout: 15000 });
+    } catch {
+      uploadFailures += 1;
+    }
+  }
+  return { issueId, uploadFailures, createdData };
+}
+
 function Pill({ children, tone = "slate" }) {
   const colors = { slate: "#64748b", orange: "#f97316", red: "#dc2626", green: "#16a34a", blue: "#2563eb" };
   return <span className="inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold text-white" style={{ background: colors[tone] }}>{children}</span>;
@@ -97,33 +137,10 @@ export default function BassettIssues() {
     if (saving) return;
     setSaving(true);
     try {
-      const files = form.attachments || [];
-      let issueId = form.id;
-      if (form.id) {
-        const body = { ...form };
-        delete body.attachments;
-        await api.put(`/bassett/issues/${form.id}`, withExpectedVersion(form, body));
-      } else {
-        const body = { ...form };
-        delete body.attachments;
-        const payload = new FormData();
-        payload.append("payload", JSON.stringify(body));
-        const { data } = await api.post("/bassett/issues/workflow", payload);
-        issueId = data.issue?.id || data.id;
+      const { issueId, uploadFailures } = await persistBassettTestRun(form);
+      if (!form.id) {
         setSelected(issueId);
         localStorage.removeItem("zoneqa:bassett-workflow-draft");
-      }
-      let uploadFailures = 0;
-      for (const file of files) {
-        const upload = new FormData();
-        upload.append("entity_type", "bassett_issue");
-        upload.append("entity_id", issueId);
-        upload.append("file", file);
-        try {
-          await api.post("/attachments/upload", upload, { timeout: 15000 });
-        } catch {
-          uploadFailures += 1;
-        }
       }
       if (uploadFailures) {
         toast.warning(`Test run saved, but ${uploadFailures} attachment${uploadFailures === 1 ? "" : "s"} could not be uploaded. Open the saved run to retry.`);
@@ -132,6 +149,7 @@ export default function BassettIssues() {
       }
       setConflict(null);
       setForm(null);
+      qc.invalidateQueries({ queryKey: ["attachments", "bassett_issue", issueId] });
       qc.invalidateQueries({ queryKey: ["bassett-test-runs"] });
       qc.invalidateQueries({ queryKey: ["bassett-metrics"] });
       qc.invalidateQueries({ queryKey: ["bassett-scenarios"] });
@@ -225,7 +243,9 @@ export default function BassettIssues() {
       </div>
     </Section>
 
-    {selected && <IssueDetail id={selected} onClose={() => setSelected(null)} onEdit={(issue) => { setSelected(null); setConflict(null); setForm(issue); }} onRestore={restore} canWrite={canWrite} canManage={canManage} refresh={() => qc.invalidateQueries()} />}
+     {selected && (showingFindings
+       ? <BassettFindingDetail id={selected} onClose={() => setSelected(null)} />
+       : <IssueDetail id={selected} onClose={() => setSelected(null)} onEdit={(issue) => { setSelected(null); setConflict(null); setForm(issue); }} onRestore={restore} canWrite={canWrite} canManage={canManage} refresh={() => qc.invalidateQueries()} />)}
     {form && <BassettTestRunForm form={form} setForm={setForm} scenarios={scenarios} versions={versions} projects={projects} municipalities={municipalities} properties={properties} users={users} config={config} onSubmit={save} onCancel={() => { setConflict(null); setForm(null); }} submitting={saving} conflictNotice={conflict && <div role="alert" className="col-span-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
       <p className="font-semibold">Someone else saved this test run first. Your entries are still open for review.</p>
       <div className="mt-2 flex gap-2">
@@ -261,6 +281,43 @@ function actionError(error, fallback) {
   if (error?.response?.status === 403) return "You do not have permission for this action.";
   if (error?.response?.status === 409) return "This record changed elsewhere. Refresh and retry.";
   return formatApiErrorDetail(error?.response?.data?.detail) || fallback;
+}
+
+function BassettFindingDetail({ id, onClose }) {
+  const drawerRef = useFocusTrap(true, onClose);
+  const { data: finding, isLoading, isError } = useQuery({
+    queryKey: ["bassett-finding", id],
+    queryFn: async () => (await api.get(`/findings/${id}`)).data,
+  });
+  const sourceRun = finding?.bassett_issue_id;
+
+  return <div className="fixed inset-0 z-40 bg-black/20 flex justify-end" onClick={(event) => event.target === event.currentTarget && onClose()} role="presentation">
+    <aside ref={drawerRef} tabIndex="-1" role="dialog" aria-modal="true" aria-labelledby="bassett-finding-detail-title" className="bg-card h-full w-full max-w-2xl overflow-y-auto p-6 shadow-xl">
+      <div className="flex items-start justify-between gap-4 mb-6">
+        <div className="min-w-0">
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">Bassett Finding Details</div>
+          <h2 id="bassett-finding-detail-title" className="text-xl font-bold font-display text-[var(--navy)] mt-1 break-words">{finding?.title || "Finding"}</h2>
+        </div>
+        <Button type="button" variant="ghost" className="shrink-0" onClick={onClose} aria-label="Close Bassett Finding Details">Close</Button>
+      </div>
+      {isLoading && <div className="text-sm text-muted-foreground">Loading Bassett Finding Details…</div>}
+      {isError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">Unable to load this Bassett finding.</div>}
+      {finding && <div className="space-y-5 text-sm">
+        <div className="flex flex-wrap gap-2"><Pill>{finding.developer_status || "New"}</Pill><Pill tone="orange">{finding.criticality || finding.severity || "Medium"}</Pill></div>
+        <Info label="Description" value={finding.description || "—"} />
+        <Info label="Expected behavior" value={finding.expected_behavior || "—"} />
+        {finding.actual_behavior && <Info label="Actual Bassett behavior" value={finding.actual_behavior} />}
+        {finding.bassett_turn_id && <Info label="Linked turn" value={finding.bassett_turn_id} />}
+        <div className="rounded-xl border p-4">
+          <div className="font-semibold text-[var(--navy)] mb-2">Relationships</div>
+          {sourceRun
+            ? <Link to={`/bassett/issues?open=${encodeURIComponent(sourceRun)}`} className="font-semibold text-[var(--orange)] hover:underline">Open source Bassett Test Run →</Link>
+            : <span className="text-muted-foreground">No source Bassett Test Run is linked.</span>}
+        </div>
+        <Attachments entityType="finding" entityId={finding.id} canWrite={false} />
+      </div>}
+    </aside>
+  </div>;
 }
 
 function IssueDetail({ id, onClose, onEdit, onRestore, canWrite, canManage, refresh }) {
@@ -299,7 +356,7 @@ function IssueDetail({ id, onClose, onEdit, onRestore, canWrite, canManage, refr
   return <div className="fixed inset-0 z-40 bg-black/20 flex justify-end" onClick={(event) => event.target === event.currentTarget && onClose()} role="presentation"><aside ref={drawerRef} tabIndex="-1" role="dialog" aria-modal="true" aria-labelledby="bassett-issue-detail-title" className="bg-card h-full w-full max-w-2xl overflow-y-auto p-6 shadow-xl">
     <div className="flex items-start justify-between gap-4 mb-6"><div className="min-w-0"><div className="text-xs uppercase tracking-wide text-muted-foreground">Test Run Details</div><h2 id="bassett-issue-detail-title" className="text-xl font-bold font-display text-[var(--navy)] mt-1 break-words">{issue.title || issue.question_asked}</h2><div className="flex flex-wrap gap-2 mt-2"><Pill>{issue.status}</Pill><Pill tone={issue.severity === "Critical" ? "red" : "orange"}>{issue.severity}</Pill></div></div><Button type="button" variant="ghost" className="shrink-0" onClick={onClose} aria-label="Close Test Run Details">Close</Button></div>
      <div className="space-y-5 text-sm"><Info label="Test type" value={issue.test_type || "Single Prompt"} />{issue.test_type === "Multi-turn" ? <div className="rounded-xl border p-4"><div className="font-semibold text-[var(--navy)] mb-3">Chronological conversation</div><div className="space-y-4">{(issue.turns || []).slice().sort((a, b) => Number(a.order || 0) - Number(b.order || 0)).map((turn, index) => <article key={turn.id} id={`bassett-turn-${turn.id}`} className={`rounded-lg border p-3 ${issue.finding_turn_id === turn.id ? "border-[var(--orange)] bg-orange-50/40" : ""}`}><div className="flex items-center justify-between gap-2"><h3 className="font-semibold text-[var(--navy)]">Turn {index + 1}</h3><span className="text-[11px] text-muted-foreground">ID: {turn.id}</span></div><Info label="Prompt" value={turn.prompt} /><div className="mt-3"><Info label="Bassett response" value={turn.response} /></div>{turn.citations?.length > 0 && <div className="mt-3"><Info label="Citations / sources" value={turn.citations.join("\n")} /></div>}{turn.evaluator_notes && <div className="mt-3"><Info label="Evaluator notes" value={turn.evaluator_notes} /></div>}{issue.finding_turn_id === turn.id && <div className="mt-2 text-xs font-semibold text-[var(--orange)]">Linked finding targets this turn</div>}</article>)}</div></div> : <><Info label="Question asked" value={issue.question_asked} /><Info label="Exact Bassett answer" value={issue.exact_bassett_answer} /></>}<Info label="Verified correct answer" value={issue.verified_correct_answer} /><Info label="Resolution / notes" value={issue.resolution || issue.notes || "No resolution recorded yet."} />
-       <div className="rounded-xl border p-4"><div className="font-semibold text-[var(--navy)] mb-3">Relationships</div><div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs"><Info label="Test Bank scenario" value={issue.scenario?.stable_id || "Not linked"} /><Info label="Bassett Finding" value={issue.finding?.id ? <><Link to={`/bassett/findings?open=${encodeURIComponent(issue.finding.id)}`} className="font-semibold text-[var(--orange)] hover:underline">Open Bassett Finding</Link>{issue.finding_turn_id ? <span className="block text-muted-foreground">Linked to turn {issue.turns?.findIndex((turn) => turn.id === issue.finding_turn_id) + 1}</span> : <span className="block text-muted-foreground">Linked to overall conversation</span>}</> : "Not linked"} /><Info label="Bassett version" value={issue.bassett_version || "—"} /><Info label="Tested By" value={issue.reporter || "—"} /></div><div className="flex flex-wrap gap-2 mt-4">{canWrite && <Button size="sm" variant="outline" onClick={linkFinding}><ExternalLink size={14} /> Link Bassett Finding</Button>}{(issue.result === "Partial" || issue.result === "Fail" || issue.status === "Blocked") && canWrite && !issue.finding_id && <Button size="sm" variant="outline" onClick={convert}><Flag size={14} /> Create Bassett Finding</Button>}{(issue.result === "Partial" || issue.result === "Fail" || issue.status === "Blocked") && canWrite && issue.finding_id && <Button size="sm" variant="outline" onClick={sendForRetest}>Send for Retest</Button>}</div></div>
+       <div className="rounded-xl border p-4"><div className="font-semibold text-[var(--navy)] mb-3">Relationships</div><div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs"><Info label="Test Bank scenario" value={issue.scenario?.stable_id || "Not linked"} /><Info label="Bassett Finding" value={issue.finding?.id ? <><Link to={`/bassett/issues?view=findings&open=${encodeURIComponent(issue.finding.id)}`} className="font-semibold text-[var(--orange)] hover:underline">Open Bassett Finding</Link>{issue.finding_turn_id ? <span className="block text-muted-foreground">Linked to turn {issue.turns?.findIndex((turn) => turn.id === issue.finding_turn_id) + 1}</span> : <span className="block text-muted-foreground">Linked to overall conversation</span>}</> : "Not linked"} /><Info label="Bassett version" value={issue.bassett_version || "—"} /><Info label="Tested By" value={issue.reporter || "—"} /></div><div className="flex flex-wrap gap-2 mt-4">{canWrite && <Button size="sm" variant="outline" onClick={linkFinding}><ExternalLink size={14} /> Link Bassett Finding</Button>}{(issue.result === "Partial" || issue.result === "Fail" || issue.status === "Blocked") && canWrite && !issue.finding_id && <Button size="sm" variant="outline" onClick={convert}><Flag size={14} /> Create Bassett Finding</Button>}{(issue.result === "Partial" || issue.result === "Fail" || issue.status === "Blocked") && canWrite && issue.finding_id && <Button size="sm" variant="outline" onClick={sendForRetest}>Send for Retest</Button>}</div></div>
       {issue.definition_snapshot || issue.scenario_snapshot ? <div className="rounded-xl border p-4"><div className="font-semibold text-[var(--navy)] mb-3">Scenario definition snapshot</div><ScenarioDefinition scenario={issue.definition_snapshot || issue.scenario_snapshot} /></div> : <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">Legacy execution—definition snapshot unavailable.</div>}
       {(issue.result === "Partial" || issue.result === "Fail" || issue.status === "Blocked") && <div className="rounded-xl border p-4"><div className="font-semibold text-[var(--navy)] mb-3">Model Comparison follow-up</div>{issue.testcase_id ? <Link to={`/testcases/${issue.testcase_id}`} className="inline-flex h-8 items-center justify-center rounded-md border border-input px-3 text-xs font-medium shadow-sm hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">Open Model Comparison Test Case</Link> : canWrite ? <Button size="sm" onClick={expand}>Expand to Full Model Comparison</Button> : <span className="text-sm text-muted-foreground">No Model Comparison has been created. This Bassett Test Run remains unchanged.</span>}</div>}
       <Attachments entityType="bassett_issue" entityId={issue.id} canWrite={canWrite && !issue.archived && issue.status !== "Archived"} />
@@ -311,5 +368,5 @@ function IssueDetail({ id, onClose, onEdit, onRestore, canWrite, canManage, refr
 }
 function Info({ label, value }) { return <div><div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">{label}</div><div className="whitespace-pre-wrap">{value}</div></div>; }
 
-export { ScenarioSelector, ScenarioDefinition };
+export { ScenarioSelector, ScenarioDefinition, BassettFindingDetail, actionError };
 

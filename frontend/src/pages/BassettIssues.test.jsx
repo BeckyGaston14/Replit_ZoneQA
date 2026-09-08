@@ -1,6 +1,6 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import BassettIssues, { ScenarioSelector } from "./BassettIssues";
+import BassettIssues, { ScenarioSelector, actionError, persistBassettTestRun } from "./BassettIssues";
 import BassettTestBank, { ResultPill, ScenarioDetail } from "./BassettTestBank";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -38,8 +38,10 @@ jest.mock("../lib/auth", () => ({
 }));
 
 jest.mock("../lib/api", () => ({
-  api: { get: jest.fn(() => Promise.resolve({ data: [] })) },
+  api: { get: jest.fn(() => Promise.resolve({ data: [] })), post: jest.fn(), put: jest.fn() },
   formatApiErrorDetail: (detail) => String(detail || ""),
+  staleUpdateMessage: () => "",
+  withExpectedVersion: (_form, body) => body,
 }));
 
 jest.mock("@tanstack/react-query", () => ({
@@ -50,6 +52,8 @@ jest.mock("@tanstack/react-query", () => ({
         ? mockIssues
       : queryKey[0] === "bassett-issue"
         ? mockIssues.find((issue) => issue.id === queryKey[1])
+      : queryKey[0] === "bassett-finding"
+        ? { id: queryKey[1], title: "Conversation finding", description: "Needs review", developer_status: "New", criticality: "High", bassett_issue_id: "run-1" }
       : queryKey[0] === "bassett-scenario"
         ? { id: "scenario-1", stable_id: "R-01", test_scenario: "Setback research", workflow_stage: "Research", report_type: "Property", complexity: "Medium", issues: [{ id: "run-1", result: "Partial", status: "New", test_date: "2025-01-01", question_asked: "Question" }], executions: [] }
         : [],
@@ -101,6 +105,47 @@ test("Bassett findings view is explicitly labeled and stays in the Bassett-only 
   expect(container.textContent).toContain("Bassett Test Runs");
   expect(container.textContent).not.toContain("Model Comparison Findings");
   act(() => root.unmount());
+});
+
+test("Bassett finding detail links back to its source run", () => {
+  mockBassettSearchParams = new URLSearchParams("view=findings&open=finding-1");
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  act(() => root.render(<BassettIssues />));
+  expect(container.querySelector('a[href="/bassett/issues?open=run-1"]').textContent).toContain("Open source Bassett Test Run");
+  act(() => root.unmount());
+});
+
+test("save orchestration persists findings and sends new-run files atomically", async () => {
+  const existingApi = {
+    put: jest.fn(() => Promise.resolve({ data: {} })),
+    post: jest.fn(() => Promise.resolve({ data: {} })),
+  };
+  await persistBassettTestRun({
+    id: "run-1",
+    create_finding: true,
+    finding_turn_id: "turn-2",
+    finding: { title: "Turn finding", description: "Needs review" },
+  }, existingApi);
+  expect(existingApi.put).toHaveBeenCalledWith("/bassett/issues/run-1", expect.any(Object));
+  expect(existingApi.post).toHaveBeenCalledWith("/bassett/issues/run-1/convert-to-finding", {
+    title: "Turn finding", description: "Needs review", turn_id: "turn-2",
+  });
+
+  const file = new File(["evidence"], "evidence.txt", { type: "text/plain" });
+  const createApi = { post: jest.fn(() => Promise.resolve({ data: { issue: { id: "run-2" } } })) };
+  const result = await persistBassettTestRun({ attachments: [file], scenario_id: "scenario-1" }, createApi);
+  expect(result.issueId).toBe("run-2");
+  const workflowPayload = createApi.post.mock.calls[0][1];
+  expect(workflowPayload).toBeInstanceOf(FormData);
+  expect(workflowPayload.get("files")).toBe(file);
+
+  const failure = { response: { status: 400, data: { detail: "Finding turn linkage is invalid" } } };
+  await expect(persistBassettTestRun({ id: "run-3", create_finding: true }, {
+    put: jest.fn(() => Promise.resolve({ data: {} })),
+    post: jest.fn(() => Promise.reject(failure)),
+  })).rejects.toBe(failure);
+  expect(actionError(failure, "Unable to save test run")).toBe("Finding turn linkage is invalid");
 });
 
 test("scenario selector searches and displays the full scenario identity", () => {
@@ -209,7 +254,7 @@ test("viewer rows use a named button and the async details drawer traps and rest
   expect(drawer.textContent).not.toContain("Edit Test Run");
   expect(drawer.querySelector("a button")).toBeNull();
   expect(drawer.textContent).toContain("Bassett Finding");
-  expect(drawer.querySelector('a[href="/bassett/findings?open=finding-1"]').textContent).toBe("Open Bassett Finding");
+  expect(drawer.querySelector('a[href="/bassett/issues?view=findings&open=finding-1"]').textContent).toBe("Open Bassett Finding");
   expect(drawer.querySelector('a[href="/testcases/test-1"]').textContent).toBe("Open Model Comparison Test Case");
   act(() => {
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true }));
