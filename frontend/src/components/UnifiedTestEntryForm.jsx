@@ -10,6 +10,8 @@ import { todayInTimeZone } from "../lib/testDates";
 import { SCORE_RUBRIC, hasScoredDimension } from "../lib/scoreRubric";
 import { ScoreSelect } from "./ScoreSelect";
 import { CANONICAL_EVALUATION_RESULTS, normalizeEvaluationResult } from "../lib/evaluationResults";
+import { ConfirmActionDialog } from "./ConfirmActionDialog";
+import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 
 export const BASSETT_RESULT_OPTIONS = [...CANONICAL_EVALUATION_RESULTS];
 export const COMPARISON_RESULT_OPTIONS = [...CANONICAL_EVALUATION_RESULTS];
@@ -26,6 +28,7 @@ const DRAFT_KEYS = { bassett: "zoneqa:bassett-workflow-draft", comparison: "zone
 
 export const emptyBassettTestRun = {
   title: "", question_asked: "", exact_bassett_answer: "", verified_correct_answer: "",
+  test_type: "Single Prompt", turns: [],
   issue_category: "General", severity: "Medium", priority: "Medium", environment: "",
   test_date: "", scenario_id: "", project_id: "", municipality_id: "", property_id: "",
   version_id: "", bassett_version: "", result: "Pass", score: "", notes: "", evidence: "",
@@ -175,7 +178,9 @@ function GuidedSection({ index, title, active, status, onActivate, children, com
 
 function progressFor(form, mode) {
   const fields = mode === "bassett"
-    ? [["scenario_id", form.scenario_id], ["question_asked", form.question_asked], ["exact_bassett_answer", form.exact_bassett_answer], ["verified_correct_answer", form.verified_correct_answer], ["test_date", form.test_date]]
+    ? [["scenario_id", form.scenario_id], ...(form.test_type === "Multi-turn"
+      ? [["turns", (form.turns || []).every((turn) => String(turn.prompt || "").trim() && String(turn.response || "").trim()) && (form.turns || []).length]]
+      : [["question_asked", form.question_asked], ["exact_bassett_answer", form.exact_bassett_answer], ["verified_correct_answer", form.verified_correct_answer]]), ["test_date", form.test_date]]
     : [["scenario_id", form.scenario_id], ["name", form.name], ["prompt", form.prompts?.[0]?.text], ["gold_standard_answer", form.gold_standard_answer], ["exact_bassett_answer", form.exact_bassett_answer], ["test_date", form.test_date]];
   const complete = fields.filter(([, value]) => String(value || "").trim()).length;
   return { complete, total: fields.length, ready: complete === fields.length };
@@ -183,6 +188,15 @@ function progressFor(form, mode) {
 
 function validate(form, mode) {
   if (mode === "bassett") {
+    if (form.test_type === "Multi-turn") {
+      if (!Array.isArray(form.turns) || !form.turns.length || form.turns.some((turn) => !String(turn.prompt || "").trim() || !String(turn.response || "").trim())) {
+        return "Add at least one complete multi-turn prompt and response.";
+      }
+      if (hasScoredDimension(form.evaluation_scores) && String(form.score_rationale || "").trim().length < 20) return "Explain the Bassett scores in the Score rationale using at least 20 characters.";
+      if (!String(form.scenario_id || "").trim()) return "A Test Bank scenario is required";
+      if (!String(form.test_date || "").trim()) return "The test date is required";
+      return null;
+    }
     const required = [
       ["scenario_id", "A Test Bank scenario is required"],
       ["question_asked", "The question asked is required"],
@@ -231,6 +245,57 @@ function ReviewSummary({ mode, progress, sectionStatus, sectionIssue, activateSe
       })}
     </ol>
   </section>;
+}
+
+function newTurn(order) {
+  const id = globalThis.crypto?.randomUUID?.() || `turn-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return { id, order, prompt: "", response: "", citations: [], evaluator_notes: "" };
+}
+
+function TurnBuilder({ turns = [], onChange, disabled = false, findingTurnId, onFindingTurnChange }) {
+  const [removing, setRemoving] = useState(null);
+  const ordered = [...turns].sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+  const update = (id, key, value) => onChange(ordered.map((turn) => turn.id === id ? { ...turn, [key]: value } : turn));
+  const move = (index, direction) => {
+    const next = [...ordered];
+    const target = index + direction;
+    if (target < 0 || target >= next.length) return;
+    [next[index], next[target]] = [next[target], next[index]];
+    onChange(next.map((turn, position) => ({ ...turn, order: position + 1 })));
+  };
+  const remove = () => {
+    const next = ordered.filter((turn) => turn.id !== removing).map((turn, index) => ({ ...turn, order: index + 1 }));
+    onChange(next);
+    if (findingTurnId === removing) onFindingTurnChange?.("");
+    setRemoving(null);
+  };
+  return <div className="sm:col-span-2 space-y-3" data-testid="multi-turn-builder">
+    <div className="rounded-lg border border-[var(--orange)] bg-orange-50 p-3 text-sm">
+      <div className="font-semibold text-[var(--navy)]">Multi-turn conversation</div>
+      <p className="mt-1 text-xs text-muted-foreground">Enter each prompt and Bassett response in order. Citations and evaluator notes stay attached to that turn.</p>
+    </div>
+    {ordered.map((turn, index) => <div key={turn.id} className="rounded-xl border p-3 space-y-3" data-testid={`turn-${index + 1}`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h4 className="font-semibold text-[var(--navy)]">Turn {index + 1}</h4>
+        <div className="flex items-center gap-1">
+          <Button type="button" size="sm" variant="outline" aria-label={`Move turn ${index + 1} up`} disabled={disabled || index === 0} onClick={() => move(index, -1)}><ArrowUp size={14} /> <span className="sr-only sm:not-sr-only">Move Up</span></Button>
+          <Button type="button" size="sm" variant="outline" aria-label={`Move turn ${index + 1} down`} disabled={disabled || index === ordered.length - 1} onClick={() => move(index, 1)}><ArrowDown size={14} /> <span className="sr-only sm:not-sr-only">Move Down</span></Button>
+          <Button type="button" size="sm" variant="ghost" aria-label={`Remove turn ${index + 1}`} disabled={disabled} onClick={() => setRemoving(turn.id)}><Trash2 size={14} /></Button>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-3">
+        <Field label="Prompt" required><Textarea rows={3} value={turn.prompt || ""} disabled={disabled} onChange={(e) => update(turn.id, "prompt", e.target.value)} /></Field>
+        <Field label="Bassett response" required><Textarea rows={5} value={turn.response || ""} disabled={disabled} onChange={(e) => update(turn.id, "response", e.target.value)} /></Field>
+        <Field label="Citations / source references" description="One URL, citation, or source reference per line."><Textarea rows={2} value={(turn.citations || []).join("\n")} disabled={disabled} onChange={(e) => update(turn.id, "citations", e.target.value.split("\n").map((item) => item.trim()).filter(Boolean))} /></Field>
+        <Field label="Evaluator notes"><Textarea rows={2} value={turn.evaluator_notes || ""} disabled={disabled} onChange={(e) => update(turn.id, "evaluator_notes", e.target.value)} /></Field>
+      </div>
+      {onFindingTurnChange && <label className="flex items-center gap-2 text-xs"><input type="radio" name="finding-turn" checked={findingTurnId === turn.id} disabled={disabled} onChange={() => onFindingTurnChange(turn.id)} /> Link the new finding to this turn</label>}
+    </div>)}
+    {!ordered.length && <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">No turns yet. Add the first prompt and response.</div>}
+    <Button type="button" variant="outline" disabled={disabled} onClick={() => onChange([...ordered, newTurn(ordered.length + 1)])}><Plus size={14} /> Add turn</Button>
+    {onFindingTurnChange && ordered.length > 0 && <label className="ml-3 inline-flex items-center gap-2 text-xs"><input type="radio" name="finding-turn" checked={!findingTurnId} disabled={disabled} onChange={() => onFindingTurnChange("")} /> Link finding to overall conversation</label>}
+    <ConfirmActionDialog open={Boolean(removing)} onOpenChange={(open) => !open && setRemoving(null)} title="Remove this turn?" description="The turn will be removed from this conversation. This cannot be undone before saving." confirmLabel="Remove turn" onConfirm={remove} />
+  </div>;
 }
 
 export default function UnifiedTestEntryForm({
@@ -303,16 +368,22 @@ export default function UnifiedTestEntryForm({
       if (!String(form.test_date || "").trim()) return "Enter a test date.";
     }
     if (index === 1) {
+      if (!isComparison && form.test_type === "Multi-turn") {
+        if (!Array.isArray(form.turns) || !form.turns.length || form.turns.some((turn) => !String(turn.prompt || "").trim() || !String(turn.response || "").trim())) return "Add at least one complete multi-turn prompt and response.";
+        return null;
+      }
       if (!String(form.question_asked || form.prompts?.[0]?.text || "").trim()) return isComparison ? "Enter the prompt or question." : "Enter the question asked.";
       if (!String(form.verified_correct_answer || form.gold_standard_answer || "").trim()) return isComparison ? "Enter the Gold Standard answer." : "Enter the verified correct answer.";
     }
-    if (index === 2 && !String(form.exact_bassett_answer || responseFor("Bassett").response || "").trim()) {
+    if (index === 2 && (!isComparison && form.test_type === "Multi-turn" ? false : !String(form.exact_bassett_answer || responseFor("Bassett").response || "").trim())) {
       return isComparison ? "Enter the Bassett response." : "Enter the exact Bassett answer.";
     }
     if (index === 4 && form.create_finding && !String(finding.title || "").trim()) return "Enter a finding title.";
     return null;
   };
   const sectionHasValue = (index) => {
+    if (!isComparison && index === 1 && form.test_type === "Multi-turn") return Boolean(form.turns?.length);
+    if (!isComparison && index === 2 && form.test_type === "Multi-turn") return false;
     if (index === 3) return Object.values(evaluationFor("Bassett").scores || {}).some((value) => value !== null && value !== "");
     if (index === 4) return Boolean(form.create_finding || form.assignee_id);
     if (index === 5) return Boolean(form.source_links || form.evidence || form.notes || form.attachments?.length);
@@ -356,7 +427,7 @@ export default function UnifiedTestEntryForm({
     {conflictNotice}
     {!form.id && draftAvailable && <div className="rounded-lg border border-[var(--orange)] bg-orange-50 p-3 text-sm flex items-center justify-between gap-3"><span>A saved {isComparison ? "comparison" : "Bassett"} draft is available.</span><Button type="button" size="sm" variant="outline" onClick={recoverDraft}>Recover draft</Button></div>}
 
-    <GuidedSection index={0} title="1. Test Setup" active={activeSection === 0} status={sectionStatus(0)} onActivate={activateSection}><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+     <GuidedSection index={0} title="1. Test Setup" active={activeSection === 0} status={sectionStatus(0)} onActivate={activateSection}><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
        {!lockedCommon && <div className="sm:col-span-2"><ScenarioSelector scenarios={scenarios} value={form.scenario_id} onChange={(value) => update("scenario_id", value)} error={attemptedSections.has(0) && !String(form.scenario_id || "").trim() ? "Test Bank scenario is required." : undefined} /></div>}
       {selectedScenario && <div className="sm:col-span-2 rounded-xl border bg-[var(--paper)] p-4"><div className="font-semibold mb-3">Read-only Test Bank definition</div><ScenarioDefinition scenario={selectedScenario} /></div>}
       <Field label="Sequential Test ID"><Input value={form.test_id || "Assigned on save"} readOnly className="bg-muted" /></Field>
@@ -365,18 +436,20 @@ export default function UnifiedTestEntryForm({
       <Field label="Bassett version"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.version_id || ""} disabled={lockedCommon} onChange={(e) => update("version_id", e.target.value)}><option value="">Not specified</option>{versions.map((version) => <option key={version.id} value={version.id}>{version.name}</option>)}</select></Field>
       <Field label="Test date" required error={attemptedSections.has(0) && !String(form.test_date || "").trim() ? "Test date is required." : undefined}><Input type="date" value={form.test_date || ""} disabled={lockedCommon} onChange={(e) => update("test_date", e.target.value)} /></Field>
       <Field label="Environment"><Input value={form.environment || ""} disabled={lockedCommon} onChange={(e) => update("environment", e.target.value)} placeholder="Production, Staging…" /></Field>
+       {!isComparison && <Field label="Test type" description="Single Prompt is one question and answer. Multi-turn stores an ordered conversation with turn-level evidence."><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.test_type || "Single Prompt"} disabled={lockedCommon} onChange={(e) => update("test_type", e.target.value)}><option>Single Prompt</option><option>Multi-turn</option></select></Field>}
     </div></GuidedSection>
 
-    <GuidedSection index={1} title="2. Linked Records & Prompt" active={activeSection === 1} status={sectionStatus(1)} onActivate={activateSection}><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+     <GuidedSection index={1} title="2. Linked Records & Prompt" active={activeSection === 1} status={sectionStatus(1)} onActivate={activateSection}><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <Field label="Project"><QuickAdd label="Project" value={form.project_id} items={projects} onChange={(value) => update("project_id", value)} fields={[{ key: "name", label: "Project name" }]} disabled={lockedCommon} /></Field>
       <Field label="Municipality"><QuickAdd label="Municipality" value={form.municipality_id} items={municipalities} onChange={setMunicipality} fields={[{ key: "name", label: "Municipality name" }, { key: "state", label: "State" }]} disabled={lockedCommon} /></Field>
       <Field label="Property / address"><QuickAdd label="Property" value={form.property_id} items={filteredProperties} defaults={{ municipality_id: form.municipality_id }} onChange={(value) => update("property_id", value)} fields={[{ key: "name", label: "Property name" }, { key: "address", label: "Address" }]} disabled={lockedCommon} /></Field>
-       <Field label={isComparison ? "Prompt / question" : "Question asked"} required error={attemptedSections.has(1) && !String(form.question_asked || form.prompts?.[0]?.text || "").trim() ? "Prompt or question is required." : undefined}><Textarea rows={3} value={form.question_asked || form.prompts?.[0]?.text || ""} disabled={lockedCommon} onChange={(e) => updatePrompt(e.target.value)} /></Field>
-       <div className="sm:col-span-2"><Field label={isComparison ? "Verified answer / Gold Standard" : "Verified correct answer"} required error={attemptedSections.has(1) && !String(form.verified_correct_answer || form.gold_standard_answer || "").trim() ? "Verified answer is required." : undefined}><Textarea rows={4} value={form.verified_correct_answer || form.gold_standard_answer || ""} disabled={lockedCommon} onChange={(e) => setForm((current) => ({ ...current, verified_correct_answer: e.target.value, gold_standard_answer: e.target.value }))} /></Field></div>
+        {(!isComparison && form.test_type === "Multi-turn") ? <TurnBuilder turns={form.turns} disabled={lockedCommon} onChange={(turns) => setForm((current) => ({ ...current, turns, question_asked: turns[0]?.prompt || "", exact_bassett_answer: turns[0]?.response || "" }))} findingTurnId={form.finding_turn_id || ""} onFindingTurnChange={(value) => update("finding_turn_id", value)} /> : <><Field label={isComparison ? "Prompt / question" : "Question asked"} required error={attemptedSections.has(1) && !String(form.question_asked || form.prompts?.[0]?.text || "").trim() ? "Prompt or question is required." : undefined}><Textarea rows={3} value={form.question_asked || form.prompts?.[0]?.text || ""} disabled={lockedCommon} onChange={(e) => updatePrompt(e.target.value)} /></Field>
+        <div className="sm:col-span-2"><Field label={isComparison ? "Verified answer / Gold Standard" : "Verified correct answer"} required error={attemptedSections.has(1) && !String(form.verified_correct_answer || form.gold_standard_answer || "").trim() ? "Verified answer is required." : undefined}><Textarea rows={4} value={form.verified_correct_answer || form.gold_standard_answer || ""} disabled={lockedCommon} onChange={(e) => setForm((current) => ({ ...current, verified_correct_answer: e.target.value, gold_standard_answer: e.target.value }))} /></Field></div></>}
     </div></GuidedSection>
 
-    <GuidedSection index={2} title="3. Bassett Result" active={activeSection === 2} status={sectionStatus(2)} onActivate={activateSection}><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-      <Field label={isComparison ? "Bassett response" : "Exact Bassett answer"} required error={attemptedSections.has(2) && !String(responseFor("Bassett").response || "").trim() ? "Bassett response is required." : undefined}><Textarea rows={6} value={responseFor("Bassett").response || ""} disabled={lockedCommon} onChange={(e) => updateResponse("Bassett", "response", e.target.value)} /></Field>
+     <GuidedSection index={2} title="3. Bassett Result" active={activeSection === 2} status={sectionStatus(2)} onActivate={activateSection}><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+       {(isComparison || form.test_type !== "Multi-turn") && <Field label={isComparison ? "Bassett response" : "Exact Bassett answer"} required error={attemptedSections.has(2) && !String(responseFor("Bassett").response || "").trim() ? "Bassett response is required." : undefined}><Textarea rows={6} value={responseFor("Bassett").response || ""} disabled={lockedCommon} onChange={(e) => updateResponse("Bassett", "response", e.target.value)} /></Field>}
+       {!isComparison && form.test_type === "Multi-turn" && <div className="sm:col-span-2 rounded-lg border bg-[var(--paper)] p-3 text-sm text-muted-foreground">Responses are captured within the ordered turns above. The overall verdict and evaluation below still apply to the complete conversation.</div>}
       <Field label="Status / verdict"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={normalizeEvaluationResult(form.result)} onChange={(e) => update("result", e.target.value)}>{(isComparison ? COMPARISON_RESULT_OPTIONS : BASSETT_RESULT_OPTIONS).map((value) => <option key={value}>{value}</option>)}</select></Field>
       <Field label="Severity / criticality"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.severity || form.criticality || "Medium"} onChange={(e) => update("severity", e.target.value)}>{["Critical", "High", "Medium", "Low", "1", "2", "3", "4", "5"].map((value) => <option key={value}>{value}</option>)}</select></Field>
       <Field label="Priority"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.priority || "Medium"} onChange={(e) => update("priority", e.target.value)}>{["Critical", "High", "Medium", "Low"].map((value) => <option key={value}>{value}</option>)}</select></Field>

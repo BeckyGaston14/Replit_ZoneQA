@@ -2695,6 +2695,7 @@ BASSETT_RESULT_CANONICAL_EQUIVALENTS = {
 }
 BASSETT_ISSUE_FIELDS = {
     "test_id", "title", "question_asked", "exact_bassett_answer", "verified_correct_answer",
+    "test_type", "turns", "finding_turn_id",
     "issue_category", "severity", "priority", "environment", "reported_date", "test_date",
     "status", "assignee_id", "project_id", "testcase_id", "finding_id",
     "scenario_id", "workflow_stage", "version_id", "bassett_version", "retest_id",
@@ -2705,6 +2706,7 @@ BASSETT_ISSUE_FIELDS = {
     "weight_explanation", "follow_up_action", "retest_target", "retest_date",
     "source_links", "history_context", "score_rationale",
 }
+BASSETT_TEST_TYPES = ("Single Prompt", "Multi-turn")
 BASSETT_SCENARIO_FIELDS = {
     "workflow_stage", "report_type", "test_scenario", "complexity",
     "why_it_matters", "what_bassett_should_do", "success_criteria", "priority",
@@ -2933,7 +2935,69 @@ def _decorate_bassett_execution(execution):
     execution.update(_bassett_result_details(execution.get("result")))
     return execution
 
+def _normalize_bassett_turns(doc):
+    """Validate and normalize structured conversation turns.
+
+    Turn IDs are intentionally client-stable when supplied, but are generated
+    server-side for imported/API-created records. The legacy question/answer
+    fields are mirrored from the first turn so existing reports and expansion
+    workflows continue to work.
+    """
+    test_type = str(doc.get("test_type") or "Single Prompt").strip()
+    if test_type not in BASSETT_TEST_TYPES:
+        raise HTTPException(400, "Test type must be Single Prompt or Multi-turn")
+    doc["test_type"] = test_type
+    if test_type == "Single Prompt":
+        doc.pop("turns", None)
+        return
+    raw_turns = doc.get("turns")
+    if not isinstance(raw_turns, list) or not raw_turns:
+        raise HTTPException(400, "Multi-turn runs require at least one turn")
+    normalized = []
+    seen_ids = set()
+    seen_orders = set()
+    for index, raw in enumerate(raw_turns, start=1):
+        if not isinstance(raw, dict):
+            raise HTTPException(400, f"Turn {index} must be an object")
+        turn_id = str(raw.get("id") or raw.get("turn_id") or "").strip() or new_id()
+        order_raw = raw.get("order", raw.get("turn", index))
+        try:
+            order = int(order_raw)
+        except (TypeError, ValueError):
+            raise HTTPException(400, f"Turn {index} order must be an integer")
+        prompt = str(raw.get("prompt") or raw.get("question") or "").strip()
+        response = str(raw.get("response") or raw.get("answer") or "").strip()
+        if not prompt or not response:
+            raise HTTPException(400, f"Turn {index} requires both a prompt and response")
+        if turn_id in seen_ids:
+            raise HTTPException(400, "Turn IDs must be unique")
+        if order in seen_orders:
+            raise HTTPException(400, "Turn order values must be unique")
+        seen_ids.add(turn_id)
+        seen_orders.add(order)
+        citations = raw.get("citations", raw.get("source_references", []))
+        if citations is None:
+            citations = []
+        if not isinstance(citations, list):
+            raise HTTPException(400, f"Turn {index} citations must be a list")
+        normalized.append({
+            "id": turn_id,
+            "order": order,
+            "prompt": prompt,
+            "response": response,
+            "citations": [str(item).strip() for item in citations if str(item).strip()],
+            "evaluator_notes": str(raw.get("evaluator_notes") or "").strip(),
+        })
+    normalized.sort(key=lambda turn: (turn["order"], turn["id"]))
+    doc["turns"] = normalized
+    # Compatibility mirrors; the UI still presents turns as the source of truth.
+    doc["question_asked"] = normalized[0]["prompt"]
+    doc["exact_bassett_answer"] = normalized[0]["response"]
+
 def _validate_issue_required(doc):
+    _normalize_bassett_turns(doc)
+    if doc.get("test_type") == "Multi-turn":
+        return
     labels = {
         "question_asked": "The question asked",
         "exact_bassett_answer": "The exact Bassett answer",
@@ -3157,7 +3221,10 @@ async def bassett_expand_issue(id: str, user=Depends(get_current_user)):
     # normal comparison record, not a lightweight link back to Bassett.
     testcase = {
         "id": testcase_id, "name": issue.get("title") or snapshot.get("test_scenario"),
-        "prompts": [{"turn": 1, "text": issue["question_asked"]}],
+        "prompts": [
+            {"turn": turn.get("order", index), "text": turn.get("prompt", "")}
+            for index, turn in enumerate(issue.get("turns") or [], start=1)
+        ] or [{"turn": 1, "text": issue["question_asked"]}],
         "bassett_issue_id": id, "scenario_id": scenario["id"],
         "source_bassett_issue_id": id, "source_issue_id": id,
         "comparison_mode": True, "revision": 1,
@@ -3195,7 +3262,8 @@ async def bassett_expand_issue(id: str, user=Depends(get_current_user)):
                 "system_recommended", "system_explanation", "score_mode", "score_label",
                 "weight_explanation", "follow_up_action", "retest_target", "retest_date",
                 "retest_id", "regression_run_id", "evidence", "notes", "repro_steps",
-                "source_links", "history_context", "finding_id", "creation_key",
+                "source_links", "history_context", "finding_id", "finding_turn_id",
+                "creation_key", "test_type", "turns",
             ) if issue.get(key) is not None
         },
         "created_at": stamp, "updated_at": stamp, "created_by": user.get("name"),
@@ -3326,6 +3394,8 @@ async def bassett_create_issue(body: Dict[str, Any], user=Depends(get_current_us
 async def _prepare_bassett_workflow_document(body: Dict[str, Any], user: Dict[str, Any]):
     """Validate and normalize the unified Bassett workflow payload."""
     doc = {key: value for key, value in body.items() if key in BASSETT_ISSUE_FIELDS}
+    doc.setdefault("test_type", "Single Prompt")
+    _normalize_bassett_turns(doc)
     doc["test_date"] = _validate_test_date(doc.get("test_date"))
     if doc.get("retest_date"):
         doc["retest_date"] = _validate_test_date(
@@ -3415,6 +3485,16 @@ async def bassett_create_workflow(
     create_finding = bool(body.get("create_finding")) or bool(finding_input)
     finding = None
     if create_finding:
+        finding_turn_id = str(
+            finding_input.get("turn_id")
+            or finding_input.get("bassett_turn_id")
+            or body.get("finding_turn_id")
+            or ""
+        ).strip()
+        if finding_turn_id:
+            valid_turn_ids = {turn.get("id") for turn in (doc.get("turns") or [])}
+            if doc.get("test_type") != "Multi-turn" or finding_turn_id not in valid_turn_ids:
+                raise HTTPException(400, "Finding turn linkage must reference a valid multi-turn")
         finding = {
             "id": new_id(),
             "title": str(finding_input.get("title") or doc.get("title") or doc["question_asked"][:120]),
@@ -3428,6 +3508,7 @@ async def bassett_create_workflow(
             "criticality": finding_input.get("criticality") or doc.get("severity", "Medium"),
             "priority": finding_input.get("priority") or doc.get("priority", "Medium"),
             "bassett_issue_id": doc["id"] if doc.get("id") else None,
+            "bassett_turn_id": finding_turn_id or None,
             "created_at": now_iso(),
             "created_by": user.get("name"),
             "updated_at": now_iso(),
@@ -3538,6 +3619,15 @@ async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_c
         raise HTTPException(403, "Only QA managers and administrators can assign issues")
     merged = {**existing, **incoming}
     _validate_issue_required(merged)
+    # _validate_issue_required normalizes compatibility mirrors on the merged
+    # document; carry those normalized values into the persisted update too.
+    if merged.get("test_type") == "Multi-turn":
+        for field in ("test_type", "turns", "question_asked", "exact_bassett_answer"):
+            if field in merged:
+                incoming[field] = merged[field]
+    elif "test_type" in incoming and merged.get("test_type") == "Single Prompt":
+        incoming["test_type"] = "Single Prompt"
+        incoming["turns"] = []
     _validate_bassett_run_result(merged, allow_legacy=True)
     if "result" in incoming:
         incoming["result"] = merged["result"]
@@ -3602,6 +3692,11 @@ async def bassett_link_finding(id: str, body: Dict[str, Any], user=Depends(get_c
     issue = await _bassett_ref("bassett_issues", id, "Issue")
     _require_mutable_bassett_issue(issue)
     finding = await _bassett_ref("findings", body.get("finding_id"), "Finding")
+    turn_id = str(body.get("turn_id") or body.get("bassett_turn_id") or "").strip()
+    if turn_id:
+        valid_turn_ids = {turn.get("id") for turn in (issue.get("turns") or [])}
+        if issue.get("test_type") != "Multi-turn" or turn_id not in valid_turn_ids:
+            raise HTTPException(400, "Finding turn linkage must reference a valid multi-turn")
     if issue.get("testcase_id") and finding.get("testcase_id") not in (None, "", issue["testcase_id"]):
         raise HTTPException(409, "Finding belongs to a different Test Case")
     if issue.get("project_id") and finding.get("project_id") not in (None, "", issue["project_id"]):
@@ -3614,10 +3709,10 @@ async def bassett_link_finding(id: str, body: Dict[str, Any], user=Depends(get_c
     if existing_issue_id and existing_issue_id != id:
         raise HTTPException(409, "This finding is already linked to another Bassett issue")
     updated = await db.bassett_issues.find_one_and_update({"id": id}, {"$set": {
-        "finding_id": finding["id"], "updated_at": now_iso()
+        "finding_id": finding["id"], "finding_turn_id": turn_id or None, "updated_at": now_iso()
     }}, return_document=True)
     await db.findings.update_one({"id": finding["id"]}, {"$set": {
-        "bassett_issue_id": id, "updated_at": now_iso(),
+        "bassett_issue_id": id, "bassett_turn_id": turn_id or None, "updated_at": now_iso(),
     }})
     await _bassett_history("issue", id, "linked_finding", user, {"finding_id": finding["id"]})
     return updated
@@ -3630,16 +3725,25 @@ async def bassett_convert_to_finding(id: str, body: Dict[str, Any] = None, user=
     await _require_active_testcase(issue.get("testcase_id"))
     if issue.get("finding_id"):
         return await _bassett_ref("findings", issue["finding_id"], "Finding")
+    body = body or {}
+    turn_id = str(body.get("turn_id") or body.get("bassett_turn_id") or "").strip()
+    if turn_id:
+        valid_turn_ids = {turn.get("id") for turn in (issue.get("turns") or [])}
+        if issue.get("test_type") != "Multi-turn" or turn_id not in valid_turn_ids:
+            raise HTTPException(400, "Finding turn linkage must reference a valid multi-turn")
     finding = {
         "id": new_id(), "title": issue.get("title") or issue.get("question_asked", "")[:120],
         "description": issue.get("exact_bassett_answer", ""), "expected_behavior": issue.get("verified_correct_answer", ""),
         "project_id": issue.get("project_id"), "testcase_id": issue.get("testcase_id"),
         "developer_status": "New", "criticality": issue.get("severity", "Medium"),
         "bassett_issue_id": id, "created_at": now_iso(), "created_by": user.get("name"),
+        "bassett_turn_id": turn_id or None,
         "updated_at": now_iso(),
     }
     await db.findings.insert_one(finding)
-    await db.bassett_issues.update_one({"id": id}, {"$set": {"finding_id": finding["id"], "updated_at": now_iso()}})
+    await db.bassett_issues.update_one({"id": id}, {"$set": {
+        "finding_id": finding["id"], "finding_turn_id": turn_id or None, "updated_at": now_iso()
+    }})
     await _bassett_history("issue", id, "converted_to_finding", user, {"finding_id": finding["id"]})
     return finding
 

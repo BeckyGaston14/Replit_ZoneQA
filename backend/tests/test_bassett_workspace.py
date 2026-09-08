@@ -17,6 +17,40 @@ def test_bassett_permissions_keep_viewers_read_only():
     assert server._require_bassett_writer({"role": "tester"})["role"] == "tester"
 
 
+def test_multi_turn_validation_normalizes_order_and_legacy_mirrors():
+    document = {
+        "test_type": "Multi-turn",
+        "turns": [
+            {"id": "turn-2", "order": 2, "prompt": "Follow up", "response": "Second answer",
+             "citations": ["  source-b  "], "evaluator_notes": "Check calculation"},
+            {"id": "turn-1", "order": 1, "prompt": "First question", "response": "First answer"},
+        ],
+    }
+    server._validate_issue_required(document)
+    assert [turn["id"] for turn in document["turns"]] == ["turn-1", "turn-2"]
+    assert document["question_asked"] == "First question"
+    assert document["exact_bassett_answer"] == "First answer"
+    assert document["turns"][1]["citations"] == ["source-b"]
+
+
+@pytest.mark.parametrize("turns", [[], [{"prompt": "Only prompt", "response": ""}]])
+def test_multi_turn_validation_rejects_missing_complete_turn(turns):
+    with pytest.raises(HTTPException) as exc:
+        server._validate_issue_required({"test_type": "Multi-turn", "turns": turns})
+    assert exc.value.status_code == 400
+
+
+def test_legacy_issue_defaults_to_single_prompt_without_turns():
+    document = {
+        "question_asked": "Legacy question",
+        "exact_bassett_answer": "Legacy answer",
+        "verified_correct_answer": "Verified answer",
+    }
+    server._validate_issue_required(document)
+    assert document["test_type"] == "Single Prompt"
+    assert "turns" not in document
+
+
 def test_only_managers_can_change_definitions():
     with pytest.raises(HTTPException) as exc:
         server._require_bassett_manager({"role": "developer"})

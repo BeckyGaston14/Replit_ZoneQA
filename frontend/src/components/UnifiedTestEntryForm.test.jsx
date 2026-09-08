@@ -179,3 +179,22 @@ test("review summary exposes required and optional sections while preserving aut
   act(() => view.root.unmount());
 });
 
+test("multi-turn mode replaces single-prompt fields with an ordered turn builder", () => {
+  const view = renderForm("bassett", {
+    test_type: "Multi-turn",
+    turns: [
+      { id: "turn-1", order: 1, prompt: "First prompt", response: "First response", citations: [], evaluator_notes: "" },
+      { id: "turn-2", order: 2, prompt: "Second prompt", response: "Second response", citations: [], evaluator_notes: "" },
+    ],
+  });
+  expect(view.container.querySelector('[data-testid="multi-turn-builder"]')).not.toBeNull();
+  expect(view.container.textContent).toContain("First prompt");
+  expect(view.container.textContent).toContain("Second prompt");
+  expect(view.container.textContent).not.toContain("Exact Bassett answer");
+  const moveUp = view.container.querySelector('[aria-label="Move turn 2 up"]');
+  act(() => moveUp.click());
+  expect(view.latest().turns.map((turn) => turn.prompt)).toEqual(["Second prompt", "First prompt"]);
+  expect(view.latest().turns.map((turn) => turn.order)).toEqual([1, 2]);
+  act(() => view.root.unmount());
+});
+
