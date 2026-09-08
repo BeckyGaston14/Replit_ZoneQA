@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { Link } from "react-router-dom";
-import { StatCard, PageHeader, Section, SrTable, SampleDataBanner, sampleScopeIncludesData, HowCalculated } from "../components/shared";
+import { StatCard, PageHeader, Section, SrTable, SampleDataBanner, sampleScopeIncludesData } from "../components/shared";
 import { useCollection } from "../lib/hooks";
 import { Button } from "../components/ui/button";
 import {
@@ -33,7 +33,12 @@ export default function Dashboard() {
     return <DashboardError error={error} retry={() => { stats.refetch(); metrics.refetch(); }} />;
   }
 
-  const bc = m.bassett_current, ame = m.all_model_evaluations, fnd = m.findings;
+  const bc = m.bassett_current, comparison = m.bassett_comparison || bc;
+  const bassettOnly = m.bassett_only || {
+    pass_rate: null, label: "No eligible records", population_label: "Bassett-only Test Runs",
+    definition: "Eligible standalone Bassett-only Test Runs for the active version.",
+  };
+  const ame = m.all_model_evaluations, fnd = m.findings;
   const versionLabel = m.active_version || "No active version";
   const sampleDataShown = sampleScopeIncludesData({
     versions: versionsQuery.data || [],
@@ -41,8 +46,9 @@ export default function Dashboard() {
     records: [m, s, perfQuery.data],
   });
   const cards = [
-    { label: `Bassett Pass Rate (${versionLabel})`, value: bc.pass_rate != null ? `${bc.pass_rate}%` : "—", sub: `${bc.label} · latest eval per test`, title: bc.definition, icon: CheckCircle2, accent: "#16a34a", to: dashboardRecordPath("bassett-pass-rate") },
-    { label: "Bassett Failed", value: bc.failed, sub: `of ${bc.evaluated} evaluated tests (${versionLabel})`, title: bc.definition, icon: XCircle, accent: "#dc2626", to: dashboardRecordPath("bassett-failed") },
+    { label: "Model Comparison — Bassett Pass Rate", value: comparison.pass_rate != null ? `${comparison.pass_rate}%` : "N/A", sub: `${comparison.label} · ${versionLabel}`, title: comparison.definition, icon: CheckCircle2, accent: "#16a34a", to: dashboardRecordPath("model-comparison-pass-rate") },
+    { label: "Bassett-Only Pass Rate", value: bassettOnly.pass_rate != null ? `${bassettOnly.pass_rate}%` : "N/A", sub: `${bassettOnly.label} · ${versionLabel}`, title: bassettOnly.definition, icon: CheckCircle2, accent: "#0f766e", to: dashboardRecordPath("bassett-only-pass-rate") },
+    { label: "Bassett Failed", value: comparison.failed, sub: `of ${comparison.evaluated} evaluated comparisons · ${versionLabel}`, title: comparison.definition, icon: XCircle, accent: "#dc2626", to: dashboardRecordPath("bassett-failed") },
     { label: "Bassett Avg Score", value: m.bassett_avg_score.value ?? "—", sub: `${m.bassett_avg_score.unit} · ${versionLabel}`, title: m.bassett_avg_score.definition, icon: ActIcon, accent: MODEL_COLORS.Bassett, to: dashboardRecordPath("bassett-score") },
     { label: "All Model Evaluations", value: ame.label, sub: "Bassett + ChatGPT + Claude mixed", title: ame.definition, icon: ClipboardCheck, accent: "#2f3f96", to: dashboardRecordPath("all-model-evaluations") },
     { label: "Open Findings", value: fnd.open, sub: `${fnd.open_critical} critical (C4-C5)`, title: fnd.definition, icon: Flag, accent: "#f97316", to: dashboardRecordPath("open-findings") },
@@ -55,10 +61,10 @@ export default function Dashboard() {
     { label: "Demo Approved", value: s.demo_approved, sub: "demo library", title: "Demo records whose status is Approved.", icon: Star, accent: "#f59e0b", to: dashboardRecordPath("demo-approved") },
   ];
   const groups = [
-    { title: "Bassett Quality", description: "Current-version quality and model evaluation outcomes.", cards: cards.slice(0, 4) },
-    { title: "Finding Workflow", description: "Open issues moving from confirmation through retest.", cards: cards.slice(4, 7) },
-    { title: "Release Confidence", description: "Regression coverage, active test inventory, and retest execution.", cards: [cards[7], cards[8], cards[10]] },
-    { title: "Program Operations", description: "Active projects and approved demonstration assets.", cards: [cards[9], cards[11]] },
+    { title: "Bassett Quality", description: "Current-version quality and model evaluation outcomes.", cards: cards.slice(0, 5) },
+    { title: "Finding Workflow", description: "Open issues moving from confirmation through retest.", cards: cards.slice(5, 8) },
+    { title: "Release Confidence", description: "Regression coverage, active test inventory, and retest execution.", cards: [cards[8], cards[9], cards[11]] },
+    { title: "Program Operations", description: "Active projects and approved demonstration assets.", cards: [cards[10], cards[12]] },
   ];
 
   const modelData = (perfQuery.data?.model_summary || [])
@@ -66,7 +72,7 @@ export default function Dashboard() {
     .filter((row) => row.score !== null);
   return (
     <div>
-      <PageHeader title="QA Dashboard" subtitle={`Every card opens its exact canonical record set. Active version: ${versionLabel}.`} />
+      <PageHeader title="QA Dashboard" subtitle={`Scope: Active version: ${versionLabel} · Bassett dashboard scope · archived and unfinished records excluded.`} />
       <SampleDataBanner show={sampleDataShown} />
       {!m.active_version && <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
         <span><strong>Set an active Bassett version</strong> to calculate current-version pass rate, average score, regressions, and release-readiness metrics.</span>
@@ -79,7 +85,7 @@ export default function Dashboard() {
             <p className="text-xs text-muted-foreground">{group.description}</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {group.cards.map((c) => <StatCard key={c.label} {...c} testid={`stat-${c.label.toLowerCase().replace(/\s+/g, "-")}`} />)}
+            {group.cards.map((c) => <StatCard key={c.label} {...c} showCalculation={false} testid={`stat-${c.label.toLowerCase().replace(/\s+/g, "-")}`} />)}
           </div>
         </section>)}
       </div>
@@ -89,14 +95,6 @@ export default function Dashboard() {
           <Section title="Bassett vs. Benchmark Models — Average Score">
             <p className="text-xs text-muted-foreground mb-3">{perfQuery.data?.scope || `Latest evaluations; Bassett limited to ${versionLabel}.`}</p>
             <p className="text-xs text-muted-foreground mb-3">Scale: 0–10. Missing model scores are unavailable and are not plotted as zero.</p>
-             <HowCalculated
-               definition="Average score for the latest eligible evaluation for each model in the active dashboard scope."
-               calculation={{
-                 formula: "Arithmetic mean of each model’s available 0–10 evaluation scores; unavailable dimensions and models are excluded from their denominator.",
-                 scope: `Latest eligible evaluations; Bassett is limited to ${versionLabel}.`,
-                 treatment: "Retest evaluations are excluded from the canonical latest-evaluation comparison. Sample records appear only when the page scope includes them.",
-               }}
-             />
             {perfQuery.isLoading ? <DashboardState compact title="Loading chart…" detail="Loading active-version model scores." /> : perfQuery.isError ? (
               <InlineError error={perfQuery.error} retry={perfQuery.refetch} />
             ) : modelData.length === 0 ? (
@@ -150,6 +148,17 @@ export default function Dashboard() {
           ])}
         />
       </Section>
+      <details className="mt-4 rounded-xl border bg-card p-5" data-testid="dashboard-methodology">
+        <summary className="cursor-pointer font-semibold text-[var(--navy)] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)]">
+          How dashboard metrics are calculated
+        </summary>
+        <div className="mt-3 space-y-2 text-sm text-muted-foreground">
+          <p>Dashboard cards use the active Bassett version and the current dashboard scope. Each Test Bank definition or Test Case contributes only its latest qualifying record.</p>
+          <p>Pass includes <strong className="text-foreground">Pass</strong> and <strong className="text-foreground">Pass with Minor Issues</strong>. Incomplete, draft, not-evaluated, archived, and out-of-scope records are excluded. Retests and variants remain separate unless the card definition explicitly includes them.</p>
+          <p>Model Comparison cards use complete, non-partial comparison runs. Bassett-only cards include eligible Single Prompt and Multi-Turn Conversation runs and exclude anything linked to or expanded into Model Comparison.</p>
+          <p>Missing and N/A scores are unavailable rather than zero. Every card opens the exact numerator/denominator population used for its displayed metric, with source navigation to the relevant record.</p>
+        </div>
+      </details>
     </div>
   );
 }

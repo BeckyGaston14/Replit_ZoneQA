@@ -6,6 +6,7 @@ import { evaluationScoreOrNull, formatEvaluationScore } from "../lib/evaluationS
 import { evaluationResultColor, evaluationResultDetails } from "../lib/evaluationResults";
 import { useSampleVisibility } from "../lib/hooks";
 import { Switch } from "./ui/switch";
+import { Info } from "lucide-react";
 
 export function CritBadge({ value }) {
   if (!value) return <span className="text-muted-foreground text-xs">—</span>;
@@ -62,7 +63,24 @@ export function HowCalculated({ definition, calculation = {}, drillDown, classNa
   );
 }
 
-export function StatCard({ label, value, accent, icon: Icon, sub, testid, onClick, title, to, calculation }) {
+function MetricInfo({ label, description }) {
+  return (
+    <details className="relative z-20" data-testid="metric-info">
+      <summary
+        className="flex h-7 w-7 cursor-pointer list-none items-center justify-center rounded-full bg-card/90 text-muted-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)] [&::-webkit-details-marker]:hidden"
+        aria-label={`About ${label}`}
+        title={`About ${label}`}
+      >
+        <Info size={15} aria-hidden="true" />
+      </summary>
+      <div role="tooltip" className="absolute right-0 top-9 z-30 w-64 rounded-lg border bg-card p-3 text-xs font-normal leading-5 text-foreground shadow-lg">
+        {description}
+      </div>
+    </details>
+  );
+}
+
+export function StatCard({ label, value, accent, icon: Icon, sub, testid, onClick, title, to, calculation, showCalculation = true }) {
   const descriptionId = testid ? `${testid}-description` : undefined;
   const content = (
     <>
@@ -78,23 +96,25 @@ export function StatCard({ label, value, accent, icon: Icon, sub, testid, onClic
     </>
   );
   const classes = cn(
-    "bg-card rounded-xl border p-4 card-hover",
+    "relative bg-card rounded-xl border p-4 card-hover",
     (to || onClick) && "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)] focus-visible:ring-offset-2",
   );
   const accessibleName = title || `${label}: ${value}${sub ? `. ${sub}` : ""}`;
   if (to) {
     return <div className={classes}>
       <Link data-testid={testid} to={to} title={title} aria-label={accessibleName} aria-describedby={descriptionId} className="block rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)] focus-visible:ring-offset-2">{content}</Link>
-      <HowCalculated definition={title || `${label}: ${value}`} calculation={calculation} drillDown={to} />
+      {title && <div className="absolute right-14 top-3"><MetricInfo label={label} description={title} /></div>}
+      {showCalculation && <HowCalculated definition={title || `${label}: ${value}`} calculation={calculation} drillDown={to} />}
     </div>;
   }
   if (onClick) {
     return <div className={classes}>
       <button type="button" data-testid={testid} onClick={onClick} title={title} aria-label={accessibleName} aria-describedby={descriptionId} className="w-full rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)] focus-visible:ring-offset-2">{content}</button>
-      <HowCalculated definition={title || `${label}: ${value}`} calculation={calculation} />
+      {title && <div className="absolute right-14 top-3"><MetricInfo label={label} description={title} /></div>}
+      {showCalculation && <HowCalculated definition={title || `${label}: ${value}`} calculation={calculation} />}
     </div>;
   }
-  return <div data-testid={testid} className={classes}>{content}<HowCalculated definition={title || `${label}: ${value}`} calculation={calculation} /></div>;
+  return <div data-testid={testid} className={classes}>{content}{title && <div className="absolute right-14 top-3"><MetricInfo label={label} description={title} /></div>}{showCalculation && <HowCalculated definition={title || `${label}: ${value}`} calculation={calculation} />}</div>;
 }
 
 export function Section({ title, children, action }) {

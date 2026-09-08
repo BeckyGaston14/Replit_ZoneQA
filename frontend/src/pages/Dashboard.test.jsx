@@ -45,9 +45,10 @@ test("Dashboard cards are keyboard-accessible links to exact metric record sets"
   const root = createRoot(container);
   act(() => root.render(<Dashboard />));
   const cards = [...container.querySelectorAll('a[data-testid^="stat-"]')];
-  expect(cards).toHaveLength(12);
+  expect(cards).toHaveLength(13);
   expect(container.querySelectorAll('[data-testid="dashboard-metric-group"]')).toHaveLength(4);
-  expect(cards.map((card) => card.getAttribute("href"))).toContain("/dashboard/records/bassett-pass-rate");
+  expect(cards.map((card) => card.getAttribute("href"))).toContain("/dashboard/records/model-comparison-pass-rate");
+  expect(cards.map((card) => card.getAttribute("href"))).toContain("/dashboard/records/bassett-only-pass-rate");
   expect(cards.map((card) => card.getAttribute("href"))).toContain("/dashboard/records/all-model-evaluations");
   expect(cards.map((card) => card.getAttribute("href"))).toContain("/dashboard/records/retests");
   expect(cards.every((card) => card.getAttribute("aria-describedby"))).toBe(true);
@@ -65,13 +66,32 @@ test("Dashboard starts with metric groups and does not render the redundant work
   expect(container.querySelector('[data-testid="workspace-path"]')).toBeNull();
   expect(container.querySelector("h1").textContent).toBe("QA Dashboard");
   expect(container.querySelectorAll('[data-testid="dashboard-metric-group"]')).toHaveLength(4);
-  expect(container.querySelectorAll('a[data-testid^="stat-"]')).toHaveLength(12);
+  expect(container.querySelectorAll('a[data-testid^="stat-"]')).toHaveLength(13);
   expect(container.textContent).toContain("Bassett Quality");
   expect(container.textContent).toContain("Finding Workflow");
   expect(container.textContent).toContain("Release Confidence");
   expect(container.textContent).toContain("Program Operations");
+  expect(container.textContent).toContain("Model Comparison — Bassett Pass Rate");
+  expect(container.textContent).toContain("Bassett-Only Pass Rate");
+  expect(container.textContent).toContain("N/A");
 
   act(() => root.unmount());
+});
+
+test("pass-rate cards expose keyboard-accessible definitions and one bottom methodology disclosure", () => {
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  act(() => root.render(<Dashboard />));
+
+  const infos = [...container.querySelectorAll('[data-testid="metric-info"]')];
+  expect(infos).toHaveLength(13);
+  expect(infos.every((info) => info.querySelector("summary")?.getAttribute("aria-label"))).toBe(true);
+  expect(container.querySelectorAll('[data-testid="dashboard-methodology"]')).toHaveLength(1);
+  expect(container.querySelector('[data-testid="dashboard-methodology"] summary').textContent).toBe("How dashboard metrics are calculated");
+  expect(container.textContent.match(/How calculated/g)).toBeNull();
+
+  act(() => root.unmount());
+  container.remove();
 });
 
 test("Average Score chart gives each visible model its own legend entry", () => {
@@ -83,10 +103,6 @@ test("Average Score chart gives each visible model its own legend entry", () => 
   expect(legend).not.toBeNull();
   expect([...legend.querySelectorAll("span")].map((entry) => entry.textContent)).toEqual(["Bassett", "ChatGPT"]);
   expect(legend.textContent).not.toContain("Benchmarks");
-  expect(container.textContent).not.toContain("Pass with Minor Issues");
-  expect(container.textContent).not.toContain("Needs Improvement");
-  expect(container.textContent).not.toContain("Critical Fail");
-  expect(container.textContent).not.toContain("Not Evaluated");
   expect(container.textContent).toContain("Scale: 0–10");
 
   act(() => root.unmount());

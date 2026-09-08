@@ -22,7 +22,7 @@ export default function DashboardRecords() {
 
   const data = query.data;
   return <div>
-    <PageHeader title={data.title} subtitle={`${data.definition} Active version: ${data.active_version || "No active version"}.`} />
+    <PageHeader title={data.title} subtitle={`${data.scope || `Active version: ${data.active_version || "No active version"}.`} ${data.population_label ? `Population: ${data.population_label}.` : ""}`} />
     <div className="flex items-center justify-between mb-3">
       {back}
       <span className="text-sm text-muted-foreground">{data.count} canonical record{data.count === 1 ? "" : "s"}</span>

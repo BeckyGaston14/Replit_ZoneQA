@@ -420,6 +420,96 @@ def test_legacy_population_requires_all_three_valid_evaluations(monkeypatch):
     }
 
 
+def test_dashboard_pass_rate_populations_are_separate_and_reconcile_to_drilldowns(monkeypatch):
+    comparison = [
+        _evaluation("cmp-b", "comparison-tc", "Bassett", 8, run_id="cmp-run"),
+        _evaluation("cmp-g", "comparison-tc", "ChatGPT", 7, run_id="cmp-run"),
+        _evaluation("cmp-c", "comparison-tc", "Claude", 6, run_id="cmp-run"),
+    ]
+    for evaluation in comparison:
+        evaluation["bassett_version"] = "v1"
+    rows = {
+        "testcases": [
+            {"id": "comparison-tc", "name": "Expanded comparison", "comparison_mode": True,
+             "bassett_issue_id": "expanded-source"},
+        ],
+        "evaluations": comparison,
+        "test_runs": [
+            {"id": "cmp-run", "status": "Completed", "outcome": "Success",
+             "comparison_complete": True, "bassett_version": "v1", "run_date": "2026-02-01"},
+        ],
+        "versions": [{"id": "v1", "name": "v1", "active": True}],
+        "bassett_scenarios": [
+            {"id": "expanded-scenario", "bassett_version": "v1"},
+            {"id": "single-scenario", "bassett_version": "v1"},
+            {"id": "multi-scenario", "bassett_version": "v1"},
+            {"id": "draft-scenario", "bassett_version": "v1"},
+            {"id": "retest-scenario", "bassett_version": "v1"},
+            {"id": "old-version-scenario", "bassett_version": "v0"},
+        ],
+        "bassett_issues": [
+            {"id": "expanded-source", "title": "Expanded", "scenario_id": "expanded-scenario",
+             "testcase_id": "comparison-tc", "bassett_version": "v1", "test_type": "Single Prompt",
+             "result": "Pass", "test_date": "2026-02-01"},
+            {"id": "single-old", "title": "Single old", "scenario_id": "single-scenario",
+             "bassett_version": "v1", "test_type": "Single Prompt", "result": "Pass", "test_date": "2026-01-01"},
+            {"id": "single-new", "title": "Single new", "scenario_id": "single-scenario",
+             "bassett_version": "v1", "test_type": "Single Prompt", "result": "Fail", "test_date": "2026-02-02"},
+            {"id": "multi-pass", "title": "Multi-turn", "scenario_id": "multi-scenario",
+             "bassett_version": "v1", "test_type": "Multi-turn Conversation", "result": "Pass", "test_date": "2026-01-15"},
+            {"id": "draft", "title": "Draft", "scenario_id": "draft-scenario",
+             "bassett_version": "v1", "test_type": "Single Prompt", "status": "Draft", "result": "Pass", "test_date": "2026-02-03"},
+            {"id": "retest", "title": "Retest", "scenario_id": "retest-scenario",
+             "bassett_version": "v1", "test_type": "Single Prompt", "retest_id": "rt-1", "result": "Pass", "test_date": "2026-02-03"},
+            {"id": "old-version", "title": "Old version", "scenario_id": "old-version-scenario",
+             "bassett_version": "v0", "test_type": "Single Prompt", "result": "Pass", "test_date": "2026-02-03"},
+        ],
+        "bassett_executions": [],
+        "config": [{"id": "global", "eval_dimensions": []}],
+        "projects": [], "findings": [], "demos": [], "regression_runs": [], "retests": [],
+        "municipalities": [],
+    }
+    monkeypatch.setattr(server, "db", Db(rows))
+
+    async def fake_crud_list(collection, query=None):
+        return [dict(row) for row in rows.get(collection, [])]
+
+    monkeypatch.setattr(server, "crud_list", fake_crud_list)
+    populations = asyncio.run(server._dashboard_bassett_populations(rows["testcases"], comparison, "v1"))
+    comparison_population = populations["model_comparison"]
+    standalone_population = populations["bassett_only"]
+
+    assert (comparison_population["passed"], comparison_population["evaluated"]) == (1, 1)
+    assert (standalone_population["passed"], standalone_population["evaluated"]) == (1, 2)
+    assert {row["id"] for row in standalone_population["records"]} == {"single-new", "multi-pass"}
+    assert not {row["id"] for row in standalone_population["records"]} & {"expanded-source", "draft", "retest", "old-version"}
+
+    comparison_drilldown = asyncio.run(server.dashboard_metric_records("model-comparison-pass-rate", {"id": "viewer"}))
+    standalone_drilldown = asyncio.run(server.dashboard_metric_records("bassett-only-pass-rate", {"id": "viewer"}))
+    assert comparison_drilldown["count"] == comparison_population["evaluated"]
+    assert standalone_drilldown["count"] == standalone_population["evaluated"]
+    assert all(row["to"].startswith("/testcases/") for row in comparison_drilldown["records"])
+    assert {row["to"] for row in standalone_drilldown["records"]} == {
+        "/bassett/issues?open=single-new", "/bassett/issues?open=multi-pass",
+    }
+    assert all(row["status"] in ("Pass", "Fail") for row in standalone_drilldown["records"])
+
+
+def test_dashboard_pass_rate_uses_na_when_a_population_has_no_denominator(monkeypatch):
+    rows = {
+        "testcases": [], "evaluations": [], "test_runs": [],
+        "versions": [{"id": "v1", "name": "v1", "active": True}],
+        "bassett_scenarios": [{"id": "s1", "bassett_version": "v1"}],
+        "bassett_issues": [{"id": "draft", "scenario_id": "s1", "bassett_version": "v1",
+                            "status": "Draft", "result": "Not Evaluated"}],
+        "bassett_executions": [],
+    }
+    monkeypatch.setattr(server, "db", Db(rows))
+    populations = asyncio.run(server._dashboard_bassett_populations([], [], "v1"))
+    assert populations["bassett_only"]["pass_rate"] is None
+    assert populations["bassett_only"]["label"] == "No eligible records"
+
+
 def test_all_metric_endpoints_reconcile_to_complete_comparisons(monkeypatch):
     complete = [
         _evaluation("good-b", "good", "Bassett", 8, run_id="complete"),

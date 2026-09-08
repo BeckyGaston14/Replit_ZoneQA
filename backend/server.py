@@ -4984,6 +4984,9 @@ async def dashboard_stats(user=Depends(get_current_user), include_sample: Option
     bassett_evals = evaluation_view["bassett"]
     bassett_summary = result_summary(bassett_evals)
     accuracy = average_score(bassett_evals, empty=0)
+    bassett_populations = await _dashboard_bassett_populations(
+        tcs, eligible_evaluations, active_version, comparison_view=evaluation_view
+    )
 
     open_findings = [f for f in findings if _finding_is_open(f)]
     return {
@@ -4993,6 +4996,10 @@ async def dashboard_stats(user=Depends(get_current_user), include_sample: Option
         "tests_awaiting_evidence": cnt(tcs, "status", "Awaiting Evidence"),
         "bassett_passed": bassett_summary["passed"],
         "bassett_failed": bassett_summary["failed"],
+        "bassett_comparison_passed": bassett_populations["model_comparison"]["passed"],
+        "bassett_comparison_evaluated": bassett_populations["model_comparison"]["evaluated"],
+        "bassett_only_passed": bassett_populations["bassett_only"]["passed"],
+        "bassett_only_evaluated": bassett_populations["bassett_only"]["evaluated"],
         "critical_findings": len([f for f in findings if f.get("criticality", 0) >= 4]),
         "open_findings": len(open_findings),
         "awaiting_fix": len([f for f in open_findings if f.get("developer_status") in FINDING_AWAITING_FIX_STATUSES]),
@@ -6734,6 +6741,170 @@ def _canonical_retest_executions(retests, testcases):
         and retest.get("testcase_id") in active_testcase_ids
     ]
 
+
+def _dashboard_bassett_result_is_eligible(record):
+    status = str(record.get("status") or "").strip().casefold()
+    if status in {"draft", "incomplete", "in progress"}:
+        return False
+    return _canonical_bassett_result(record.get("result")) in EVALUATED_RESULTS
+
+
+def _dashboard_bassett_test_type(record):
+    raw = str(record.get("test_type") or "Single Prompt").strip().casefold()
+    if raw in {"multi-turn", "multi turn", "multi-turn conversation", "multi turn conversation"}:
+        return "Multi-Turn Conversation"
+    return "Single Prompt" if raw in {"", "single prompt"} else None
+
+
+def _dashboard_bassett_is_retest(record):
+    return any(
+        record.get(key)
+        for key in ("retest_id", "is_retest", "retest", "original_bassett_version", "new_bassett_version")
+    )
+
+
+def _dashboard_bassett_order(record):
+    return (
+        record.get("test_date")
+        or record.get("completed_at")
+        or record.get("run_date")
+        or record.get("created_at")
+        or "",
+        record.get("created_at") or "",
+        record.get("id") or "",
+    )
+
+
+async def _dashboard_bassett_populations(testcases, raw_evaluations, version, comparison_view=None):
+    """Build the two non-overlapping Bassett pass-rate populations.
+
+    Model Comparison uses the existing complete three-model canonical view.
+    Bassett-only uses canonical Bassett workspace lineages, grouped by the
+    Test Bank definition, and removes anything linked to an expanded comparison.
+    """
+    comparison_view = comparison_view or await _evaluation_read_model(
+        raw_evaluations, valid_testcase_ids={testcase.get("id") for testcase in testcases}, version=version
+    )
+    comparison_records = [
+        {**evaluation, "_population": "model-comparison", "_record_type": "Model Comparison"}
+        for evaluation in comparison_view["bassett"]
+        if evaluation.get("normalized_result") in EVALUATED_RESULTS
+    ]
+    comparison_testcase_ids = {
+        evaluation.get("testcase_id") for evaluation in comparison_records if evaluation.get("testcase_id")
+    }
+
+    comparison_run_ids = {evaluation.get("run_id") for evaluation in comparison_records if evaluation.get("run_id")}
+    comparison_runs = await db.test_runs.find(
+        {"id": {"$in": list(comparison_run_ids)}}, {"_id": 0}
+    ).to_list(len(comparison_run_ids)) if comparison_run_ids else []
+    comparison_run_by_id = {run.get("id"): run for run in comparison_runs}
+    comparison_source_issue_ids = {
+        evaluation.get("source_issue_id") or evaluation.get("source_bassett_issue_id")
+        for evaluation in comparison_records
+        if evaluation.get("source_issue_id") or evaluation.get("source_bassett_issue_id")
+    }
+    for evaluation in comparison_records:
+        run = comparison_run_by_id.get(evaluation.get("run_id"), {})
+        evaluation["_dashboard_date"] = (
+            run.get("run_date") or run.get("test_date") or evaluation.get("test_date")
+            or evaluation.get("created_at") or ""
+        )[:10]
+        evaluation["_record_type"] = "Model Comparison · Bassett evaluation"
+
+    scenarios = _filter_sample_scope(
+        "bassett_scenarios",
+        await db.bassett_scenarios.find({"archived": {"$ne": True}}, {"_id": 0}).to_list(5000),
+    )
+    scenario_by_id = {scenario.get("id"): scenario for scenario in scenarios}
+    issues = _filter_sample_scope(
+        "bassett_issues",
+        await db.bassett_issues.find({"archived": {"$ne": True}}, {"_id": 0}).to_list(5000),
+    )
+    executions = _filter_sample_scope(
+        "bassett_executions",
+        await db.bassett_executions.find({"archived": {"$ne": True}}, {"_id": 0}).to_list(10000),
+    )
+    comparison_issue_ids = set(comparison_source_issue_ids)
+    for testcase in testcases:
+        if (
+            testcase.get("comparison_mode")
+            or testcase.get("bassett_issue_id")
+            or testcase.get("source_bassett_issue_id")
+        ):
+            comparison_issue_ids.update(
+                value for value in (
+                    testcase.get("bassett_issue_id"),
+                    testcase.get("source_bassett_issue_id"),
+                ) if value
+            )
+    for issue in issues:
+        if (
+            issue.get("testcase_id") in comparison_testcase_ids
+            or issue.get("comparison_mode")
+            or issue.get("id") in comparison_issue_ids
+        ):
+            comparison_issue_ids.add(issue.get("id"))
+
+    lineages = _canonical_bassett_lineages(
+        issues, executions, active_scenario_ids=set(scenario_by_id)
+    )
+    latest_standalone = {}
+    for run in lineages:
+        scenario = scenario_by_id.get(run.get("scenario_id"), {})
+        run_version = run.get("bassett_version") or scenario.get("bassett_version")
+        if (
+            run_version != version
+            or run.get("id") in comparison_issue_ids
+            or run.get("issue_id") in comparison_issue_ids
+            or run.get("bassett_issue_id") in comparison_issue_ids
+            or run.get("source_issue_id") in comparison_issue_ids
+            or run.get("testcase_id") in comparison_testcase_ids
+            or _dashboard_bassett_test_type(run) is None
+            or _dashboard_bassett_is_retest(run)
+            or not _dashboard_bassett_result_is_eligible(run)
+        ):
+            continue
+        candidate = {
+            **run,
+            "_population": "bassett-only",
+            "_record_type": f"Bassett-Only · {_dashboard_bassett_test_type(run)}",
+            "_dashboard_date": (run.get("test_date") or run.get("created_at") or "")[:10],
+            "bassett_version": run_version,
+        }
+        definition_key = run.get("scenario_id") or run.get("test_id") or run.get("id")
+        current = latest_standalone.get(definition_key)
+        if current is None or _dashboard_bassett_order(candidate) > _dashboard_bassett_order(current):
+            latest_standalone[definition_key] = candidate
+
+    def pack(records, label, definition):
+        passed = [record for record in records if (
+            record.get("normalized_result") or _canonical_bassett_result(record.get("result"))
+        ) in PASS_SET]
+        label = f"{len(passed)} of {len(records)} passed" if records else "No eligible records"
+        return {
+            "records": records,
+            "passed": len(passed),
+            "evaluated": len(records),
+            "pass_rate": round(len(passed) / len(records) * 100, 1) if records else None,
+            "label": label,
+            "population_label": label,
+            "definition": definition,
+        }
+
+    return {
+        "model_comparison": pack(
+            comparison_records,
+            "Model Comparison — Bassett evaluation",
+            "Bassett evaluations from the latest complete Model Comparison run per Test Case. Archived, incomplete, partial, unevaluated, and out-of-scope versions are excluded. Pass includes Pass and Pass with Minor Issues.",
+        ),
+        "bassett_only": pack(
+            list(latest_standalone.values()),
+            "Bassett-only Test Runs",
+            "The latest eligible standalone Bassett Test Run per Test Bank definition for the active version. Single Prompt and Multi-Turn Conversation runs are included; drafts, retests, archived, comparison-linked, and unevaluated runs are excluded. Pass includes Pass and Pass with Minor Issues.",
+        ),
+    }
+
 @api.get("/metrics/summary")
 async def metrics_summary(user=Depends(get_current_user)):
     tcs = await crud_list("testcases")
@@ -6756,6 +6927,9 @@ async def metrics_summary(user=Depends(get_current_user)):
         )
         if ver
         else {"eligible": [], "all_models": [], "bassett": []}
+    )
+    bassett_populations = await _dashboard_bassett_populations(
+        tcs, raw_evaluations, ver, comparison_view=current_view
     )
 
     def pack(subset, unit, definition):
@@ -6786,6 +6960,12 @@ async def metrics_summary(user=Depends(get_current_user)):
                                 f"Latest Bassett evaluation per test case for {ver or 'active version'}. Pass includes 'Pass with Minor Issues'. Retests and historical runs excluded. Unevaluated tests excluded from denominator."),
         "bassett_all_versions": pack(b_all, "test cases (latest Bassett evaluation each)",
                                      "Latest Bassett evaluation per test case across all Bassett versions. Pass includes 'Pass with Minor Issues'."),
+        "bassett_comparison": {
+            key: value for key, value in bassett_populations["model_comparison"].items() if key != "records"
+        },
+        "bassett_only": {
+            key: value for key, value in bassett_populations["bassett_only"].items() if key != "records"
+        },
         "all_model_evaluations": pack(m_all, "model evaluations (Bassett + ChatGPT + Claude)",
                                       "Latest evaluation per test case per model — mixes Bassett with benchmark models; do not read as Bassett quality."),
         "bassett_avg_score": {"value": average_score(b_cur),
@@ -6837,12 +7017,23 @@ async def dashboard_metric_records(metric: str, user=Depends(get_current_user)):
     )
     current_bassett = current_view["bassett"]
     all_models = all_view["all_models"]
+    bassett_populations = await _dashboard_bassett_populations(
+        tcs, raw_evaluations, version, comparison_view=current_view
+    )
     open_findings = [f for f in findings if _finding_is_open(f)]
     latest_regression = _latest_regression_run(runs, version)
 
+    comparison_pass_records = bassett_populations["model_comparison"]["records"]
+    bassett_only_pass_records = bassett_populations["bassett_only"]["records"]
     definitions = {
-        "bassett-pass-rate": ("Bassett pass-rate denominator", [e for e in current_bassett if e.get("normalized_result") in EVALUATED_RESULTS],
-                              f"Latest pass/fail Bassett evaluation per active Test Case for {version or 'the active version'}."),
+        # Keep the legacy key as an alias for callers that bookmarked the old
+        # ambiguous card; new dashboard cards use the explicit population keys.
+        "bassett-pass-rate": ("Model Comparison — Bassett Pass Rate", comparison_pass_records,
+                              bassett_populations["model_comparison"]["definition"]),
+        "model-comparison-pass-rate": ("Model Comparison — Bassett Pass Rate", comparison_pass_records,
+                                       bassett_populations["model_comparison"]["definition"]),
+        "bassett-only-pass-rate": ("Bassett-Only Pass Rate", bassett_only_pass_records,
+                                   bassett_populations["bassett_only"]["definition"]),
         "bassett-failed": ("Bassett failed", [e for e in current_bassett if e.get("normalized_result") in FAIL_SET],
                             f"Latest Bassett evaluation per active Test Case for {version or 'the active version'} with a failing result."),
         "bassett-score": ("Bassett score records", [e for e in current_bassett if e.get("overall_score") is not None],
@@ -6870,14 +7061,30 @@ async def dashboard_metric_records(metric: str, user=Depends(get_current_user)):
 
     def present(record):
         testcase = tc_by_id.get(record.get("testcase_id"))
-        if metric in ("bassett-pass-rate", "bassett-failed", "bassett-score", "all-model-evaluations"):
+        if metric == "bassett-only-pass-rate":
+            scenario_name = record.get("title") or record.get("test_id") or record.get("scenario_id") or "Bassett Test Run"
+            issue_id = (
+                record.get("id") if record.get("_lineage_source") == "issue"
+                else record.get("issue_id") or record.get("bassett_issue_id") or record.get("source_issue_id") or record.get("id")
+            )
+            return {
+                "id": record["id"], "name": scenario_name,
+                "type": record.get("_record_type") or "Bassett-Only Test Run",
+                "status": _canonical_bassett_result(record.get("result")),
+                "raw_status": record.get("result"),
+                "value": record.get("overall_score") if record.get("overall_score") is not None else record.get("score"),
+                "date": record.get("_dashboard_date") or record.get("test_date") or "",
+                "secondary": f"{record.get('bassett_version') or version} · Test Bank definition {record.get('scenario_id') or '—'}",
+                "to": f"/bassett/issues?open={issue_id}",
+            }
+        if metric in ("bassett-pass-rate", "model-comparison-pass-rate", "bassett-failed", "bassett-score", "all-model-evaluations"):
             return {
                 "id": record["id"], "name": (testcase or {}).get("name", record.get("testcase_id", "Unknown Test Case")),
-                "type": record.get("model", "Evaluation"),
+                "type": "Model Comparison · Bassett evaluation" if metric in ("bassett-pass-rate", "model-comparison-pass-rate") else record.get("model", "Evaluation"),
                 "status": record.get("normalized_result") or record.get("status"),
                 "raw_status": record.get("final_result"),
-                "value": record.get("overall_score"), "date": (record.get("created_at") or "")[:10],
-                "secondary": record.get("bassett_version") or record.get("environment"), "to": f"/testcases/{record.get('testcase_id')}",
+                "value": record.get("overall_score"), "date": record.get("_dashboard_date") or (record.get("created_at") or "")[:10],
+                "secondary": f"{record.get('bassett_version') or version} · Model Comparison", "to": f"/testcases/{record.get('testcase_id')}",
             }
         if metric in ("open-findings", "awaiting-fix", "ready-for-retest"):
             return {
@@ -6916,6 +7123,14 @@ async def dashboard_metric_records(metric: str, user=Depends(get_current_user)):
                 "to": f"/testcases/{record['id']}"}
 
     return {"metric": metric, "title": title, "definition": definition,
+            "population_label": (
+                bassett_populations["bassett_only"]["population_label"]
+                if metric == "bassett-only-pass-rate"
+                else bassett_populations["model_comparison"]["population_label"]
+                if metric in ("bassett-pass-rate", "model-comparison-pass-rate")
+                else None
+            ),
+            "scope": f"Active Bassett version: {version or 'none'} · archived, incomplete, and out-of-scope records excluded.",
             "active_version": version, "count": len(records), "records": [present(record) for record in records]}
 
 # ---------- Finding → Retest workflow ----------
