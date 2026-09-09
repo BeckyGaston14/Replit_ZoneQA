@@ -164,6 +164,22 @@ test("both evaluation form modes keep score labels and the shared rubric without
   }
 });
 
+test("both evaluation form modes show dimension names without exposing configured weights", () => {
+  const expectedDimensions = [
+    "Accuracy", "Current Code Identification", "Legal / Regulatory Interpretation",
+    "Calculation Accuracy", "Context Understanding", "Missing Information Recognition",
+    "Follow-Up Handling", "Citation Accuracy", "Source Quality", "Guidance Quality",
+    "Completeness", "Usefulness",
+  ];
+  for (const mode of ["bassett", "comparison"]) {
+    const view = renderForm(mode, { id: `${mode}-dimension-heading-edit` });
+    expectedDimensions.forEach((dimension) => expect(view.container.textContent).toContain(dimension));
+    expect(view.container.textContent).not.toMatch(/· weight \d+/);
+    expect(view.container.textContent).not.toMatch(/weight \d+/);
+    act(() => view.root.unmount());
+  }
+});
+
 test("comparison drafts save locally without File objects", () => {
   const view = renderForm("comparison", { name: "Draft", attachments: [new File(["x"], "evidence.txt")] });
   act(() => [...view.container.querySelectorAll("button")].find((button) => button.textContent === "Save draft").click());

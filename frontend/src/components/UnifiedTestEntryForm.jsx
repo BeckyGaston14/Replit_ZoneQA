@@ -146,7 +146,7 @@ function EvaluationGrid({ model, scores, dimensions, onChange, locked }) {
   return <div className="space-y-3">
     <details className="rounded-lg border bg-[var(--paper)] p-3"><summary className="cursor-pointer text-sm font-semibold text-[var(--navy)]">View the shared 0–10 scoring rubric</summary><div className="mt-3 grid gap-1 text-xs">{SCORE_RUBRIC.map(([score, reason]) => <div key={score} className="grid grid-cols-[1.5rem_1fr] gap-2"><b>{score}</b><span>{reason}</span></div>)}</div></details>
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-       {dimensions.map((dimension) => <Field key={dimension.key} label={`${dimension.label} · weight ${dimension.weight}`} description={dimension.question}>
+       {dimensions.map((dimension) => <Field key={dimension.key} label={dimension.label} description={dimension.question}>
         <ScoreSelect value={scores?.[dimension.key]} disabled={locked} ariaLabel={`${model} ${dimension.label} score`} onChange={(value) => onChange(model, dimension.key, value)} />
       </Field>)}
     </div>
