@@ -3,13 +3,16 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, formatApiErrorDetail, staleUpdateMessage, withExpectedVersion } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { PageHeader, Section, StatCard, MethodologyDisclosure } from "../components/shared";
+import { PageHeader, Section, StatCard, MethodologyDisclosure, CritBadge } from "../components/shared";
 import { Attachments } from "../components/Attachments";
+import { CommentsThread } from "../components/CommentsThread";
+import { AssigneePicker } from "../components/AssigneePicker";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { FormModal } from "../components/forms";
+import { FormModal, Field, ListSelect } from "../components/forms";
+import { Textarea } from "../components/ui/textarea";
 import { BassettTestRunForm, ScenarioDefinition, ScenarioSelector, createBassettTestRunDraft } from "../components/BassettTestRunForm";
-import { AlertTriangle, Archive, ArchiveRestore, CheckCircle2, Download, ExternalLink, Flag, Loader2, Pencil, Plus, Search, ShieldAlert, Upload } from "lucide-react";
+import { AlertTriangle, Archive, ArchiveRestore, CheckCircle2, Download, ExternalLink, Flag, Loader2, Pencil, Plus, RefreshCw, Search, ShieldAlert, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { parseCsv } from "../lib/csv";
 import { SortableTableHeader } from "../components/SortableTableHeader";
@@ -17,7 +20,7 @@ import { TableSortControls } from "../components/TableSortControls";
 import { nextSort, sortTableRows, usePersistentTableSort } from "../lib/tableSorting";
 import { formatTestDate } from "../lib/testDates";
 import { useFocusTrap } from "../lib/useFocusTrap";
-import { StatusBadge } from "../lib/statusMaps";
+import { FINDING_STATUSES, StatusBadge } from "../lib/statusMaps";
 import { normalizeEvaluationResult } from "../lib/evaluationResults";
 import { ConfirmActionDialog } from "../components/ConfirmActionDialog";
 import { loadBassettTestRunForEdit } from "../lib/bassettEditLoaders";
@@ -315,7 +318,7 @@ export default function BassettIssues() {
      </MethodologyDisclosure>
 
      {selected && (showingFindings
-       ? <BassettFindingDetail id={selected} onClose={() => setSelected(null)} />
+       ? <BassettFindingDetail id={selected} onClose={() => setSelected(null)} canWrite={canWrite} refresh={() => qc.invalidateQueries()} />
         : <IssueDetail id={selected} onClose={() => setSelected(null)} onEdit={openEdit} onRestore={restore} canWrite={canWrite} canManage={canManage} refresh={() => qc.invalidateQueries()} />)}
     {form && <BassettTestRunForm form={form} setForm={setForm} scenarios={scenarios} generalSubtypes={generalSubtypes} versions={versions} projects={projects} municipalities={municipalities} properties={properties} users={users} config={config} onSubmit={save} onCancel={() => { setConflict(null); setForm(null); }} submitting={saving} conflictNotice={conflict && <div role="alert" className="col-span-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
       <p className="font-semibold">Someone else saved this test run first. Your entries are still open for review.</p>
@@ -354,13 +357,38 @@ function actionError(error, fallback) {
   return formatApiErrorDetail(error?.response?.data?.detail) || fallback;
 }
 
-function BassettFindingDetail({ id, onClose }) {
+function BassettFindingDetail({ id, onClose, canWrite, refresh }) {
   const drawerRef = useFocusTrap(true, onClose);
+  const [statusForm, setStatusForm] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
   const { data: finding, isLoading, isError } = useQuery({
     queryKey: ["bassett-finding", id],
     queryFn: async () => (await api.get(`/findings/${id}`)).data,
   });
+  const { data: config } = useQuery({ queryKey: ["config"], queryFn: async () => (await api.get("/config")).data });
   const sourceRun = finding?.bassett_issue_id;
+
+  const saveStatus = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      await api.post(`/findings/${id}/status`, statusForm);
+      toast.success("Status updated");
+      setStatusForm(null);
+      refresh();
+    } catch (error) { toast.error(actionError(error, "Unable to update status")); }
+    finally { setSubmitting(false); }
+  };
+  const startRetest = async () => {
+    if (!sourceRun || submitting) return;
+    setSubmitting(true);
+    try {
+      await api.post(`/bassett/issues/${sourceRun}/send-for-retest`, {});
+      toast.success("Bassett test run sent for retest");
+      refresh();
+    } catch (error) { toast.error(actionError(error, "Unable to start retest")); }
+    finally { setSubmitting(false); }
+  };
 
   return <div className="fixed inset-0 z-40 bg-black/20 flex justify-end" onClick={(event) => event.target === event.currentTarget && onClose()} role="presentation">
     <aside ref={drawerRef} tabIndex="-1" role="dialog" aria-modal="true" aria-labelledby="bassett-finding-detail-title" className="bg-card h-full w-full max-w-2xl overflow-y-auto p-6 shadow-xl">
@@ -369,12 +397,13 @@ function BassettFindingDetail({ id, onClose }) {
           <div className="text-xs uppercase tracking-wide text-muted-foreground">Bassett Finding Details</div>
           <h2 id="bassett-finding-detail-title" className="text-xl font-bold font-display text-[var(--navy)] mt-1 break-words">{finding?.title || "Finding"}</h2>
         </div>
-        <Button type="button" variant="ghost" className="shrink-0" onClick={onClose} aria-label="Close Bassett Finding Details">Close</Button>
+        <Button type="button" variant="ghost" size="icon" className="shrink-0" onClick={onClose} aria-label="Close Bassett Finding Details"><X size={18} /></Button>
       </div>
       {isLoading && <div className="text-sm text-muted-foreground">Loading Bassett Finding Details…</div>}
       {isError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">Unable to load this Bassett finding.</div>}
       {finding && <div className="space-y-5 text-sm">
-        <div className="flex flex-wrap gap-2"><Pill>{finding.developer_status || "New"}</Pill><Pill tone="orange">{finding.criticality || finding.severity || "Medium"}</Pill></div>
+        <div className="flex flex-wrap gap-2">{Number.isFinite(Number(finding.criticality)) ? <CritBadge value={finding.criticality} /> : <Pill tone={finding.severity === "Critical" ? "red" : "orange"}>{finding.severity || "Not rated"}</Pill>}<StatusBadge value={finding.developer_status || "New"} definitions={FINDING_STATUSES} /></div>
+        <AssigneePicker entityType="findings" entityId={finding.id} assigneeId={finding.assignee_id} assigneeName={finding.assignee_name} canWrite={canWrite} onChanged={refresh} />
         <Info label="Description" value={finding.description || "—"} />
         <Info label="Expected behavior" value={finding.expected_behavior || "—"} />
         {finding.actual_behavior && <Info label="Actual Bassett behavior" value={finding.actual_behavior} />}
@@ -385,9 +414,25 @@ function BassettFindingDetail({ id, onClose }) {
             ? <Link to={`/bassett/issues?open=${encodeURIComponent(sourceRun)}`} className="font-semibold text-[var(--orange)] hover:underline">Open source Bassett Test Run →</Link>
             : <span className="text-muted-foreground">No source Bassett Test Run is linked.</span>}
         </div>
-        <Attachments entityType="finding" entityId={finding.id} canWrite={false} />
+        <div className="rounded-xl border p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div><div className="font-semibold text-[var(--navy)]">Developer workflow</div><div className="text-xs text-muted-foreground mt-1">Retest: {finding.retest_status || "Pending"}</div></div>
+            {canWrite && <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => setStatusForm({ id, status: finding.developer_status || "New", root_cause: finding.root_cause || "", resolution: finding.resolution || "", note: "" })}>Update Status</Button>{sourceRun && !["Fixed", "Closed", "Won't Fix", "Duplicate"].includes(finding.developer_status) && <Button size="sm" variant="outline" onClick={startRetest} disabled={submitting}><RefreshCw size={13} /> Start Retest</Button>}</div>}
+          </div>
+          {finding.root_cause && <div className="mt-3"><Info label="Root cause" value={finding.root_cause} /></div>}
+          {finding.resolution && <div className="mt-3"><Info label="Resolution" value={finding.resolution} /></div>}
+        </div>
+        {(finding.status_history || []).length > 0 && <div className="rounded-xl border p-4"><div className="font-semibold text-[var(--navy)] mb-2">Status history</div><div className="space-y-1.5">{finding.status_history.map((item, index) => <div key={index} className="text-xs text-muted-foreground">{item.from || "—"} → <b className="text-[var(--navy)]">{item.to}</b> · {item.by || "Unknown"}{item.at ? ` · ${new Date(item.at).toLocaleDateString()}` : ""}{item.note ? ` · ${item.note}` : ""}</div>)}</div></div>}
+        <div className="rounded-xl border p-4"><Attachments entityType="finding" entityId={finding.id} canWrite={canWrite} /></div>
+        <div className="rounded-xl border p-4"><CommentsThread entityType="findings" entityId={finding.id} canWrite={canWrite} /></div>
       </div>}
     </aside>
+    {statusForm && <FormModal open onOpenChange={() => setStatusForm(null)} title="Update Developer Status" onSubmit={saveStatus} submitLabel={submitting ? "Saving…" : "Save status"}>
+      <Field label="Status"><ListSelect options={config?.finding_statuses || []} value={statusForm.status} onChange={(value) => setStatusForm({ ...statusForm, status: value })} /></Field>
+      <Field label="Root Cause"><ListSelect options={config?.root_causes || []} value={statusForm.root_cause} onChange={(value) => setStatusForm({ ...statusForm, root_cause: value })} /></Field>
+      <Field label="Resolution"><Textarea rows={3} value={statusForm.resolution} onChange={(event) => setStatusForm({ ...statusForm, resolution: event.target.value })} /></Field>
+      <Field label="Note (added to history)"><Textarea rows={2} value={statusForm.note} onChange={(event) => setStatusForm({ ...statusForm, note: event.target.value })} /></Field>
+    </FormModal>}
   </div>;
 }
 
