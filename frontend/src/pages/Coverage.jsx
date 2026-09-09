@@ -22,17 +22,35 @@ export function GapRow({ label, sub, tests, evaluated, testid, bassett = false }
   const definitions = bassett ? BASSETT_COVERAGE_STATUSES : COVERAGE_STATUSES;
   const noun = bassett ? "scenario" : "test";
   return (
-    <div className="flex min-w-0 flex-col gap-2 py-3 border-b last:border-0 sm:flex-row sm:items-center sm:justify-between sm:gap-4" data-testid={testid}>
+    <div className="mb-2 flex min-w-0 flex-col gap-2 rounded-lg bg-[var(--paper)] px-3 py-3 last:mb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-4" data-testid={testid}>
       <div className="min-w-0 sm:flex-1">
         <div className="text-sm font-medium truncate text-[var(--navy)]">{label}</div>
         {sub && <div className="text-[11px] text-muted-foreground">{sub}</div>}
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2 text-xs sm:justify-end sm:text-right">
         <StatusBadge value={status} definitions={definitions} compact />
-        <span className="text-muted-foreground"><b className="text-[var(--navy)]">{evaluated}/{tests}</b> {noun}{tests === 1 ? "" : "s"} evaluated</span>
+        <span className="text-muted-foreground"><b className="text-[var(--navy)]">{evaluated} of {tests}</b> {noun}{tests === 1 ? "" : "s"} evaluated</span>
       </div>
     </div>
   );
+}
+
+function EmptyCoverage({ children }) {
+  return <div className="rounded-lg bg-[var(--paper)] px-4 py-6 text-center text-sm text-muted-foreground">{children}</div>;
+}
+
+function PopulationSummary({ title, population }) {
+  const total = population?.total_tests || 0;
+  const evaluated = population?.evaluated_tests || 0;
+  const percent = total ? Math.round((evaluated / total) * 1000) / 10 : 0;
+  return <div className="rounded-xl border bg-card p-4">
+    <div className="text-sm font-semibold text-[var(--navy)]">{title}</div>
+    <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">
+      <span><b className="text-base text-[var(--navy)]">{evaluated}/{total}</b> evaluated</span>
+      <span><b className="text-base text-[var(--navy)]">{percent}%</b> coverage</span>
+      <span><b className="text-base text-[var(--navy)]">{population?.gap_count || 0}</b> uncovered groupings</span>
+    </div>
+  </div>;
 }
 
 export default function Coverage() {
@@ -51,41 +69,39 @@ export default function Coverage() {
   const showBassett = scope !== "comparison";
   const bassettCounts = d.population_counts?.bassett_only || {};
   const comparisonCounts = d.population_counts?.model_comparison || {};
+  const total = s.total_tests || 0;
+  const evaluated = s.evaluated_tests || 0;
+  const remaining = Math.max(0, total - evaluated);
+  const coverageRate = total ? Math.round((evaluated / total) * 1000) / 10 : 0;
 
   return (
     <div>
       <PageHeader title="Test Coverage" subtitle="Coverage across Bassett-only Test Bank scenarios and Model Comparison Test Cases.">
-        <label className="flex items-center gap-2 text-sm">
-          <span className="font-medium text-[var(--navy)]">Coverage scope</span>
-          <select aria-label="Coverage scope" value={scope} onChange={(event) => setScope(event.target.value)} className="h-9 rounded-md border bg-background px-3 text-sm" data-testid="coverage-scope">
-            <option value="bassett">Bassett Only</option>
-            <option value="comparison">Model Comparison</option>
-            <option value="both">Both</option>
-          </select>
-        </label>
       </PageHeader>
-      <SampleDataBanner show={sampleScopeIncludesData({ records: [d] })} />
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-        <StatCard label="Coverage Gaps" value={s.gap_count} accent={s.gap_count ? "#dc2626" : "#16a34a"} icon={AlertTriangle} testid="coverage-gaps" />
-        <StatCard label="Total Tests" value={s.total_tests} sub={`${s.evaluated_tests} evaluated`} accent="#16215a" icon={FlaskConical} />
-        {showBassett && <StatCard label="Bassett-Only Scenarios" value={bassettCounts.total_tests || 0} sub={`${bassettCounts.evaluated_tests || 0} evaluated`} accent="#f47b20" icon={Grid3X3} />}
-        {showComparison && <StatCard label="Model Comparison Cases" value={comparisonCounts.total_tests || 0} sub={`${comparisonCounts.evaluated_tests || 0} evaluated`} accent="#2f3f96" icon={FlaskConical} />}
-        {scope === "bassett" && <StatCard label="Workflow Stages" value={`${workflowStages.filter((row) => row.evaluated > 0).length}/${workflowStages.length}`} sub="with qualifying evaluations" accent="#2f3f96" icon={Tags} />}
-        {scope === "comparison" && <StatCard label="Municipalities" value={`${s.munis_covered}/${s.munis_total}`} sub="with qualifying evaluations" accent="#2f3f96" icon={Building2} />}
-        {showComparison && <StatCard label="Categories" value={`${s.categories_covered}/${s.categories_total}`} sub="with qualifying evaluations" accent="#f47b20" icon={Tags} />}
-        {showComparison && <StatCard label="Criticality Levels" value={`${s.crit_covered}/5`} sub="with qualifying evaluations" accent="#0ea5e9" icon={Grid3X3} />}
+      <div className="mb-5 inline-flex flex-wrap rounded-xl border bg-card p-1" role="group" aria-label="Coverage scope" data-testid="coverage-scope">
+        {[["bassett", "Bassett Only"], ["comparison", "Model Comparison"], ["both", "Both"]].map(([value, label]) => <button key={value} type="button" aria-pressed={scope === value} onClick={() => setScope(value)} className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${scope === value ? "bg-[var(--navy)] text-white" : "text-[var(--navy)] hover:bg-[var(--paper)]"}`}>{label}</button>)}
       </div>
+      <SampleDataBanner show={sampleScopeIncludesData({ records: [d] })} />
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 mb-4">
+        <StatCard label="Evaluated" value={`${evaluated} of ${total}`} sub="active definitions" accent="#16215a" icon={FlaskConical} />
+        <StatCard label="Remaining" value={remaining} sub="without a qualifying evaluation" accent={remaining ? "#b45309" : "#16a34a"} icon={AlertTriangle} />
+        <StatCard label="Coverage Rate" value={`${coverageRate}%`} sub="evaluated ÷ active definitions" accent="#15803d" icon={Grid3X3} />
+        <StatCard label="Uncovered Groupings" value={s.gap_count} sub="not unique missing tests" accent={s.gap_count ? "#dc2626" : "#16a34a"} icon={Tags} testid="coverage-gaps" />
+      </div>
+      {scope === "both" && <div className="mb-6 grid gap-3 md:grid-cols-2"><PopulationSummary title="Bassett-Only summary" population={bassettCounts} /><PopulationSummary title="Model Comparison summary" population={comparisonCounts} /></div>}
 
-      <div className="grid lg:grid-cols-2 gap-4">
-        {showBassett && <div className="bg-card border rounded-xl p-5" data-testid="coverage-workflow-stages">
+      <div className="space-y-8">
+        {showBassett && <section aria-labelledby="bassett-coverage-heading">
+          <div className="mb-3"><h2 id="bassett-coverage-heading" className="text-lg font-bold font-display text-[var(--navy)]">Bassett-Only Coverage</h2><p className="text-sm text-muted-foreground">Coverage of reusable Test Bank scenarios by their defining attributes.</p></div>
+          <div className="grid gap-4 lg:grid-cols-2"><div className="bg-card border rounded-xl p-5" data-testid="coverage-workflow-stages">
           <div className="flex items-center justify-between mb-2">
             <h3 className="font-semibold font-display text-[var(--navy)]">Bassett-Only · Workflow Stages</h3>
             <Link to="/bassett/test-bank" className="text-xs text-[var(--orange)] font-semibold hover:underline">Open Test Bank →</Link>
           </div>
           {workflowStages.map((row) => <GapRow key={row.value} label={row.value} tests={row.tests} evaluated={row.evaluated} bassett />)}
-        </div>}
+          </div>
 
-        {showBassett && <div className="space-y-4">
+        <div className="space-y-4">
           <div className="bg-card border rounded-xl p-5" data-testid="coverage-complexity">
             <h3 className="font-semibold font-display text-[var(--navy)] mb-2">Bassett-Only · Complexity</h3>
             {complexities.map((row) => <GapRow key={row.value} label={row.value} tests={row.tests} evaluated={row.evaluated} bassett />)}
@@ -94,9 +110,12 @@ export default function Coverage() {
             <h3 className="font-semibold font-display text-[var(--navy)] mb-2">Bassett-Only · Priority</h3>
             {priorities.map((row) => <GapRow key={row.value} label={row.value} tests={row.tests} evaluated={row.evaluated} bassett />)}
           </div>
-        </div>}
+        </div></div>
+        </section>}
 
-        {showComparison && <>
+        {showComparison && <section aria-labelledby="comparison-coverage-heading">
+          <div className="mb-3"><h2 id="comparison-coverage-heading" className="text-lg font-bold font-display text-[var(--navy)]">Model Comparison Coverage</h2><p className="text-sm text-muted-foreground">Coverage of test cases evaluated across Bassett and benchmark models.</p></div>
+          {comparisonCounts.total_tests ? <div className="grid gap-4 lg:grid-cols-2"><>
         <div className="bg-card border rounded-xl p-5" data-testid="coverage-categories">
           <div className="flex items-center justify-between mb-2">
             <h3 className="font-semibold font-display text-[var(--navy)]">Categories</h3>
@@ -108,14 +127,15 @@ export default function Coverage() {
         <div className="space-y-4">
           <div className="bg-card border rounded-xl p-5" data-testid="coverage-municipalities">
             <h3 className="font-semibold font-display text-[var(--navy)] mb-2">Municipalities</h3>
-            {municipalities.map((m) => <GapRow key={m.id} label={m.name} sub={m.state} tests={m.tests} evaluated={m.evaluated} testid="coverage-muni-row" />)}
+            {municipalities.length ? municipalities.map((m) => <GapRow key={m.id} label={m.name} sub={m.state} tests={m.tests} evaluated={m.evaluated} testid="coverage-muni-row" />) : <EmptyCoverage>No active Model Comparison test cases are linked to a municipality.</EmptyCoverage>}
           </div>
           <div className="bg-card border rounded-xl p-5" data-testid="coverage-criticality">
             <h3 className="font-semibold font-display text-[var(--navy)] mb-2">Criticality Levels</h3>
             {criticality.map((c) => <GapRow key={c.level} label={`${c.level} — ${c.label}`} tests={c.tests} evaluated={c.evaluated} testid="coverage-crit-row" />)}
           </div>
         </div>
-        </>}
+        </></div> : <EmptyCoverage>No active Model Comparison test cases are available. Add a test case to begin measuring model-comparison coverage.</EmptyCoverage>}
+        </section>}
        <MethodologyDisclosure title="How coverage metrics are calculated" testid="coverage-methodology">
          <p>Fully Evaluated means every active definition in the row has a qualifying completed evaluation. Partially Evaluated means only some definitions do. Defined, Not Evaluated means definitions exist but none has been evaluated; Not Represented means no active definition exists.</p>
          <p>Bassett-only coverage uses Test Bank workflow stage, complexity, and priority. Model Comparison coverage uses municipality, category, and criticality. Expanded or linked Bassett-only runs are excluded from the Bassett-only population to prevent double counting.</p>
