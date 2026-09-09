@@ -3061,7 +3061,7 @@ def _validate_bassett_run_result(doc, allow_legacy=False):
             raise HTTPException(400, "Score must be between 0 and 100")
     doc["result"], doc["score"] = result, score
 def _validate_scenario_required(doc):
-    required = ("workflow_stage", "report_type", "test_scenario", "complexity",
+    required = ("workflow_stage", "test_scenario", "complexity",
                 "why_it_matters", "what_bassett_should_do", "success_criteria")
     missing = [field for field in required if not str(doc.get(field) or "").strip()]
     if missing:
@@ -4273,7 +4273,7 @@ def _bassett_csv_rows(resource, docs):
                    "issue_category", "severity", "priority", "status", "scenario_id", "finding_id",
                     "version_id", "bassett_version", "environment", "test_date", "reported_date", "result", "score",
                    "resolution", "archived", "archived_at"],
-        "scenarios": ["id", "stable_id", "workflow_stage", "report_type", "test_scenario", "complexity",
+        "scenarios": ["id", "stable_id", "workflow_stage", "test_scenario", "complexity",
                       "why_it_matters", "what_bassett_should_do", "success_criteria", "priority",
                        "version_id", "bassett_version", "project_id", "testcase_id", "archived", "archived_at"],
     }[resource]
@@ -4309,7 +4309,7 @@ async def bassett_export_csv(resource: str, include_archived: bool = False, user
 async def _bassett_import_preview(resource, rows):
     if resource not in ("issues", "scenarios") or not isinstance(rows, list):
         raise HTTPException(400, "Rows must be a list for issues or scenarios")
-    scenario_required = ["workflow_stage", "report_type", "test_scenario", "complexity",
+    scenario_required = ["workflow_stage", "test_scenario", "complexity",
                          "why_it_matters", "what_bassett_should_do", "success_criteria"]
     issue_required = ["question_asked", "exact_bassett_answer", "verified_correct_answer"]
     seen = set()

@@ -29,7 +29,7 @@ import { focusFormError, validateScenarioDraft } from "../lib/formValidation";
 import { loadBassettScenarioForEdit } from "../lib/bassettEditLoaders";
 
 const emptyScenario = {
-  workflow_stage: "", report_type: "", test_scenario: "",
+  workflow_stage: "", test_scenario: "",
   complexity: "Medium", why_it_matters: "", what_bassett_should_do: "",
   success_criteria: "", priority: "Medium", project_id: "", testcase_id: "", version_id: "",
 };
@@ -94,7 +94,7 @@ export default function BassettTestBank() {
   const shown = useMemo(() => sortTableRows(scenarios.filter((scenario) => {
     const q = search.trim().toLowerCase();
     return Boolean(scenario.archived) === showArchived && (stage === "all" || scenario.workflow_stage === stage) &&
-      (!q || [scenario.stable_id, scenario.test_scenario, scenario.report_type, scenario.why_it_matters]
+      (!q || [scenario.stable_id, scenario.test_scenario, scenario.why_it_matters]
         .some((value) => String(value || "").toLowerCase().includes(q)));
   }), testBankColumns, sort, ["stable_id", "test_scenario"]), [scenarios, search, stage, sort, testBankColumns, showArchived]);
 
@@ -265,8 +265,8 @@ export default function BassettTestBank() {
         {testBankColumns.map((column) => <SortableTableHeader key={column.key} column={column} sort={sort} onSort={(key) => setSort((current) => nextSort(current, key))} />)}
         <th className="px-2.5 py-2 text-[11px] uppercase tracking-wide text-muted-foreground"><span className="sr-only">Actions</span></th>
       </tr></thead>
-        <tbody>{isLoading ? <tr><td colSpan="8" className={TABLE_EMPTY_CELL_CLASS}>Loading Test Bank…</td></tr> : shown.map((scenario) => <tr key={scenario.id} className="border-t hover:bg-[var(--paper)]">
-          <td className={`${TABLE_CELL_CLASS} font-bold text-[var(--orange)]`}><button type="button" className="w-full text-left rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)] focus-visible:ring-offset-2" onClick={() => setSelected(scenario.id)} aria-label={`Open ${scenario.stable_id} scenario`}>{scenario.stable_id}</button></td><td className={`${TABLE_CELL_CLASS} font-semibold`}>{scenario.workflow_stage}</td><td className={TABLE_CELL_CLASS}>{scenario.report_type}</td>
+        <tbody>{isLoading ? <tr><td colSpan="7" className={TABLE_EMPTY_CELL_CLASS}>Loading Test Bank…</td></tr> : shown.map((scenario) => <tr key={scenario.id} className="border-t hover:bg-[var(--paper)]">
+          <td className={`${TABLE_CELL_CLASS} font-bold text-[var(--orange)]`}><button type="button" className="w-full text-left rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)] focus-visible:ring-offset-2" onClick={() => setSelected(scenario.id)} aria-label={`Open ${scenario.stable_id} scenario`}>{scenario.stable_id}</button></td><td className={`${TABLE_CELL_CLASS} font-semibold`}>{scenario.workflow_stage}</td>
           <td className={`${TABLE_CELL_CLASS} min-w-[260px]`}><div className="font-semibold text-[var(--navy)]">{scenario.test_scenario}</div><div className="text-xs text-muted-foreground mt-1 line-clamp-1">{scenario.why_it_matters}</div></td>
           <td className={TABLE_CELL_CLASS}>{scenario.complexity}</td><td className={TABLE_CELL_CLASS}>{scenario.priority}</td><td className={TABLE_CELL_CLASS}>{scenario.execution_count} test run(s)</td>
             <td className={TABLE_ACTION_CELL_CLASS}>{scenario.archived
@@ -309,7 +309,6 @@ export default function BassettTestBank() {
         <legend className="px-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">Required scenario definition</legend>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Workflow stage" required error={formErrors.workflow_stage}><select required data-testid="field-workflow_stage" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.workflow_stage} onChange={(e) => setScenarioField("workflow_stage", e.target.value)}><option value="">Select workflow stage</option>{stages.map((x) => <option key={x}>{x}</option>)}</select></Field>
-          <Field label="Report type" required error={formErrors.report_type}><Input data-testid="field-report_type" value={form.report_type} onChange={(e) => setScenarioField("report_type", e.target.value)} placeholder="Property, zoning, feasibility…" /></Field>
           <Field label="Complexity" required error={formErrors.complexity}><select data-testid="field-complexity" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.complexity} onChange={(e) => setScenarioField("complexity", e.target.value)}>{["Low", "Moderate", "Medium", "High", "Very High"].map((x) => <option key={x}>{x}</option>)}</select></Field>
           <div className="sm:col-span-2"><Field label="Test scenario" required error={formErrors.test_scenario}><Textarea data-testid="field-test_scenario" rows={3} value={form.test_scenario} onChange={(e) => setScenarioField("test_scenario", e.target.value)} /></Field></div>
           <div className="sm:col-span-2"><Field label="Why it matters" required error={formErrors.why_it_matters}><Textarea data-testid="field-why_it_matters" rows={2} value={form.why_it_matters} onChange={(e) => setScenarioField("why_it_matters", e.target.value)} /></Field></div>
@@ -334,7 +333,7 @@ export default function BassettTestBank() {
     {showImport && <FormModal open onOpenChange={(open) => !open && setShowImport(false)} title="Review spreadsheet reference scenarios" onSubmit={preview ? commitImport : previewImport} submitLabel={importing ? "Importing…" : preview ? "Confirm import accepted rows" : "Preview rows"} wide>
       <p className="text-sm text-muted-foreground">Upload the Research/Analysis export as CSV. The preview validates stable IDs before any write. Re-importing the same IDs updates in place; startup never seeds them.</p>
       <Input aria-label="Choose Test Bank CSV" type="file" accept=".csv" onChange={loadCsv} />
-      {preview ? <CsvReview preview={preview} /> : <div className="rounded-lg bg-[var(--paper)] p-3 text-sm">{importRows.length ? `${importFileName}: ${importRows.length} row(s) loaded and ready for preview.` : "Required columns: stable_id, workflow_stage, report_type, test_scenario, complexity, why_it_matters, what_bassett_should_do, success_criteria."}</div>}
+      {preview ? <CsvReview preview={preview} /> : <div className="rounded-lg bg-[var(--paper)] p-3 text-sm">{importRows.length ? `${importFileName}: ${importRows.length} row(s) loaded and ready for preview.` : "Required columns: stable_id, workflow_stage, test_scenario, complexity, why_it_matters, what_bassett_should_do, success_criteria."}</div>}
     </FormModal>}
     {showWorkflowManager && <FormModal open onOpenChange={(open) => !open && setShowWorkflowManager(false)} title="Workflow stages & ID prefixes" onSubmit={saveStage} submitLabel={stageDraft.id ? "Save stage" : "Create stage"}>
       <p className="text-sm text-muted-foreground">Stages and prefixes are managed by the Test Bank service. Stable IDs are assigned automatically when a scenario is created.</p>
@@ -390,7 +389,7 @@ export function ScenarioDetail({ id, canManage, canExecute, close, edit, run, ar
     catch (error) { toast.error(formatApiErrorDetail(error.response?.data?.detail)); }
   };
   return <div className="fixed inset-0 z-40 bg-black/20 flex justify-end" onClick={(event) => event.target === event.currentTarget && close()} role="presentation"><aside ref={drawerRef} tabIndex="-1" role="dialog" aria-modal="true" aria-labelledby="bassett-scenario-detail-title" className="bg-card h-full w-full max-w-2xl overflow-y-auto p-6 shadow-xl">
-    <div className="flex justify-between gap-4 mb-6"><div><div className="font-bold text-[var(--orange)]">{scenario.stable_id}</div><h2 id="bassett-scenario-detail-title" className="text-xl font-bold font-display text-[var(--navy)]">{scenario.test_scenario}</h2><div className="text-xs text-muted-foreground mt-2">{scenario.workflow_stage} · {scenario.report_type} · {scenario.complexity} complexity</div></div><Button type="button" variant="ghost" onClick={close} aria-label="Close scenario details">Close</Button></div>
+    <div className="flex justify-between gap-4 mb-6"><div><div className="font-bold text-[var(--orange)]">{scenario.stable_id}</div><h2 id="bassett-scenario-detail-title" className="text-xl font-bold font-display text-[var(--navy)]">{scenario.test_scenario}</h2><div className="text-xs text-muted-foreground mt-2">{scenario.workflow_stage} · {scenario.complexity} complexity</div></div><Button type="button" variant="ghost" onClick={close} aria-label="Close scenario details">Close</Button></div>
     <div className="space-y-5"><Detail label="Why it matters" value={scenario.why_it_matters} /><Detail label="What Bassett should do" value={scenario.what_bassett_should_do} /><Detail label="Success criteria" value={scenario.success_criteria} />
       <Attachments entityType="bassett_scenario" entityId={scenario.id} canWrite={canExecute && !scenario.archived} />
       <div className="rounded-xl border p-4"><h3 className="font-semibold text-[var(--navy)] mb-3">Canonical Bassett Test Runs ({scenario.issues?.length || 0})</h3>{scenario.issues?.length ? scenario.issues.map((issue) => <div key={issue.id} className="border-t first:border-0 py-3 text-sm flex items-start justify-between gap-3"><div><ResultPill value={issue.result || "Not Evaluated"} /><div className="font-medium mt-1">{issue.title || issue.question_asked}</div><div className="text-xs text-muted-foreground mt-1">Test Date: {formatTestDate(issue.test_date)} · {issue.status}</div></div><Link to={`/bassett/issues?open=${encodeURIComponent(issue.id)}`} className="inline-flex h-8 items-center justify-center rounded-md border border-input px-3 text-xs font-medium shadow-sm hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">Open Run</Link></div>) : <p className="text-sm text-muted-foreground">No canonical test runs linked.</p>}</div>

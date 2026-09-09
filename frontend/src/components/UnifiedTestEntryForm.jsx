@@ -114,7 +114,7 @@ export function ScenarioSelector({ scenarios, value, onChange, error }) {
 
 export function ScenarioDefinition({ scenario }) {
   if (!scenario) return null;
-  const fields = [["Stable ID", scenario.stable_id], ["Workflow stage", scenario.workflow_stage], ["Report type", scenario.report_type], ["Test scenario", scenario.test_scenario], ["Complexity", scenario.complexity], ["Why it matters", scenario.why_it_matters], ["What Bassett should do", scenario.what_bassett_should_do], ["Success criteria", scenario.success_criteria], ["Priority", scenario.priority]];
+  const fields = [["Stable ID", scenario.stable_id], ["Workflow stage", scenario.workflow_stage], ["Test scenario", scenario.test_scenario], ["Complexity", scenario.complexity], ["Why it matters", scenario.why_it_matters], ["What Bassett should do", scenario.what_bassett_should_do], ["Success criteria", scenario.success_criteria], ["Priority", scenario.priority]];
   return <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">{fields.map(([label, value]) => <div key={label}><div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">{label}</div><div className="whitespace-pre-wrap">{value || "—"}</div></div>)}</div>;
 }
 

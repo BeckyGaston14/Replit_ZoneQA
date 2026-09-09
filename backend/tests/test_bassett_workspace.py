@@ -118,7 +118,8 @@ def test_scenario_preview_requires_complete_definition(monkeypatch):
         "workflow_stage": "Research",
     }]))
     assert preview["invalid"] == 1
-    assert "report_type is required" in preview["rows"][0]["errors"]
+    assert "report_type is required" not in preview["rows"][0]["errors"]
+    assert "test_scenario is required" in preview["rows"][0]["errors"]
 
 
 class _ImportCursor:

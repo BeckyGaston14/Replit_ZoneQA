@@ -4,7 +4,6 @@ export const TEST_BANK_SORT_STORAGE_KEY = "zoneqa:test-bank-sort";
 export const TEST_BANK_SORT_COLUMNS = [
   { key: "stable_id", label: "Test ID", type: "test-id" },
   { key: "workflow_stage", label: "Workflow Stage", type: "text" },
-  { key: "report_type", label: "Report Type", type: "text" },
   { key: "test_scenario", label: "Test Scenario", type: "text" },
   { key: "complexity", label: "Complexity", type: "complexity" },
   { key: "priority", label: "Priority", type: "priority" },

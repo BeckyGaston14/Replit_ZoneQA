@@ -24,7 +24,6 @@ export default function Dashboard() {
     queryFn: async () => (await api.get("/analytics/performance", { params: { version: m.active_version || "" } })).data,
     retry: false,
   });
-  const activityQuery = useQuery({ queryKey: ["acts"], queryFn: async () => (await api.get("/activities")).data, retry: false });
   const versionsQuery = useCollection("versions");
 
   if (stats.isLoading || metrics.isLoading) return <DashboardState title="Loading dashboard…" detail="Loading canonical metrics and project status." />;
@@ -90,15 +89,18 @@ export default function Dashboard() {
         </section>)}
       </div>
 
-      <div className="grid min-w-0 grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="min-w-0 lg:col-span-2">
+      <div className="min-w-0">
+        <div className="min-w-0">
           <Section title="Bassett vs. Benchmark Models — Average Score">
             <p className="text-xs text-muted-foreground mb-3">{perfQuery.data?.scope || `Latest evaluations; Bassett limited to ${versionLabel}.`}</p>
             <p className="text-xs text-muted-foreground mb-3">Scale: 0–10. Missing model scores are unavailable and are not plotted as zero.</p>
             {perfQuery.isLoading ? <DashboardState compact title="Loading chart…" detail="Loading active-version model scores." /> : perfQuery.isError ? (
               <InlineError error={perfQuery.error} retry={perfQuery.refetch} />
             ) : modelData.length === 0 ? (
-              <div className="h-[260px] flex items-center justify-center text-sm text-muted-foreground">No scored model evaluations exist for this scope.</div>
+              <div className="flex min-h-36 flex-col items-center justify-center gap-3 rounded-lg border border-dashed px-4 py-8 text-center">
+                <p className="text-sm text-muted-foreground">No scored model evaluations exist for this scope.</p>
+                <Button asChild size="sm" variant="outline"><Link to="/testcases">Create or evaluate a comparison test case</Link></Button>
+              </div>
             ) : <SafeResponsiveContainer height={260} testId="dashboard-model-chart">
               <BarChart data={modelData}>
                 <XAxis dataKey="name" tick={{ fontSize: 13 }} />
@@ -117,24 +119,6 @@ export default function Dashboard() {
             </div>
           </Section>
         </div>
-        <Section title="Recent Activity">
-          <div className="space-y-3 max-h-[300px] overflow-y-auto">
-            {activityQuery.isLoading ? <DashboardState compact title="Loading activity…" /> : activityQuery.isError ? (
-              <InlineError error={activityQuery.error} retry={activityQuery.refetch} />
-            ) : (activityQuery.data || []).length === 0 ? (
-              <div className="py-8 text-center text-sm text-muted-foreground">No recent activity.</div>
-            ) : (activityQuery.data || []).slice(0, 12).map((a) => (
-              <div key={a.id} className="flex min-w-0 gap-3 text-sm">
-                <div className="mt-1 h-1.5 w-1.5 rounded-full bg-[var(--orange)] shrink-0" />
-                <div className="min-w-0">
-                  <div className="break-words text-[var(--ink)]">{a.summary || "Activity recorded"}</div>
-                  <div className="break-words text-[11px] text-muted-foreground">{a.user} · {new Date(a.created_at).toLocaleString()}</div>
-                  {a.audit_detail_available && <Link className="mt-1 inline-block text-xs font-semibold text-[var(--orange)] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)]" to={`/admin/audit/${a.id}`}>View audit details</Link>}
-                </div>
-              </div>
-            ))}
-          </div>
-        </Section>
       </div>
       <MethodologyDisclosure title="How dashboard metrics are calculated" testid="dashboard-methodology">
           <p>Dashboard cards use the active Bassett version and the current dashboard scope. Each Test Bank definition or Test Case contributes only its latest qualifying record.</p>

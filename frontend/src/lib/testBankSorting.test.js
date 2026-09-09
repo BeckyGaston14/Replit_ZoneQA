@@ -49,12 +49,12 @@ test("domain columns use configured order in both directions", () => {
 
 test("text, numeric values, blank values, and equal ties are predictable", () => {
   const input = [
-    { id: "first", stable_id: "R-01", report_type: "zoning", execution_count: 2 },
-    { id: "second", stable_id: "R-02", report_type: "Assessment", execution_count: 10 },
-    { id: "third", stable_id: "R-03", report_type: "assessment", execution_count: 1 },
-    { id: "blank", stable_id: "R-04", report_type: "", execution_count: null },
+    { id: "first", stable_id: "R-01", test_scenario: "zoning", execution_count: 2 },
+    { id: "second", stable_id: "R-02", test_scenario: "Assessment", execution_count: 10 },
+    { id: "third", stable_id: "R-03", test_scenario: "assessment", execution_count: 1 },
+    { id: "blank", stable_id: "R-04", test_scenario: "", execution_count: null },
   ];
-  expect(sortTestBankScenarios(input, "report_type").map((row) => row.id))
+  expect(sortTestBankScenarios(input, "test_scenario").map((row) => row.id))
     .toEqual(["second", "third", "first", "blank"]);
   expect(sortTestBankScenarios(input, "execution_count").map((row) => row.id))
     .toEqual(["third", "first", "second", "blank"]);
@@ -66,7 +66,7 @@ test("text, numeric values, blank values, and equal ties are predictable", () =>
 
 test("sort toggle selects ascending on a new column and alternates the active column", () => {
   expect(TEST_BANK_SORT_COLUMNS.map((column) => column.key)).toEqual([
-    "stable_id", "workflow_stage", "report_type", "test_scenario",
+    "stable_id", "workflow_stage", "test_scenario",
     "complexity", "priority", "execution_count",
   ]);
   expect(nextTestBankSort(DEFAULT_TEST_BANK_SORT, "priority")).toEqual({ key: "priority", direction: "asc" });

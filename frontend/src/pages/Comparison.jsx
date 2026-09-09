@@ -169,7 +169,7 @@ export default function Comparison() {
       </PageHeader>
       <SampleDataBanner show={sampleScopeIncludesData({ records: [selectedTestCase, data] })} />
       {(testsLoading || testsError) && <QueryState query={testsQuery} resource="comparison test cases" onRetry={refetchTests} testId="comparison-tests" />}
-      {!testsLoading && !testsError && tcs.length === 0 && <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">No test cases are available for comparison yet. Create and evaluate a test case first.</div>}
+      {!testsLoading && !testsError && tcs.length === 0 && <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"><span>No test cases are available for comparison yet.</span><Button size="sm" onClick={() => nav("/testcases?create=1&mode=comparison")}>Create Model Comparison Test Case</Button></div>}
 
        {!!tcId && isLoading && <QueryState query={{ isLoading }} resource="comparison" testId="comparison" />}
        {isError && <QueryState query={{ isError, error, refetch }} resource="Comparison" onRetry={refetch} notFoundAction={() => selectTestCase("")} testId="comparison" />}

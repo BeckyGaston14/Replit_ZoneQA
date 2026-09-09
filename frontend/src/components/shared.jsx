@@ -7,6 +7,7 @@ import { evaluationResultColor, evaluationResultDetails } from "../lib/evaluatio
 import { useSampleVisibility } from "../lib/hooks";
 import { Switch } from "./ui/switch";
 import { Info } from "lucide-react";
+import * as PopoverPrimitive from "@radix-ui/react-popover";
 
 export function CritBadge({ value }) {
   if (!value) return <span className="text-muted-foreground text-xs">—</span>;
@@ -65,18 +66,24 @@ export function HowCalculated({ definition, calculation = {}, drillDown, classNa
 
 function MetricInfo({ label, description }) {
   return (
-    <details className="relative z-20" data-testid="metric-info">
-      <summary
-        className="flex h-7 w-7 cursor-pointer list-none items-center justify-center rounded-full bg-card/90 text-muted-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)] [&::-webkit-details-marker]:hidden"
+    <PopoverPrimitive.Root>
+      <PopoverPrimitive.Trigger asChild>
+      <button
+        type="button"
+        data-testid="metric-info"
+        className="flex h-7 w-7 items-center justify-center rounded-full bg-card/90 text-muted-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)]"
         aria-label={`About ${label}`}
         title={`About ${label}`}
       >
         <Info size={15} aria-hidden="true" />
-      </summary>
-      <div role="tooltip" className="absolute right-0 top-9 z-30 w-64 rounded-lg border bg-card p-3 text-xs font-normal leading-5 text-foreground shadow-lg">
-        {description}
-      </div>
-    </details>
+      </button>
+      </PopoverPrimitive.Trigger>
+      <PopoverPrimitive.Portal>
+        <PopoverPrimitive.Content role="tooltip" align="end" side="bottom" sideOffset={6} collisionPadding={12} className="z-50 w-64 rounded-md border bg-popover p-3 text-xs font-normal leading-5 text-popover-foreground shadow-md outline-none">
+          {description}
+        </PopoverPrimitive.Content>
+      </PopoverPrimitive.Portal>
+    </PopoverPrimitive.Root>
   );
 }
 
