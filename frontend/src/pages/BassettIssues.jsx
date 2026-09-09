@@ -285,6 +285,7 @@ export default function BassettIssues() {
        <StatCard label={showingFindings ? "High severity findings" : "High severity"} value={showingFindings ? (metrics?.findings?.critical ?? 0) : (metrics?.issues?.critical ?? "—")} sub="high / critical severity" icon={ShieldAlert} accent="#dc2626" />
        <StatCard label={showingFindings ? "Total Findings" : "Scenario coverage"} value={showingFindings ? (metrics?.findings?.total ?? 0) : (metrics ? `${metrics.test_runs.test_bank_coverage.percent}%` : "—")} sub={showingFindings ? "linked to Bassett-only testing" : (metrics ? `${metrics.test_runs.test_bank_coverage.covered}/${metrics.test_runs.test_bank_coverage.total} active scenarios with a completed result` : "Drafts and Not Evaluated runs are excluded")} icon={CheckCircle2} accent="#16a34a" />
     </div>
+    <div className={showingFindings ? "grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(360px,420px)]" : ""}>
     <Section title={showingFindings ? "Bassett findings" : "Bassett test runs"} action={<span className="text-xs text-muted-foreground">{shown.length} shown · archived records stay in history</span>}>
       <div className="flex flex-wrap gap-2 mb-4">
         <div className="relative flex-1 min-w-[220px]"><Search size={15} className="absolute left-3 top-2.5 text-muted-foreground" /><Input aria-label={showingFindings ? "Search Bassett findings" : "Search Bassett test runs"} className="pl-9" placeholder={showingFindings ? "Search finding, test run, category, scenario…" : "Search question, response, category, scenario…"} value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} /></div>
@@ -305,6 +306,10 @@ export default function BassettIssues() {
             </table>
       </div>
     </Section>
+    {showingFindings && (selected
+      ? <BassettFindingDetail id={selected} onClose={() => setSelected(null)} canWrite={canWrite} refresh={() => qc.invalidateQueries()} embedded />
+      : <aside aria-label="Bassett Finding details" className="hidden lg:block"><div className="bg-card border rounded-xl p-8 text-center text-sm text-muted-foreground">Select a Bassett finding to view its details.</div></aside>)}
+    </div>
      <MethodologyDisclosure title={showingFindings ? "How Bassett Finding metrics are calculated" : "How Bassett Test Run metrics are calculated"} testid="bassett-test-runs-methodology">
        {showingFindings ? (
          <p>Finding counts reflect Bassett-only findings in the current visibility scope; fixed and closed findings are excluded from the open count.</p>
@@ -317,9 +322,7 @@ export default function BassettIssues() {
        <p>Archived records remain available in history but are excluded from active summary populations. The visible test-date filters define the displayed date range.</p>
      </MethodologyDisclosure>
 
-     {selected && (showingFindings
-       ? <BassettFindingDetail id={selected} onClose={() => setSelected(null)} canWrite={canWrite} refresh={() => qc.invalidateQueries()} />
-        : <IssueDetail id={selected} onClose={() => setSelected(null)} onEdit={openEdit} onRestore={restore} canWrite={canWrite} canManage={canManage} refresh={() => qc.invalidateQueries()} />)}
+     {selected && !showingFindings && <IssueDetail id={selected} onClose={() => setSelected(null)} onEdit={openEdit} onRestore={restore} canWrite={canWrite} canManage={canManage} refresh={() => qc.invalidateQueries()} />}
     {form && <BassettTestRunForm form={form} setForm={setForm} scenarios={scenarios} generalSubtypes={generalSubtypes} versions={versions} projects={projects} municipalities={municipalities} properties={properties} users={users} config={config} onSubmit={save} onCancel={() => { setConflict(null); setForm(null); }} submitting={saving} conflictNotice={conflict && <div role="alert" className="col-span-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
       <p className="font-semibold">Someone else saved this test run first. Your entries are still open for review.</p>
       <div className="mt-2 flex gap-2">
@@ -357,7 +360,7 @@ function actionError(error, fallback) {
   return formatApiErrorDetail(error?.response?.data?.detail) || fallback;
 }
 
-function BassettFindingDetail({ id, onClose, canWrite, refresh }) {
+function BassettFindingDetail({ id, onClose, canWrite, refresh, embedded = false }) {
   const drawerRef = useFocusTrap(true, onClose);
   const [statusForm, setStatusForm] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -390,8 +393,8 @@ function BassettFindingDetail({ id, onClose, canWrite, refresh }) {
     finally { setSubmitting(false); }
   };
 
-  return <div className="fixed inset-0 z-40 bg-black/20 flex justify-end" onClick={(event) => event.target === event.currentTarget && onClose()} role="presentation">
-    <aside ref={drawerRef} tabIndex="-1" role="dialog" aria-modal="true" aria-labelledby="bassett-finding-detail-title" className="bg-card h-full w-full max-w-2xl overflow-y-auto p-6 shadow-xl">
+  return <div className={embedded ? "fixed inset-0 z-40 bg-black/20 flex justify-end lg:static lg:z-auto lg:block lg:bg-transparent" : "fixed inset-0 z-40 bg-black/20 flex justify-end"} onClick={(event) => event.target === event.currentTarget && onClose()} role="presentation">
+    <aside ref={drawerRef} tabIndex="-1" role="dialog" aria-modal={embedded ? undefined : "true"} aria-labelledby="bassett-finding-detail-title" className={embedded ? "bg-card h-full w-full max-w-2xl overflow-y-auto p-6 shadow-xl lg:sticky lg:top-20 lg:h-auto lg:max-h-[calc(100vh-6rem)] lg:max-w-none lg:rounded-xl lg:border lg:shadow-none" : "bg-card h-full w-full max-w-2xl overflow-y-auto p-6 shadow-xl"}>
       <div className="flex items-start justify-between gap-4 mb-6">
         <div className="min-w-0">
           <div className="text-xs uppercase tracking-wide text-muted-foreground">Bassett Finding Details</div>
