@@ -9,7 +9,10 @@ import Insights from "./Insights";
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 jest.mock("@tanstack/react-query", () => ({ useQuery: jest.fn() }));
-jest.mock("react-router-dom", () => ({ Link: ({ children, ...props }) => <a {...props}>{children}</a> }), { virtual: true });
+jest.mock("react-router-dom", () => ({
+  Link: ({ children, ...props }) => <a {...props}>{children}</a>,
+  useSearchParams: () => [new URLSearchParams(), jest.fn()],
+}), { virtual: true });
 jest.mock("recharts", () => new Proxy({}, { get: () => () => null }));
 jest.mock("jspdf", () => jest.fn());
 jest.mock("html2canvas", () => jest.fn());

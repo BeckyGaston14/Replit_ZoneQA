@@ -694,6 +694,37 @@ def test_coverage_counts_valid_bassett_only_evaluations(monkeypatch):
     assert result["criticality"][2]["evaluated"] == 1
 
 
+def test_performance_and_coverage_scope_include_standalone_bassett_runs(monkeypatch):
+    rows = {
+        "testcases": [], "evaluations": [], "test_runs": [], "municipalities": [],
+        "versions": [{"id": "v1", "name": "Bassett v1", "active": True}],
+        "config": [{"id": "global", "categories": [], "criticality": {},
+                    "eval_dimensions": [{"key": "accuracy", "label": "Accuracy", "weight": 1}]}],
+        "bassett_scenarios": [{"id": "scenario-1", "stable_id": "A-01", "workflow_stage": "Analysis",
+                                "complexity": "Moderate", "priority": "P0 - Immediate"}],
+        "bassett_issues": [{"id": "run-1", "scenario_id": "scenario-1", "test_type": "Single Prompt",
+                            "status": "Triaged", "result": "Pass", "bassett_version": "Bassett v1",
+                            "test_date": "2026-09-01", "evaluation_scores": {"accuracy": 9}}],
+        "bassett_executions": [],
+    }
+    monkeypatch.setattr(server, "db", Db(rows))
+
+    async def fake_crud_list(collection, query=None):
+        return [dict(row) for row in rows.get(collection, [])]
+
+    monkeypatch.setattr(server, "crud_list", fake_crud_list)
+    user = {"id": "viewer", "role": "viewer"}
+    performance = asyncio.run(server.analytics_performance(user, scope="bassett"))
+    coverage = asyncio.run(server.analytics_coverage(user, scope="both"))
+
+    assert performance["report_scope"] == "bassett"
+    assert performance["population_counts"] == {"bassett_only": 1, "model_comparison": 0}
+    assert performance["model_summary"][0]["avg_score"] == 9
+    assert coverage["population_counts"]["bassett_only"]["total_tests"] == 1
+    assert coverage["population_counts"]["bassett_only"]["evaluated_tests"] == 1
+    assert coverage["summary"]["total_tests"] == 1
+
+
 def test_active_project_metric_uses_enriched_automatic_completion(monkeypatch):
     rows = {
         "projects": [

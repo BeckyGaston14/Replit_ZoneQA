@@ -20,7 +20,7 @@ import { QueryState } from "../components/PageState";
 
 const DIM_LABELS = { accuracy: "Accuracy", current_code: "Current Code", interpretation: "Interpretation", calculation: "Calculation", context: "Context", missing_info: "Missing Info", followup: "Follow-Up", citation_accuracy: "Citation", source_quality: "Source Quality", guidance: "Guidance", completeness: "Completeness", usefulness: "Usefulness" };
 const ALL = "";
-const DEFAULT_FILTERS = { version: ALL, environment: ALL, project_id: ALL, municipality_id: ALL, category: ALL, criticality: ALL, include_variants: "true", date_from: ALL, date_to: ALL };
+const DEFAULT_FILTERS = { scope: "both", version: ALL, environment: ALL, project_id: ALL, municipality_id: ALL, category: ALL, criticality: ALL, include_variants: "true", date_from: ALL, date_to: ALL };
 const MODEL_COLUMNS = [
   { key: "model", label: "Model", type: "natural" },
   { key: "avg_score", label: "Avg Score", type: "score" },
@@ -53,6 +53,16 @@ export default function Performance() {
     savedView.updateState({ filters: DEFAULT_FILTERS });
     const params = new URLSearchParams(sp);
     Object.keys(DEFAULT_FILTERS).forEach((key) => params.delete(key));
+    setSp(params);
+  };
+  const setPerformanceScope = (value) => {
+    const next = { ...flt, scope: value, category: ALL, criticality: ALL, include_variants: "true" };
+    savedView.updateState({ filters: next });
+    const params = new URLSearchParams(sp);
+    params.set("scope", value);
+    params.delete("category");
+    params.delete("criticality");
+    params.delete("include_variants");
     setSp(params);
   };
   useEffect(() => {
@@ -92,7 +102,7 @@ export default function Performance() {
   const radar = dimensionRows.filter((dimension) => dimension.score !== null);
   const categoryRows = [...(perf?.by_category || [])].sort((a, b) => Number(b.avg_score ?? -1) - Number(a.avg_score ?? -1));
   const cat = categoryRows.filter((category) => evaluationScoreOrNull(category.avg_score) !== null);
-  const hasFilters = qs.length > 0;
+  const hasFilters = Object.keys(DEFAULT_FILTERS).some((key) => flt[key] !== DEFAULT_FILTERS[key]);
 
   const sel = (key, opts, label, testid) => (
     <select key={key} value={flt[key]} onChange={(e) => setFilter(key, e.target.value)} aria-label={label} data-testid={testid}
@@ -104,20 +114,25 @@ export default function Performance() {
 
   return (
     <div>
-      <PageHeader title="Bassett Performance & Reward" subtitle={perf ? `Scope: ${perf.scope}` : "Performance across completed model comparisons."} />
+      <PageHeader title="Bassett Performance & Reward" subtitle={perf ? `Scope: ${perf.scope}` : "Performance across Bassett-only and Model Comparison testing."} />
       <SampleDataBanner show={sampleScopeIncludesData({ versions, selectedVersion: flt.version, records: [perf] })} />
       {savedView.error && <div role="alert" className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">{savedView.error} <button type="button" className="ml-2 font-semibold underline" onClick={savedView.retry}>Retry saved view</button></div>}
       {failed && <QueryState query={failed} resource="performance data" testId="performance" />}
       {loading && !failed && <QueryState query={{ isLoading: true }} resource="performance data" testId="performance" />}
       {!loading && !failed && perf && <>
       <div className="flex items-center gap-2 mb-4 flex-wrap" data-testid="perf-filter-bar">
+        <select value={flt.scope} onChange={(event) => setPerformanceScope(event.target.value)} aria-label="Performance scope" data-testid="perf-filter-scope" className="h-8 text-xs border rounded-lg px-2 bg-card text-[var(--navy)] max-w-[170px]">
+          <option value="bassett">Bassett Only</option>
+          <option value="comparison">Model Comparison</option>
+          <option value="both">Both</option>
+        </select>
         {sel("version", versions.map((v) => v.name), "All Bassett versions", "perf-filter-version")}
         {sel("environment", ["Production", "Staging", "Development"], "All environments", "perf-filter-environment")}
         {sel("project_id", projects.map((p) => ({ value: p.id, label: p.name })), "All projects", "perf-filter-project")}
         {sel("municipality_id", munis.map((m) => ({ value: m.id, label: `${m.name}, ${m.state}` })), "All municipalities", "perf-filter-municipality")}
-        {sel("category", config?.categories || [], "All categories", "perf-filter-category")}
-        {sel("criticality", ["1", "2", "3", "4", "5"].map((c) => ({ value: c, label: `Criticality ${c}` })), "All criticality", "perf-filter-criticality")}
-        {sel("include_variants", [{ value: "true", label: "Variants included" }, { value: "false", label: "Variants excluded" }], "Variants included (default)", "perf-filter-variants")}
+        {sel("category", flt.scope === "bassett" ? ["Research", "Analysis"] : config?.categories || [], flt.scope === "bassett" ? "All workflow stages" : "All categories", "perf-filter-category")}
+        {flt.scope !== "bassett" && sel("criticality", ["1", "2", "3", "4", "5"].map((c) => ({ value: c, label: `Criticality ${c}` })), "All criticality", "perf-filter-criticality")}
+        {flt.scope !== "bassett" && sel("include_variants", [{ value: "true", label: "Variants included" }, { value: "false", label: "Variants excluded" }], "Variants included (default)", "perf-filter-variants")}
         <input type="date" value={flt.date_from} onChange={(e) => setFilter("date_from", e.target.value)} className="h-8 max-w-full text-xs border rounded-lg px-2 bg-card" data-testid="perf-filter-from" aria-label="Evaluated from date" title="Evaluated from date" />
         <input type="date" value={flt.date_to} onChange={(e) => setFilter("date_to", e.target.value)} className="h-8 max-w-full text-xs border rounded-lg px-2 bg-card" data-testid="perf-filter-to" aria-label="Evaluated to date" title="Evaluated to date" />
         {hasFilters && (
@@ -128,15 +143,15 @@ export default function Performance() {
         )}
       </div>
       {(perf.model_summary || []).length === 0 && <div className="mb-4 rounded-xl border bg-card p-5 text-sm text-muted-foreground" data-testid="performance-empty">
-        {hasFilters ? "No completed comparisons match the current filters." : "No completed model comparisons are available yet."}
+        {hasFilters ? "No qualifying evaluations match the selected scope and filters." : "No qualifying evaluations are available yet."}
         {hasFilters && <Button size="sm" variant="outline" className="ml-3" onClick={clearFilters}>Clear filters</Button>}
       </div>}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <StatCard label="Overall Bassett Score" value={bassett ? fmtScore(bassett.avg_score) : "—"} sub="/ 10 avg" accent={MODEL_COLORS.Bassett} icon={Target} testid="perf-overall-score" title="Mean of the latest non-retest Bassett evaluation per test case within the active scope." />
-        <StatCard label="Bassett Wins" value={perf.wins} sub="beat both benchmarks" accent="#16a34a" icon={Trophy} />
-        <StatCard label="Bassett Losses" value={perf.losses} sub="benchmark outperformed" accent="#dc2626" icon={TrendingDown} />
-        <StatCard label="Shared Failures" value={perf.shared_failures} sub="all models failed" accent="#64748b" icon={AlertOctagon} />
+        <StatCard label="Bassett Wins" value={perf.report_scope === "bassett" ? "—" : perf.wins} sub={perf.report_scope === "bassett" ? "requires Model Comparison" : "beat both benchmarks"} accent="#16a34a" icon={Trophy} />
+        <StatCard label="Bassett Losses" value={perf.report_scope === "bassett" ? "—" : perf.losses} sub={perf.report_scope === "bassett" ? "requires Model Comparison" : "benchmark outperformed"} accent="#dc2626" icon={TrendingDown} />
+        <StatCard label="Shared Failures" value={perf.report_scope === "bassett" ? "—" : perf.shared_failures} sub={perf.report_scope === "bassett" ? "requires Model Comparison" : "all compared models failed"} accent="#64748b" icon={AlertOctagon} />
       </div>
 
       <div className="grid lg:grid-cols-2 gap-4 mb-4">
@@ -170,7 +185,8 @@ export default function Performance() {
       </div>
 
       <div className={`${TABLE_FRAME_CLASS} p-5`} role="region" aria-label="Model summary table" tabIndex="0" data-testid="performance-table-scroll">
-        <h3 className="font-semibold font-display text-[var(--navy)] mb-3">Model Summary</h3>
+        <h3 className="font-semibold font-display text-[var(--navy)] mb-1">{perf.report_scope === "bassett" ? "Bassett Summary" : "Model Summary"}</h3>
+        <p className="mb-3 text-xs text-muted-foreground">{perf.population_counts?.bassett_only || 0} Bassett-only · {perf.population_counts?.model_comparison || 0} Model Comparison Bassett evaluations</p>
         <TableSortControls columns={MODEL_COLUMNS} sort={sort} setSort={setSort} defaultSort={defaultSort} className="mb-2" />
         <table className={TABLE_CLASS}>
           <thead className={TABLE_HEAD_CLASS}><tr>{MODEL_COLUMNS.map((column) => <SortableTableHeader key={column.key} column={column} sort={sort} onSort={(key) => setSort((current) => nextSort(current, key))} />)}</tr></thead>
@@ -181,7 +197,8 @@ export default function Performance() {
       </div>
        <MethodologyDisclosure title="How performance metrics are calculated" testid="performance-methodology">
          <p>{perf.scope || "Current filtered performance scope."} The active filters above, including version, environment, project, municipality, category, criticality, variants, and evaluated date range, define the population.</p>
-         <p>Overall scores are means of available 0–10 scores. Wins and losses compare Bassett with both benchmark models; shared failures count tests where all compared models failed.</p>
+         <p>Overall scores are means of available 0–10 scores from the selected population. In Both, Bassett-only runs expanded or linked to Model Comparison are excluded to prevent double counting.</p>
+         <p>Wins, losses, and shared failures use Model Comparison records only because Bassett-only runs have no benchmark response.</p>
          <p>Reporting groups use configured-weight averages of applicable underlying dimensions. Missing and N/A values are excluded and never treated as zero; the underlying 12 dimensions remain available in records and exports.</p>
        </MethodologyDisclosure>
       </>}

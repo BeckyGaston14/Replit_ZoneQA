@@ -5205,8 +5205,13 @@ async def dashboard_stats(user=Depends(get_current_user), include_sample: Option
 async def analytics_performance(user=Depends(get_current_user),
                                 version: str = "", environment: str = "", project_id: str = "",
                                 municipality_id: str = "", category: str = "", criticality: str = "",
-                                include_variants: str = "true", date_from: str = "", date_to: str = ""):
-    tcs = {t["id"]: t for t in await crud_list("testcases")}
+                                include_variants: str = "true", date_from: str = "", date_to: str = "",
+                                scope: str = "comparison"):
+    if scope not in {"bassett", "comparison", "both"}:
+        raise HTTPException(400, "scope must be bassett, comparison, or both")
+    report_scope = scope
+    all_tcs = {t["id"]: t for t in await crud_list("testcases")}
+    tcs = dict(all_tcs)
     # Test-case-level filters
     if project_id:
         tcs = {k: v for k, v in tcs.items() if v.get("project_id") == project_id}
@@ -5223,8 +5228,9 @@ async def analytics_performance(user=Depends(get_current_user),
         version=version or None, environment=environment or None,
         date_from=date_from or None, date_to=date_to or None,
     )
-    evals = evaluation_view["all_models"]
-    scope_parts = ["Latest non-retest evaluation for each test case",
+    comparison_evals = evaluation_view["all_models"]
+    scope_parts = ["Latest non-retest evaluation for each test case" if scope == "comparison" else
+                   {"bassett": "Bassett-only Test Runs · latest qualifying result per Test Bank definition", "both": "Bassett-only + Model Comparison · latest qualifying result per test definition/model"}[scope],
                    f"Bassett version: {version}" if version else "regardless of Bassett version",
                    f"environment: {environment}" if environment else None,
                    "variants excluded" if include_variants.lower() == "false" else "variants included",
@@ -5232,10 +5238,71 @@ async def analytics_performance(user=Depends(get_current_user),
                    f"criticality: {criticality}" if criticality else None,
                    f"from {date_from}" if date_from else None, f"to {date_to}" if date_to else None,
                    "retests excluded", "Pass includes 'Pass with Minor Issues'"]
-    scope = " · ".join([p for p in scope_parts if p])
+    scope_text = " · ".join([p for p in scope_parts if p])
     munis = {m["id"]: m for m in await crud_list("municipalities")}
     config = await db.config.find_one({"id": "global"}, {"_id": 0}) or DEFAULT_CONFIG
     dims = [dimension["key"] for dimension in config.get("eval_dimensions", []) if dimension.get("key")]
+
+    scenarios = _filter_sample_scope("bassett_scenarios", await db.bassett_scenarios.find({"archived": {"$ne": True}}, {"_id": 0}).to_list(5000))
+    scenario_by_id = {scenario.get("id"): scenario for scenario in scenarios}
+    issues = _filter_sample_scope("bassett_issues", await db.bassett_issues.find({"archived": {"$ne": True}}, {"_id": 0}).to_list(5000))
+    executions = _filter_sample_scope("bassett_executions", await db.bassett_executions.find({"archived": {"$ne": True}}, {"_id": 0}).to_list(10000))
+    versions = await crud_list("versions")
+    issues = [_canonicalize_bassett_version_record(run, versions) for run in issues]
+    executions = [_canonicalize_bassett_version_record(run, versions) for run in executions]
+    comparison_testcase_ids = set(all_tcs)
+    comparison_issue_ids = {
+        value for testcase in all_tcs.values()
+        for value in (testcase.get("bassett_issue_id"), testcase.get("source_bassett_issue_id")) if value
+    }
+    comparison_issue_ids.update(
+        value for evaluation in comparison_evals
+        for value in (evaluation.get("source_issue_id"), evaluation.get("source_bassett_issue_id")) if value
+    )
+    comparison_issue_ids.update(
+        issue.get("id") for issue in issues
+        if issue.get("id") and (issue.get("comparison_mode") or issue.get("testcase_id") in comparison_testcase_ids)
+    )
+    latest_standalone = {}
+    for run in _canonical_bassett_lineages(issues, executions, active_scenario_ids=set(scenario_by_id)):
+        run_date = (run.get("test_date") or run.get("created_at") or "")[:10]
+        if (
+            run.get("id") in comparison_issue_ids
+            or run.get("issue_id") in comparison_issue_ids
+            or run.get("bassett_issue_id") in comparison_issue_ids
+            or run.get("source_issue_id") in comparison_issue_ids
+            or run.get("testcase_id") in comparison_testcase_ids
+            or _dashboard_bassett_test_type(run) is None
+            or _dashboard_bassett_is_retest(run)
+            or not _bassett_version_is_required(run)
+            or not str(run.get("version_id") or run.get("bassett_version") or "").strip()
+            or not _dashboard_bassett_result_is_eligible(run)
+            or (version and run.get("bassett_version") != version)
+            or (environment and run.get("environment") != environment)
+            or (project_id and run.get("project_id") != project_id)
+            or (municipality_id and run.get("municipality_id") != municipality_id)
+            or (category and (run.get("issue_category") or scenario_by_id.get(run.get("scenario_id"), {}).get("workflow_stage")) != category)
+            or (criticality and str(run.get("criticality") or "") != criticality)
+            or (date_from and run_date < date_from)
+            or (date_to and run_date > date_to)
+        ):
+            continue
+        scores = run.get("evaluation_scores") or run.get("scores") or {}
+        scenario = scenario_by_id.get(run.get("scenario_id"), {})
+        candidate = {
+            **run, **score_evaluation(scores, config.get("eval_dimensions", [])),
+            "model": "Bassett", "scores": scores,
+            "normalized_result": _canonical_bassett_result(run.get("result")),
+            "testcase_id": f"bassett:{run.get('scenario_id') or run.get('id')}",
+            "_performance_category": run.get("issue_category") or scenario.get("workflow_stage") or "Uncategorized",
+            "_performance_source": "bassett_only",
+        }
+        key = run.get("scenario_id") or run.get("test_id") or run.get("id")
+        current = latest_standalone.get(key)
+        if current is None or _dashboard_bassett_order(candidate) > _dashboard_bassett_order(current):
+            latest_standalone[key] = candidate
+    standalone_evals = list(latest_standalone.values())
+    evals = standalone_evals if report_scope == "bassett" else comparison_evals if report_scope == "comparison" else [*comparison_evals, *standalone_evals]
 
     by_model = {}
     for e in evals:
@@ -5254,7 +5321,7 @@ async def analytics_performance(user=Depends(get_current_user),
     # by category (Bassett only)
     cat = {}
     for e in [x for x in evals if x.get("model") == "Bassett" and x.get("overall_score") is not None]:
-        c = tcs.get(e["testcase_id"], {}).get("category", "Uncategorized")
+        c = e.get("_performance_category") or tcs.get(e["testcase_id"], {}).get("category", "Uncategorized")
         cat.setdefault(c, [])
         cat[c].append(e["overall_score"])
     by_category = [{"category": k, "avg_score": round(sum(v) / len(v), 1), "count": len(v)} for k, v in cat.items()]
@@ -5301,7 +5368,11 @@ async def analytics_performance(user=Depends(get_current_user),
 
     return {"model_summary": model_summary, "by_category": by_category, "dimension_averages": dim_avg,
             "reporting_groups": reporting_groups,
-            "wins": wins, "losses": losses, "shared_failures": shared_fail, "scope": scope}
+            "wins": wins, "losses": losses, "shared_failures": shared_fail, "scope": scope_text,
+            "report_scope": report_scope, "population_counts": {
+                "bassett_only": len(standalone_evals),
+                "model_comparison": len([e for e in comparison_evals if e.get("model") == "Bassett"]),
+            }}
 
 @api.get("/comparison/{testcase_id}")
 async def comparison(testcase_id: str, user=Depends(get_current_user)):
@@ -6360,6 +6431,7 @@ async def analytics_executive(
             or _dashboard_bassett_test_type(run) is None
             or _dashboard_bassett_is_retest(run)
             or not _bassett_version_is_required(run)
+            or not str(run.get("version_id") or run.get("bassett_version") or "").strip()
             or not _dashboard_bassett_result_is_eligible(run)
         ):
             continue
@@ -6501,7 +6573,9 @@ async def analytics_executive(
 
 # ---------- Test Coverage ----------
 @api.get("/analytics/coverage")
-async def analytics_coverage(user=Depends(get_current_user)):
+async def analytics_coverage(user=Depends(get_current_user), scope: str = "both"):
+    if scope not in {"bassett", "comparison", "both"}:
+        raise HTTPException(400, "scope must be bassett, comparison, or both")
     tcs = await crud_list("testcases")
     used_municipality_ids = {t.get("municipality_id") for t in tcs if t.get("municipality_id")}
     munis = [
@@ -6549,11 +6623,68 @@ async def analytics_coverage(user=Depends(get_current_user)):
     muni_gaps = [m for m in municipalities if m["tests"] == 0]
     cat_gaps = [c for c in categories if c["tests"] == 0]
     crit_gaps = [c for c in criticality if c["tests"] == 0]
+
+    scenarios = _filter_sample_scope("bassett_scenarios", await db.bassett_scenarios.find({"archived": {"$ne": True}}, {"_id": 0}).to_list(5000))
+    scenario_by_id = {scenario.get("id"): scenario for scenario in scenarios}
+    issues = _filter_sample_scope("bassett_issues", await db.bassett_issues.find({"archived": {"$ne": True}}, {"_id": 0}).to_list(5000))
+    executions = _filter_sample_scope("bassett_executions", await db.bassett_executions.find({"archived": {"$ne": True}}, {"_id": 0}).to_list(10000))
+    tcs_by_id = {testcase.get("id") for testcase in tcs}
+    comparison_testcase_ids = set(tcs_by_id)
+    comparison_issue_ids = {
+        value for testcase in tcs
+        for value in (testcase.get("bassett_issue_id"), testcase.get("source_bassett_issue_id")) if value
+    }
+    latest_standalone = {}
+    for run in _canonical_bassett_lineages(issues, executions, active_scenario_ids=set(scenario_by_id)):
+        if (
+            run.get("id") in comparison_issue_ids
+            or run.get("issue_id") in comparison_issue_ids
+            or run.get("bassett_issue_id") in comparison_issue_ids
+            or run.get("source_issue_id") in comparison_issue_ids
+            or run.get("testcase_id") in comparison_testcase_ids
+            or _dashboard_bassett_test_type(run) is None
+            or _dashboard_bassett_is_retest(run)
+            or not _bassett_version_is_required(run)
+            or not _dashboard_bassett_result_is_eligible(run)
+        ):
+            continue
+        key = run.get("scenario_id") or run.get("test_id") or run.get("id")
+        current = latest_standalone.get(key)
+        if current is None or _dashboard_bassett_order(run) > _dashboard_bassett_order(current):
+            latest_standalone[key] = run
+    evaluated_scenarios = {run.get("scenario_id") for run in latest_standalone.values() if run.get("scenario_id")}
+
+    def bassett_rows(field, expected, fallback="Unspecified"):
+        observed = {str(scenario.get(field) or fallback) for scenario in scenarios}
+        values = [*expected, *sorted(observed - set(expected))]
+        return [{
+            "value": value,
+            "tests": len([scenario for scenario in scenarios if str(scenario.get(field) or fallback) == value]),
+            "evaluated": len([scenario for scenario in scenarios if str(scenario.get(field) or fallback) == value and scenario.get("id") in evaluated_scenarios]),
+        } for value in values]
+
+    workflow_stages = bassett_rows("workflow_stage", ["Research", "Analysis"])
+    complexities = bassett_rows("complexity", ["Low", "Moderate", "High", "Very High"])
+    priorities = bassett_rows("priority", ["P0 - Immediate", "P1 - High", "P2 - Medium", "P3 - Low"])
+    bassett_gaps = sum(row["tests"] == 0 for rows in (workflow_stages, complexities, priorities) for row in rows)
+    comparison_summary = {
+        "total_tests": len(tcs), "evaluated_tests": len(evaluated_tc & tcs_by_id),
+        "gap_count": len(muni_gaps) + len(cat_gaps) + len(crit_gaps),
+    }
+    bassett_summary = {
+        "total_tests": len(scenarios), "evaluated_tests": len(evaluated_scenarios & set(scenario_by_id)),
+        "gap_count": bassett_gaps,
+    }
+    selected_total = bassett_summary["total_tests"] if scope == "bassett" else comparison_summary["total_tests"] if scope == "comparison" else bassett_summary["total_tests"] + comparison_summary["total_tests"]
+    selected_evaluated = bassett_summary["evaluated_tests"] if scope == "bassett" else comparison_summary["evaluated_tests"] if scope == "comparison" else bassett_summary["evaluated_tests"] + comparison_summary["evaluated_tests"]
+    selected_gaps = bassett_summary["gap_count"] if scope == "bassett" else comparison_summary["gap_count"] if scope == "comparison" else bassett_summary["gap_count"] + comparison_summary["gap_count"]
     return {"municipalities": municipalities, "categories": categories, "criticality": criticality,
-            "summary": {"total_tests": len(tcs), "evaluated_tests": len(evaluated_tc & {t["id"] for t in tcs}),
+            "workflow_stages": workflow_stages, "complexities": complexities, "priorities": priorities,
+            "report_scope": scope, "population_counts": {"bassett_only": bassett_summary, "model_comparison": comparison_summary},
+            "summary": {"total_tests": selected_total, "evaluated_tests": selected_evaluated,
                         "munis_covered": len(munis) - len(muni_gaps), "munis_total": len(munis),
                         "categories_covered": len(categories) - len(cat_gaps), "categories_total": len(categories),
-                        "crit_covered": 5 - len(crit_gaps), "gap_count": len(muni_gaps) + len(cat_gaps) + len(crit_gaps)}}
+                        "crit_covered": 5 - len(crit_gaps), "gap_count": selected_gaps}}
 
 # ---------- Competitive Insights ----------
 @api.get("/analytics/competitive")
