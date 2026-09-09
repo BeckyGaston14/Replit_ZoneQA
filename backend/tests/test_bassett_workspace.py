@@ -693,6 +693,15 @@ def test_inactive_versions_remain_valid_for_history_but_deleted_versions_are_rej
     assert missing.value.status_code == 400
     assert "no longer available" in str(missing.value.detail)
 
+
+def test_legacy_project_version_id_is_presented_as_the_canonical_name():
+    normalized = server._canonicalize_bassett_version_record(
+        {"id": "project-1", "bassett_version": "version-1"},
+        [{"id": "version-1", "name": "Bassett v9.26"}],
+    )
+    assert normalized["version_id"] == "version-1"
+    assert normalized["bassett_version"] == "Bassett v9.26"
+
 def test_legacy_execution_endpoint_is_read_only():
     with pytest.raises(HTTPException) as exc:
         asyncio.run(server.bassett_create_execution(

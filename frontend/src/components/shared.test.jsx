@@ -56,7 +56,7 @@ test("summary cards do not render repeated methodology dropdowns by default", ()
   act(() => root.render(<StatCard label="Pass rate" value="80%" title="Unique population definition" testid="summary-card" />));
 
   expect(container.querySelector('[data-testid="how-calculated"]')).toBeNull();
-  expect(container.querySelector('[data-testid="metric-info"] summary').getAttribute("aria-label")).toBe("About Pass rate");
+  expect(container.querySelector('[data-testid="metric-info"]').getAttribute("aria-label")).toBe("About Pass rate");
 
   act(() => root.unmount());
   container.remove();

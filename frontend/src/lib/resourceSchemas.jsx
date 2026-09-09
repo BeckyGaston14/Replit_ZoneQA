@@ -62,7 +62,7 @@ export const PROJECT_SCHEMA = {
     { key: "owner_id", canonicalKey: "owner_user_id", label: "Owner", type: "relation", collection: "users", labelFn: (user) => user.name, activeOnly: true },
     { key: "priority", label: "Priority", type: "select", options: ["Low", "Medium", "High", "Critical"] },
     { key: "status", label: "Status", type: "select", options: ["Active", "On Hold", "Completed", "Archived"] },
-    { key: "bassett_version", label: "Bassett Version", type: "relation", collection: "versions", labelFn: (version) => version.name },
+    { key: "version_id", label: "Bassett Version", type: "relation", collection: "versions", labelFn: (version) => version.name },
     { key: "start_date", label: "Start Date", type: "date" },
     { key: "target_date", label: "Target Completion", type: "date" },
     {

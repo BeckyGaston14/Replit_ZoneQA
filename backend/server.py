@@ -1556,7 +1556,11 @@ async def crud_list(coll, filt=None, include_archived=False, include_sample=None
     if coll in ("testcases", "projects", "municipalities", "properties") and not include_archived and "archived" not in filt:
         filt = {**filt, "archived": {"$ne": True}}
     docs = await db[coll].find(filt, {"_id": 0}).to_list(5000)
-    return _filter_sample_scope(coll, docs, include_sample)
+    docs = _filter_sample_scope(coll, docs, include_sample)
+    if coll == "projects":
+        versions = await crud_list("versions", include_sample=include_sample)
+        docs = [_canonicalize_bassett_version_record(doc, versions) for doc in docs]
+    return docs
 
 async def crud_get(coll, id, include_sample=None):
     doc = await db[coll].find_one({"id": id}, {"_id": 0})
@@ -1564,6 +1568,9 @@ async def crud_get(coll, id, include_sample=None):
         raise HTTPException(404, f"{coll} not found")
     if not _filter_sample_scope(coll, [doc], include_sample):
         raise HTTPException(404, f"{coll} not found")
+    if coll == "projects":
+        versions = await crud_list("versions", include_sample=include_sample)
+        doc = _canonicalize_bassett_version_record(doc, versions)
     return doc
 
 async def _require_active_testcase(identifier):
@@ -1621,6 +1628,8 @@ async def _require_reference(collection, identifier, label, *, allow_archived=Fa
 async def _validate_relationships(coll, doc):
     """Validate flexible JSON relationships before persistence."""
     testcase = None
+    if coll == "projects":
+        await _require_reference("versions", doc.get("version_id"), "Bassett version")
     if coll == "testcases":
         project = await _require_reference("projects", doc.get("project_id"), "Project")
         municipality = await _require_reference("municipalities", doc.get("municipality_id"), "Municipality")
@@ -1786,6 +1795,8 @@ async def crud_create(coll, body, user):
     _validate_resource_required_fields(coll, doc)
     if coll == "projects":
         await _normalize_project_owner(doc)
+        versions = await crud_list("versions")
+        doc = _canonicalize_bassett_version_record(doc, versions)
     await _validate_user_references(coll, doc)
     if coll == "retests":
         raise HTTPException(409, "Retests must be started from a finding")
@@ -1888,6 +1899,13 @@ async def crud_update(coll, id, body, user):
     _require_fresh_version(existing_for_references, body)
     if coll == "projects":
         await _normalize_project_owner(body)
+        if "version_id" in body or "bassett_version" in body:
+            versions = await crud_list("versions")
+            normalized_project = _canonicalize_bassett_version_record(
+                {**existing_for_references, **body}, versions,
+            )
+            body["version_id"] = normalized_project.get("version_id", "")
+            body["bassett_version"] = normalized_project.get("bassett_version", "")
         _prepare_project_completion_input(body, existing_for_references)
     if coll == "evaluations":
         if "final_result" in body:
@@ -3031,7 +3049,9 @@ def _canonicalize_bassett_version_record(record, versions):
     version_name = str(normalized.get("bassett_version") or "").strip()
     by_id = {str(version.get("id")): version for version in versions if version.get("id")}
     by_name = {str(version.get("name")): version for version in versions if version.get("name")}
-    version = by_id.get(version_id) or by_name.get(version_name)
+    # Older relation forms stored the selected version id in bassett_version.
+    # Resolve that legacy shape on reads so an internal UUID never reaches the UI.
+    version = by_id.get(version_id) or by_name.get(version_name) or by_id.get(version_name)
     if version:
         normalized["version_id"] = version["id"]
         normalized["bassett_version"] = version.get("name") or version["id"]
