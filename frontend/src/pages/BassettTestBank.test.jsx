@@ -1,9 +1,15 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
+import { loadBassettScenarioForEdit } from "../lib/bassettEditLoaders";
 import { SortableTableHeader } from "../components/SortableTableHeader";
 import { validateScenarioDraft } from "../lib/formValidation";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+
+jest.mock("react-router-dom", () => ({
+  Link: ({ children }) => <a>{children}</a>,
+  useNavigate: () => jest.fn(),
+}), { virtual: true });
 
 test("sortable headers are keyboard-native controls and expose screen-reader sort state", () => {
   const container = document.createElement("div");
@@ -58,4 +64,21 @@ test("scenario validation preserves exact required definition semantics", () => 
     report_type: "Report type is required.",
     test_scenario: "Test scenario is required.",
   });
+});
+
+test("scenario edit loading preserves the complete definition and concurrency fields", async () => {
+  const scenario = { id: "scenario-r01", stable_id: "R-01" };
+  const complete = {
+    ...scenario,
+    test_scenario: "Research setback requirements",
+    issues: [{ id: "run-1" }],
+    executions: [{ id: "legacy-1" }],
+    history: [{ id: "history-1" }],
+    revision: 4,
+    updated_at: "2026-09-08T12:00:00Z",
+  };
+  const apiClient = { get: jest.fn(() => Promise.resolve({ data: complete })) };
+
+  await expect(loadBassettScenarioForEdit(scenario, apiClient)).resolves.toBe(complete);
+  expect(apiClient.get).toHaveBeenCalledWith("/bassett/scenarios/scenario-r01");
 });

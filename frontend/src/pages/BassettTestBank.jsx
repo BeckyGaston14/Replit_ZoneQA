@@ -10,7 +10,7 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
 import { Field, FormModal } from "../components/forms";
-import { Activity, Archive, ArchiveRestore, CheckCircle2, Download, FlaskConical, Plus, Search, Upload, XCircle } from "lucide-react";
+import { Activity, Archive, ArchiveRestore, CheckCircle2, Download, FlaskConical, Loader2, Pencil, Plus, Search, Upload, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { parseCsv } from "../lib/csv";
 import { SortableTableHeader } from "../components/SortableTableHeader";
@@ -26,6 +26,7 @@ import { TABLE_ACTION_CELL_CLASS, TABLE_CELL_CLASS, TABLE_CLASS, TABLE_EMPTY_CEL
 import { ConfirmActionDialog } from "../components/ConfirmActionDialog";
 import { useCollection, useConfig, useSavedView, useTestBank } from "../lib/hooks";
 import { focusFormError, validateScenarioDraft } from "../lib/formValidation";
+import { loadBassettScenarioForEdit } from "../lib/bassettEditLoaders";
 
 const emptyScenario = {
   workflow_stage: "", report_type: "", test_scenario: "",
@@ -61,6 +62,7 @@ export default function BassettTestBank() {
   const [formErrors, setFormErrors] = useState({});
   const [scenarioError, setScenarioError] = useState("");
   const [savingScenario, setSavingScenario] = useState(false);
+  const [loadingScenarioEditId, setLoadingScenarioEditId] = useState(null);
   const scenarioSubmitInFlight = useRef(false);
   const scenarioBaseline = useRef(null);
   const [conflict, setConflict] = useState(null);
@@ -123,6 +125,22 @@ export default function BassettTestBank() {
         toast.error(message);
       }
     } finally { scenarioSubmitInFlight.current = false; setSavingScenario(false); }
+  };
+  const openScenarioEdit = async (scenario) => {
+    if (loadingScenarioEditId || scenario.archived) return;
+    setLoadingScenarioEditId(scenario.id);
+    try {
+      const data = await loadBassettScenarioForEdit(scenario);
+      scenarioBaseline.current = data;
+      setConflict(null);
+      setFormErrors({});
+      setScenarioError("");
+      setForm(data);
+    } catch (error) {
+      toast.error(importError(error, "Unable to open scenario for editing"));
+    } finally {
+      setLoadingScenarioEditId(null);
+    }
   };
   const setScenarioField = (key, value) => {
     setForm((draft) => ({ ...draft, [key]: value }));
@@ -251,9 +269,14 @@ export default function BassettTestBank() {
           <td className={`${TABLE_CELL_CLASS} font-bold text-[var(--orange)]`}><button type="button" className="w-full text-left rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)] focus-visible:ring-offset-2" onClick={() => setSelected(scenario.id)} aria-label={`Open ${scenario.stable_id} scenario`}>{scenario.stable_id}</button></td><td className={`${TABLE_CELL_CLASS} font-semibold`}>{scenario.workflow_stage}</td><td className={TABLE_CELL_CLASS}>{scenario.report_type}</td>
           <td className={`${TABLE_CELL_CLASS} min-w-[260px]`}><div className="font-semibold text-[var(--navy)]">{scenario.test_scenario}</div><div className="text-xs text-muted-foreground mt-1 line-clamp-1">{scenario.why_it_matters}</div></td>
           <td className={TABLE_CELL_CLASS}>{scenario.complexity}</td><td className={TABLE_CELL_CLASS}>{scenario.priority}</td><td className={TABLE_CELL_CLASS}>{scenario.execution_count} test run(s)</td>
-           <td className={TABLE_ACTION_CELL_CLASS}>{scenario.archived
+            <td className={TABLE_ACTION_CELL_CLASS}>{scenario.archived
              ? canManage && <Button size="sm" variant="outline" onClick={() => restore(scenario)}><ArchiveRestore size={14} /> Restore</Button>
-             : canExecute && <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); setExecute(createBassettTestRunDraft({ scenario_id: scenario.id }, config?.application_timezone)); }}>Run Bassett Test</Button>}</td>
+              : <div className="flex items-center justify-end gap-1">
+                {canManage && <Button type="button" size="icon" variant="ghost" className="h-7 w-7" title={`Edit ${scenario.stable_id} scenario`} aria-label={`Edit ${scenario.stable_id} scenario`} disabled={loadingScenarioEditId === scenario.id} onClick={(event) => { event.stopPropagation(); openScenarioEdit(scenario); }}>
+                  {loadingScenarioEditId === scenario.id ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : <Pencil size={14} aria-hidden="true" />}
+                </Button>}
+                {canExecute && <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); setExecute(createBassettTestRunDraft({ scenario_id: scenario.id }, config?.application_timezone)); }}>Run Bassett Test</Button>}
+              </div>}</td>
         </tr>)}{!isLoading && !shown.length && <tr><td colSpan="8" className={TABLE_EMPTY_CELL_CLASS}>No Test Bank scenarios match these filters.</td></tr>}</tbody>
       </table></div>
     </Section>
@@ -377,3 +400,5 @@ export function ScenarioDetail({ id, canManage, canExecute, close, edit, run, ar
   </aside></div>;
 }
 function Detail({ label, value }) { return <div><div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">{label}</div><div className="text-sm whitespace-pre-wrap">{value}</div></div>; }
+
+export { loadBassettScenarioForEdit };

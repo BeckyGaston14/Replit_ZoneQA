@@ -1,6 +1,6 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import BassettIssues, { ScenarioSelector, actionError, persistBassettTestRun } from "./BassettIssues";
+import BassettIssues, { BassettRunActions, ScenarioSelector, actionError, loadBassettTestRunForEdit, persistBassettTestRun } from "./BassettIssues";
 import BassettTestBank, { ResultPill, ScenarioDetail } from "./BassettTestBank";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -149,6 +149,25 @@ test("save orchestration persists findings and sends new-run files atomically", 
   expect(actionError(failure, "Unable to save test run")).toBe("Finding turn linkage is invalid");
 });
 
+test("editing preserves concurrency fields and does not upload existing attachment metadata", async () => {
+  const existingApi = {
+    put: jest.fn(() => Promise.resolve({ data: {} })),
+    post: jest.fn(),
+  };
+  await persistBassettTestRun({
+    id: "run-1",
+    revision: 8,
+    updated_at: "2026-09-08T12:00:00Z",
+    attachments: [{ id: "attachment-1", original_filename: "ordinance.pdf" }],
+  }, existingApi);
+  expect(existingApi.put).toHaveBeenCalledWith("/bassett/issues/run-1", expect.objectContaining({
+    revision: 8,
+    updated_at: "2026-09-08T12:00:00Z",
+  }));
+  expect(existingApi.put.mock.calls[0][1]).not.toHaveProperty("attachments");
+  expect(existingApi.post).not.toHaveBeenCalled();
+});
+
 test("scenario selector searches and displays the full scenario identity", () => {
   const container = document.createElement("div");
   const root = createRoot(container);
@@ -267,6 +286,89 @@ test("viewer rows use a named button and the async details drawer traps and rest
   });
   expect(document.body.querySelector('[role="dialog"][aria-modal="true"]')).toBeNull();
   expect(document.activeElement).toBe(openButton);
+  act(() => root.unmount());
+  container.remove();
+});
+
+test("row edit loads the complete current test run before opening the form", async () => {
+  const issue = { id: "run-615", title: "615 Bland Boulevard", revision: 7, updated_at: "2026-09-08T12:00:00Z" };
+  const complete = {
+    ...issue,
+    scenario: { id: "scenario-1", stable_id: "R-01" },
+    evaluation_scores: { accuracy: 9 },
+    attachments: [{ id: "attachment-1", original_filename: "ordinance.pdf" }],
+    history: [{ id: "history-1", action: "created" }],
+    status: "In Progress",
+  };
+  const apiClient = { get: jest.fn(() => Promise.resolve({ data: complete })) };
+
+  await expect(loadBassettTestRunForEdit(issue, apiClient)).resolves.toBe(complete);
+  expect(apiClient.get).toHaveBeenCalledWith("/bassett/issues/run-615");
+});
+
+test("authorized active rows expose direct edit and lifecycle actions with accessible names", () => {
+  const issue = { id: "run-615", title: "615 Bland Boulevard", status: "New" };
+  const onEdit = jest.fn();
+  const onArchive = jest.fn();
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+
+  act(() => root.render(<BassettRunActions issue={issue} canWrite canManage onEdit={onEdit} onArchive={onArchive} onRestore={jest.fn()} />));
+
+  const edit = container.querySelector('button[aria-label="Edit 615 Bland Boulevard"]');
+  const archive = container.querySelector('button[aria-label="Archive 615 Bland Boulevard"]');
+  const actions = container.querySelector('button[aria-label="Actions for 615 Bland Boulevard"]');
+  expect(edit).not.toBeNull();
+  expect(edit.title).toBe("Edit 615 Bland Boulevard");
+  expect(archive).not.toBeNull();
+  expect(actions).not.toBeNull();
+  act(() => edit.click());
+  expect(onEdit).toHaveBeenCalledWith(issue);
+  act(() => archive.click());
+  expect(onArchive).toHaveBeenCalledWith(issue);
+
+  act(() => root.unmount());
+  container.remove();
+});
+
+test("narrow Actions menu exposes the applicable edit and lifecycle items", () => {
+  const issue = { id: "run-615", title: "615 Bland Boulevard", status: "New" };
+  const onEdit = jest.fn();
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+
+  act(() => root.render(<BassettRunActions issue={issue} canWrite canManage onEdit={onEdit} onArchive={jest.fn()} onRestore={jest.fn()} />));
+  const trigger = container.querySelector('button[aria-label="Actions for 615 Bland Boulevard"]');
+  act(() => trigger.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, button: 0 })));
+  const menu = document.body.querySelector('[role="menu"]');
+  expect(menu).not.toBeNull();
+  expect(menu.textContent).toContain("Edit test run");
+  expect(menu.textContent).toContain("Archive test run");
+  act(() => menu.querySelector('[role="menuitem"]').click());
+  expect(onEdit).toHaveBeenCalledWith(issue);
+
+  act(() => root.unmount());
+  container.remove();
+});
+
+test("viewers, archived rows, and read-only rows never expose an enabled edit control", () => {
+  const issue = { id: "run-1", title: "A test run", status: "New" };
+  const archived = { ...issue, status: "Archived", archived: true };
+  const readOnly = { ...issue, read_only: true };
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  document.body.appendChild(container);
+
+  act(() => root.render(<BassettRunActions issue={issue} canWrite={false} canManage={false} onEdit={jest.fn()} onArchive={jest.fn()} onRestore={jest.fn()} />));
+  expect(container.querySelector("button")).toBeNull();
+  act(() => root.render(<BassettRunActions issue={archived} canWrite canManage onEdit={jest.fn()} onArchive={jest.fn()} onRestore={jest.fn()} />));
+  expect(container.querySelector('button[aria-label="Edit A test run"]')).toBeNull();
+  expect(container.querySelector('button[aria-label="Restore A test run"]')).not.toBeNull();
+  act(() => root.render(<BassettRunActions issue={readOnly} canWrite canManage={false} onEdit={jest.fn()} onArchive={jest.fn()} onRestore={jest.fn()} />));
+  expect(container.querySelector("button")).toBeNull();
+
   act(() => root.unmount());
   container.remove();
 });

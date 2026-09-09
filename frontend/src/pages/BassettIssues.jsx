@@ -9,7 +9,7 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { FormModal } from "../components/forms";
 import { BassettTestRunForm, ScenarioDefinition, ScenarioSelector, createBassettTestRunDraft } from "../components/BassettTestRunForm";
-import { AlertTriangle, Archive, ArchiveRestore, CheckCircle2, Download, ExternalLink, Flag, Plus, Search, ShieldAlert, Upload } from "lucide-react";
+import { AlertTriangle, Archive, ArchiveRestore, CheckCircle2, Download, ExternalLink, Flag, Loader2, MoreHorizontal, Pencil, Plus, Search, ShieldAlert, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { parseCsv } from "../lib/csv";
 import { SortableTableHeader } from "../components/SortableTableHeader";
@@ -21,6 +21,11 @@ import { StatusBadge } from "../lib/statusMaps";
 import { normalizeEvaluationResult } from "../lib/evaluationResults";
 import { ConfirmActionDialog } from "../components/ConfirmActionDialog";
 import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "../components/ui/dropdown-menu";
+import { loadBassettTestRunForEdit } from "../lib/bassettEditLoaders";
+import {
   TABLE_ACTION_CELL_CLASS, TABLE_CELL_CLASS, TABLE_CLASS, TABLE_EMPTY_CELL_CLASS,
   TABLE_FRAME_CLASS, TABLE_HEAD_CLASS,
 } from "../lib/tableStyles";
@@ -28,7 +33,7 @@ const testStatuses = ["New", "Triaged", "In Progress", "Blocked", "Resolved", "C
 const DEFAULT_RUN_SORT = { key: "test_date", direction: "desc" };
 
 export async function persistBassettTestRun(form, apiClient = api) {
-  const files = form.attachments || [];
+  const files = (form.attachments || []).filter((file) => typeof File === "undefined" || file instanceof File);
   let issueId = form.id;
   let createdData = null;
   if (form.id) {
@@ -72,6 +77,74 @@ function Pill({ children, tone = "slate" }) {
   return <span className="inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold text-white" style={{ background: colors[tone] }}>{children}</span>;
 }
 
+function bassettRunName(issue) {
+  return issue.title || issue.question_asked || issue.test_id || "test run";
+}
+
+function isArchivedRun(issue) {
+  return Boolean(issue.archived || issue.status === "Archived");
+}
+
+function isReadOnlyRun(issue) {
+  return Boolean(issue.read_only || issue.readOnly || issue.editable === false);
+}
+
+export function BassettRunActions({ issue, canWrite, canManage, onEdit, onArchive, onRestore, editing = false }) {
+  const name = bassettRunName(issue);
+  const archived = isArchivedRun(issue);
+  const readOnly = isReadOnlyRun(issue);
+  const canEdit = canWrite && !archived && !readOnly;
+  const canChangeLifecycle = canManage;
+  if (!canEdit && !canChangeLifecycle) return null;
+
+  const edit = (event) => {
+    event?.stopPropagation();
+    if (!editing) onEdit(issue);
+  };
+  const lifecycle = (event) => {
+    event?.stopPropagation();
+    if (archived) onRestore(issue);
+    else onArchive(issue);
+  };
+  const editControl = canEdit && (
+    <Button type="button" variant="ghost" size="icon" className="h-7 w-7" title={`Edit ${name}`} aria-label={`Edit ${name}`} disabled={editing} onClick={edit}>
+      {editing ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : <Pencil size={14} aria-hidden="true" />}
+    </Button>
+  );
+  const lifecycleControl = canChangeLifecycle && (
+    <Button type="button" variant="ghost" size="icon" className="h-7 w-7" title={`${archived ? "Restore" : "Archive"} ${name}`} aria-label={`${archived ? "Restore" : "Archive"} ${name}`} onClick={lifecycle}>
+      {archived ? <ArchiveRestore size={14} aria-hidden="true" /> : <Archive size={14} aria-hidden="true" />}
+    </Button>
+  );
+
+  return <div className="flex items-center justify-end gap-1" onClick={(event) => event.stopPropagation()}>
+    <div className="hidden md:flex items-center gap-1">
+      {editControl}
+      {lifecycleControl}
+    </div>
+    <div className="md:hidden">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button type="button" variant="ghost" size="sm" aria-label={`Actions for ${name}`}>
+            <MoreHorizontal size={16} aria-hidden="true" /><span className="ml-1">Actions</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" onClick={(event) => event.stopPropagation()}>
+          <DropdownMenuLabel>Test run actions</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {canEdit && <DropdownMenuItem disabled={editing} onSelect={edit}>
+            {editing ? <Loader2 size={15} className="mr-2 animate-spin" /> : <Pencil size={15} className="mr-2" />} Edit test run
+          </DropdownMenuItem>}
+          {canChangeLifecycle && <DropdownMenuItem onSelect={lifecycle}>
+            {archived ? <ArchiveRestore size={15} className="mr-2" /> : <Archive size={15} className="mr-2" />}
+            {archived ? "Restore test run" : "Archive test run"}
+          </DropdownMenuItem>}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  </div>;
+}
+
 export default function BassettIssues() {
   const [searchParams, setSearchParams] = useSearchParams();
   const qc = useQueryClient();
@@ -80,6 +153,7 @@ export default function BassettIssues() {
   const [form, setForm] = useState(null);
   const [conflict, setConflict] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [loadingEditId, setLoadingEditId] = useState(null);
   const [confirmingArchive, setConfirmingArchive] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
   const [selected, setSelected] = useState(null);
@@ -161,6 +235,20 @@ export default function BassettIssues() {
     }
     finally { setSaving(false); }
   };
+  const openEdit = async (issue) => {
+    if (loadingEditId || !canWrite || isArchivedRun(issue) || isReadOnlyRun(issue)) return;
+    setLoadingEditId(issue.id);
+    try {
+      const data = await loadBassettTestRunForEdit(issue);
+      setSelected(null);
+      setConflict(null);
+      setForm(data);
+    } catch (error) {
+      toast.error(actionError(error, "Unable to open test run for editing"));
+    } finally {
+      setLoadingEditId(null);
+    }
+  };
   const archive = async (issue) => {
     try { await api.post(`/bassett/issues/${issue.id}/archive`); toast.success("Test run archived"); qc.invalidateQueries(); }
     catch (error) { toast.error(actionError(error, "Unable to archive test run")); }
@@ -230,14 +318,12 @@ export default function BassettIssues() {
       <TableSortControls columns={runColumns} sort={sort} setSort={setSort} defaultSort={defaultSort} className="mb-3" />
        <div className={TABLE_FRAME_CLASS} role="region" aria-label={showingFindings ? "Bassett findings table" : "Bassett test runs table"} tabIndex="0" data-testid="bassett-runs-table-scroll">
          <table className={TABLE_CLASS}><thead className={TABLE_HEAD_CLASS}><tr>{runColumns.map((column) => <SortableTableHeader key={column.key} column={column} sort={sort} onSort={(key) => setSort((current) => nextSort(current, key))} />)}<th><span className="sr-only">Actions</span></th></tr></thead>
-           <tbody>{isLoading ? <tr><td colSpan="9" className="p-8 text-center text-muted-foreground"><span className="inline-flex items-center gap-2"><span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent" aria-hidden="true" />Loading {showingFindings ? "Bassett findings" : "Bassett test runs"}… this may take a few seconds.</span></td></tr> : shown.map((issue) => <tr key={issue.id} className="border-t hover:bg-[var(--paper)]">
+            <tbody>{isLoading ? <tr><td colSpan="9" className="p-8 text-center text-muted-foreground"><span className="inline-flex items-center gap-2"><span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent" aria-hidden="true" />Loading {showingFindings ? "Bassett findings" : "Bassett test runs"}… this may take a few seconds.</span></td></tr> : shown.map((issue) => <tr key={issue.id} className="border-t hover:bg-[var(--paper)]">
              <td className="px-3 py-3 text-xs font-semibold text-[var(--navy)]">{issue.test_id || "—"}</td><td className={`${TABLE_CELL_CLASS} min-w-[270px]`}><button type="button" className="w-full text-left rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)] focus-visible:ring-offset-2" onClick={() => setSelected(issue.id)} aria-label={`Open ${issue.title || issue.question_asked}`}><div className="font-semibold text-[var(--navy)]">{issue.title || issue.question_asked}</div><div className="text-xs text-muted-foreground line-clamp-1 mt-1">{issue.question_asked}</div></button></td>
             <td className="px-3 py-3 text-xs">{scenarioMap[issue.scenario_id]?.stable_id || "—"}</td>
             <td className="px-3 py-3"><Pill tone={issue.severity === "Critical" ? "red" : issue.severity === "High" ? "orange" : "slate"}>{issue.severity}</Pill></td>
             <td className="px-3 py-3 text-xs font-medium">{issue.status}</td><td className="px-3 py-3 text-xs"><StatusBadge value={issue.result || "Not Evaluated"} compact /></td><td className="px-3 py-3 text-xs">{issue.environment || "—"}</td><td className="px-3 py-3 text-xs"><time dateTime={issue.test_date || undefined}>{formatTestDate(issue.test_date)}</time></td>
-            <td className={TABLE_ACTION_CELL_CLASS}>{canManage && (issue.archived || issue.status === "Archived"
-              ? <Button type="button" variant="ghost" size="icon" title="Restore test run" aria-label={`Restore ${issue.title || issue.question_asked}`} onClick={() => restore(issue)}><ArchiveRestore size={15} /></Button>
-              : <Button type="button" variant="ghost" size="icon" title="Archive test run" aria-label={`Archive ${issue.title || issue.question_asked}`} onClick={() => setConfirmingArchive(issue)}><Archive size={15} /></Button>)}</td>
+             <td className={TABLE_ACTION_CELL_CLASS}><BassettRunActions issue={issue} canWrite={canWrite} canManage={canManage} editing={loadingEditId === issue.id} onEdit={openEdit} onArchive={setConfirmingArchive} onRestore={restore} /></td>
            </tr>)}{!isLoading && !shown.length && <tr><td colSpan="9" className={TABLE_EMPTY_CELL_CLASS}>No Bassett test runs match these filters.</td></tr>}</tbody>
            </table>
       </div>
@@ -256,7 +342,7 @@ export default function BassettIssues() {
 
      {selected && (showingFindings
        ? <BassettFindingDetail id={selected} onClose={() => setSelected(null)} />
-       : <IssueDetail id={selected} onClose={() => setSelected(null)} onEdit={(issue) => { setSelected(null); setConflict(null); setForm(issue); }} onRestore={restore} canWrite={canWrite} canManage={canManage} refresh={() => qc.invalidateQueries()} />)}
+        : <IssueDetail id={selected} onClose={() => setSelected(null)} onEdit={openEdit} onRestore={restore} canWrite={canWrite} canManage={canManage} refresh={() => qc.invalidateQueries()} />)}
     {form && <BassettTestRunForm form={form} setForm={setForm} scenarios={scenarios} versions={versions} projects={projects} municipalities={municipalities} properties={properties} users={users} config={config} onSubmit={save} onCancel={() => { setConflict(null); setForm(null); }} submitting={saving} conflictNotice={conflict && <div role="alert" className="col-span-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
       <p className="font-semibold">Someone else saved this test run first. Your entries are still open for review.</p>
       <div className="mt-2 flex gap-2">
@@ -389,5 +475,5 @@ function IssueDetail({ id, onClose, onEdit, onRestore, canWrite, canManage, refr
 }
 function Info({ label, value }) { return <div><div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">{label}</div><div className="whitespace-pre-wrap">{value}</div></div>; }
 
-export { ScenarioSelector, ScenarioDefinition, BassettFindingDetail, actionError };
+export { ScenarioSelector, ScenarioDefinition, BassettFindingDetail, actionError, loadBassettTestRunForEdit };
 
