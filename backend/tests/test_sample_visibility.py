@@ -43,6 +43,11 @@ class Collection:
             self.db.rows.setdefault(self.name, []).append(row)
         if row is not None:
             row.update(update.get("$set", {}))
+            for key in update.get("$unset", {}):
+                row.pop(key, None)
+
+    async def insert_one(self, document):
+        self.db.rows.setdefault(self.name, []).append(dict(document))
 
 
 class Db:
@@ -83,6 +88,42 @@ def test_sample_scope_hides_direct_and_linked_records(monkeypatch):
     assert [record["id"] for record in server._filter_sample_scope("evaluations", records)] == [
         "production", "sample-by-flag", "sample-by-parent", "sample-by-version",
     ]
+
+
+def test_model_configuration_is_never_hidden_with_sample_records(monkeypatch):
+    monkeypatch.setattr(server, "_sample_visibility_context", server.ContextVar("test_visibility"))
+    monkeypatch.setattr(server, "_sample_scope_context", server.ContextVar("test_scope"))
+    server._sample_visibility_context.set(False)
+    server._sample_scope_context.set({
+        "projects": set(), "testcases": set(), "municipalities": set(),
+        "properties": set(), "evidence": set(), "versions": set(),
+        "version_names": set(),
+    })
+    legacy_models = [
+        {"id": "model-bassett", "name": "Bassett", "sample_data": True},
+        {"id": "model-custom", "name": "Custom evaluator"},
+    ]
+
+    assert server._filter_sample_scope("models", legacy_models) == legacy_models
+
+
+def test_startup_model_defaults_preserve_admin_models_and_repair_legacy_sample_flag(monkeypatch):
+    rows = {"models": [
+        {
+            "id": "legacy-bassett", "name": "Bassett", "provider": "Administrator value",
+            "role_type": "Primary", "active": False, "sample_data": True,
+        },
+        {"id": "custom", "name": "Custom evaluator", "provider": "Internal", "active": True},
+    ]}
+    monkeypatch.setattr(server, "db", Db(rows))
+
+    asyncio.run(server._ensure_default_models())
+
+    by_name = {record["name"]: record for record in rows["models"]}
+    assert set(by_name) == {"Bassett", "ChatGPT", "Claude", "Custom evaluator"}
+    assert by_name["Bassett"]["provider"] == "Administrator value"
+    assert by_name["Bassett"]["active"] is False
+    assert "sample_data" not in by_name["Bassett"]
 
 
 def test_sample_visibility_preference_is_isolated_per_user(monkeypatch):

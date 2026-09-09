@@ -5523,6 +5523,12 @@ def _sample_scope_has_reference(record, scope):
 
 
 def _filter_sample_scope(collection, records, include_sample=None):
+    # Models are application configuration, not test/sample content.  Earlier
+    # sample imports tagged the default model rows as sample_data, which made
+    # the Administration > Models table appear empty whenever sample records
+    # were hidden.  Model definitions must remain visible in every data scope.
+    if collection == "models":
+        return list(records)
     if include_sample is None:
         include_sample = _sample_visibility_context.get()
     if include_sample or not records:
@@ -8422,6 +8428,41 @@ DEFAULT_CONFIG = {
                      "chatgpt_model": "gpt-5.4", "claude_model": "claude-sonnet-4-6"},
 }
 
+DEFAULT_MODELS = (
+    {"id": "model-bassett", "name": "Bassett", "provider": "Zoneomics", "role_type": "Primary", "active": True},
+    {"id": "model-chatgpt", "name": "ChatGPT", "provider": "OpenAI", "role_type": "Benchmark", "model_name": "gpt-5.4", "active": True},
+    {"id": "model-claude", "name": "Claude", "provider": "Anthropic", "role_type": "Benchmark", "model_name": "claude-sonnet-4-6", "active": True},
+)
+
+
+async def _ensure_default_models():
+    """Create only missing core models and preserve all administrator changes."""
+    for definition in DEFAULT_MODELS:
+        existing = await db.models.find_one({"name": definition["name"]}, {"_id": 0})
+        if existing:
+            # Migrate model rows created by the old sample loader out of sample
+            # visibility without changing their provider, API identifier,
+            # role, active state, or any administrator edits.
+            if existing.get("sample_data") is True or existing.get("is_sample") is True:
+                await db.models.update_one(
+                    {"id": existing["id"]},
+                    {"$unset": {"sample_data": "", "is_sample": ""}},
+                )
+            continue
+        doc = {
+            **definition,
+            "created_at": now_iso(),
+            "updated_at": now_iso(),
+            "created_by": "system",
+            "revision": 1,
+        }
+        try:
+            await db.models.insert_one(doc)
+        except UniqueViolationError:
+            # Concurrent startup workers may race to create the same default.
+            # The winner's record is authoritative and must not be overwritten.
+            pass
+
 @app.on_event("startup")
 async def startup():
     logger.info(
@@ -8494,6 +8535,7 @@ async def startup():
                 patch["bassett_workflow_stages"] = normalized_stages
         if patch:
             await db.config.update_one({"id": "global"}, {"$set": patch})
+    await _ensure_default_models()
     # These are system definitions, not client-provided defaults.  Preserve
     # administrator changes while making a fresh installation immediately usable.
     for name, code, position in (("Research", "R", 1), ("Analysis", "A", 2)):

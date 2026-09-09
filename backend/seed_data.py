@@ -28,8 +28,15 @@ async def run_seed_impl(db, new_id, now_iso, *, reset=True):
             await db.testcases.update_many(
                 {"created_by": "seed"}, {"$set": {"test_date": sample_date, "sample_data": True}}
             )
-            for collection in ["models", "municipalities", "properties", "projects", "evidence"]:
+            for collection in ["municipalities", "properties", "projects", "evidence"]:
                 await db[collection].update_many({"created_by": "seed"}, {"$set": {"sample_data": True}})
+            # Model definitions are application configuration, not sample
+            # records. Repair legacy seed-created models without hiding or
+            # replacing administrator-maintained values.
+            await db.models.update_many(
+                {"created_by": "seed"},
+                {"$unset": {"sample_data": "", "is_sample": ""}},
+            )
             authorities = {
                 "NYC ZR §32-00 Use Regulations": "New York City Department of City Planning",
                 "Cool Springs PD Ordinance 2019-14": "City of Franklin Planning and Sustainability Department",
@@ -67,7 +74,7 @@ async def run_seed_impl(db, new_id, now_iso, *, reset=True):
                 "attachments", "release_decisions", "activities", "comments", "annotations", "claims",
                 "retests", "findings", "responses", "evaluations", "goldstandards", "test_runs",
                 "regression_runs", "demos", "regression_suites", "calendar_events", "testcases",
-                "evidence", "properties", "projects", "municipalities", "versions", "models",
+                "evidence", "properties", "projects", "municipalities", "versions",
             ]:
                 await db[collection].delete_many({"created_by": "seed"})
 
@@ -96,10 +103,20 @@ async def run_seed_impl(db, new_id, now_iso, *, reset=True):
         {"id": new_id(), "name": "ChatGPT", "provider": "OpenAI", "role_type": "Benchmark", "model_name": "gpt-5.4", "active": True, "created_at": ts, "created_by": "seed"},
         {"id": new_id(), "name": "Claude", "provider": "Anthropic", "role_type": "Benchmark", "model_name": "claude-sonnet-4-6", "active": True, "created_at": ts, "created_by": "seed"},
     ]
-    if not reset:
+    if reset:
+        await db.models.insert_many([dict(m) for m in models])
+    else:
+        # Loading sample QA records must never clear, duplicate, hide, or
+        # overwrite the administrator's model configuration.
         for record in models:
-            record["sample_data"] = True
-    await db.models.insert_many([dict(m) for m in models])
+            existing = await db.models.find_one({"name": record["name"]}, {"_id": 0})
+            if existing:
+                await db.models.update_one(
+                    {"id": existing["id"]},
+                    {"$unset": {"sample_data": "", "is_sample": ""}},
+                )
+            else:
+                await db.models.insert_one(dict(record))
 
     # Bassett versions
     versions = [
