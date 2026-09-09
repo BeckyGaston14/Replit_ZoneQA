@@ -167,3 +167,19 @@ test("does not manufacture a competitive advantage when scores are unavailable",
   view.unmount();
 });
 
+test("offers Bassett-only, Model Comparison, and combined executive scopes", () => {
+  const view = renderPage();
+  const selector = view.container.querySelector('[aria-label="Executive summary scope"]');
+  expect([...selector.options].map((option) => option.textContent)).toEqual([
+    "Bassett Only", "Model Comparison", "Both",
+  ]);
+  expect(useQuery).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["executive", "both"] }));
+
+  act(() => {
+    selector.value = "bassett";
+    selector.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  expect(useQuery).toHaveBeenLastCalledWith(expect.objectContaining({ queryKey: ["executive", "bassett"] }));
+  view.unmount();
+});
+

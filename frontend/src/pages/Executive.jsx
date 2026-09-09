@@ -16,9 +16,10 @@ import { QueryState } from "../components/PageState";
 import { SafeResponsiveContainer } from "../components/SafeResponsiveContainer";
 
 export default function Executive() {
+  const [reportScope, setReportScope] = useState("both");
   const query = useQuery({
-    queryKey: ["executive"],
-    queryFn: async () => (await api.get("/analytics/executive")).data,
+    queryKey: ["executive", reportScope],
+    queryFn: async () => (await api.get("/analytics/executive", { params: { report_scope: reportScope } })).data,
   });
   const { data: d } = query;
   const trendChartRef = useRef(null);
@@ -60,7 +61,7 @@ export default function Executive() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `Bassett-Executive-Summary-${new Date().toISOString().slice(0, 10)}.pdf`;
+      link.download = `Bassett-Executive-Summary-${reportScope}-${new Date().toISOString().slice(0, 10)}.pdf`;
       document.body.appendChild(link);
       link.click();
       window.setTimeout(() => {
@@ -89,12 +90,13 @@ export default function Executive() {
    const weakest = chartCategories[chartCategories.length - 1];
   const bassettAverage = evaluationScoreOrNull(k.bassett_avg);
   const benchmarkAverage = evaluationScoreOrNull(k.benchmark_avg);
+  const includesComparison = d.report_scope !== "bassett";
   const edge = bassettAverage !== null && benchmarkAverage !== null
     ? Math.round((bassettAverage - benchmarkAverage) * 10) / 10
     : null;
 
   const takeaways = [
-    edge === null
+    !includesComparison ? null : edge === null
       ? "Competitive score comparison is unavailable until Bassett and benchmark scores are recorded for the same scope."
       : edge >= 0
       ? `Bassett outscores the benchmark models by ${fmtPts(edge)} on average (${fmtScore(k.bassett_avg)} vs ${fmtScore(k.benchmark_avg)} / 10).`
@@ -102,7 +104,7 @@ export default function Executive() {
     k.pass_rate == null
       ? "Pass rate is unavailable because no evaluated tests are in scope."
       : `Pass rate stands at ${fmtPct(k.pass_rate)} across ${plural(k.total_evaluated, "evaluated test")}.`,
-    (k.wins || k.losses)
+    !includesComparison ? null : (k.wins || k.losses)
       ? `Head-to-head: Bassett won ${plural(k.wins, "test")} outright against ChatGPT & Claude and lost ${k.losses}.`
       : k.total_evaluated > 0
         ? "No outright head-to-head wins or losses are recorded in the current evaluated scope."
@@ -123,6 +125,14 @@ export default function Executive() {
   return (
     <div data-testid="exec-pdf-surface">
        <PageHeader title="Executive Summary" subtitle={`${d.scope || ""} · Generated ${new Date().toLocaleDateString()}.`}>
+        <label className="flex items-center gap-2 text-sm" data-html2canvas-ignore="true">
+          <span className="font-medium text-[var(--navy)]">Report scope</span>
+          <select aria-label="Executive summary scope" value={reportScope} onChange={(event) => setReportScope(event.target.value)} className="h-9 rounded-md border bg-background px-3 text-sm">
+            <option value="bassett">Bassett Only</option>
+            <option value="comparison">Model Comparison</option>
+            <option value="both">Both</option>
+          </select>
+        </label>
         <Button data-html2canvas-ignore="true" data-testid="download-pdf-btn" onClick={downloadPdf} disabled={exporting} className="bg-[var(--navy)] hover:bg-[#232f73]">
           {exporting ? <Loader2 size={15} className="mr-1 animate-spin" /> : <FileDown size={15} className="mr-1" />}
           {exportStatus === "generating" ? "Generating PDF…" : exportStatus === "saving" ? "Saving PDF…" : "Download PDF"}
@@ -145,12 +155,12 @@ export default function Executive() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-        <StatCard label="Bassett Overall Score" value={fmtScore(k.bassett_avg)} sub={`benchmarks avg ${fmtScore(k.benchmark_avg)}`} accent={MODEL_COLORS.Bassett} icon={Target} testid="exec-bassett-avg" />
+      <div className={`grid grid-cols-2 ${includesComparison ? "md:grid-cols-5" : "md:grid-cols-3"} gap-3 mb-6`}>
+        <StatCard label="Bassett Overall Score" value={fmtScore(k.bassett_avg)} sub={includesComparison ? `benchmarks avg ${fmtScore(k.benchmark_avg)}` : `${d.population_counts?.bassett_only || 0} Bassett-only results`} accent={MODEL_COLORS.Bassett} icon={Target} testid="exec-bassett-avg" />
         <StatCard label="Pass Rate" value={fmtPct(k.pass_rate)} sub={`${k.total_evaluated} evaluated`} accent={k.pass_rate != null && k.pass_rate >= 85 ? "#16a34a" : "#f59e0b"} icon={Percent} />
-        <StatCard label="Bassett Wins" value={k.wins} sub={`${k.losses} losses`} accent="#16a34a" icon={Trophy} />
+        {includesComparison && <StatCard label="Bassett Wins" value={k.wins} sub={`${k.losses} losses`} accent="#16a34a" icon={Trophy} />}
         <StatCard label="Open Critical" value={k.open_critical} sub="findings crit 4-5" accent={k.open_critical ? "#dc2626" : "#16a34a"} icon={AlertTriangle} />
-        <StatCard label="Competitive Edge" value={edge === null ? "—" : edge >= 0 ? `+${edge}` : edge} sub="pts vs benchmarks" accent={edge === null ? "#64748b" : edge >= 0 ? "#16a34a" : "#dc2626"} icon={TrendingUp} />
+        {includesComparison && <StatCard label="Competitive Edge" value={edge === null ? "—" : edge >= 0 ? `+${edge}` : edge} sub="pts vs benchmarks" accent={edge === null ? "#64748b" : edge >= 0 ? "#16a34a" : "#dc2626"} icon={TrendingUp} />}
       </div>
 
       <div className="bg-[var(--navy)] text-white rounded-xl p-5 mb-6" data-testid="exec-takeaways">
@@ -164,7 +174,7 @@ export default function Executive() {
 
       <div className="grid lg:grid-cols-2 gap-4">
         <div className="bg-card border rounded-xl p-5" data-testid="exec-trend-chart">
-          <h3 className="font-semibold font-display text-[var(--navy)] mb-3">Quarterly Accuracy Trend — Bassett vs Benchmarks</h3>
+          <h3 className="font-semibold font-display text-[var(--navy)] mb-3">{includesComparison ? "Quarterly Accuracy Trend — Bassett vs Benchmarks" : "Quarterly Bassett-Only Accuracy Trend"}</h3>
           <p className="text-xs text-muted-foreground mb-2">Scale: 0–10. Missing values appear as gaps.</p>
           <div ref={trendChartRef} data-testid="exec-trend-chart-render" className="min-w-0">
             <SafeResponsiveContainer height={280} testId="exec-trend-responsive-chart">
@@ -174,7 +184,7 @@ export default function Executive() {
                 <YAxis domain={EVALUATION_SCORE_DOMAIN} ticks={EVALUATION_SCORE_TICKS} tick={{ fontSize: 12 }} />
                 <Tooltip formatter={(value) => [formatEvaluationScore(value), "Score (0–10)"]} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
-                {Object.entries(MODEL_COLORS).map(([m, c]) => (
+                {Object.entries(MODEL_COLORS).filter(([model]) => includesComparison || model === "Bassett").map(([m, c]) => (
                   <Line key={m} type="monotone" dataKey={m} stroke={c} strokeWidth={2.5} dot={{ r: 5, fill: c }} connectNulls={false} />
                 ))}
               </LineChart>
@@ -203,7 +213,7 @@ export default function Executive() {
       <div className="bg-card border rounded-xl p-5 mt-4">
          <h3 className="font-semibold font-display text-[var(--navy)] mb-3">Bassett Reporting Group Performance</h3>
          <p className="text-xs text-muted-foreground mb-2">Scale: 0–10. Configured-weight averages of applicable underlying dimensions; missing and N/A values are excluded.</p>
-         <div ref={categoriesChartRef} data-testid="exec-categories-chart-render" className="min-w-0">
+         {chartCategories.length === 0 ? <div role="status" className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">No scored evaluation dimensions are available for this report scope. Complete the evaluation category scores—not only the overall result—to populate this chart.</div> : <div ref={categoriesChartRef} data-testid="exec-categories-chart-render" className="min-w-0">
            <SafeResponsiveContainer height={Math.max(200, chartCategories.length * 44)} testId="exec-categories-responsive-chart">
               <BarChart data={chartCategories.map((item) => ({ ...item, category: item.label || item.category, avg_score: item.score ?? item.avg_score }))} layout="vertical" margin={{ left: 20 }}>
                <XAxis type="number" domain={EVALUATION_SCORE_DOMAIN} ticks={EVALUATION_SCORE_TICKS} tick={{ fontSize: 11 }} />
@@ -214,7 +224,7 @@ export default function Executive() {
                </Bar>
              </BarChart>
            </SafeResponsiveContainer>
-         </div>
+         </div>}
          <SrTable caption="Bassett reporting-group performance. Scale: 0 to 10." columns={["Reporting group", "Average score out of 10", "Underlying dimensions"]} rows={chartCategories.map((c) => [(c.label || c.category), formatEvaluationScore(c.score ?? c.avg_score), (c.dimensions || c.underlyingDimensions || []).map((item) => item.label || item.key || item).join(", ")])} />
       </div>
        <MethodologyDisclosure title="How executive metrics are calculated" testid="executive-methodology">

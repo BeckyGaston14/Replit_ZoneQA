@@ -6230,7 +6230,12 @@ async def put_sample_visibility(body: Dict[str, Any], user=Depends(get_current_u
 
 # ---------- Executive summary ----------
 @api.get("/analytics/executive")
-async def analytics_executive(user=Depends(get_current_user), include_sample: Optional[bool] = None):
+async def analytics_executive(
+    user=Depends(get_current_user), report_scope: str = "both",
+    include_sample: Optional[bool] = None,
+):
+    if report_scope not in {"bassett", "comparison", "both"}:
+        raise HTTPException(400, "report_scope must be bassett, comparison, or both")
     include_sample = _sample_scope_enabled(user, include_sample)
     versions = await crud_list("versions")
     sample_versions = _sample_version_names(versions)
@@ -6244,17 +6249,90 @@ async def analytics_executive(user=Depends(get_current_user), include_sample: Op
     evaluation_view = await _evaluation_read_model(
         raw_evaluations, valid_testcase_ids=tcs,
     )
-    evals = evaluation_view["all_models"]
+    comparison_evals = evaluation_view["all_models"]
     config = await db.config.find_one({"id": "global"}, {"_id": 0}) or DEFAULT_CONFIG
+    dimensions = config.get("eval_dimensions", [])
+
+    # Bassett-only runs are stored separately from three-model comparisons.
+    # Convert their canonical lineages to the same analytical shape so the
+    # executive report can truthfully show either population or both without
+    # double-counting runs expanded into Model Comparison.
+    scenarios = _filter_sample_scope(
+        "bassett_scenarios",
+        await db.bassett_scenarios.find({"archived": {"$ne": True}}, {"_id": 0}).to_list(5000),
+    )
+    scenario_by_id = {scenario.get("id"): scenario for scenario in scenarios}
+    issues = _filter_sample_scope(
+        "bassett_issues",
+        await db.bassett_issues.find({"archived": {"$ne": True}}, {"_id": 0}).to_list(5000),
+    )
+    executions = _filter_sample_scope(
+        "bassett_executions",
+        await db.bassett_executions.find({"archived": {"$ne": True}}, {"_id": 0}).to_list(10000),
+    )
+    comparison_issue_ids = {
+        value for testcase in tcs.values()
+        for value in (testcase.get("bassett_issue_id"), testcase.get("source_bassett_issue_id"))
+        if value
+    }
+    standalone_bassett = []
+    for run in _canonical_bassett_lineages(
+        issues, executions, active_scenario_ids=set(scenario_by_id),
+    ):
+        if (
+            run.get("id") in comparison_issue_ids
+            or run.get("issue_id") in comparison_issue_ids
+            or run.get("bassett_issue_id") in comparison_issue_ids
+            or run.get("source_issue_id") in comparison_issue_ids
+            or _dashboard_bassett_test_type(run) is None
+            or _dashboard_bassett_is_retest(run)
+            or not _bassett_version_is_required(run)
+            or not _dashboard_bassett_result_is_eligible(run)
+        ):
+            continue
+        scores = run.get("evaluation_scores") or run.get("scores") or {}
+        authoritative = score_evaluation(scores, dimensions)
+        result = _canonical_bassett_result(run.get("result"))
+        standalone_bassett.append({
+            **run,
+            "id": run.get("id"),
+            "testcase_id": run.get("testcase_id") or f"bassett:{run.get('scenario_id') or run.get('id')}",
+            "model": "Bassett",
+            "scores": scores,
+            **authoritative,
+            "normalized_result": result,
+            "final_result": result,
+            "created_at": run.get("test_date") or run.get("created_at") or "",
+            "_executive_source": "bassett_only",
+            "_executive_category": run.get("issue_category") or scenario_by_id.get(run.get("scenario_id"), {}).get("workflow_stage") or "Uncategorized",
+        })
+
+    evals = (
+        standalone_bassett if report_scope == "bassett"
+        else comparison_evals if report_scope == "comparison"
+        else [*comparison_evals, *standalone_bassett]
+    )
     # Findings are retained for audit/history after archival, but are not current
     # analytical evidence.
+    def is_bassett_finding(finding):
+        return bool(
+            finding.get("finding_scope") == "bassett"
+            or finding.get("bassett_issue_id")
+            or finding.get("bassett_execution_id")
+        )
+
     findings = [
         finding for finding in await crud_list("findings")
         if not finding.get("archived") and finding.get("status") != "Archived"
-        and finding.get("testcase_id") in tcs
+        and (
+            (report_scope == "bassett" and is_bassett_finding(finding))
+            or (report_scope == "comparison" and not is_bassett_finding(finding) and finding.get("testcase_id") in tcs)
+            or (report_scope == "both" and (is_bassett_finding(finding) or finding.get("testcase_id") in tcs))
+        )
     ]
+    scope_label = {"bassett": "Bassett Only", "comparison": "Model Comparison", "both": "Bassett Only + Model Comparison"}[report_scope]
     scope = (
-        "Scope: latest evaluation per test case per model · "
+        f"Scope: {scope_label} · latest qualifying result per test definition/model · "
         f"sample data {'included' if include_sample else 'excluded'} · "
         "all Bassett versions · retests excluded · Pass includes 'Pass with Minor Issues'"
     )
@@ -6323,11 +6401,11 @@ async def analytics_executive(user=Depends(get_current_user), include_sample: Op
     # bassett by category
     cat = {}
     for e in scored:
-        c = tcs.get(e["testcase_id"], {}).get("category") or "Uncategorized"
+        c = e.get("_executive_category") or tcs.get(e["testcase_id"], {}).get("category") or "Uncategorized"
         cat.setdefault(c, []).append(e["overall_score"])
     categories = sorted([{"category": k, "avg_score": round(sum(v) / len(v), 1), "count": len(v)}
                          for k, v in cat.items()], key=lambda x: -x["avg_score"])
-    reporting_groups = reporting_group_averages(scored, config.get("eval_dimensions", []))
+    reporting_groups = reporting_group_averages(scored, dimensions)
 
     bench_scores = [e["overall_score"] for e in evals if e.get("model") != "Bassett" and e.get("overall_score") is not None]
     bench_avg = round(sum(bench_scores) / len(bench_scores), 1) if bench_scores else None
@@ -6342,7 +6420,11 @@ async def analytics_executive(user=Depends(get_current_user), include_sample: Op
              "trend": trend, "failure_modes": failure_modes, "categories": categories,
              "reporting_groups": reporting_groups, "scope": scope,
             "stale_gold_tests": stale_gold, "sample_data_included": include_sample,
-            "has_evaluated_data": bool(evals)}
+            "has_evaluated_data": bool(evals), "report_scope": report_scope,
+            "population_counts": {
+                "bassett_only": len(standalone_bassett),
+                "model_comparison": len(comparison_evals),
+            }}
 
 # ---------- Test Coverage ----------
 @api.get("/analytics/coverage")

@@ -143,14 +143,14 @@ export default function Performance() {
         <div className="bg-card border rounded-xl p-5">
            <h3 className="font-semibold font-display text-[var(--navy)] mb-3">Bassett Reporting Groups</h3>
            <p className="text-xs text-muted-foreground mb-2">{EVALUATION_SCALE_LABEL}. Groups use configured-weight averages of applicable underlying dimensions; missing and N/A values are not zero.</p>
-          <SafeResponsiveContainer height={300} testId="performance-radar-chart">
+          {radar.length < 3 ? <div role="status" className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">No complete reporting-group chart is available for this scope. Score at least three applicable evaluation groups to display the radar; available values remain listed in the accessible table below.</div> : <SafeResponsiveContainer height={300} testId="performance-radar-chart">
             <RadarChart data={radar}>
               <PolarGrid gridType="polygon" /><PolarAngleAxis dataKey="dim" tick={{ fontSize: 10 }} />
               <PolarRadiusAxis domain={EVALUATION_SCORE_DOMAIN} ticks={EVALUATION_SCORE_TICKS} tick={{ fontSize: 10 }} axisLine={false} />
               <Tooltip formatter={(v) => [formatEvaluationScore(v), "Score (0–10)"]} labelFormatter={(l, p) => p?.[0]?.payload?.full || l} />
               <Radar dataKey="score" stroke={MODEL_COLORS.Bassett} fill={MODEL_COLORS.Bassett} fillOpacity={0.4} />
             </RadarChart>
-          </SafeResponsiveContainer>
+          </SafeResponsiveContainer>}
            <SrTable caption="Bassett reporting-group averages. Scale: 0 to 10. Missing and N/A dimensions are unavailable and are not zero." columns={["Reporting group", "Average score out of 10", "Underlying dimensions"]} rows={dimensionRows.map((r) => [r.full, formatEvaluationScore(r.score), (r.underlying || []).map((item) => item.label || item.key || item).join(", ")])} />
         </div>
         <div className="bg-card border rounded-xl p-5">

@@ -84,19 +84,20 @@ function drawSectionTitle(doc, title, y, subtitle) {
   return next;
 }
 
-function drawKpiCards(doc, kpis, y, boxes) {
+function drawKpiCards(doc, kpis, y, boxes, reportScope = "both", populationCounts = {}) {
   const gap = 3;
-  const width = (A4_PAGE.contentWidth - gap * 4) / 5;
   const height = 25;
+  const includesComparison = reportScope !== "bassett";
   const cards = [
-    ["Bassett Overall Score", fmtScore(kpis.bassett_avg), `Benchmark avg ${fmtScore(kpis.benchmark_avg)}`, MODEL_COLORS.Bassett],
+    ["Bassett Overall Score", fmtScore(kpis.bassett_avg), includesComparison ? `Benchmark avg ${fmtScore(kpis.benchmark_avg)}` : `${safeText(populationCounts.bassett_only, "0")} Bassett-only results`, MODEL_COLORS.Bassett],
     ["Pass Rate", fmtPct(kpis.pass_rate), `${safeText(kpis.total_evaluated, "0")} evaluated`, kpis.pass_rate != null && kpis.pass_rate >= 85 ? "#16A34A" : "#D97706"],
-    ["Bassett Wins", safeText(kpis.wins, "0"), `${safeText(kpis.losses, "0")} losses`, "#16A34A"],
+    ...(includesComparison ? [["Bassett Wins", safeText(kpis.wins, "0"), `${safeText(kpis.losses, "0")} losses`, "#16A34A"]] : []),
     ["Open Critical", safeText(kpis.open_critical, "0"), "Findings · criticality 4–5", kpis.open_critical ? COLORS.red : "#16A34A"],
-    ["Competitive Edge", number(kpis.bassett_avg) !== null && number(kpis.benchmark_avg) !== null
+    ...(includesComparison ? [["Competitive Edge", number(kpis.bassett_avg) !== null && number(kpis.benchmark_avg) !== null
       ? `${number(kpis.bassett_avg) - number(kpis.benchmark_avg) >= 0 ? "+" : ""}${(number(kpis.bassett_avg) - number(kpis.benchmark_avg)).toFixed(1)}`
-      : "—", "Points vs benchmarks", COLORS.navy],
+      : "—", "Points vs benchmarks", COLORS.navy]] : []),
   ];
+  const width = (A4_PAGE.contentWidth - gap * (cards.length - 1)) / cards.length;
   cards.forEach(([label, value, sub, accent], index) => {
     const x = A4_PAGE.marginX + index * (width + gap);
     setColor(doc, "setFillColor", COLORS.white);
@@ -283,14 +284,15 @@ export function renderExecutivePdf({ doc, data, chartImages = {}, generated = ne
   const kpis = data?.kpis || {};
   const categories = data?.reporting_groups?.length ? data.reporting_groups : (data?.categories || []);
   const failureModes = data?.failure_modes || [];
+  const includesComparison = data?.report_scope !== "bassett";
   const takeaways = [
-    number(kpis.bassett_avg) !== null && number(kpis.benchmark_avg) !== null
+    !includesComparison ? null : number(kpis.bassett_avg) !== null && number(kpis.benchmark_avg) !== null
       ? `Bassett ${number(kpis.bassett_avg) >= number(kpis.benchmark_avg) ? "outscores" : "trails"} benchmark models by ${Math.abs(number(kpis.bassett_avg) - number(kpis.benchmark_avg)).toFixed(1)} points on average (${fmtScore(kpis.bassett_avg)} vs ${fmtScore(kpis.benchmark_avg)} / 10).`
       : "Competitive score comparison is unavailable until both sides have scored tests in the same scope.",
     kpis.pass_rate == null
       ? "Pass rate is unavailable because no evaluated tests are in scope."
       : `Pass rate is ${fmtPct(kpis.pass_rate)} across ${safeText(kpis.total_evaluated, "0")} evaluated tests.`,
-    (Number(kpis.wins || 0) || Number(kpis.losses || 0))
+    !includesComparison ? null : (Number(kpis.wins || 0) || Number(kpis.losses || 0))
       ? `Head-to-head: Bassett won ${safeText(kpis.wins, "0")} tests outright against ChatGPT and Claude and lost ${safeText(kpis.losses, "0")}.`
       : Number(kpis.total_evaluated || 0) > 0
         ? "No outright head-to-head wins or losses are recorded in the current evaluated scope."
@@ -317,17 +319,17 @@ export function renderExecutivePdf({ doc, data, chartImages = {}, generated = ne
   drawHeader(doc, generated);
   let y = drawSectionTitle(doc, "Executive Summary", A4_PAGE.top, data?.scope || "Scope unavailable");
   y += 2;
-  y = drawKpiCards(doc, kpis, y, boxes) + 7;
+  y = drawKpiCards(doc, kpis, y, boxes, data?.report_scope, data?.population_counts) + 7;
   y = drawTakeaways(doc, takeaways, y, boxes) + SECTION_GAP;
 
   const sections = [
     {
       name: "Quarterly Accuracy Trend",
-      title: "Quarterly Accuracy Trend — Bassett vs Benchmarks",
+      title: includesComparison ? "Quarterly Accuracy Trend — Bassett vs Benchmarks" : "Quarterly Bassett-Only Accuracy Trend",
       note: "Scale: 0–10. Missing values appear as gaps.",
       image: chartImages.trend,
       table: null,
-      legend: true,
+      legend: includesComparison,
     },
     {
       name: "Top Failure Modes",
