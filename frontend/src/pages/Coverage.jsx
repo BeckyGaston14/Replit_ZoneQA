@@ -2,13 +2,14 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
 import { PageHeader, StatCard, StatusBadge, SampleDataBanner, sampleScopeIncludesData, MethodologyDisclosure } from "../components/shared";
-import { COVERAGE_STATUSES, statusDefinition } from "../lib/statusMaps";
+import { COVERAGE_STATUSES } from "../lib/statusMaps";
 import { Grid3X3, Building2, Tags, AlertTriangle, FlaskConical } from "lucide-react";
 import { QueryState } from "../components/PageState";
 
 export function coverageStatusForCount(tests, evaluated = 0) {
   if (tests === 0) return "not_represented";
-  return evaluated > 0 ? "evaluated" : "defined_not_evaluated";
+  if (evaluated === 0) return "defined_not_evaluated";
+  return evaluated >= tests ? "fully_evaluated" : "partially_evaluated";
 }
 
 const BASSETT_COVERAGE_STATUSES = Object.fromEntries(Object.entries(COVERAGE_STATUSES).map(([key, definition]) => [key, {
@@ -16,30 +17,19 @@ const BASSETT_COVERAGE_STATUSES = Object.fromEntries(Object.entries(COVERAGE_STA
   description: definition.description.replace(/test cases?/g, (match) => match === "test case" ? "scenario" : "scenarios"),
 }]));
 
-function CoverageBar({ value, evaluated, max, definitions = COVERAGE_STATUSES, noun = "tests" }) {
-  const pct = max ? Math.min(100, (value / max) * 100) : 0;
-  const status = coverageStatusForCount(value, evaluated);
-  return (
-    <div className="h-2 w-full rounded-full bg-[var(--paper)] overflow-hidden" role="img" aria-label={`${statusDefinition(status, definitions).label}: ${value} ${noun}`}>
-      <div className="h-full rounded-full" style={{ width: `${pct}%`, background: statusDefinition(status, definitions).color }} />
-    </div>
-  );
-}
-
-export function GapRow({ label, sub, tests, evaluated, max, testid, bassett = false }) {
+export function GapRow({ label, sub, tests, evaluated, testid, bassett = false }) {
   const status = coverageStatusForCount(tests, evaluated);
   const definitions = bassett ? BASSETT_COVERAGE_STATUSES : COVERAGE_STATUSES;
   const noun = bassett ? "scenario" : "test";
   return (
-    <div className="flex min-w-0 flex-col gap-2 py-2 border-b last:border-0 sm:flex-row sm:items-center sm:gap-3" data-testid={testid}>
-      <div className="min-w-0 sm:w-56 sm:shrink-0">
+    <div className="flex min-w-0 flex-col gap-2 py-3 border-b last:border-0 sm:flex-row sm:items-center sm:justify-between sm:gap-4" data-testid={testid}>
+      <div className="min-w-0 sm:flex-1">
         <div className="text-sm font-medium truncate text-[var(--navy)]">{label}</div>
         {sub && <div className="text-[11px] text-muted-foreground">{sub}</div>}
       </div>
-      <div className="flex-1"><CoverageBar value={tests} evaluated={evaluated} max={max} definitions={definitions} noun={`${noun}${tests === 1 ? "" : "s"}`} /></div>
-      <div className="flex shrink-0 flex-wrap items-center gap-2 text-xs sm:w-48 sm:justify-end sm:text-right">
+      <div className="flex shrink-0 flex-wrap items-center gap-2 text-xs sm:justify-end sm:text-right">
         <StatusBadge value={status} definitions={definitions} compact />
-        <span className="text-muted-foreground"><b className="text-[var(--navy)]">{tests}</b> {noun}{tests === 1 ? "" : "s"} · {evaluated} evaluation{evaluated === 1 ? "" : "s"}</span>
+        <span className="text-muted-foreground"><b className="text-[var(--navy)]">{evaluated}/{tests}</b> {noun}{tests === 1 ? "" : "s"} evaluated</span>
       </div>
     </div>
   );
@@ -61,12 +51,6 @@ export default function Coverage() {
   const showBassett = scope !== "comparison";
   const bassettCounts = d.population_counts?.bassett_only || {};
   const comparisonCounts = d.population_counts?.model_comparison || {};
-  const maxMuni = Math.max(1, ...municipalities.map((m) => m.tests));
-  const maxCat = Math.max(1, ...categories.map((c) => c.tests));
-  const maxCrit = Math.max(1, ...criticality.map((c) => c.tests));
-  const maxWorkflow = Math.max(1, ...workflowStages.map((row) => row.tests));
-  const maxComplexity = Math.max(1, ...complexities.map((row) => row.tests));
-  const maxPriority = Math.max(1, ...priorities.map((row) => row.tests));
 
   return (
     <div>
@@ -98,17 +82,17 @@ export default function Coverage() {
             <h3 className="font-semibold font-display text-[var(--navy)]">Bassett-Only · Workflow Stages</h3>
             <Link to="/bassett/test-bank" className="text-xs text-[var(--orange)] font-semibold hover:underline">Open Test Bank →</Link>
           </div>
-          {workflowStages.map((row) => <GapRow key={row.value} label={row.value} tests={row.tests} evaluated={row.evaluated} max={maxWorkflow} bassett />)}
+          {workflowStages.map((row) => <GapRow key={row.value} label={row.value} tests={row.tests} evaluated={row.evaluated} bassett />)}
         </div>}
 
         {showBassett && <div className="space-y-4">
           <div className="bg-card border rounded-xl p-5" data-testid="coverage-complexity">
             <h3 className="font-semibold font-display text-[var(--navy)] mb-2">Bassett-Only · Complexity</h3>
-            {complexities.map((row) => <GapRow key={row.value} label={row.value} tests={row.tests} evaluated={row.evaluated} max={maxComplexity} bassett />)}
+            {complexities.map((row) => <GapRow key={row.value} label={row.value} tests={row.tests} evaluated={row.evaluated} bassett />)}
           </div>
           <div className="bg-card border rounded-xl p-5" data-testid="coverage-priority">
             <h3 className="font-semibold font-display text-[var(--navy)] mb-2">Bassett-Only · Priority</h3>
-            {priorities.map((row) => <GapRow key={row.value} label={row.value} tests={row.tests} evaluated={row.evaluated} max={maxPriority} bassett />)}
+            {priorities.map((row) => <GapRow key={row.value} label={row.value} tests={row.tests} evaluated={row.evaluated} bassett />)}
           </div>
         </div>}
 
@@ -118,22 +102,22 @@ export default function Coverage() {
             <h3 className="font-semibold font-display text-[var(--navy)]">Categories</h3>
             <Link to="/testcases" className="text-xs text-[var(--orange)] font-semibold hover:underline">Add tests →</Link>
           </div>
-          {categories.map((c) => <GapRow key={c.category} label={c.category} tests={c.tests} evaluated={c.evaluated} max={maxCat} testid="coverage-cat-row" />)}
+          {categories.map((c) => <GapRow key={c.category} label={c.category} tests={c.tests} evaluated={c.evaluated} testid="coverage-cat-row" />)}
         </div>
 
         <div className="space-y-4">
           <div className="bg-card border rounded-xl p-5" data-testid="coverage-municipalities">
             <h3 className="font-semibold font-display text-[var(--navy)] mb-2">Municipalities</h3>
-            {municipalities.map((m) => <GapRow key={m.id} label={m.name} sub={m.state} tests={m.tests} evaluated={m.evaluated} max={maxMuni} testid="coverage-muni-row" />)}
+            {municipalities.map((m) => <GapRow key={m.id} label={m.name} sub={m.state} tests={m.tests} evaluated={m.evaluated} testid="coverage-muni-row" />)}
           </div>
           <div className="bg-card border rounded-xl p-5" data-testid="coverage-criticality">
             <h3 className="font-semibold font-display text-[var(--navy)] mb-2">Criticality Levels</h3>
-            {criticality.map((c) => <GapRow key={c.level} label={`${c.level} — ${c.label}`} tests={c.tests} evaluated={c.evaluated} max={maxCrit} testid="coverage-crit-row" />)}
+            {criticality.map((c) => <GapRow key={c.level} label={`${c.level} — ${c.label}`} tests={c.tests} evaluated={c.evaluated} testid="coverage-crit-row" />)}
           </div>
         </div>
         </>}
        <MethodologyDisclosure title="How coverage metrics are calculated" testid="coverage-methodology">
-         <p>A row is Evaluated only when at least one active test definition in that row has a qualifying completed evaluation. Defined, Not Evaluated means scenarios or test cases exist but none has been evaluated; Not Represented means no active definition exists.</p>
+         <p>Fully Evaluated means every active definition in the row has a qualifying completed evaluation. Partially Evaluated means only some definitions do. Defined, Not Evaluated means definitions exist but none has been evaluated; Not Represented means no active definition exists.</p>
          <p>Bassett-only coverage uses Test Bank workflow stage, complexity, and priority. Model Comparison coverage uses municipality, category, and criticality. Expanded or linked Bassett-only runs are excluded from the Bassett-only population to prevent double counting.</p>
          <p>Each row preserves its visible numerator and denominator as tests and evaluations. Sample visibility follows the current account scope.</p>
        </MethodologyDisclosure>
