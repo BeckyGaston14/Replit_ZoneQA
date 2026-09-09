@@ -136,28 +136,15 @@ export default function Dashboard() {
           </div>
         </Section>
       </div>
-      <Section title="Bassett Reporting Groups">
-        <SrTable
-          caption="Bassett reporting groups. Scale: 0 to 10. Underlying dimensions remain available in evaluation records and exports."
-          columns={["Reporting group", "Average score out of 10", "Underlying dimensions"]}
-          rows={(perfQuery.data?.reporting_groups || []).map((group) => [
-            group.label,
-            formatEvaluationScore(evaluationScoreOrNull(group.score)),
-            (group.underlyingDimensions || group.dimensions || []).map((dimension) => dimension.label || dimension.key || dimension).join(", "),
-          ])}
-        />
-      </Section>
       <MethodologyDisclosure title="How dashboard metrics are calculated" testid="dashboard-methodology">
           <p>Dashboard cards use the active Bassett version and the current dashboard scope. Each Test Bank definition or Test Case contributes only its latest qualifying record.</p>
           <p>Pass includes <strong className="text-foreground">Pass</strong> and <strong className="text-foreground">Pass with Minor Issues</strong>. Incomplete, draft, not-evaluated, archived, and out-of-scope records are excluded. Retests and variants remain separate unless the card definition explicitly includes them.</p>
           <p>Model Comparison cards use complete, non-partial comparison runs. Bassett-only cards include eligible Single Prompt and Multi-Turn Conversation runs and exclude anything linked to or expanded into Model Comparison.</p>
           <p>Missing and N/A scores are unavailable rather than zero. Every card opens the exact numerator/denominator population used for its displayed metric, with source navigation to the relevant record.</p>
-          <details className="rounded-lg border border-border/70 p-3" data-testid="dashboard-reporting-groups-methodology">
-            <summary className="cursor-pointer font-semibold text-sm text-[var(--navy)] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)] focus-visible:ring-offset-2">
-              How Bassett reporting groups work
-            </summary>
-            <p className="mt-2">Seven reporting groups consolidate the 12 stored scoring dimensions. Configured weights apply only to applicable scored values; missing and N/A values are excluded, never treated as zero.</p>
-          </details>
+           <div data-testid="dashboard-reporting-groups-methodology">
+             <h3 className="font-semibold text-sm text-[var(--navy)]">Bassett Reporting Groups</h3>
+             <p className="mt-1">Seven reporting groups consolidate the 12 stored scoring dimensions. Configured weights apply only to applicable scored values; missing and N/A values are excluded, never treated as zero.</p>
+           </div>
       </MethodologyDisclosure>
     </div>
   );

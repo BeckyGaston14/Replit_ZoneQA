@@ -78,7 +78,7 @@ test("Dashboard starts with metric groups and does not render the redundant work
   act(() => root.unmount());
 });
 
-test("pass-rate cards expose keyboard-accessible definitions and one bottom methodology disclosure", () => {
+test("dashboard methodology has one collapsed keyboard-accessible disclosure without an empty reporting-groups panel", () => {
   const container = document.createElement("div");
   const root = createRoot(container);
   act(() => root.render(<Dashboard />));
@@ -86,10 +86,19 @@ test("pass-rate cards expose keyboard-accessible definitions and one bottom meth
   const infos = [...container.querySelectorAll('[data-testid="metric-info"]')];
   expect(infos).toHaveLength(13);
   expect(infos.every((info) => info.querySelector("summary")?.getAttribute("aria-label"))).toBe(true);
+  const methodology = container.querySelector('[data-testid="dashboard-methodology"]');
   expect(container.querySelectorAll('[data-testid="dashboard-methodology"]')).toHaveLength(1);
-  expect(container.querySelector('[data-testid="dashboard-methodology"] summary').textContent).toBe("How dashboard metrics are calculated");
-  expect(container.querySelector('[data-testid="dashboard-reporting-groups-methodology"] summary').textContent).toBe("How Bassett reporting groups work");
-  expect(container.textContent).toContain("Seven reporting groups consolidate the 12 stored scoring dimensions.");
+  expect(methodology.open).toBe(false);
+  expect(methodology.querySelectorAll("summary")).toHaveLength(1);
+  expect(methodology.querySelector("summary").textContent).toBe("How dashboard metrics are calculated");
+  expect(methodology.querySelector("summary").getAttribute("class")).toContain("focus-visible");
+  expect(methodology.querySelectorAll("details")).toHaveLength(0);
+  expect(container.querySelector('[data-testid="dashboard-reporting-groups-panel"]')).toBeNull();
+  expect(methodology.querySelector("h3").textContent).toBe("Bassett Reporting Groups");
+
+  act(() => methodology.querySelector("summary").click());
+  expect(methodology.open).toBe(true);
+  expect(methodology.textContent).toContain("Seven reporting groups consolidate the 12 stored scoring dimensions.");
   expect(container.textContent.match(/How calculated/g)).toBeNull();
 
   act(() => root.unmount());
