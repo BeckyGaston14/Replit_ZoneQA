@@ -1,15 +1,11 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { MoreHorizontal, Archive, ArchiveRestore, Pencil, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { api, formatApiErrorDetail } from "../lib/api";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
-  DropdownMenuSeparator, DropdownMenuTrigger,
-} from "./ui/dropdown-menu";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "./ui/dialog";
@@ -69,30 +65,11 @@ export function TestCaseActions({ testcase, user, onDeleted, onEdit }) {
   const exactConfirmation = confirmationId === testcase.id && confirmationTitle === testcase.name && reason.trim().length >= 3;
 
   return <>
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8" title={`Actions for ${testcase.name}`} aria-label={`Actions for ${testcase.name}`} onClick={(event) => event.stopPropagation()}>
-          <MoreHorizontal size={17} />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" onClick={(event) => event.stopPropagation()}>
-        <DropdownMenuLabel>Test case lifecycle</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {onEdit && !testcase.archived && <DropdownMenuItem onSelect={() => onEdit(testcase)}>
-          <Pencil size={15} className="mr-2" /> Edit test case
-        </DropdownMenuItem>}
-        {canManage ? <DropdownMenuItem onSelect={() => setConfirming(testcase.archived ? "restore" : "archive")}>
-          {testcase.archived ? <ArchiveRestore size={15} className="mr-2" /> : <Archive size={15} className="mr-2" />}
-          {testcase.archived ? "Restore" : "Archive"}
-        </DropdownMenuItem> : <DropdownMenuItem disabled>No lifecycle actions available</DropdownMenuItem>}
-        {isAdmin && testcase.archived && <>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem className="text-red-700 focus:text-red-700" onSelect={loadPreflight}>
-            <Trash2 size={15} className="mr-2" /> Review permanent deletion
-          </DropdownMenuItem>
-        </>}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <span className="inline-flex items-center gap-1" onClick={(event) => event.stopPropagation()}>
+      {onEdit && !testcase.archived && <Button type="button" variant="ghost" size="icon" className="h-8 w-8" title="Edit test case" aria-label={`Edit ${testcase.name}`} onClick={() => onEdit(testcase)}><Pencil size={15} /></Button>}
+      {canManage && <Button type="button" variant="ghost" size="icon" className="h-8 w-8" title={testcase.archived ? "Restore test case" : "Archive test case"} aria-label={`${testcase.archived ? "Restore" : "Archive"} ${testcase.name}`} onClick={() => setConfirming(testcase.archived ? "restore" : "archive")}>{testcase.archived ? <ArchiveRestore size={15} /> : <Archive size={15} />}</Button>}
+      {isAdmin && testcase.archived && <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-red-700" title="Review permanent deletion" aria-label={`Review permanent deletion of ${testcase.name}`} onClick={loadPreflight}><Trash2 size={15} /></Button>}
+    </span>
 
     <ConfirmActionDialog
       open={!!confirming}

@@ -9,7 +9,7 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { FormModal } from "../components/forms";
 import { BassettTestRunForm, ScenarioDefinition, ScenarioSelector, createBassettTestRunDraft } from "../components/BassettTestRunForm";
-import { AlertTriangle, Archive, ArchiveRestore, CheckCircle2, Download, ExternalLink, Flag, Loader2, MoreHorizontal, Pencil, Plus, Search, ShieldAlert, Upload } from "lucide-react";
+import { AlertTriangle, Archive, ArchiveRestore, CheckCircle2, Download, ExternalLink, Flag, Loader2, Pencil, Plus, Search, ShieldAlert, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { parseCsv } from "../lib/csv";
 import { SortableTableHeader } from "../components/SortableTableHeader";
@@ -20,10 +20,6 @@ import { useFocusTrap } from "../lib/useFocusTrap";
 import { StatusBadge } from "../lib/statusMaps";
 import { normalizeEvaluationResult } from "../lib/evaluationResults";
 import { ConfirmActionDialog } from "../components/ConfirmActionDialog";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
-  DropdownMenuSeparator, DropdownMenuTrigger,
-} from "../components/ui/dropdown-menu";
 import { loadBassettTestRunForEdit } from "../lib/bassettEditLoaders";
 import {
   TABLE_ACTION_CELL_CLASS, TABLE_CELL_CLASS, TABLE_CLASS, TABLE_EMPTY_CELL_CLASS,
@@ -117,32 +113,7 @@ export function BassettRunActions({ issue, canWrite, canManage, onEdit, onArchiv
     </Button>
   );
 
-  return <div className="flex items-center justify-end gap-1" onClick={(event) => event.stopPropagation()}>
-    <div className="hidden md:flex items-center gap-1">
-      {editControl}
-      {lifecycleControl}
-    </div>
-    <div className="md:hidden">
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button type="button" variant="ghost" size="icon" className="h-8 w-8" title={`Actions for ${name}`} aria-label={`Actions for ${name}`}>
-            <MoreHorizontal size={16} aria-hidden="true" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" onClick={(event) => event.stopPropagation()}>
-          <DropdownMenuLabel>Test run actions</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          {canEdit && <DropdownMenuItem disabled={editing} onSelect={edit}>
-            {editing ? <Loader2 size={15} className="mr-2 animate-spin" /> : <Pencil size={15} className="mr-2" />} Edit test run
-          </DropdownMenuItem>}
-          {canChangeLifecycle && <DropdownMenuItem onSelect={lifecycle}>
-            {archived ? <ArchiveRestore size={15} className="mr-2" /> : <Archive size={15} className="mr-2" />}
-            {archived ? "Restore test run" : "Archive test run"}
-          </DropdownMenuItem>}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
-  </div>;
+  return <div className="flex items-center justify-end gap-1" onClick={(event) => event.stopPropagation()}>{editControl}{lifecycleControl}</div>;
 }
 
 export default function BassettIssues() {

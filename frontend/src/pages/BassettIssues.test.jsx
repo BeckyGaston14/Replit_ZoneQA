@@ -322,7 +322,7 @@ test("authorized active rows expose direct edit and lifecycle actions with acces
   expect(edit).not.toBeNull();
   expect(edit.title).toBe("Edit 615 Bland Boulevard");
   expect(archive).not.toBeNull();
-  expect(actions).not.toBeNull();
+  expect(actions).toBeNull();
   act(() => edit.click());
   expect(onEdit).toHaveBeenCalledWith(issue);
   act(() => archive.click());
@@ -332,7 +332,7 @@ test("authorized active rows expose direct edit and lifecycle actions with acces
   container.remove();
 });
 
-test("narrow Actions menu exposes the applicable edit and lifecycle items", () => {
+test("narrow layouts retain direct pencil and lifecycle controls without an ellipsis menu", () => {
   const issue = { id: "run-615", title: "615 Bland Boulevard", status: "New" };
   const onEdit = jest.fn();
   const container = document.createElement("div");
@@ -340,13 +340,12 @@ test("narrow Actions menu exposes the applicable edit and lifecycle items", () =
   const root = createRoot(container);
 
   act(() => root.render(<BassettRunActions issue={issue} canWrite canManage onEdit={onEdit} onArchive={jest.fn()} onRestore={jest.fn()} />));
-  const trigger = container.querySelector('button[aria-label="Actions for 615 Bland Boulevard"]');
-  act(() => trigger.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, button: 0 })));
-  const menu = document.body.querySelector('[role="menu"]');
-  expect(menu).not.toBeNull();
-  expect(menu.textContent).toContain("Edit test run");
-  expect(menu.textContent).toContain("Archive test run");
-  act(() => menu.querySelector('[role="menuitem"]').click());
+  const edit = container.querySelector('button[aria-label="Edit 615 Bland Boulevard"]');
+  const archive = container.querySelector('button[aria-label="Archive 615 Bland Boulevard"]');
+  expect(edit).not.toBeNull();
+  expect(archive).not.toBeNull();
+  expect(container.querySelector('button[aria-label="Actions for 615 Bland Boulevard"]')).toBeNull();
+  act(() => edit.click());
   expect(onEdit).toHaveBeenCalledWith(issue);
 
   act(() => root.unmount());

@@ -27,7 +27,11 @@ export const PROJECT_SCHEMA = {
   dateRanges: [{ start: "start_date", end: "target_date", startLabel: "Start Date", endLabel: "Target Completion" }],
   initial: { status: "Active", priority: "Medium", completion_mode: "automatic" },
   columns: [
-    { key: "name", label: "Project", type: "text", render: (row) => nameCell(row.name) },
+    {
+      key: "name", label: "Project", type: "text",
+      render: (row) => <span className="block min-w-[240px]">{nameCell(row.name)}{row.description && <span className="mt-1 block text-xs font-normal text-muted-foreground line-clamp-2">{row.description}</span>}</span>,
+      exportValue: (row) => row.description ? `${row.name} — ${row.description}` : row.name,
+    },
     { key: "owner", label: "Owner" },
     { key: "status", label: "Status", type: "status", order: ["Active", "On Hold", "Completed", "Archived"] },
     { key: "priority", label: "Priority", type: "priority" },

@@ -11,7 +11,7 @@ import { TableSortControls } from "./TableSortControls";
 import { nextSort, sortTableRows, usePersistentTableSort } from "../lib/tableSorting";
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
-import { Plus, Pencil, Trash2, MoreHorizontal, Archive, ArchiveRestore } from "lucide-react";
+import { Plus, Pencil, Trash2, Archive, ArchiveRestore } from "lucide-react";
 import { toast } from "sonner";
 import { Download } from "lucide-react";
 import { downloadCsv, tableRowsToCsv, withinDateRange } from "../lib/tableData";
@@ -20,10 +20,6 @@ import {
   TABLE_ACTION_CELL_CLASS, TABLE_CELL_CLASS, TABLE_CLASS, TABLE_EMPTY_CELL_CLASS,
   TABLE_FRAME_CLASS, TABLE_HEAD_CLASS,
 } from "../lib/tableStyles";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
-  DropdownMenuSeparator, DropdownMenuTrigger,
-} from "./ui/dropdown-menu";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "./ui/dialog";
@@ -300,20 +296,9 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
                 <td className={TABLE_ACTION_CELL_CLASS} onClick={(e) => e.stopPropagation()}>
                   <div className="flex gap-1">
                     {canWrite && !isArchived(row) && <Button type="button" size="icon" variant="ghost" className="h-7 w-7" aria-label={`Edit ${row.name || row.document_name || singular || "record"}`} onClick={() => openEdit(row)}><Pencil size={13} /></Button>}
-                     {parentLifecycle && canWrite ? <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button size="icon" variant="ghost" className="h-7 w-7" aria-label={`Actions for ${row.name || singular || "record"}`}><MoreHorizontal size={15} /></Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>{singular || "Record"} lifecycle</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        {canManageLifecycle ? <DropdownMenuItem onSelect={() => setConfirmingLifecycle({ row, action: isArchived(row) ? "restore" : "archive" })}>
-                          {isArchived(row) ? <ArchiveRestore size={15} className="mr-2" /> : <Archive size={15} className="mr-2" />}
-                          {isArchived(row) ? "Restore" : "Archive"}
-                        </DropdownMenuItem> : <DropdownMenuItem disabled>No lifecycle actions available</DropdownMenuItem>}
-                        {isAdmin && isArchived(row) && <><DropdownMenuSeparator /><DropdownMenuItem className="text-red-700 focus:text-red-700" onSelect={() => loadPreflight(row)}><Trash2 size={15} className="mr-2" /> Review permanent deletion</DropdownMenuItem></>}
-                      </DropdownMenuContent>
-                    </DropdownMenu> : canWrite && <Button type="button" size="icon" variant="ghost" className="h-7 w-7 text-destructive" aria-label={`Review deletion of ${row.name || row.document_name || singular || "record"}`} onClick={() => reviewDelete(row)}><Trash2 size={13} /></Button>}
+                    {parentLifecycle && canManageLifecycle && <Button type="button" size="icon" variant="ghost" className="h-7 w-7" title={isArchived(row) ? "Restore" : "Archive"} aria-label={`${isArchived(row) ? "Restore" : "Archive"} ${row.name || singular || "record"}`} onClick={() => setConfirmingLifecycle({ row, action: isArchived(row) ? "restore" : "archive" })}>{isArchived(row) ? <ArchiveRestore size={14} /> : <Archive size={14} />}</Button>}
+                    {parentLifecycle && isAdmin && isArchived(row) && <Button type="button" size="icon" variant="ghost" className="h-7 w-7 text-destructive" title="Review permanent deletion" aria-label={`Review permanent deletion of ${row.name || singular || "record"}`} onClick={() => loadPreflight(row)}><Trash2 size={13} /></Button>}
+                    {!parentLifecycle && canWrite && <Button type="button" size="icon" variant="ghost" className="h-7 w-7 text-destructive" aria-label={`Review deletion of ${row.name || row.document_name || singular || "record"}`} onClick={() => reviewDelete(row)}><Trash2 size={13} /></Button>}
                   </div>
                 </td>
               </tr>

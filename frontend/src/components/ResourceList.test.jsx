@@ -26,7 +26,7 @@ jest.mock("../lib/tableSorting", () => ({
 jest.mock("../lib/hooks", () => ({
   useCollection: (name) => ({
     data: name === "projects"
-      ? [{ id: "project-active", name: "Active project" }, { id: "project-archived", name: "Archived project", archived: true }]
+      ? [{ id: "project-active", name: "Active project", description: "Checks zoning research quality." }, { id: "project-archived", name: "Archived project", archived: true }]
       : [],
   }),
   useSavedView: (_page, defaultState) => {
@@ -68,6 +68,7 @@ jest.mock("./ui/dialog", () => ({
 jest.mock("sonner", () => ({ toast: { success: jest.fn(), error: jest.fn() } }));
 
 const ResourceList = require("./ResourceList").default;
+const { PROJECT_SCHEMA } = require("../lib/resourceSchemas");
 const { api: mockApi } = require("../lib/api");
 
 const click = (element) => act(() => element.dispatchEvent(new MouseEvent("click", { bubbles: true })));
@@ -117,7 +118,7 @@ test("parent lifecycle hides archived records and sends the fresh preflight toke
   expect(container.textContent).not.toContain("Archived project");
   click([...container.querySelectorAll("button")].find((button) => button.textContent.includes("Archived records")));
   expect(container.textContent).toContain("Archived project");
-  click([...container.querySelectorAll("button")].find((button) => button.textContent.includes("Review permanent deletion")));
+  click(container.querySelector('[aria-label="Review permanent deletion of Archived project"]'));
   await act(async () => {});
   expect(container.querySelector('[aria-label="Exact dependency counts"]')).not.toBeNull();
   expect(container.textContent).toContain("test cases");
@@ -169,5 +170,16 @@ test("resource date filters reject an inverted range with actionable feedback", 
   });
   expect(container.querySelector('[role="alert"]').textContent).toContain("Start date must be on or before end date.");
   expect(to.getAttribute("aria-invalid")).toBe("true");
+  act(() => root.unmount());
+});
+
+test("project descriptions appear beneath the project name", async () => {
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  await act(async () => root.render(<ResourceList title="Projects" singular="Project" collection="projects" columns={PROJECT_SCHEMA.columns} fields={[]} />));
+  const firstCell = container.querySelector('[data-testid="projects-row"] td:first-child');
+  expect(firstCell.textContent).toContain("Active project");
+  expect(firstCell.textContent).toContain("Checks zoning research quality.");
+  expect(firstCell.querySelector(".text-muted-foreground")).not.toBeNull();
   act(() => root.unmount());
 });
