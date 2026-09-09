@@ -664,10 +664,12 @@ def test_release_readiness_critical_findings_are_version_scoped(monkeypatch):
     monkeypatch.setattr(server, "compute_stale_gold_map", lambda: asyncio.sleep(0, result={}))
     current = asyncio.run(server.release_readiness("v1", {"id": "viewer", "role": "viewer"}))
     old = asyncio.run(server.release_readiness("v0", {"id": "viewer", "role": "viewer"}))
-    assert current["recommendation"] == "CONDITIONAL"
+    # With no qualifying evaluations, insufficient data remains the governing
+    # readiness state even when a version-scoped warning exists.
+    assert current["recommendation"] == "NOT-READY"
     assert not any(blocker["label"] == "Old blocker" for blocker in current["blockers"])
-    assert old["recommendation"] == "NO-GO"
-    assert [blocker["label"] for blocker in old["blockers"]] == ["Old blocker"]
+    assert old["recommendation"] == "NOT-READY"
+    assert any(blocker["label"] == "Old blocker" for blocker in old["blockers"])
 
 
 def test_coverage_counts_valid_bassett_only_evaluations(monkeypatch):

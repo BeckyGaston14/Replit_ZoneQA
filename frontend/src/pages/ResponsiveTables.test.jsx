@@ -19,6 +19,7 @@ jest.mock("../lib/hooks", () => ({
   useCollection: () => ({ data: [] }),
   useTestCases: () => ({ data: [], isLoading: false, isError: false, refetch: jest.fn() }),
   useTestBank: () => ({ data: [], isLoading: false, isError: false, refetch: jest.fn() }),
+  useGeneralSubtypes: () => ({ data: [] }),
   useSavedView: (_page, defaultState) => ({
     state: defaultState, updateState: jest.fn(), error: "", clearError: jest.fn(),
   }),

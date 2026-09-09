@@ -17,6 +17,7 @@ jest.mock("@tanstack/react-query", () => ({
 jest.mock("../lib/hooks", () => ({
   useConfig: () => ({ data: {} }),
   useCollection: () => ({ data: [] }),
+  useGeneralSubtypes: () => ({ data: [] }),
 }));
 jest.mock("../lib/auth", () => ({ useAuth: () => ({ user: { role: "admin" } }) }));
 jest.mock("../lib/api", () => ({
