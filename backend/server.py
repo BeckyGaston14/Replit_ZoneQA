@@ -2699,6 +2699,7 @@ BASSETT_ISSUE_FIELDS = {
     "test_type", "turns", "finding_turn_id",
     "issue_category", "severity", "priority", "environment", "reported_date", "test_date",
     "status", "assignee_id", "project_id", "testcase_id", "finding_id",
+    "triaged_by", "triaged_by_name", "triaged_at",
     "scenario_id", "workflow_stage", "version_id", "bassett_version", "retest_id",
     "regression_run_id", "municipality_id", "property_id", "notes",
     "resolution", "repro_steps", "evidence",
@@ -3014,7 +3015,7 @@ def _validate_bassett_run_result(doc, allow_legacy=False):
     if result not in allowed:
         raise HTTPException(
             400,
-            "Bassett result must be Pass, Pass with Minor Issues, Needs Improvement, Fail, Critical Fail, or Not Evaluated",
+            "Bassett test result must be Pass, Pass with Minor Issues, Needs Improvement, Fail, Critical Fail, or Not Evaluated",
         )
     score = doc.get("score")
     if score in (None, ""):
@@ -3340,6 +3341,59 @@ async def bassett_issue_history(id: str, user=Depends(get_current_user)):
         {"entity_type": "issue", "entity_id": id}, {"_id": 0}
     ).sort("created_at", -1).to_list(5000)
 
+@api.post("/bassett/issues/{id}/triage")
+async def bassett_triage_issue(id: str, body: Dict[str, Any] = None, user=Depends(get_current_user)):
+    """Move an active New test run to Triaged with atomic audit metadata."""
+    _require_bassett_writer(user)
+    existing = await _bassett_ref("bassett_issues", id, "Issue")
+    _require_mutable_bassett_issue(existing)
+    if (existing.get("status") or "New") != "New":
+        raise HTTPException(409, "Only New test runs can be marked as Triaged")
+    body = body or {}
+    timestamp = now_iso()
+    history = {
+        "id": new_id(), "entity_type": "issue", "entity_id": id,
+        "action": "triaged",
+        "changes": {
+            "status": {"old": existing.get("status") or "New", "new": "Triaged"},
+            "triaged_by": user.get("id"),
+            "triaged_by_name": user.get("name"),
+            "triaged_at": timestamp,
+        },
+        "actor_id": user.get("id"), "actor": user.get("name", "system"),
+        "created_at": timestamp,
+    }
+    activity = {
+        "id": new_id(), "entity_type": "bassett_issue", "entity_id": id,
+        "action": "triaged", "user": user.get("name", "system"),
+        "detail": "Workflow status changed from New to Triaged",
+        "created_at": timestamp, "_log": True,
+    }
+    result = await db.triage_bassett_issue(
+        id,
+        expected_revision=body.get("expected_revision"),
+        expected_updated_at=body.get("expected_updated_at"),
+        timestamp=timestamp,
+        triaged_by=user.get("id"),
+        triaged_by_name=user.get("name"),
+        history=history,
+        activity=activity,
+    )
+    if result.get("error") == "not_found":
+        raise HTTPException(404, "Issue not found")
+    if result.get("error") == "stale_update":
+        raise HTTPException(409, detail={
+            "code": "stale_update",
+            "message": "Someone else saved this test run first. Reload it before triaging.",
+            "current_revision": result.get("current_revision"),
+            "current_updated_at": result.get("current_updated_at"),
+        })
+    if result.get("error") == "archived":
+        raise HTTPException(409, "Archived issues are immutable; history and relationships are preserved")
+    if result.get("error") == "not_new":
+        raise HTTPException(409, "Only New test runs can be marked as Triaged")
+    return result["issue"]
+
 @api.post("/bassett/issues")
 async def bassett_create_issue(body: Dict[str, Any], user=Depends(get_current_user)):
     _require_bassett_writer(user)
@@ -3615,8 +3669,10 @@ async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_c
     if "status" in incoming:
         if incoming["status"] not in BASSETT_ISSUE_STATUSES[:-1]:
             raise HTTPException(400, "Invalid issue status")
-        if incoming["status"] != existing.get("status") and user.get("role") not in BASSETT_MANAGER_ROLES:
-            raise HTTPException(403, "Only QA managers and administrators can change issue lifecycle status")
+    # Triage metadata is server-owned; workflow status may be edited by
+    # authorized writers, but audit identity and timestamp cannot be spoofed.
+    for field in ("triaged_by", "triaged_by_name", "triaged_at"):
+        incoming.pop(field, None)
     if "assignee_id" in incoming and user.get("role") not in BASSETT_MANAGER_ROLES:
         raise HTTPException(403, "Only QA managers and administrators can assign issues")
     merged = {**existing, **incoming}
@@ -3635,6 +3691,14 @@ async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_c
         incoming["result"] = merged["result"]
     if "score" in incoming:
         incoming["score"] = merged["score"]
+    if (
+        incoming.get("status") == "Triaged"
+        and existing.get("status") != "Triaged"
+        and not existing.get("triaged_at")
+    ):
+        incoming["triaged_by"] = user.get("id")
+        incoming["triaged_by_name"] = user.get("name")
+        incoming["triaged_at"] = now_iso()
     await _validate_bassett_refs(merged)
     changed = {key: [existing.get(key), merged.get(key)] for key in incoming if existing.get(key) != merged.get(key)}
     incoming["updated_at"] = now_iso()

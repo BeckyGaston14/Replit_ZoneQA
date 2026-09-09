@@ -31,7 +31,7 @@ export const emptyBassettTestRun = {
   test_type: "Single Prompt", turns: [],
   issue_category: "General", severity: "Medium", priority: "Medium", environment: "",
   test_date: "", scenario_id: "", project_id: "", municipality_id: "", property_id: "",
-  version_id: "", bassett_version: "", result: "Pass", score: "", notes: "", evidence: "",
+  version_id: "", bassett_version: "", status: "New", result: "Pass", score: "", notes: "", evidence: "",
   evaluation_scores: {}, create_finding: false, finding: {}, follow_up_action: "",
   retest_target: "", retest_date: "", source_links: "", attachments: [],
 };
@@ -222,8 +222,8 @@ function validate(form, mode) {
 
 function ReviewSummary({ mode, progress, sectionStatus, sectionIssue, activateSection, totalSections }) {
   const labels = mode === "comparison"
-    ? ["Test setup", "Linked records & prompt", "Bassett result", "Canonical evaluation", "Findings & ownership", "Sources, documents & notes", "Follow-up, retesting & regression", "ChatGPT response", "Claude response", "Benchmark evaluations", "Benchmark result"]
-    : ["Test setup", "Linked records & prompt", "Bassett result", "Canonical evaluation", "Findings & ownership", "Sources, documents & notes", "Follow-up, retesting & regression"];
+    ? ["Test setup", "Linked records & prompt", "Bassett test result", "Canonical evaluation", "Findings & ownership", "Sources, documents & notes", "Follow-up, retesting & regression", "ChatGPT response", "Claude response", "Benchmark evaluations", "Benchmark result"]
+    : ["Test setup", "Linked records & prompt", "Bassett test result", "Canonical evaluation", "Findings & ownership", "Sources, documents & notes", "Follow-up, retesting & regression"];
   return <section className="rounded-xl border border-[var(--navy)]/20 bg-[var(--paper)] p-4" aria-labelledby="workflow-review-title" data-testid="workflow-review-summary">
     <div className="flex flex-wrap items-start justify-between gap-2">
       <div>
@@ -439,7 +439,8 @@ export default function UnifiedTestEntryForm({
       <Field label="Bassett version"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.version_id || ""} disabled={lockedCommon} onChange={(e) => update("version_id", e.target.value)}><option value="">Not specified</option>{versions.map((version) => <option key={version.id} value={version.id}>{version.name}</option>)}</select></Field>
       <Field label="Test date" required error={attemptedSections.has(0) && !String(form.test_date || "").trim() ? "Test date is required." : undefined}><Input type="date" value={form.test_date || ""} disabled={lockedCommon} onChange={(e) => update("test_date", e.target.value)} /></Field>
       <Field label="Environment"><Input value={form.environment || ""} disabled={lockedCommon} onChange={(e) => update("environment", e.target.value)} placeholder="Production, Staging…" /></Field>
-       {!isComparison && <Field label="Test type" description="Single Prompt is one question and answer. Multi-turn stores an ordered conversation with turn-level evidence."><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.test_type || "Single Prompt"} disabled={lockedCommon} onChange={(e) => update("test_type", e.target.value)}><option>Single Prompt</option><option>Multi-turn</option></select></Field>}
+        {!isComparison && <Field label="Test type" description="Single Prompt is one question and answer. Multi-turn stores an ordered conversation with turn-level evidence."><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.test_type || "Single Prompt"} disabled={lockedCommon} onChange={(e) => update("test_type", e.target.value)}><option>Single Prompt</option><option>Multi-turn</option></select></Field>}
+       {!isComparison && <Field label="Workflow status"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.status || "New"} disabled={lockedCommon} onChange={(e) => update("status", e.target.value)}>{["New", "Triaged", "In Progress", "Blocked", "Resolved", "Closed"].map((value) => <option key={value}>{value}</option>)}</select></Field>}
     </div></GuidedSection>
 
      <GuidedSection index={1} title="2. Linked Records & Prompt" active={activeSection === 1} status={sectionStatus(1)} onActivate={activateSection}><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -450,11 +451,11 @@ export default function UnifiedTestEntryForm({
         <div className="sm:col-span-2"><Field label={isComparison ? "Verified answer / Gold Standard" : "Verified correct answer"} required error={attemptedSections.has(1) && !String(form.verified_correct_answer || form.gold_standard_answer || "").trim() ? "Verified answer is required." : undefined}><Textarea rows={4} value={form.verified_correct_answer || form.gold_standard_answer || ""} disabled={lockedCommon} onChange={(e) => setForm((current) => ({ ...current, verified_correct_answer: e.target.value, gold_standard_answer: e.target.value }))} /></Field></div></>}
     </div></GuidedSection>
 
-     <GuidedSection index={2} title="3. Bassett Result" active={activeSection === 2} status={sectionStatus(2)} onActivate={activateSection}><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <GuidedSection index={2} title="3. Bassett Test Result" active={activeSection === 2} status={sectionStatus(2)} onActivate={activateSection}><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
        {(isComparison || form.test_type !== "Multi-turn") && <Field label={isComparison ? "Bassett response" : "Exact Bassett answer"} required error={attemptedSections.has(2) && !String(responseFor("Bassett").response || "").trim() ? "Bassett response is required." : undefined}><Textarea rows={6} value={responseFor("Bassett").response || ""} disabled={lockedCommon} onChange={(e) => updateResponse("Bassett", "response", e.target.value)} /></Field>}
        {!isComparison && form.test_type === "Multi-turn" && <div className="sm:col-span-2 rounded-lg border bg-[var(--paper)] p-3 text-sm text-muted-foreground">Responses are captured within the ordered turns above. The overall verdict and evaluation below still apply to the complete conversation.</div>}
-      <Field label="Status / verdict"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={normalizeEvaluationResult(form.result)} onChange={(e) => update("result", e.target.value)}>{(isComparison ? COMPARISON_RESULT_OPTIONS : BASSETT_RESULT_OPTIONS).map((value) => <option key={value}>{value}</option>)}</select></Field>
-      <Field label="Severity / criticality"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.severity || form.criticality || "Medium"} onChange={(e) => update("severity", e.target.value)}>{["Critical", "High", "Medium", "Low", "1", "2", "3", "4", "5"].map((value) => <option key={value}>{value}</option>)}</select></Field>
+       <Field label="Test result"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={normalizeEvaluationResult(form.result)} onChange={(e) => update("result", e.target.value)}>{(isComparison ? COMPARISON_RESULT_OPTIONS : BASSETT_RESULT_OPTIONS).map((value) => <option key={value}>{value}</option>)}</select></Field>
+       <Field label="Severity"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.severity || form.criticality || "Medium"} onChange={(e) => update("severity", e.target.value)}>{["Critical", "High", "Medium", "Low", "1", "2", "3", "4", "5"].map((value) => <option key={value}>{value}</option>)}</select></Field>
       <Field label="Priority"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.priority || "Medium"} onChange={(e) => update("priority", e.target.value)}>{["Critical", "High", "Medium", "Low"].map((value) => <option key={value}>{value}</option>)}</select></Field>
       <Field label="Category"><Input value={form.issue_category || form.category || ""} onChange={(e) => update(isComparison ? "category" : "issue_category", e.target.value)} /></Field>
     </div></GuidedSection>

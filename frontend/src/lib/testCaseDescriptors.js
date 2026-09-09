@@ -8,7 +8,7 @@ export const TEST_CASE_COLUMNS = [
   { key: "category", label: "Category", type: "text" },
   { key: "crit", label: "Crit", type: "criticality", getValue: (row) => row.criticality },
   { key: "status", label: "Status", type: "status" },
-  { key: "result", label: "Bassett Result", type: "status", getValue: (row) => row.bassett_result, order: ["Pass", "Pass with Minor Issues", "Needs Improvement", "Fail", "Critical Fail", "Not Evaluated"] },
+  { key: "result", label: "Bassett test result", type: "status", getValue: (row) => row.bassett_result, order: ["Pass", "Pass with Minor Issues", "Needs Improvement", "Fail", "Critical Fail", "Not Evaluated"] },
   { key: "test_date", label: "Test Date", type: "date", exportValue: (row) => row.test_date || "Not recorded" },
 ];
 

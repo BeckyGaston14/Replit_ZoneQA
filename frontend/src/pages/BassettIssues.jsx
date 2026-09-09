@@ -111,15 +111,15 @@ export default function BassettIssues() {
   const { data: versions = [] } = useQuery({ queryKey: ["versions"], queryFn: async () => (await api.get("/versions")).data });
   const { data: config } = useQuery({ queryKey: ["config"], queryFn: async () => (await api.get("/config")).data });
   const canManage = ["admin", "qa_manager"].includes(user?.role);
-  const canWrite = user?.role !== "viewer";
+  const canWrite = ["admin", "qa_manager", "tester", "developer"].includes(user?.role);
   const scenarioMap = useMemo(() => Object.fromEntries(scenarios.map((scenario) => [scenario.id, scenario])), [scenarios]);
   const runColumns = useMemo(() => [
     { key: "test_id", label: "Test ID", type: "test-id" },
     { key: "title", label: "Test Run", type: "natural", getValue: (row) => row.title || row.question_asked },
     { key: "scenario", label: "Scenario", type: "test-id", getValue: (row) => scenarioMap[row.scenario_id]?.stable_id },
     { key: "severity", label: "Severity", type: "severity" },
-    { key: "status", label: "Test Status", type: "status", order: testStatuses },
-    { key: "result", label: "Test Result", type: "status", order: ["Pass", "Pass with Minor Issues", "Needs Improvement", "Fail", "Critical Fail", "Not Evaluated"] },
+    { key: "status", label: "Workflow status", type: "status", order: testStatuses },
+    { key: "result", label: "Test result", type: "status", order: ["Pass", "Pass with Minor Issues", "Needs Improvement", "Fail", "Critical Fail", "Not Evaluated"] },
     { key: "environment", label: "Environment", type: "text" },
     { key: "test_date", label: "Test Date", type: "date" },
   ], [scenarioMap]);
@@ -216,14 +216,14 @@ export default function BassettIssues() {
     </PageHeader>
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-6">
        <StatCard label={showingFindings ? "Open Findings" : "Tests Needing Attention"} value={showingFindings ? (metrics?.findings?.open ?? 0) : (metrics?.test_runs?.attention ?? "—")} sub={showingFindings ? "excludes fixed and closed findings" : "Needs Improvement, Fail, Critical Fail, or Blocked"} icon={Flag} accent="#f97316" />
-      <StatCard label="New" value={showingFindings ? (metrics?.findings?.new ?? 0) : (metrics?.issues?.new ?? "—")} sub="awaiting triage" icon={AlertTriangle} accent="#2563eb" />
-      <StatCard label="High impact" value={showingFindings ? (metrics?.findings?.critical ?? 0) : (metrics?.issues?.critical ?? "—")} sub="high / critical severity" icon={ShieldAlert} accent="#dc2626" />
-      <StatCard label={showingFindings ? "Total Findings" : "Evaluated scenario coverage"} value={showingFindings ? (metrics?.findings?.total ?? 0) : (metrics ? `${metrics.test_runs.test_bank_coverage.percent}%` : "—")} sub={showingFindings ? "linked to Bassett-only testing" : (metrics ? `${metrics.test_runs.test_bank_coverage.covered}/${metrics.test_runs.test_bank_coverage.total} scenarios with a completed result` : "Drafts and Not Evaluated runs are excluded")} icon={CheckCircle2} accent="#16a34a" />
+       <StatCard label={showingFindings ? "New Findings" : "Untriaged Test Runs"} value={showingFindings ? (metrics?.findings?.new ?? 0) : (metrics?.issues?.new ?? "—")} sub={showingFindings ? "newly recorded findings" : "Workflow status is New."} icon={AlertTriangle} accent="#2563eb" />
+       <StatCard label={showingFindings ? "High severity findings" : "High severity"} value={showingFindings ? (metrics?.findings?.critical ?? 0) : (metrics?.issues?.critical ?? "—")} sub="high / critical severity" icon={ShieldAlert} accent="#dc2626" />
+       <StatCard label={showingFindings ? "Total Findings" : "Scenario coverage"} value={showingFindings ? (metrics?.findings?.total ?? 0) : (metrics ? `${metrics.test_runs.test_bank_coverage.percent}%` : "—")} sub={showingFindings ? "linked to Bassett-only testing" : (metrics ? `${metrics.test_runs.test_bank_coverage.covered}/${metrics.test_runs.test_bank_coverage.total} active scenarios with a completed result` : "Drafts and Not Evaluated runs are excluded")} icon={CheckCircle2} accent="#16a34a" />
     </div>
     <Section title={showingFindings ? "Bassett findings" : "Bassett test runs"} action={<span className="text-xs text-muted-foreground">{shown.length} shown · archived records stay in history</span>}>
       <div className="flex flex-wrap gap-2 mb-4">
         <div className="relative flex-1 min-w-[220px]"><Search size={15} className="absolute left-3 top-2.5 text-muted-foreground" /><Input aria-label="Search Bassett test runs" className="pl-9" placeholder="Search question, response, category, scenario…" value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} /></div>
-        <select aria-label="Filter by Test Status" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}><option value="all">All test statuses</option>{testStatuses.map((x) => <option key={x}>{x}</option>)}</select>
+         <select aria-label="Filter by Workflow status" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}><option value="all">All workflow statuses</option>{testStatuses.map((x) => <option key={x}>{x}</option>)}</select>
          <select aria-label="Filter by severity" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.severity} onChange={(e) => setFilters({ ...filters, severity: e.target.value })}><option value="all">All severity</option>{["Critical", "High", "Medium", "Low"].map((x) => <option key={x}>{x}</option>)}</select>
         {!showingFindings && <><Input aria-label="Test date from" title="Test date from" type="date" className="w-auto" value={filters.dateFrom} onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })} /><Input aria-label="Test date to" title="Test date to" type="date" className="w-auto" value={filters.dateTo} onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })} /></>}
       </div>
@@ -247,8 +247,8 @@ export default function BassettIssues() {
          <p>Finding counts reflect Bassett-only findings in the current visibility scope; fixed and closed findings are excluded from the open count.</p>
        ) : (
          <>
-           <p>Tests Needing Attention includes Needs Improvement, Fail, Critical Fail, or Blocked results.</p>
-           <p>Evaluated scenario coverage is the percentage of active Test Bank scenarios with a completed result. Draft and Not Evaluated runs are excluded.</p>
+            <p>Tests Needing Attention includes Test result values of Needs Improvement, Fail, Critical Fail, or Blocked.</p>
+            <p>Scenario coverage is the percentage of active Test Bank scenarios with a completed Test result. Draft and Not Evaluated runs are excluded.</p>
          </>
        )}
        <p>Archived records remain available in history but are excluded from active summary populations. The visible test-date filters define the displayed date range.</p>
@@ -358,14 +358,24 @@ function IssueDetail({ id, onClose, onEdit, onRestore, canWrite, canManage, refr
       const { data } = await api.post(`/bassett/issues/${id}/expand`);
       toast.success(data.created ? "Full AI comparison created" : "Existing comparison opened");
       window.location.assign(`/testcases?edit=${encodeURIComponent(data.testcase_id)}&mode=comparison&from_bassett=${encodeURIComponent(id)}`);
-    } catch (error) { toast.error(formatApiErrorDetail(error.response?.data?.detail)); }
+      } catch (error) {
+        const detail = error.response?.data?.detail;
+        toast.error(detail?.message || formatApiErrorDetail(detail));
+      }
   };
-  const sendForRetest = async () => {
+   const triage = async () => {
+     try {
+       await api.post(`/bassett/issues/${id}/triage`, withExpectedVersion(issue, {}));
+       toast.success("Test run marked as Triaged");
+       refresh();
+     } catch (error) { toast.error(formatApiErrorDetail(error.response?.data?.detail)); }
+   };
+   const sendForRetest = async () => {
     try { await api.post(`/bassett/issues/${id}/send-for-retest`, {}); toast.success("Test run sent for retest"); refresh(); }
     catch (error) { toast.error(formatApiErrorDetail(error.response?.data?.detail)); }
   };
-  return <div className="fixed inset-0 z-40 bg-black/20 flex justify-end" onClick={(event) => event.target === event.currentTarget && onClose()} role="presentation"><aside ref={drawerRef} tabIndex="-1" role="dialog" aria-modal="true" aria-labelledby="bassett-issue-detail-title" className="bg-card h-full w-full max-w-2xl overflow-y-auto p-6 shadow-xl">
-    <div className="flex items-start justify-between gap-4 mb-6"><div className="min-w-0"><div className="text-xs uppercase tracking-wide text-muted-foreground">Test Run Details</div><h2 id="bassett-issue-detail-title" className="text-xl font-bold font-display text-[var(--navy)] mt-1 break-words">{issue.title || issue.question_asked}</h2><div className="flex flex-wrap gap-2 mt-2"><Pill>{issue.status}</Pill><Pill tone={issue.severity === "Critical" ? "red" : "orange"}>{issue.severity}</Pill></div></div><Button type="button" variant="ghost" className="shrink-0" onClick={onClose} aria-label="Close Test Run Details">Close</Button></div>
+   return <div className="fixed inset-0 z-40 bg-black/20 flex justify-end" onClick={(event) => event.target === event.currentTarget && onClose()} role="presentation"><aside ref={drawerRef} tabIndex="-1" role="dialog" aria-modal="true" aria-labelledby="bassett-issue-detail-title" className="bg-card h-full w-full max-w-2xl overflow-y-auto p-6 shadow-xl">
+     <div className="flex items-start justify-between gap-4 mb-6"><div className="min-w-0"><div className="text-xs uppercase tracking-wide text-muted-foreground">Test Run Details</div><h2 id="bassett-issue-detail-title" className="text-xl font-bold font-display text-[var(--navy)] mt-1 break-words">{issue.title || issue.question_asked}</h2><div className="flex flex-wrap gap-3 mt-2 text-xs"><div><div className="font-semibold uppercase tracking-wide text-muted-foreground">Workflow status</div><Pill>{issue.status}</Pill></div><div><div className="font-semibold uppercase tracking-wide text-muted-foreground">Test result</div><Pill tone={canonicalResult === "Fail" || canonicalResult === "Critical Fail" ? "red" : "slate"}>{canonicalResult}</Pill></div><div><div className="font-semibold uppercase tracking-wide text-muted-foreground">Severity</div><Pill tone={issue.severity === "Critical" ? "red" : "orange"}>{issue.severity}</Pill></div></div></div><Button type="button" variant="ghost" className="shrink-0" onClick={onClose} aria-label="Close Test Run Details">Close</Button></div>
      <div className="space-y-5 text-sm"><Info label="Test type" value={issue.test_type || "Single Prompt"} />{issue.test_type === "Multi-turn" ? <div className="rounded-xl border p-4"><div className="font-semibold text-[var(--navy)] mb-3">Chronological conversation</div><div className="space-y-4">{(issue.turns || []).slice().sort((a, b) => Number(a.order || 0) - Number(b.order || 0)).map((turn, index) => <article key={turn.id} id={`bassett-turn-${turn.id}`} className={`rounded-lg border p-3 ${issue.finding_turn_id === turn.id ? "border-[var(--orange)] bg-orange-50/40" : ""}`}><div className="flex items-center justify-between gap-2"><h3 className="font-semibold text-[var(--navy)]">Turn {index + 1}</h3><span className="text-[11px] text-muted-foreground">ID: {turn.id}</span></div><Info label="Prompt" value={turn.prompt} /><div className="mt-3"><Info label="Bassett response" value={turn.response} /></div>{turn.citations?.length > 0 && <div className="mt-3"><Info label="Citations / sources" value={turn.citations.join("\n")} /></div>}{turn.evaluator_notes && <div className="mt-3"><Info label="Evaluator notes" value={turn.evaluator_notes} /></div>}{issue.finding_turn_id === turn.id && <div className="mt-2 text-xs font-semibold text-[var(--orange)]">Linked finding targets this turn</div>}</article>)}</div></div> : <><Info label="Question asked" value={issue.question_asked} /><Info label="Exact Bassett answer" value={issue.exact_bassett_answer} /></>}<Info label="Verified correct answer" value={issue.verified_correct_answer} /><Info label="Resolution / notes" value={issue.resolution || issue.notes || "No resolution recorded yet."} />
        <div className="rounded-xl border p-4"><div className="font-semibold text-[var(--navy)] mb-3">Relationships</div><div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs"><Info label="Test Bank scenario" value={issue.scenario?.stable_id || "Not linked"} /><Info label="Bassett Finding" value={issue.finding?.id ? <><Link to={`/bassett/issues?view=findings&open=${encodeURIComponent(issue.finding.id)}`} className="font-semibold text-[var(--orange)] hover:underline">Open Bassett Finding</Link>{issue.finding_turn_id ? <span className="block text-muted-foreground">Linked to turn {issue.turns?.findIndex((turn) => turn.id === issue.finding_turn_id) + 1}</span> : <span className="block text-muted-foreground">Linked to overall conversation</span>}</> : "Not linked"} /><Info label="Bassett version" value={issue.bassett_version || "—"} /><Info label="Tested By" value={issue.reporter || "—"} /></div><div className="flex flex-wrap gap-2 mt-4">{canWrite && <Button size="sm" variant="outline" onClick={linkFinding}><ExternalLink size={14} /> Link Bassett Finding</Button>}{(issue.result === "Partial" || issue.result === "Fail" || issue.status === "Blocked") && canWrite && !issue.finding_id && <Button size="sm" variant="outline" onClick={convert}><Flag size={14} /> Create Bassett Finding</Button>}{(issue.result === "Partial" || issue.result === "Fail" || issue.status === "Blocked") && canWrite && issue.finding_id && <Button size="sm" variant="outline" onClick={sendForRetest}>Send for Retest</Button>}</div></div>
       {issue.definition_snapshot || issue.scenario_snapshot ? <div className="rounded-xl border p-4"><div className="font-semibold text-[var(--navy)] mb-3">Scenario definition snapshot</div><ScenarioDefinition scenario={issue.definition_snapshot || issue.scenario_snapshot} /></div> : <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">Legacy execution—definition snapshot unavailable.</div>}
@@ -373,7 +383,7 @@ function IssueDetail({ id, onClose, onEdit, onRestore, canWrite, canManage, refr
       <Attachments entityType="bassett_issue" entityId={issue.id} canWrite={canWrite && !issue.archived && issue.status !== "Archived"} />
       <div className="rounded-xl border p-4"><div className="font-semibold text-[var(--navy)] mb-3">Immutable history</div><div className="space-y-3">{(issue.history || []).map((entry) => <div key={entry.id} className="border-l-2 border-[var(--orange)] pl-3"><div className="font-medium">{entry.action}</div><div className="text-xs text-muted-foreground">{entry.actor} · {new Date(entry.created_at).toLocaleString()}</div></div>)}</div></div>
     </div>
-     {canWrite && !issue.archived && issue.status !== "Archived" && <Button type="button" className="mt-6 bg-[var(--navy)]" onClick={() => onEdit(issue)}>Edit Test Run</Button>}
+      <div className="mt-6 flex flex-wrap gap-2">{canWrite && !issue.archived && issue.status === "New" && <Button type="button" className="bg-[var(--orange)] hover:bg-[var(--orange-600)]" onClick={triage}>Mark as Triaged</Button>}{canWrite && !issue.archived && issue.status !== "Archived" && <Button type="button" className="bg-[var(--navy)]" onClick={() => onEdit(issue)}>Edit Test Run</Button>}</div>
      {canManage && (issue.archived || issue.status === "Archived") && <Button type="button" className="mt-6" variant="outline" onClick={() => onRestore(issue)}><ArchiveRestore size={15} /> Restore Test Run</Button>}
   </aside></div>;
 }

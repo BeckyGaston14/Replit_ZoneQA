@@ -92,7 +92,7 @@ test("Bassett Test Runs page uses test-run terminology and no retired issue labe
 
   expect(container.textContent).toContain("Bassett Test Runs");
   expect(container.textContent).toContain("Tests Needing Attention");
-  expect(container.textContent).toContain("Test Status");
+  expect(container.textContent).toContain("Workflow status");
   expect(container.textContent).not.toMatch(/issues to address|issue register|record issue|loading issues|bassett only tests/i);
   act(() => root.unmount());
 });
@@ -191,13 +191,13 @@ test("dashboards render canonical attention and coverage metrics", () => {
   const root = createRoot(container);
   act(() => root.render(<BassettIssues />));
   expect(container.textContent).toContain("Tests Needing Attention2");
-  expect(container.textContent).toContain("Evaluated scenario coverage75%");
+  expect(container.textContent).toContain("Scenario coverage75%");
   act(() => root.unmount());
 
   const bankContainer = document.createElement("div");
   const bankRoot = createRoot(bankContainer);
   act(() => bankRoot.render(<BassettTestBank />));
-  expect(bankContainer.textContent).toContain("Test Runs Completed3");
+  expect(bankContainer.textContent).toContain("Scenario coverage3");
   expect(bankContainer.textContent).toContain("Pass rate50%");
   expect(bankContainer.textContent).toContain("Tests Needing Attention2");
   act(() => bankRoot.unmount());

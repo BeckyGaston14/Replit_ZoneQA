@@ -65,7 +65,7 @@ export default function VariantComparison() {
                   ))}
                 </div>
                 <div>
-                  <div className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Bassett Result</div>
+                  <div className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Bassett test result</div>
                   {it.evaluation
                     ? <div className="flex items-center gap-2"><ResultBadge value={it.evaluation.final_result} />{it.evaluation.notes && <span className="text-xs text-muted-foreground truncate" title={it.evaluation.notes}>{it.evaluation.notes}</span>}</div>
                     : <span className="text-xs text-muted-foreground">Not evaluated yet</span>}

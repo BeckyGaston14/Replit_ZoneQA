@@ -60,8 +60,8 @@ export default function Reports() {
       const { data } = await api.get("/reports/data?kind=qa_summary");
       const columns = [
         ["name", "Test Name"], ["project_name", "Project"], ["municipality_name", "Municipality"],
-        ["category", "Category"], ["criticality", "Criticality"], ["status", "Status"],
-        ["bassett_result", "Bassett Result"], ["gold_stale", "Gold Reverification Required"],
+        ["category", "Category"], ["criticality", "Criticality"], ["status", "Workflow status"],
+        ["bassett_result", "Bassett test result"], ["gold_stale", "Gold Reverification Required"],
         ["test_date", "Test Date"],
       ].map(([key, label]) => ({ key, label }));
       downloadCsv("zoneqa-testcases.csv", tableRowsToCsv(data.testcases, columns));

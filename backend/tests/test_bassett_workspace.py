@@ -328,7 +328,7 @@ def test_scenario_preview_rejects_requested_id_for_new_record(monkeypatch):
     "overrides, expected",
     [
         ({"scenario_id": ""}, "scenario_id is required"),
-        ({"result": "Incomplete"}, "Bassett result must be"),
+        ({"result": "Incomplete"}, "Bassett test result must be"),
         ({"score": "101"}, "Score must be between 0 and 100"),
     ],
 )
@@ -447,6 +447,54 @@ def test_bassett_routes_do_not_replace_general_workflows():
     assert "/api/bassett/findings" in paths
     assert "/api/bassett/executions/{id}/create-finding" in paths
     assert "/api/bassett/issues/{id}/send-for-retest" in paths
+    assert "/api/bassett/issues/{id}/triage" in paths
+
+
+def test_triage_requires_new_active_run_and_records_atomic_metadata(monkeypatch):
+    issue = {
+        "id": "issue-1", "status": "New", "archived": False,
+        "revision": 4, "updated_at": "before",
+    }
+    captured = {}
+
+    async def fake_ref(*_args):
+        return issue
+
+    class FakeDb:
+        async def triage_bassett_issue(self, *args, **kwargs):
+            captured["args"] = args
+            captured["kwargs"] = kwargs
+            return {"issue": {
+                **issue, "status": "Triaged", "revision": 5,
+                "triaged_by": "tester-1", "triaged_by_name": "Test User",
+                "triaged_at": "2026-09-08T12:00:00+00:00",
+            }}
+
+    monkeypatch.setattr(server, "_bassett_ref", fake_ref)
+    monkeypatch.setattr(server, "db", FakeDb())
+    result = asyncio.run(server.bassett_triage_issue(
+        "issue-1",
+        {"expected_revision": 4, "expected_updated_at": "before"},
+        {"id": "tester-1", "name": "Test User", "role": "tester"},
+    ))
+    assert result["status"] == "Triaged"
+    assert captured["kwargs"]["expected_revision"] == 4
+    assert captured["kwargs"]["expected_updated_at"] == "before"
+    assert captured["kwargs"]["history"]["changes"]["status"] == {"old": "New", "new": "Triaged"}
+    assert captured["kwargs"]["activity"]["action"] == "triaged"
+
+
+@pytest.mark.parametrize("status", ["Triaged", "In Progress", "Blocked", "Resolved", "Closed"])
+def test_triage_rejects_non_new_runs(monkeypatch, status):
+    async def fake_ref(*_args):
+        return {"id": "issue-1", "status": status, "archived": False}
+
+    monkeypatch.setattr(server, "_bassett_ref", fake_ref)
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(server.bassett_triage_issue(
+            "issue-1", {}, {"id": "tester-1", "name": "Test User", "role": "tester"},
+        ))
+    assert exc.value.status_code == 409
 
 
 def test_bassett_canonical_results_keep_legacy_values_visible():

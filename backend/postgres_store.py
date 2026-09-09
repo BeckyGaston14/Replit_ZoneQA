@@ -1063,6 +1063,61 @@ class PostgresDatabase:
                     await self._insert("activities", activity_document, connection)
                 return stored, True
 
+    async def triage_bassett_issue(
+        self,
+        issue_id: str,
+        *,
+        expected_revision: Optional[int] = None,
+        expected_updated_at: Optional[str] = None,
+        timestamp: str,
+        triaged_by: Optional[str],
+        triaged_by_name: Optional[str],
+        history: Dict[str, Any],
+        activity: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Atomically triage one active New Bassett run and record its audit trail."""
+        if self.pool is None:
+            raise RuntimeError("PostgreSQL database has not been connected")
+        async with self.pool.acquire() as connection:
+            async with connection.transaction():
+                row = await connection.fetchrow(
+                    'SELECT id, data FROM "bassett_issues" WHERE id = $1 FOR UPDATE',
+                    str(issue_id),
+                )
+                if row is None:
+                    return {"error": "not_found"}
+                target = copy.deepcopy(dict(row["data"]))
+                target.setdefault("id", row["id"])
+                current_revision = int(target.get("revision", 1))
+                if (
+                    expected_updated_at is not None
+                    and expected_updated_at != target.get("updated_at")
+                ) or (
+                    expected_revision is not None
+                    and int(expected_revision) != current_revision
+                ):
+                    return {
+                        "error": "stale_update",
+                        "current_revision": current_revision,
+                        "current_updated_at": target.get("updated_at"),
+                    }
+                if target.get("archived") or target.get("status") == "Archived":
+                    return {"error": "archived"}
+                if target.get("status") != "New":
+                    return {"error": "not_new"}
+                target.update({
+                    "status": "Triaged",
+                    "triaged_by": triaged_by,
+                    "triaged_by_name": triaged_by_name,
+                    "triaged_at": timestamp,
+                    "updated_at": timestamp,
+                    "revision": current_revision + 1,
+                })
+                await self._replace("bassett_issues", target, connection)
+                await self._insert("bassett_history", history, connection)
+                await self._insert("activities", activity, connection)
+                return {"issue": target}
+
     async def create_testcase_workflow(
         self,
         testcase: Dict[str, Any],

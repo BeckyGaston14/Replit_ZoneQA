@@ -56,7 +56,7 @@ test("Bassett and comparison modes share the core section order while benchmarks
   const bassett = renderForm("bassett");
   const comparison = renderForm("comparison");
   const commonSections = [
-    "1. Test Setup", "2. Linked Records & Prompt", "3. Bassett Result",
+    "1. Test Setup", "2. Linked Records & Prompt", "3. Bassett Test Result",
     "4. Canonical Evaluation", "5. Findings & Ownership",
     "6. Sources, Documents & Notes", "7. Follow-up, Retesting & Regression",
   ];
@@ -65,6 +65,8 @@ test("Bassett and comparison modes share the core section order while benchmarks
     expect(comparison.container.textContent).toContain(section);
   }
   expect(bassett.container.textContent).not.toContain("Comparison-only sections");
+  expect(bassett.container.textContent).toContain("Workflow statusNewTriagedIn ProgressBlockedResolvedClosed");
+  expect(comparison.container.textContent).not.toContain("Workflow status");
   expect(comparison.container.textContent).toContain("Comparison-only sections");
   expect(comparison.container.textContent).toContain("ChatGPT response");
   expect(comparison.container.textContent).toContain("Claude response");

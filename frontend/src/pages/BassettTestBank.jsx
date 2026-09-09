@@ -232,7 +232,7 @@ export default function BassettTestBank() {
     {viewError && <div role="alert" className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">{viewError} <button type="button" className="ml-2 font-semibold underline" onClick={clearViewError}>Dismiss</button></div>}
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
       <StatCard label="Active scenarios" value={metrics?.scenarios.active ?? "—"} sub="Bassett Test Bank denominator" icon={FlaskConical} accent="#16215a" />
-      <StatCard label="Test Runs Completed" value={metrics?.test_runs.test_bank_coverage.covered ?? "—"} sub="active scenarios with a completed canonical result" icon={Activity} accent="#2563eb" />
+      <StatCard label="Scenario coverage" value={metrics?.test_runs.test_bank_coverage.covered ?? "—"} sub="active scenarios with a completed Test result" icon={Activity} accent="#2563eb" />
       <StatCard label="Pass rate" value={metrics?.test_runs.pass_rate != null ? `${metrics.test_runs.pass_rate}%` : "—"} sub={metrics ? `${metrics.test_runs.passed}/${metrics.test_runs.eligible} eligible test runs` : "Pass or Pass with Notes ÷ eligible runs"} icon={CheckCircle2} accent="#16a34a" />
       <StatCard label="Tests Needing Attention" value={metrics?.test_runs.attention ?? "—"} sub="Partial, Fail, or Blocked results" icon={XCircle} accent="#dc2626" />
     </div>
