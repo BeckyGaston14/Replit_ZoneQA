@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
-import { PageHeader, StatCard, WrapTick, SrTable, SampleDataBanner, sampleScopeIncludesData, HowCalculated } from "../components/shared";
+import { PageHeader, StatCard, WrapTick, SrTable, SampleDataBanner, sampleScopeIncludesData, MethodologyDisclosure } from "../components/shared";
 import { fmtPct, fmtPts, fmtScore, plural } from "../lib/format";
 import { Button } from "../components/ui/button";
 import { Target, Percent, Trophy, AlertTriangle, TrendingUp, FileDown, Loader2 } from "lucide-react";
@@ -129,15 +129,6 @@ export default function Executive() {
         </Button>
       </PageHeader>
       <SampleDataBanner show={sampleDataShown} />
-      <HowCalculated
-        definition="Executive KPIs and charts summarize persisted QA evaluations, findings, and model comparisons for the displayed scope."
-        calculation={{
-          formula: "Pass rate is passing evaluated tests divided by evaluated tests; scores are arithmetic means of available 0–10 scores; competitive edge is Bassett average minus benchmark average.",
-          scope: d.scope || "Current reporting scope.",
-          treatment: "Sample data follows the authenticated user's Show sample records preference. Missing scores are unavailable, not zero; stale Gold Standards are surfaced for reverification.",
-        }}
-        className="mb-5"
-      />
       {exportError && (
         <div role="alert" data-testid="pdf-export-error" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           {exportError}
@@ -226,6 +217,11 @@ export default function Executive() {
          </div>
          <SrTable caption="Bassett reporting-group performance. Scale: 0 to 10." columns={["Reporting group", "Average score out of 10", "Underlying dimensions"]} rows={chartCategories.map((c) => [(c.label || c.category), formatEvaluationScore(c.score ?? c.avg_score), (c.dimensions || c.underlyingDimensions || []).map((item) => item.label || item.key || item).join(", ")])} />
       </div>
+       <MethodologyDisclosure title="How executive metrics are calculated" testid="executive-methodology">
+         <p>Executive KPIs and charts summarize persisted QA evaluations, findings, and model comparisons for the displayed scope: {d.scope || "current reporting scope"}.</p>
+         <p>Pass rate is passing evaluated tests divided by evaluated tests; scores are arithmetic means of available 0–10 scores; competitive edge is Bassett average minus benchmark average.</p>
+         <p>Sample data follows the authenticated user's Show sample records preference. Missing scores are unavailable, not zero; stale Gold Standards are surfaced for reverification.</p>
+       </MethodologyDisclosure>
     </div>
   );
 }

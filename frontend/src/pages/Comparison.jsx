@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
-import { PageHeader, CritBadge, ResultBadge, ScorePill, StatusBadge, SampleDataBanner, sampleScopeIncludesData, HowCalculated } from "../components/shared";
+import { PageHeader, CritBadge, ResultBadge, ScorePill, StatusBadge, SampleDataBanner, sampleScopeIncludesData, MethodologyDisclosure } from "../components/shared";
 import { Button } from "../components/ui/button";
 import { Check, ChevronsUpDown, ExternalLink, Flag } from "lucide-react";
 import { formatApiErrorDetail } from "../lib/api";
@@ -168,16 +168,6 @@ export default function Comparison() {
         </div>
       </PageHeader>
       <SampleDataBanner show={sampleScopeIncludesData({ records: [selectedTestCase, data] })} />
-      <HowCalculated
-        definition="AI Comparison scores compare Bassett with ChatGPT and Claude on the same test case and evaluation rubric."
-        calculation={{
-          formula: "Weighted mean of the available scored evaluation dimensions on a 0–10 scale; verdicts require a valid response and complete evaluation for every model.",
-          scope: "The selected test case’s latest non-superseded responses and persisted evaluations.",
-          treatment: "Blank dimensions and missing model records remain unavailable and are excluded from denominators, never converted to zero. Retest runs follow the active comparison record.",
-          drillDown: tcId ? `/testcases/${tcId}` : "/testcases",
-        }}
-        className="mb-4"
-      />
       {(testsLoading || testsError) && <QueryState query={testsQuery} resource="comparison test cases" onRetry={refetchTests} testId="comparison-tests" />}
       {!testsLoading && !testsError && tcs.length === 0 && <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">No test cases are available for comparison yet. Create and evaluate a test case first.</div>}
 
@@ -257,9 +247,14 @@ export default function Comparison() {
                 )}
               </div>
             ); })}
-          </div>
-        </>
-      )}
+           </div>
+         </>
+        )}
+       <MethodologyDisclosure title="How AI comparison metrics are calculated" testid="comparison-methodology">
+         <p>AI Comparison scores compare Bassett with ChatGPT and Claude on the same test case and evaluation rubric.</p>
+         <p>Weighted means use the available scored evaluation dimensions on a 0–10 scale; verdicts require a valid response and complete evaluation for every model.</p>
+         <p>Blank dimensions and missing model records remain unavailable and are excluded from denominators, never converted to zero. Retest runs follow the active comparison record.</p>
+       </MethodologyDisclosure>
     </div>
   );
 }

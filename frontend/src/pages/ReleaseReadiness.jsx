@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useCollection } from "../lib/hooks";
-import { PageHeader, StatCard, CritBadge, ResultBadge, StatusBadge, SampleDataBanner, sampleScopeIncludesData } from "../components/shared";
+import { PageHeader, StatCard, CritBadge, ResultBadge, StatusBadge, SampleDataBanner, sampleScopeIncludesData, MethodologyDisclosure } from "../components/shared";
 import { DEMO_STATUSES, FINDING_STATUSES, REGRESSION_DELTA_STATUSES, RELEASE_DECISIONS, readableTextColor, statusDefinition } from "../lib/statusMaps";
 import { ListSelect } from "../components/forms";
 import { Button } from "../components/ui/button";
@@ -272,6 +272,10 @@ export default function ReleaseReadiness() {
               </div>
             </div>
           </div>
+          <MethodologyDisclosure title="How release readiness metrics are calculated" testid="release-readiness-methodology">
+            <p>Release readiness is evaluated for the selected Bassett version. Pass rate and average score use the latest complete comparison per Test Case for that version; the page preserves the evaluated count and visible version scope.</p>
+            <p>Open findings, criticality, regression results, failed tests, and stale Gold Standard evidence contribute to blockers and the system recommendation. Missing and N/A values remain unavailable rather than zero.</p>
+          </MethodologyDisclosure>
         </>
       )}
     </div>

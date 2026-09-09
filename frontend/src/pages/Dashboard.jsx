@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { Link } from "react-router-dom";
-import { StatCard, PageHeader, Section, SrTable, SampleDataBanner, sampleScopeIncludesData } from "../components/shared";
+import { StatCard, PageHeader, Section, SrTable, SampleDataBanner, sampleScopeIncludesData, MethodologyDisclosure } from "../components/shared";
 import { useCollection } from "../lib/hooks";
 import { Button } from "../components/ui/button";
 import {
@@ -137,7 +137,6 @@ export default function Dashboard() {
         </Section>
       </div>
       <Section title="Bassett Reporting Groups">
-        <p className="mb-3 text-xs text-muted-foreground">Seven reporting groups consolidate the 12 stored scoring dimensions. Configured weights apply only to applicable scored values; missing and N/A values are excluded, never treated as zero.</p>
         <SrTable
           caption="Bassett reporting groups. Scale: 0 to 10. Underlying dimensions remain available in evaluation records and exports."
           columns={["Reporting group", "Average score out of 10", "Underlying dimensions"]}
@@ -148,17 +147,18 @@ export default function Dashboard() {
           ])}
         />
       </Section>
-      <details className="mt-4 rounded-xl border bg-card p-5" data-testid="dashboard-methodology">
-        <summary className="cursor-pointer font-semibold text-[var(--navy)] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)]">
-          How dashboard metrics are calculated
-        </summary>
-        <div className="mt-3 space-y-2 text-sm text-muted-foreground">
+      <MethodologyDisclosure title="How dashboard metrics are calculated" testid="dashboard-methodology">
           <p>Dashboard cards use the active Bassett version and the current dashboard scope. Each Test Bank definition or Test Case contributes only its latest qualifying record.</p>
           <p>Pass includes <strong className="text-foreground">Pass</strong> and <strong className="text-foreground">Pass with Minor Issues</strong>. Incomplete, draft, not-evaluated, archived, and out-of-scope records are excluded. Retests and variants remain separate unless the card definition explicitly includes them.</p>
           <p>Model Comparison cards use complete, non-partial comparison runs. Bassett-only cards include eligible Single Prompt and Multi-Turn Conversation runs and exclude anything linked to or expanded into Model Comparison.</p>
           <p>Missing and N/A scores are unavailable rather than zero. Every card opens the exact numerator/denominator population used for its displayed metric, with source navigation to the relevant record.</p>
-        </div>
-      </details>
+          <details className="rounded-lg border border-border/70 p-3" data-testid="dashboard-reporting-groups-methodology">
+            <summary className="cursor-pointer font-semibold text-sm text-[var(--navy)] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)] focus-visible:ring-offset-2">
+              How Bassett reporting groups work
+            </summary>
+            <p className="mt-2">Seven reporting groups consolidate the 12 stored scoring dimensions. Configured weights apply only to applicable scored values; missing and N/A values are excluded, never treated as zero.</p>
+          </details>
+      </MethodologyDisclosure>
     </div>
   );
 }

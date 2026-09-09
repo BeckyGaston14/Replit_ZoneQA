@@ -3,7 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, formatApiErrorDetail, staleUpdateMessage, withExpectedVersion } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { PageHeader, Section, StatCard } from "../components/shared";
+import { PageHeader, Section, StatCard, MethodologyDisclosure } from "../components/shared";
 import { Attachments } from "../components/Attachments";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -242,6 +242,17 @@ export default function BassettIssues() {
            </table>
       </div>
     </Section>
+     <MethodologyDisclosure title="How Bassett Test Run metrics are calculated" testid="bassett-test-runs-methodology">
+       {showingFindings ? (
+         <p>Finding counts reflect Bassett-only findings in the current visibility scope; fixed and closed findings are excluded from the open count.</p>
+       ) : (
+         <>
+           <p>Tests Needing Attention includes Needs Improvement, Fail, Critical Fail, or Blocked results.</p>
+           <p>Evaluated scenario coverage is the percentage of active Test Bank scenarios with a completed result. Draft and Not Evaluated runs are excluded.</p>
+         </>
+       )}
+       <p>Archived records remain available in history but are excluded from active summary populations. The visible test-date filters define the displayed date range.</p>
+     </MethodologyDisclosure>
 
      {selected && (showingFindings
        ? <BassettFindingDetail id={selected} onClose={() => setSelected(null)} />

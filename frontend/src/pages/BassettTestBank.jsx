@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { api, formatApiErrorDetail, staleUpdateMessage, withExpectedVersion } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { PageHeader, Section, StatCard, HowCalculated } from "../components/shared";
+import { PageHeader, Section, StatCard, MethodologyDisclosure } from "../components/shared";
 import { StatusBadge } from "../lib/statusMaps";
 import { Attachments } from "../components/Attachments";
 import { Button } from "../components/ui/button";
@@ -236,16 +236,6 @@ export default function BassettTestBank() {
       <StatCard label="Pass rate" value={metrics?.test_runs.pass_rate != null ? `${metrics.test_runs.pass_rate}%` : "—"} sub={metrics ? `${metrics.test_runs.passed}/${metrics.test_runs.eligible} eligible test runs` : "Pass or Pass with Notes ÷ eligible runs"} icon={CheckCircle2} accent="#16a34a" />
       <StatCard label="Tests Needing Attention" value={metrics?.test_runs.attention ?? "—"} sub="Partial, Fail, or Blocked results" icon={XCircle} accent="#dc2626" />
     </div>
-     <HowCalculated
-       definition="Bassett Test Bank metrics describe active reusable scenarios and their canonical Bassett-only executions."
-       calculation={{
-         formula: "Coverage counts active scenarios with at least one completed canonical result; pass rate is Pass or Pass with Notes divided by eligible completed runs.",
-         scope: "Active, non-archived Bassett Test Bank scenarios and linked Bassett-only runs.",
-         treatment: "Archived definitions are hidden from the active denominator; incomplete and blocked runs are not silently counted as passes.",
-         drillDown: "/bassett/test-bank",
-       }}
-       className="mb-5"
-     />
     <Section title="Scenario library" action={<span className="text-xs text-muted-foreground">{shown.length} active scenario(s)</span>}>
       <div className="flex flex-wrap gap-2 mb-4">
          <div className="relative flex-1 min-w-[240px]"><Search size={15} className="absolute left-3 top-2.5 text-muted-foreground" /><Input aria-label="Search Test Bank scenarios" className="pl-9" placeholder="Search ID, scenario, report type, purpose…" value={search} onChange={(e) => setViewFilter("search", e.target.value)} /></div>
@@ -267,6 +257,11 @@ export default function BassettTestBank() {
         </tr>)}{!isLoading && !shown.length && <tr><td colSpan="8" className={TABLE_EMPTY_CELL_CLASS}>No Test Bank scenarios match these filters.</td></tr>}</tbody>
       </table></div>
     </Section>
+     <MethodologyDisclosure title="How Bassett Test Bank metrics are calculated" testid="bassett-test-bank-methodology">
+       <p>Bassett Test Bank metrics describe active reusable scenarios and their canonical Bassett-only executions.</p>
+       <p>Coverage counts active scenarios with at least one completed canonical result; pass rate is Pass or Pass with Notes divided by eligible completed runs.</p>
+       <p>Archived definitions are hidden from the active denominator; incomplete and blocked runs are not silently counted as passes.</p>
+     </MethodologyDisclosure>
 
     {selected && <ScenarioDetail id={selected} canManage={canManage} canExecute={canExecute} close={() => setSelected(null)} edit={(scenario) => { scenarioBaseline.current = scenario; setSelected(null); setConflict(null); setFormErrors({}); setScenarioError(""); setForm(scenario); }} run={(scenario) => { setSelected(null); setExecute(createBassettTestRunDraft({ scenario_id: scenario.id }, config?.application_timezone)); }} archive={setConfirmingArchive} restore={restore} />}
     <ConfirmActionDialog

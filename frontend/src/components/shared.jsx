@@ -80,7 +80,18 @@ function MetricInfo({ label, description }) {
   );
 }
 
-export function StatCard({ label, value, accent, icon: Icon, sub, testid, onClick, title, to, calculation, showCalculation = true }) {
+export function MethodologyDisclosure({ title = "How these metrics are calculated", children, testid, className = "" }) {
+  return (
+    <details className={cn("mt-5 rounded-xl border bg-card p-5", className)} data-testid={testid}>
+      <summary className="cursor-pointer font-semibold text-sm text-[var(--navy)] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)] focus-visible:ring-offset-2">
+        {title}
+      </summary>
+      <div className="mt-3 space-y-2 text-sm text-muted-foreground">{children}</div>
+    </details>
+  );
+}
+
+export function StatCard({ label, value, accent, icon: Icon, sub, testid, onClick, title, to, calculation, showCalculation = false }) {
   const descriptionId = testid ? `${testid}-description` : undefined;
   const content = (
     <>

@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, formatApiErrorDetail, staleUpdateMessage, withExpectedVersion } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { PageHeader, StatCard, ResultBadge, StatusBadge, SampleDataBanner, sampleScopeIncludesData } from "../components/shared";
+import { PageHeader, StatCard, ResultBadge, StatusBadge, SampleDataBanner, sampleScopeIncludesData, MethodologyDisclosure } from "../components/shared";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
@@ -218,6 +218,10 @@ export default function Regression() {
           </tbody>
         </table>
       </div>
+      <MethodologyDisclosure title="How regression metrics are calculated" testid="regression-methodology">
+        <p>Regression suites compare the latest Bassett evaluation for each selected Test Case with a locked historical baseline. The displayed version, suite, run date, and baseline columns define the comparison scope.</p>
+        <p>Passed and failed counts come from the recorded snapshot. Improved, Regressed, Newly Failing, and Fixed are N/A when no baseline exists, never zero.</p>
+      </MethodologyDisclosure>
 
       {suiteForm && (
         <FormModal open onOpenChange={() => !savingSuite && setSuiteForm(null)} title={suiteForm.id ? "Edit Suite" : "New Regression Suite"} onSubmit={saveSuite} submitLabel={savingSuite ? "Saving…" : suiteForm.id ? "Save Suite" : "Create Suite"} wide>

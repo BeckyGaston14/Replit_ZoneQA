@@ -88,6 +88,8 @@ test("pass-rate cards expose keyboard-accessible definitions and one bottom meth
   expect(infos.every((info) => info.querySelector("summary")?.getAttribute("aria-label"))).toBe(true);
   expect(container.querySelectorAll('[data-testid="dashboard-methodology"]')).toHaveLength(1);
   expect(container.querySelector('[data-testid="dashboard-methodology"] summary').textContent).toBe("How dashboard metrics are calculated");
+  expect(container.querySelector('[data-testid="dashboard-reporting-groups-methodology"] summary').textContent).toBe("How Bassett reporting groups work");
+  expect(container.textContent).toContain("Seven reporting groups consolidate the 12 stored scoring dimensions.");
   expect(container.textContent.match(/How calculated/g)).toBeNull();
 
   act(() => root.unmount());

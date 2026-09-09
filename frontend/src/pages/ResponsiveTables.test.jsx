@@ -32,6 +32,7 @@ jest.mock("../components/shared", () => ({
   StatCard: () => null,
   SampleDataBanner: () => null,
   sampleScopeIncludesData: () => false,
+  MethodologyDisclosure: ({ children }) => <details>{children}</details>,
 }));
 jest.mock("../components/forms", () => ({
   FormModal: () => null,

@@ -27,6 +27,7 @@ jest.mock("../components/shared", () => ({
   SampleDataBanner: ({ show }) => show ? <aside data-testid="sample-data-banner">Demonstration data</aside> : null,
   sampleScopeIncludesData: ({ records = [] }) => records.some((record) => record?.sample_data_included === true),
   HowCalculated: () => null,
+  MethodologyDisclosure: ({ title, children }) => <details><summary>{title}</summary>{children}</details>,
 }));
 jest.mock("../components/ui/button", () => ({
   Button: ({ children, ...props }) => <button {...props}>{children}</button>,

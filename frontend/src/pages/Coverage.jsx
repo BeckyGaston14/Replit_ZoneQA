@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
-import { PageHeader, StatCard, StatusBadge, SampleDataBanner, sampleScopeIncludesData } from "../components/shared";
+import { PageHeader, StatCard, StatusBadge, SampleDataBanner, sampleScopeIncludesData, MethodologyDisclosure } from "../components/shared";
 import { COVERAGE_STATUSES, statusDefinition } from "../lib/statusMaps";
 import { Grid3X3, Building2, Tags, AlertTriangle, FlaskConical } from "lucide-react";
 import { QueryState } from "../components/PageState";
@@ -77,6 +77,10 @@ export default function Coverage() {
             {criticality.map((c) => <GapRow key={c.level} label={`${c.level} — ${c.label}`} tests={c.tests} evaluated={c.evaluated} max={maxCrit} testid="coverage-crit-row" />)}
           </div>
         </div>
+       <MethodologyDisclosure title="How coverage metrics are calculated" testid="coverage-methodology">
+         <p>Coverage counts tests and evaluated results in the current visibility scope. A gap is a municipality, category, or criticality level with no tests; thin coverage has fewer than two tests.</p>
+         <p>Each row preserves its visible numerator and denominator as tests and evaluations. Sample visibility follows the current account scope.</p>
+       </MethodologyDisclosure>
       </div>
     </div>
   );

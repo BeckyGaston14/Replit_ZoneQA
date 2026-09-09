@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { useCollection, useConfig, useSavedView } from "../lib/hooks";
-import { PageHeader, StatCard, WrapTick, SrTable, StatusBadge, SampleDataBanner, sampleScopeIncludesData } from "../components/shared";
+import { PageHeader, StatCard, WrapTick, SrTable, StatusBadge, SampleDataBanner, sampleScopeIncludesData, MethodologyDisclosure } from "../components/shared";
 import { fmtScore } from "../lib/format";
 import { Trophy, TrendingDown, AlertOctagon, Target, FilterX } from "lucide-react";
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from "recharts";
@@ -179,6 +179,11 @@ export default function Performance() {
           ))}</tbody>
         </table>
       </div>
+       <MethodologyDisclosure title="How performance metrics are calculated" testid="performance-methodology">
+         <p>{perf.scope || "Current filtered performance scope."} The active filters above, including version, environment, project, municipality, category, criticality, variants, and evaluated date range, define the population.</p>
+         <p>Overall scores are means of available 0–10 scores. Wins and losses compare Bassett with both benchmark models; shared failures count tests where all compared models failed.</p>
+         <p>Reporting groups use configured-weight averages of applicable underlying dimensions. Missing and N/A values are excluded and never treated as zero; the underlying 12 dimensions remain available in records and exports.</p>
+       </MethodologyDisclosure>
       </>}
     </div>
   );

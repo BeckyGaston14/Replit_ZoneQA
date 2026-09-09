@@ -1,6 +1,6 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { HowCalculated, ResultBadge, ScorePill } from "./shared";
+import { HowCalculated, ResultBadge, ScorePill, StatCard } from "./shared";
 
 jest.mock("react-router-dom", () => ({
   Link: ({ children, to, ...props }) => <a href={to} {...props}>{children}</a>,
@@ -48,4 +48,16 @@ test("How calculated disclosure exposes the metric contract and exact-record lin
   expect(container.textContent).toContain("Retests excluded");
   expect(container.querySelector('a[href="/dashboard/records/example"]').textContent).toBe("Open exact records");
   act(() => root.unmount());
+});
+
+test("summary cards do not render repeated methodology dropdowns by default", () => {
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  act(() => root.render(<StatCard label="Pass rate" value="80%" title="Unique population definition" testid="summary-card" />));
+
+  expect(container.querySelector('[data-testid="how-calculated"]')).toBeNull();
+  expect(container.querySelector('[data-testid="metric-info"] summary').getAttribute("aria-label")).toBe("About Pass rate");
+
+  act(() => root.unmount());
+  container.remove();
 });

@@ -19,6 +19,7 @@ jest.mock("../components/shared", () => ({
   Section: ({ title, children }) => <section><h2>{title}</h2>{children}</section>,
   StatCard: ({ label, value }) => <div><span>{label}</span><span>{value}</span></div>,
   HowCalculated: () => null,
+  MethodologyDisclosure: ({ title, children }) => <details><summary>{title}</summary>{children}</details>,
 }));
 
 jest.mock("../components/ui/button", () => ({

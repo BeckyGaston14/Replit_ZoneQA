@@ -20,6 +20,7 @@ jest.mock("../components/shared", () => ({
   SampleDataBanner: () => null,
   sampleScopeIncludesData: () => false,
   HowCalculated: ({ children }) => <div data-testid="how-calculated">{children}</div>,
+  MethodologyDisclosure: ({ title, children }) => <details><summary>{title}</summary>{children}</details>,
 }));
 jest.mock("../components/ui/select", () => ({ Select: ({ children }) => <div>{children}</div>, SelectContent: ({ children }) => <div>{children}</div>, SelectItem: ({ children }) => <div>{children}</div>, SelectTrigger: ({ children, ...props }) => <button {...props}>{children}</button>, SelectValue: () => null }));
 jest.mock("../components/ui/button", () => ({ Button: ({ children, ...props }) => <button {...props}>{children}</button> }));

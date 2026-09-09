@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
-import { PageHeader, StatCard, CritBadge, WrapTick, SrTable, SampleDataBanner, sampleScopeIncludesData } from "../components/shared";
+import { PageHeader, StatCard, CritBadge, WrapTick, SrTable, SampleDataBanner, sampleScopeIncludesData, MethodologyDisclosure } from "../components/shared";
 import { Swords, TrendingDown, Trophy, Gauge } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from "recharts";
 import { EVALUATION_SCORE_DOMAIN, EVALUATION_SCORE_TICKS, evaluationScoreOrNull, formatEvaluationScore } from "../lib/evaluationScale";
@@ -120,6 +120,10 @@ export default function Insights() {
           <SrTable caption="Dimension averages — Bassett vs benchmarks. Scale: 0 to 10. Missing values are unavailable." columns={["Dimension", "Bassett score out of 10", "Benchmark score out of 10"]} rows={dimensionRows.map((x) => [x.dim, formatEvaluationScore(x.Bassett), formatEvaluationScore(x.Benchmarks)])} />
         </div>
       </div>
+       <MethodologyDisclosure title="How competitive insight metrics are calculated" testid="insights-methodology">
+         <p>Wins, losses, ties, and dimension gaps use comparable persisted evaluations where Bassett and at least one benchmark model evaluated the same test case.</p>
+         <p>Scores use the 0–10 evaluation scale. Missing dimensions are unavailable and are not plotted or converted to zero; the current visibility scope controls the population.</p>
+       </MethodologyDisclosure>
     </div>
   );
 }
