@@ -561,7 +561,7 @@ export default function TestCaseDetail() {
           <div className="bg-card border rounded-xl overflow-hidden">
             <TableSortControls columns={EVALUATION_COLUMNS} sort={evaluationSort} setSort={setEvaluationSort} defaultSort={defaultEvaluationSort} className="p-3 pb-0" />
             <table className="w-full text-sm">
-              <thead className="bg-[var(--paper)]"><tr className="text-left">{EVALUATION_COLUMNS.map((column) => <SortableTableHeader key={column.key} column={column} sort={evaluationSort} onSort={(key) => setEvaluationSort((current) => nextSort(current, key))} />)}<th><span className="sr-only">Actions</span></th></tr></thead>
+              <thead className="bg-[var(--paper)]"><tr className="text-left">{EVALUATION_COLUMNS.map((column) => <SortableTableHeader key={column.key} column={column} sort={evaluationSort} onSort={(key) => setEvaluationSort((current) => nextSort(current, key))} />)}<th className="px-2.5 py-2 text-right text-[11px] uppercase tracking-wide text-muted-foreground">Actions</th></tr></thead>
               <tbody>
                 {evaluationRows.map(({ model: m, evaluation: ev }) => (
                   <tr key={m} className="border-t">

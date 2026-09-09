@@ -206,7 +206,7 @@ export default function DataIntegrity() {
          <div className={TABLE_FRAME_CLASS} data-testid="integrity-table-scroll">
            <table className={TABLE_CLASS}>
             <thead className={TABLE_HEAD_CLASS}><tr>
-              {INTEGRITY_COLUMNS.map((column) => <SortableTableHeader key={column.key} column={column} sort={sort} onSort={(key) => setSort((current) => nextSort(current, key))} />)}<th><span className="sr-only">Actions</span></th>
+              {INTEGRITY_COLUMNS.map((column) => <SortableTableHeader key={column.key} column={column} sort={sort} onSort={(key) => setSort((current) => nextSort(current, key))} />)}<th className="px-2.5 py-2 text-right text-[11px] uppercase tracking-wide text-muted-foreground">Actions</th>
             </tr></thead>
             <tbody>
               {sortTableRows(d.issues, INTEGRITY_COLUMNS, sort, ["entity_type", "name"]).map((i, idx) => (

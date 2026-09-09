@@ -125,8 +125,8 @@ export function BassettRunActions({ issue, canWrite, canManage, onEdit, onArchiv
     <div className="md:hidden">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button type="button" variant="ghost" size="sm" aria-label={`Actions for ${name}`}>
-            <MoreHorizontal size={16} aria-hidden="true" /><span className="ml-1">Actions</span>
+          <Button type="button" variant="ghost" size="icon" className="h-8 w-8" title={`Actions for ${name}`} aria-label={`Actions for ${name}`}>
+            <MoreHorizontal size={16} aria-hidden="true" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" onClick={(event) => event.stopPropagation()}>
@@ -318,7 +318,7 @@ export default function BassettIssues() {
       </div>
       <TableSortControls columns={runColumns} sort={sort} setSort={setSort} defaultSort={defaultSort} className="mb-3" />
        <div className={TABLE_FRAME_CLASS} role="region" aria-label={showingFindings ? "Bassett findings table" : "Bassett test runs table"} tabIndex="0" data-testid="bassett-runs-table-scroll">
-          <table className={TABLE_CLASS}><thead className={TABLE_HEAD_CLASS}><tr>{runColumns.map((column) => <SortableTableHeader key={column.key} column={column} sort={sort} onSort={(key) => setSort((current) => nextSort(current, key))} />)}<th><span className="sr-only">Actions</span></th></tr></thead>
+          <table className={TABLE_CLASS}><thead className={TABLE_HEAD_CLASS}><tr>{runColumns.map((column) => <SortableTableHeader key={column.key} column={column} sort={sort} onSort={(key) => setSort((current) => nextSort(current, key))} />)}<th className="px-2.5 py-2 text-right text-[11px] uppercase tracking-wide text-muted-foreground">Actions</th></tr></thead>
              <tbody>{isLoading ? <tr><td colSpan="10" className="p-8 text-center text-muted-foreground"><span className="inline-flex items-center gap-2"><span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent" aria-hidden="true" />Loading {showingFindings ? "Bassett findings" : "Bassett test runs"}… this may take a few seconds.</span></td></tr> : shown.map((issue) => <tr key={issue.id} className="border-t hover:bg-[var(--paper)]">
              <td className="px-3 py-3 text-xs font-semibold text-[var(--navy)]">{issue.test_id || "—"}</td><td className={`${TABLE_CELL_CLASS} min-w-[270px]`}><button type="button" className="w-full text-left rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)] focus-visible:ring-offset-2" onClick={() => setSelected(issue.id)} aria-label={`Open ${issue.title || issue.question_asked}`}><div className="font-semibold text-[var(--navy)]">{issue.title || issue.question_asked}</div><div className="text-xs text-muted-foreground line-clamp-1 mt-1">{issue.question_asked}</div></button></td>
             <td className="px-3 py-3 text-xs">{scenarioMap[issue.scenario_id]?.stable_id || "—"}</td>

@@ -280,7 +280,7 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
         <table className={TABLE_CLASS}>
           <thead className={TABLE_HEAD_CLASS}>
             <tr>{sortColumns.map((c) => <SortableTableHeader key={c.key} column={c} sort={sort} onSort={(key) => setSort((current) => nextSort(current, key))} className="px-4 font-semibold text-xs" />)}
-              <th className="px-2.5 py-2 w-20"><span className="sr-only">Actions</span></th></tr>
+              <th className="px-2.5 py-2 w-20 text-right text-[11px] uppercase tracking-wide text-muted-foreground">Actions</th></tr>
           </thead>
           <tbody>
              {filteredData.length === 0 && <tr><td colSpan={columns.length + 1} className={TABLE_EMPTY_CELL_CLASS}>

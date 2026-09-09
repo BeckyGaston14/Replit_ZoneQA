@@ -263,7 +263,7 @@ export default function BassettTestBank() {
       <TableSortControls columns={testBankColumns} sort={sort} setSort={setSort} defaultSort={{ key: "stable_id", direction: "asc" }} className="mb-3" />
        <div className="overflow-x-auto" role="region" aria-label="Bassett Test Bank scenario table" tabIndex="0" data-testid="bassett-test-bank-table-scroll"><table className={TABLE_CLASS}><thead className={TABLE_HEAD_CLASS}><tr>
         {testBankColumns.map((column) => <SortableTableHeader key={column.key} column={column} sort={sort} onSort={(key) => setSort((current) => nextSort(current, key))} />)}
-        <th className="px-2.5 py-2 text-[11px] uppercase tracking-wide text-muted-foreground"><span className="sr-only">Actions</span></th>
+        <th className="px-2.5 py-2 text-right text-[11px] uppercase tracking-wide text-muted-foreground">Actions</th>
       </tr></thead>
         <tbody>{isLoading ? <tr><td colSpan="7" className={TABLE_EMPTY_CELL_CLASS}>Loading Test Bank…</td></tr> : shown.map((scenario) => <tr key={scenario.id} className="border-t hover:bg-[var(--paper)]">
           <td className={`${TABLE_CELL_CLASS} font-bold text-[var(--orange)]`}><button type="button" className="w-full text-left rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)] focus-visible:ring-offset-2" onClick={() => setSelected(scenario.id)} aria-label={`Open ${scenario.stable_id} scenario`}>{scenario.stable_id}</button></td><td className={`${TABLE_CELL_CLASS} font-semibold`}>{scenario.workflow_stage}</td>

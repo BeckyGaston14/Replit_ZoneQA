@@ -15,7 +15,7 @@ import {
 } from "./ui/dialog";
 import { ConfirmActionDialog } from "./ConfirmActionDialog";
 
-export function TestCaseActions({ testcase, user, onDeleted, onEdit, compact = false }) {
+export function TestCaseActions({ testcase, user, onDeleted, onEdit }) {
   const qc = useQueryClient();
   const [confirming, setConfirming] = useState(null);
   const [preflight, setPreflight] = useState(null);
@@ -71,8 +71,8 @@ export function TestCaseActions({ testcase, user, onDeleted, onEdit, compact = f
   return <>
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size={compact ? "icon" : "sm"} aria-label={`Actions for ${testcase.name}`} onClick={(event) => event.stopPropagation()}>
-          <MoreHorizontal size={17} />{!compact && <span className="ml-1">Actions</span>}
+        <Button variant="ghost" size="icon" className="h-8 w-8" title={`Actions for ${testcase.name}`} aria-label={`Actions for ${testcase.name}`} onClick={(event) => event.stopPropagation()}>
+          <MoreHorizontal size={17} />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" onClick={(event) => event.stopPropagation()}>
