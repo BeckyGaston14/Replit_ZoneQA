@@ -325,11 +325,11 @@ export default function BassettIssues() {
             <td className="px-3 py-3"><Pill tone={issue.severity === "Critical" ? "red" : issue.severity === "High" ? "orange" : "slate"}>{issue.severity}</Pill></td>
              <td className="px-3 py-3 text-xs font-medium">{issue.status}</td><td className="px-3 py-3 text-xs"><StatusBadge value={issue.result || "Not Evaluated"} compact /></td><td className="px-3 py-3 text-xs">{issue.bassett_version || "Not specified"}</td><td className="px-3 py-3 text-xs">{issue.environment || "—"}</td><td className="px-3 py-3 text-xs"><time dateTime={issue.test_date || undefined}>{formatTestDate(issue.test_date)}</time></td>
              <td className={TABLE_ACTION_CELL_CLASS}><BassettRunActions issue={issue} canWrite={canWrite} canManage={canManage} editing={loadingEditId === issue.id} onEdit={openEdit} onArchive={setConfirmingArchive} onRestore={restore} /></td>
-           </tr>)}{!isLoading && !shown.length && <tr><td colSpan="9" className={TABLE_EMPTY_CELL_CLASS}>No Bassett test runs match these filters.</td></tr>}</tbody>
+           </tr>)}{!isLoading && !shown.length && <tr><td colSpan="9" className={TABLE_EMPTY_CELL_CLASS}>{showingFindings ? "No Bassett findings match these filters." : "No Bassett test runs match these filters."}</td></tr>}</tbody>
             </table>
       </div>
     </Section>
-     <MethodologyDisclosure title="How Bassett Test Run metrics are calculated" testid="bassett-test-runs-methodology">
+     <MethodologyDisclosure title={showingFindings ? "How Bassett Finding metrics are calculated" : "How Bassett Test Run metrics are calculated"} testid="bassett-test-runs-methodology">
        {showingFindings ? (
          <p>Finding counts reflect Bassett-only findings in the current visibility scope; fixed and closed findings are excluded from the open count.</p>
        ) : (

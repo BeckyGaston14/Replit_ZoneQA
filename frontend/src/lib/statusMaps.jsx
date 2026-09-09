@@ -95,6 +95,7 @@ export const INTEGRITY_CHECK_STATUSES = {
 };
 
 export const RELEASE_DECISIONS = {
+  "NOT-READY": { label: "Insufficient Data", color: "#64748b", icon: AlertTriangle, description: "There is not enough completed evaluation data to make a release recommendation." },
   GO: { label: "Go", color: "#15803d", icon: CheckCircle2, description: "The release meets the current readiness criteria." },
   CONDITIONAL: { label: "Conditional Go", color: "#b45309", icon: AlertTriangle, description: "The release may proceed only with the stated conditions." },
   "NO-GO": { label: "No-Go", color: "#b91c1c", icon: ShieldAlert, description: "The release does not meet the current readiness criteria." },

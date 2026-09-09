@@ -201,7 +201,7 @@ export default function ReleaseReadiness() {
           <div className="grid lg:grid-cols-2 gap-4">
             <div className="bg-card border rounded-xl p-5" data-testid="blockers-panel">
               <h3 className="font-semibold font-display text-[var(--navy)] mb-3 flex items-center gap-2"><ShieldAlert size={16} className="text-red-600" /> Release Blockers ({r.blockers.length})</h3>
-              {r.blockers.length === 0 && <p className="text-sm text-green-700 font-medium">No blockers — clear for release.</p>}
+              {r.blockers.length === 0 && r.evaluated > 0 && <p className="text-sm text-green-700 font-medium">No blockers — clear for release.</p>}
               <div className="space-y-2">
                 {r.blockers.map((b, i) => (
                   <div key={i} className="border rounded-lg p-3 bg-red-50/50">

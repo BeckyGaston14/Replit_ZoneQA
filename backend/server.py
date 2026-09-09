@@ -5769,6 +5769,10 @@ async def release_readiness(version: str, user=Depends(get_current_user)):
     newly_failing = (reg.get("newly_failing") or 0) if reg else 0
 
     blockers = []
+    if not evaluated:
+        blockers.append({"type": "Insufficient Data", "label": "No completed Bassett evaluations",
+                         "detail": f"Complete at least one model-comparison evaluation for {version} before making a release decision.",
+                         "link_id": "", "link_type": ""})
     for f in open_crit5:
         blockers.append({"type": "Critical Finding", "label": f.get("title", ""), "detail": f"Criticality 5 · {f.get('developer_status')}", "link_id": f["id"], "link_type": "finding"})
     for e in critical_fails:
@@ -5785,9 +5789,11 @@ async def release_readiness(version: str, user=Depends(get_current_user)):
     stale_gold_tests = [{"testcase_id": tid, "name": tcs.get(tid, {}).get("name", "?"), "stale_evidence": stale_map[tid]}
                         for tid in stale_map if tid in {e["testcase_id"] for e in evals}]
 
-    if open_crit5 or critical_fails or (evaluated and pass_rate < 70):
+    if not evaluated:
+        recommendation, reason = "NOT-READY", "Insufficient evaluation data — complete Bassett evaluations before making a release decision."
+    elif open_crit5 or critical_fails or pass_rate < 70:
         recommendation, reason = "NO-GO", "Open criticality-5 findings, Critical Fail evaluations, or pass rate below 70%."
-    elif open_crit4 or newly_failing or (evaluated and pass_rate < 85) or not evaluated:
+    elif open_crit4 or newly_failing or pass_rate < 85:
         recommendation, reason = "CONDITIONAL", "High-criticality open findings, new regressions, or pass rate below 85% — release with mitigations."
     else:
         recommendation, reason = "GO", "Pass rate ≥ 85%, no critical blockers, no new regressions."

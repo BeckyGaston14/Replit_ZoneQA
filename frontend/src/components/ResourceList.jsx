@@ -290,9 +290,9 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
             {sortedData.map((row) => (
               <tr key={row.id} data-testid={`${collection}-row`} className={`border-t ${canWrite && !isArchived(row) ? "hover:bg-[var(--paper)]" : "bg-slate-50/60"}`}>
                 {columns.map((c, index) => <td key={c.key} className={TABLE_CELL_CLASS}>
-                  {index === 0 && canWrite && !isArchived(row) ? (
+                  {index === 0 && rowLink && !isArchived(row) ? (
                     <button type="button" className="w-full text-left font-inherit focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)] focus-visible:ring-offset-2 rounded"
-                      onClick={() => rowLink ? rowLink(row) : openEdit(row)} aria-label={`${rowLink ? "Open" : "Edit"} ${row.name || row.document_name || singular || "record"}`}>
+                      onClick={() => rowLink(row)} aria-label={`Open ${row.name || row.document_name || singular || "record"}`}>
                       {c.render ? c.render(row) : (row[c.key] ?? "—")}
                     </button>
                   ) : (c.render ? c.render(row) : (row[c.key] ?? "—"))}
