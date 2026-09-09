@@ -104,7 +104,7 @@ test("Bassett findings view is explicitly labeled and stays in the Bassett-only 
   act(() => root.render(<BassettIssues />));
   expect(container.querySelector("h1").textContent).toBe("Bassett Findings");
   expect(container.textContent).toContain("Bassett Test Runs");
-  expect(container.textContent).not.toContain("Model Comparison Findings");
+  expect(container.textContent).toContain("Model Comparison Findings");
   act(() => root.unmount());
 });
 

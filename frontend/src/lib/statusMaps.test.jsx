@@ -84,7 +84,7 @@ test.each([
   ["Release Readiness", "GO", RELEASE_DECISIONS],
   ["Administration", "Inactive", ACTIVITY_STATUSES],
   ["Demo Library", "Gold Reverification Required", DEMO_STATUSES],
-  ["Test Coverage", "no_tests", COVERAGE_STATUSES],
+  ["Test Coverage", "defined_not_evaluated", COVERAGE_STATUSES],
   ["Calendar", "Read-only", CALENDAR_EVENT_STATES],
   ["Regression", "regressed", REGRESSION_DELTA_STATUSES],
   ["Test Case Detail", "Incomplete", TEST_WORKFLOW_STATUSES],

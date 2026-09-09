@@ -114,9 +114,9 @@ export const DEMO_STATUSES = {
 };
 
 export const COVERAGE_STATUSES = {
-  no_tests: { label: "No Tests", color: "#b91c1c", icon: XCircle, description: "No active test cases cover this area." },
-  thin: { label: "Thin Coverage", color: "#b45309", icon: AlertTriangle, description: "Only one active test case covers this area." },
-  covered: { label: "Covered", color: "#15803d", icon: CheckCircle2, description: "At least two active test cases cover this area." },
+  not_represented: { label: "Not Represented", color: "#64748b", icon: XCircle, description: "No active test definitions represent this area." },
+  defined_not_evaluated: { label: "Defined, Not Evaluated", color: "#b45309", icon: AlertTriangle, description: "Active test definitions exist, but none has a qualifying completed evaluation." },
+  evaluated: { label: "Evaluated", color: "#15803d", icon: CheckCircle2, description: "At least one active test definition has a qualifying completed evaluation." },
 };
 
 export const CALENDAR_EVENT_STATUSES = {

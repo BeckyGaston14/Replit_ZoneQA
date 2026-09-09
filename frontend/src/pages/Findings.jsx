@@ -5,7 +5,7 @@ import { api, formatApiErrorDetail } from "../lib/api";
 import { useConfig } from "../lib/hooks";
 import { useSavedView } from "../lib/savedViews";
 import { useAuth } from "../lib/auth";
-import { PageHeader, CritBadge } from "../components/shared";
+import { PageHeader, CritBadge, StatCard } from "../components/shared";
 import { FINDING_STATUSES, StatusBadge } from "../lib/statusMaps";
 import { Attachments } from "../components/Attachments";
 import { CommentsThread } from "../components/CommentsThread";
@@ -14,7 +14,7 @@ import { Button } from "../components/ui/button";
 import { Textarea } from "../components/ui/textarea";
 import { FormModal, Field, ListSelect } from "../components/forms";
 import { Input } from "../components/ui/input";
-import { Columns3, RefreshCw, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Columns3, Flag, RefreshCw, Search, ShieldAlert, X } from "lucide-react";
 import { toast } from "sonner";
 import { QueryState } from "../components/PageState";
 
@@ -54,6 +54,7 @@ export default function Findings() {
   const closeButtonRef = useRef(null);
   const selectedRowRef = useRef(null);
   const [mobilePanel, setMobilePanel] = useState(false);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     if (!window.matchMedia) return undefined;
@@ -143,15 +144,21 @@ export default function Findings() {
     finally { setSubmitting(false); }
   };
 
+  const searchTerm = search.trim().toLowerCase();
   const shown = findings.filter((f) =>
     (testcaseFilter === ALL || f.testcase_id === testcaseFilter) &&
     (flt.status === ALL || f.developer_status === flt.status) &&
     (flt.criticality === ALL || String(f.criticality) === flt.criticality) &&
     (flt.type === ALL || f.finding_type === flt.type) &&
     (flt.retest === ALL || (f.retest_status || "Pending") === flt.retest) &&
-    (flt.version === ALL || f.version_found === flt.version));
+    (flt.version === ALL || f.version_found === flt.version) &&
+    (!searchTerm || [f.title, f.description, f.root_cause, f.finding_type, f.version_found, f.assignee_name]
+      .some((value) => String(value || "").toLowerCase().includes(searchTerm))));
   const filtersActive = Object.values(flt).some((value) => value !== ALL);
-  const clearFilters = () => updateSavedView({ filters: DEFAULT_FILTERS });
+  const clearFilters = () => { updateSavedView({ filters: DEFAULT_FILTERS }); setSearch(""); };
+  const openFindings = findings.filter((finding) => !["Fixed", "Closed", "Won't Fix", "Duplicate"].includes(finding.developer_status)).length;
+  const newFindings = findings.filter((finding) => finding.developer_status === "New").length;
+  const highSeverityFindings = findings.filter((finding) => Number(finding.criticality) >= 4).length;
   const selectedId = sp.get("id");
   const staleSelection = !findingsQuery.isLoading && !findingsQuery.isError && selectedId
     && !findings.some((finding) => finding.id === selectedId);
@@ -169,12 +176,24 @@ export default function Findings() {
 
   return (
     <div>
-      <PageHeader title="Model Comparison Findings" subtitle="Findings from full Bassett vs ChatGPT vs Claude comparisons. Bassett-only findings are managed separately in Bassett Test Runs." />
+      <PageHeader title="Model Comparison Findings" subtitle="Findings from full Bassett vs. ChatGPT vs. Claude comparisons. Bassett-only findings remain separate.">
+        <Button variant="outline" onClick={() => nav("/bassett/findings")}>Bassett Findings</Button>
+      </PageHeader>
       {viewError && <div role="alert" className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">{viewError} <button type="button" className="ml-2 font-semibold underline" onClick={retryView}>Retry saved view</button></div>}
       {(findingsQuery.isLoading || findingsQuery.isError) && <QueryState query={findingsQuery} resource="model comparison findings" testId="findings" />}
       {staleSelection && <div role="alert" className="mb-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950" data-testid="finding-not-found">That finding was not found or is no longer available. <Button size="sm" variant="outline" className="ml-3" onClick={closeFinding}>Return to findings</Button></div>}
       {!findingsQuery.isLoading && !findingsQuery.isError && <>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <StatCard label="Open Findings" value={openFindings} sub="excludes fixed and closed findings" icon={Flag} accent="#f97316" />
+        <StatCard label="New Findings" value={newFindings} sub="newly recorded findings" icon={AlertTriangle} accent="#2563eb" />
+        <StatCard label="High Severity Findings" value={highSeverityFindings} sub="criticality 4–5" icon={ShieldAlert} accent="#dc2626" />
+        <StatCard label="Total Findings" value={findings.length} sub="linked to model comparisons" icon={CheckCircle2} accent="#16a34a" />
+      </div>
       <div className="flex items-center gap-2 mb-3 flex-wrap" data-testid="findings-filter-bar">
+        <div className="relative flex-1 min-w-[220px]">
+          <Search size={15} className="absolute left-3 top-2.5 text-muted-foreground" />
+          <Input aria-label="Search model comparison findings" className="pl-9 h-8" placeholder="Search finding, type, version, assignee…" value={search} onChange={(event) => setSearch(event.target.value)} />
+        </div>
         {[["status", config?.finding_statuses, "All statuses"], ["criticality", ["1", "2", "3", "4", "5"], "All criticality"], ["type", config?.finding_types, "All types"], ["retest", ["Pending", "In Progress", "Fixed", "Partially Fixed", "Not Fixed"], "All retest states"]].map(([key, opts, label]) => (
           <select key={key} value={flt[key]} onChange={(e) => setFilter(key, e.target.value)} data-testid={`filter-${key}`}
             className="h-8 text-xs border rounded-lg px-2 bg-card text-[var(--navy)]">

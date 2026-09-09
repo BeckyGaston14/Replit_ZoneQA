@@ -44,6 +44,7 @@ jest.mock("../lib/auth", () => ({ useAuth: () => ({ user: { role: "viewer" } }) 
 jest.mock("../components/shared", () => ({
   PageHeader: ({ title }) => <h1>{title}</h1>,
   CritBadge: ({ value }) => <span>C{value}</span>,
+  StatCard: ({ label, value }) => <div>{label}: {value}</div>,
 }));
 jest.mock("../components/Attachments", () => ({ Attachments: () => <div>Attachments</div> }));
 jest.mock("../components/CommentsThread", () => ({ CommentsThread: () => <div>Comments</div> }));

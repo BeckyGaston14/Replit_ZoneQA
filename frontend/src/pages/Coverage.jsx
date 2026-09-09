@@ -6,8 +6,9 @@ import { COVERAGE_STATUSES, statusDefinition } from "../lib/statusMaps";
 import { Grid3X3, Building2, Tags, AlertTriangle, FlaskConical } from "lucide-react";
 import { QueryState } from "../components/PageState";
 
-export function coverageStatusForCount(value) {
-  return value === 0 ? "no_tests" : value < 2 ? "thin" : "covered";
+export function coverageStatusForCount(tests, evaluated = 0) {
+  if (tests === 0) return "not_represented";
+  return evaluated > 0 ? "evaluated" : "defined_not_evaluated";
 }
 
 const BASSETT_COVERAGE_STATUSES = Object.fromEntries(Object.entries(COVERAGE_STATUSES).map(([key, definition]) => [key, {
@@ -15,9 +16,9 @@ const BASSETT_COVERAGE_STATUSES = Object.fromEntries(Object.entries(COVERAGE_STA
   description: definition.description.replace(/test cases?/g, (match) => match === "test case" ? "scenario" : "scenarios"),
 }]));
 
-function CoverageBar({ value, max, definitions = COVERAGE_STATUSES, noun = "tests" }) {
+function CoverageBar({ value, evaluated, max, definitions = COVERAGE_STATUSES, noun = "tests" }) {
   const pct = max ? Math.min(100, (value / max) * 100) : 0;
-  const status = coverageStatusForCount(value);
+  const status = coverageStatusForCount(value, evaluated);
   return (
     <div className="h-2 w-full rounded-full bg-[var(--paper)] overflow-hidden" role="img" aria-label={`${statusDefinition(status, definitions).label}: ${value} ${noun}`}>
       <div className="h-full rounded-full" style={{ width: `${pct}%`, background: statusDefinition(status, definitions).color }} />
@@ -26,7 +27,7 @@ function CoverageBar({ value, max, definitions = COVERAGE_STATUSES, noun = "test
 }
 
 export function GapRow({ label, sub, tests, evaluated, max, testid, bassett = false }) {
-  const status = coverageStatusForCount(tests);
+  const status = coverageStatusForCount(tests, evaluated);
   const definitions = bassett ? BASSETT_COVERAGE_STATUSES : COVERAGE_STATUSES;
   const noun = bassett ? "scenario" : "test";
   return (
@@ -35,7 +36,7 @@ export function GapRow({ label, sub, tests, evaluated, max, testid, bassett = fa
         <div className="text-sm font-medium truncate text-[var(--navy)]">{label}</div>
         {sub && <div className="text-[11px] text-muted-foreground">{sub}</div>}
       </div>
-      <div className="flex-1"><CoverageBar value={tests} max={max} definitions={definitions} noun={`${noun}${tests === 1 ? "" : "s"}`} /></div>
+      <div className="flex-1"><CoverageBar value={tests} evaluated={evaluated} max={max} definitions={definitions} noun={`${noun}${tests === 1 ? "" : "s"}`} /></div>
       <div className="flex shrink-0 flex-wrap items-center gap-2 text-xs sm:w-48 sm:justify-end sm:text-right">
         <StatusBadge value={status} definitions={definitions} compact />
         <span className="text-muted-foreground"><b className="text-[var(--navy)]">{tests}</b> {noun}{tests === 1 ? "" : "s"} · {evaluated} evaluation{evaluated === 1 ? "" : "s"}</span>
@@ -85,10 +86,10 @@ export default function Coverage() {
         <StatCard label="Total Tests" value={s.total_tests} sub={`${s.evaluated_tests} evaluated`} accent="#16215a" icon={FlaskConical} />
         {showBassett && <StatCard label="Bassett-Only Scenarios" value={bassettCounts.total_tests || 0} sub={`${bassettCounts.evaluated_tests || 0} evaluated`} accent="#f47b20" icon={Grid3X3} />}
         {showComparison && <StatCard label="Model Comparison Cases" value={comparisonCounts.total_tests || 0} sub={`${comparisonCounts.evaluated_tests || 0} evaluated`} accent="#2f3f96" icon={FlaskConical} />}
-        {scope === "bassett" && <StatCard label="Workflow Stages" value={`${workflowStages.filter((row) => row.tests > 0).length}/${workflowStages.length}`} sub="with scenarios" accent="#2f3f96" icon={Tags} />}
-        {scope === "comparison" && <StatCard label="Municipalities" value={`${s.munis_covered}/${s.munis_total}`} sub="with tests" accent="#2f3f96" icon={Building2} />}
-        {showComparison && <StatCard label="Categories" value={`${s.categories_covered}/${s.categories_total}`} sub="with tests" accent="#f47b20" icon={Tags} />}
-        {showComparison && <StatCard label="Criticality Levels" value={`${s.crit_covered}/5`} sub="with tests" accent="#0ea5e9" icon={Grid3X3} />}
+        {scope === "bassett" && <StatCard label="Workflow Stages" value={`${workflowStages.filter((row) => row.evaluated > 0).length}/${workflowStages.length}`} sub="with qualifying evaluations" accent="#2f3f96" icon={Tags} />}
+        {scope === "comparison" && <StatCard label="Municipalities" value={`${s.munis_covered}/${s.munis_total}`} sub="with qualifying evaluations" accent="#2f3f96" icon={Building2} />}
+        {showComparison && <StatCard label="Categories" value={`${s.categories_covered}/${s.categories_total}`} sub="with qualifying evaluations" accent="#f47b20" icon={Tags} />}
+        {showComparison && <StatCard label="Criticality Levels" value={`${s.crit_covered}/5`} sub="with qualifying evaluations" accent="#0ea5e9" icon={Grid3X3} />}
       </div>
 
       <div className="grid lg:grid-cols-2 gap-4">
@@ -132,7 +133,7 @@ export default function Coverage() {
         </div>
         </>}
        <MethodologyDisclosure title="How coverage metrics are calculated" testid="coverage-methodology">
-         <p>Coverage counts the latest qualifying result per active test definition in the selected scope. Both combines the two populations without merging unlike dimensions.</p>
+         <p>A row is Evaluated only when at least one active test definition in that row has a qualifying completed evaluation. Defined, Not Evaluated means scenarios or test cases exist but none has been evaluated; Not Represented means no active definition exists.</p>
          <p>Bassett-only coverage uses Test Bank workflow stage, complexity, and priority. Model Comparison coverage uses municipality, category, and criticality. Expanded or linked Bassett-only runs are excluded from the Bassett-only population to prevent double counting.</p>
          <p>Each row preserves its visible numerator and denominator as tests and evaluations. Sample visibility follows the current account scope.</p>
        </MethodologyDisclosure>

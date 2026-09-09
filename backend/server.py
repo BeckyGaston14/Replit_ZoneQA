@@ -6626,9 +6626,9 @@ async def analytics_coverage(user=Depends(get_current_user), scope: str = "both"
         criticality.append({"level": lvl, "label": crit_labels.get(str(lvl), str(lvl)), "tests": len(ct),
                             "evaluated": len([t for t in ct if t["id"] in evaluated_tc])})
 
-    muni_gaps = [m for m in municipalities if m["tests"] == 0]
-    cat_gaps = [c for c in categories if c["tests"] == 0]
-    crit_gaps = [c for c in criticality if c["tests"] == 0]
+    muni_gaps = [m for m in municipalities if m["evaluated"] == 0]
+    cat_gaps = [c for c in categories if c["evaluated"] == 0]
+    crit_gaps = [c for c in criticality if c["evaluated"] == 0]
 
     scenarios = _filter_sample_scope("bassett_scenarios", await db.bassett_scenarios.find({"archived": {"$ne": True}}, {"_id": 0}).to_list(5000))
     scenario_by_id = {scenario.get("id"): scenario for scenario in scenarios}
@@ -6672,7 +6672,7 @@ async def analytics_coverage(user=Depends(get_current_user), scope: str = "both"
     workflow_stages = bassett_rows("workflow_stage", ["Research", "Analysis"])
     complexities = bassett_rows("complexity", ["Low", "Moderate", "High", "Very High"])
     priorities = bassett_rows("priority", ["P0 - Immediate", "P1 - High", "P2 - Medium", "P3 - Low"])
-    bassett_gaps = sum(row["tests"] == 0 for rows in (workflow_stages, complexities, priorities) for row in rows)
+    bassett_gaps = sum(row["evaluated"] == 0 for rows in (workflow_stages, complexities, priorities) for row in rows)
     comparison_summary = {
         "total_tests": len(tcs), "evaluated_tests": len(evaluated_tc & tcs_by_id),
         "gap_count": len(muni_gaps) + len(cat_gaps) + len(crit_gaps),
