@@ -242,7 +242,8 @@ def test_sequential_stale_bassett_edits_are_rejected(monkeypatch, kind):
         row = {
             "id": "record-1", "scenario_id": "scenario-1", "question_asked": "Question",
             "exact_bassett_answer": "Answer", "verified_correct_answer": "Verified",
-            "status": "New", "result": "Pass", "revision": 1, "updated_at": "stamp",
+            "status": "New", "result": "Pass", "version_id": "version-1",
+            "revision": 1, "updated_at": "stamp",
         }
         update = server.bassett_update_issue
         body = {"note": "First", "expected_revision": 1}
@@ -256,6 +257,7 @@ def test_sequential_stale_bassett_edits_are_rejected(monkeypatch, kind):
         update = server.bassett_update_scenario
         body = {"why_it_matters": "First", "expected_revision": 1}
     db = Db({collection: [row], "bassett_history": [], "activities": [],
+             "versions": [{"id": "version-1", "name": "Bassett v9.26", "active": True}],
              "bassett_scenarios": [row] if kind == "scenario" else [{"id": "scenario-1", "archived": False}],
              "bassett_workflow_stages": [{"id": "stage", "name": "Research", "active": True}]})
     monkeypatch.setattr(server, "db", db)

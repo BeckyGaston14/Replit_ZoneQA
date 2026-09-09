@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { todayInTimeZone } from "../lib/testDates";
 import { SCORE_RUBRIC, hasScoredDimension } from "../lib/scoreRubric";
 import { ScoreSelect } from "./ScoreSelect";
-import { CANONICAL_EVALUATION_RESULTS, normalizeEvaluationResult } from "../lib/evaluationResults";
+import { CANONICAL_EVALUATION_RESULTS, isEvaluatedResult, normalizeEvaluationResult } from "../lib/evaluationResults";
 import { ConfirmActionDialog } from "./ConfirmActionDialog";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 
@@ -39,6 +39,13 @@ export const emptyBassettTestRun = {
 export function createBassettTestRunDraft(overrides = {}, timeZone, now = new Date()) {
   const submissionId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   return { ...emptyBassettTestRun, test_date: todayInTimeZone(timeZone, now), submission_id: submissionId, ...overrides };
+}
+
+export function bassettVersionRequirementMessage(form) {
+  const status = String(form?.status || "").trim().toLowerCase();
+  if (status === "draft" || !isEvaluatedResult(form?.result)) return "";
+  if (String(form?.version_id || form?.bassett_version || "").trim()) return "";
+  return "Bassett version is required for completed tests and version-specific dashboard reporting.";
 }
 
 export function createComparisonTestDraft(overrides = {}, timeZone, now = new Date()) {
@@ -188,6 +195,7 @@ function progressFor(form, mode) {
 
 function validate(form, mode) {
   if (mode === "bassett") {
+    const versionError = bassettVersionRequirementMessage(form);
     if (form.test_type === "Multi-turn") {
       if (!Array.isArray(form.turns) || !form.turns.length || form.turns.some((turn) => !String(turn.prompt || "").trim() || !String(turn.response || "").trim())) {
         return "Add at least one complete multi-turn prompt and response.";
@@ -195,6 +203,7 @@ function validate(form, mode) {
       if (hasScoredDimension(form.evaluation_scores) && String(form.score_rationale || "").trim().length < 20) return "Explain the Bassett scores in the Score rationale using at least 20 characters.";
       if (!String(form.scenario_id || "").trim()) return "A Test Bank scenario is required";
       if (!String(form.test_date || "").trim()) return "The test date is required";
+      if (versionError) return versionError;
       return null;
     }
     const required = [
@@ -208,6 +217,7 @@ function validate(form, mode) {
     if (missing) return missing[1];
     if (!BASSETT_RESULT_OPTIONS.includes(normalizeEvaluationResult(form.result))) return "Select a valid test result";
     if (hasScoredDimension(form.evaluation_scores) && String(form.score_rationale || "").trim().length < 20) return "Explain the Bassett scores in the Score rationale using at least 20 characters.";
+    if (versionError) return versionError;
     return null;
   }
   for (const model of ["Bassett", "ChatGPT", "Claude"]) {
@@ -310,6 +320,9 @@ export default function UnifiedTestEntryForm({
      return { ...dimension, question: dimension.question || fallback?.[3] || `Was ${dimension.label || dimension.key} handled well?` };
    });
   const filteredProperties = useMemo(() => properties.filter((item) => !form.municipality_id || !item.municipality_id || item.municipality_id === form.municipality_id), [properties, form.municipality_id]);
+  const selectedVersionId = form.version_id || versions.find((version) => version.name === form.bassett_version)?.id || "";
+  const savedVersionUnavailable = Boolean(form.version_id && !versions.some((version) => version.id === form.version_id));
+  const versionError = bassettVersionRequirementMessage(form);
   const progress = progressFor(form, mode);
   const [activeSection, setActiveSection] = useState(0);
   const [attemptedSections, setAttemptedSections] = useState(() => new Set());
@@ -436,7 +449,8 @@ export default function UnifiedTestEntryForm({
       <Field label="Sequential Test ID"><Input value={form.test_id || "Assigned on save"} readOnly className="bg-muted" /></Field>
       <Field label="Workflow stage"><Input value={form.workflow_stage || selectedScenario?.workflow_stage || "Selected from Test Bank"} readOnly className="bg-muted" /></Field>
       <Field label="Test name" required={isComparison} error={attemptedSections.has(0) && isComparison && !String(form.name || "").trim() ? "Test name is required." : undefined}><Input value={form.name || form.title || ""} disabled={lockedCommon} onChange={(e) => update(isComparison ? "name" : "title", e.target.value)} /></Field>
-      <Field label="Bassett version"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.version_id || ""} disabled={lockedCommon} onChange={(e) => update("version_id", e.target.value)}><option value="">Not specified</option>{versions.map((version) => <option key={version.id} value={version.id}>{version.name}</option>)}</select></Field>
+       <Field label="Bassett version" description="Required for completed tests and version-specific dashboard reporting."><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={selectedVersionId} disabled={lockedCommon} onChange={(e) => { const selected = versions.find((version) => version.id === e.target.value); setForm((current) => ({ ...current, version_id: selected?.id || "", bassett_version: selected?.name || "" })); }}><option value="">Not specified</option>{savedVersionUnavailable && <option value={form.version_id}>{form.bassett_version || "Saved version unavailable"}</option>}{versions.map((version) => <option key={version.id} value={version.id}>{version.name}{version.active === false ? " (inactive)" : ""}</option>)}</select></Field>
+       {form.id && versionError && <div role="alert" className="sm:col-span-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">This completed historical test run has no Bassett version assigned. Choose a version before saving; the historical record remains unchanged until you save.</div>}
       <Field label="Test date" required error={attemptedSections.has(0) && !String(form.test_date || "").trim() ? "Test date is required." : undefined}><Input type="date" value={form.test_date || ""} disabled={lockedCommon} onChange={(e) => update("test_date", e.target.value)} /></Field>
       <Field label="Environment"><Input value={form.environment || ""} disabled={lockedCommon} onChange={(e) => update("environment", e.target.value)} placeholder="Production, Staging…" /></Field>
         {!isComparison && <Field label="Test type" description="Single Prompt is one question and answer. Multi-turn stores an ordered conversation with turn-level evidence."><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.test_type || "Single Prompt"} disabled={lockedCommon} onChange={(e) => update("test_type", e.target.value)}><option>Single Prompt</option><option>Multi-turn</option></select></Field>}

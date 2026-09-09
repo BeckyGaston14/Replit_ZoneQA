@@ -155,6 +155,7 @@ class _ImportDb:
         self.records = {
             "bassett_scenarios": scenarios,
             "bassett_issues": [],
+            "versions": [{"id": "version-1", "name": "Bassett v9.26", "active": True}],
             "bassett_history": [],
             "bassett_workflow_stages": [
                 {"id": "stage-research", "name": "Research", "code": "R", "active": True},
@@ -209,6 +210,7 @@ def _issue_import_row(**overrides):
         "scenario_id": "scenario-1", "question_asked": "What is allowed?",
         "exact_bassett_answer": "Ten feet", "verified_correct_answer": "Twenty feet",
         "test_date": "2026-09-01", "result": "Fail", "score": "25",
+        "version_id": "version-1",
     }
     row.update(overrides)
     return row
@@ -398,8 +400,8 @@ def test_canonical_metrics_count_current_result_vocabulary(monkeypatch):
     ]
     fake_db = _ImportDb(scenarios)
     fake_db.records["bassett_issues"] = [
-        {"id": "one", "scenario_id": "scenario-1", "result": "Pass with Notes", "archived": False},
-        {"id": "two", "scenario_id": "scenario-2", "result": "Partial", "archived": False},
+        {"id": "one", "scenario_id": "scenario-1", "result": "Pass with Notes", "version_id": "version-1", "archived": False},
+        {"id": "two", "scenario_id": "scenario-2", "result": "Partial", "version_id": "version-1", "archived": False},
         {"id": "three", "scenario_id": "scenario-3", "result": "Blocked", "archived": False},
         {"id": "four", "scenario_id": "scenario-4", "result": "Not Evaluated", "archived": False},
     ]
@@ -407,8 +409,8 @@ def test_canonical_metrics_count_current_result_vocabulary(monkeypatch):
     fake_db.records["findings"] = []
     monkeypatch.setattr(server, "db", fake_db)
     metrics = asyncio.run(server.bassett_metrics(user={"id": "viewer"}))
-    assert metrics["test_runs"]["completed"] == 3
-    assert metrics["test_runs"]["attention"] == 2
+    assert metrics["test_runs"]["completed"] == 2
+    assert metrics["test_runs"]["attention"] == 1
     assert metrics["test_runs"]["pass_rate"] == 50.0
     assert metrics["test_runs"]["passed"] == 1
     assert metrics["test_runs"]["eligible"] == 2
@@ -416,7 +418,7 @@ def test_canonical_metrics_count_current_result_vocabulary(monkeypatch):
     assert metrics["test_runs"]["blocked"] == 1
     assert metrics["test_runs"]["incomplete"] == 1
     assert metrics["test_runs"]["test_bank_coverage"] == {
-        "total": 4, "covered": 3, "percent": 75.0,
+        "total": 4, "covered": 2, "percent": 50.0,
     }
 
 
@@ -595,6 +597,7 @@ class _RunDb:
             "bassett_history": [],
             "activities": [],
             "bassett_executions": [],
+            "versions": [{"id": "version-1", "name": "Bassett v9.26", "active": True}],
         }
 
     def __getitem__(self, name):
@@ -651,6 +654,44 @@ def test_canonical_run_creation_snapshots_definition_and_replays_without_duplica
     assert fake_db.records["activities"][0]["entity_id"] == first["id"]
     assert fake_db.records.get("findings", []) == []
 
+
+def test_completed_bassett_runs_require_a_version_but_not_evaluated_and_draft_runs_do_not():
+    with pytest.raises(HTTPException) as missing:
+        server._validate_bassett_version_requirement({"result": "Pass", "status": "New"})
+    assert missing.value.status_code == 400
+    server._validate_bassett_version_requirement({"result": "Not Evaluated", "status": "New"})
+    server._validate_bassett_version_requirement({"result": "Pass", "status": "Draft"})
+
+
+def test_api_rejects_completed_versionless_creation_and_canonicalizes_explicit_version(monkeypatch):
+    fake_db = _RunDb(_complete_scenario())
+    monkeypatch.setattr(server, "db", fake_db)
+    actor = {"id": "tester-1", "name": "Tester", "role": "tester"}
+
+    with pytest.raises(HTTPException) as missing:
+        asyncio.run(server.bassett_create_issue(_run_body(version_id="", bassett_version=""), user=actor))
+    assert missing.value.status_code == 400
+
+    saved = asyncio.run(server.bassett_create_issue(
+        _run_body(version_id="version-1", bassett_version="Bassett v9.26"), user=actor,
+    ))
+    assert saved["version_id"] == "version-1"
+    assert saved["bassett_version"] == "Bassett v9.26"
+
+
+def test_inactive_versions_remain_valid_for_history_but_deleted_versions_are_rejected(monkeypatch):
+    fake_db = _RunDb(_complete_scenario())
+    fake_db.records["versions"][0]["active"] = False
+    monkeypatch.setattr(server, "db", fake_db)
+    document = {"version_id": "version-1", "bassett_version": ""}
+    asyncio.run(server._validate_bassett_refs(document))
+    assert document["bassett_version"] == "Bassett v9.26"
+
+    with pytest.raises(HTTPException) as missing:
+        asyncio.run(server._validate_bassett_refs({"version_id": "deleted-version"}))
+    assert missing.value.status_code == 400
+    assert "no longer available" in str(missing.value.detail)
+
 def test_legacy_execution_endpoint_is_read_only():
     with pytest.raises(HTTPException) as exc:
         asyncio.run(server.bassett_create_execution(
@@ -684,6 +725,7 @@ def _run_body(**overrides):
         "question_asked": "What is the setback?", "exact_bassett_answer": "Ten feet",
         "verified_correct_answer": "Twenty feet", "result": "Fail", "score": "25",
         "environment": "Staging", "test_date": "2026-09-01", "notes": "Reproduced twice",
+        "version_id": "version-1",
     }
     body.update(overrides)
     return body

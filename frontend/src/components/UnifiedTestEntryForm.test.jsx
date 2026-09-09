@@ -2,6 +2,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import UnifiedTestEntryForm, {
   createBassettTestRunDraft,
+  bassettVersionRequirementMessage,
   createComparisonEditDraft,
   createComparisonTestDraft,
 } from "./UnifiedTestEntryForm";
@@ -100,6 +101,52 @@ test("invalid submission marks and opens the first incomplete section", () => {
   expect(sections[1].querySelector("summary").textContent).toContain("Needs attention");
   expect(toast.error).toHaveBeenCalledWith("The question asked is required");
   act(() => view.root.unmount());
+});
+
+test("existing completed versionless runs stay unassigned and warn before save", () => {
+  const view = renderForm("bassett", {
+    id: "legacy-run",
+    result: "Pass",
+    question_asked: "Question",
+    exact_bassett_answer: "Answer",
+    verified_correct_answer: "Verified",
+    test_date: "2026-09-01",
+  }, {
+    versions: [{ id: "version-1", name: "Bassett v9.26", active: true }],
+  });
+  const version = [...view.container.querySelectorAll("label")]
+    .find((node) => node.textContent.startsWith("Bassett version"))
+    .querySelector("select");
+  expect(version.value).toBe("");
+  expect(view.container.textContent).toContain("This completed historical test run has no Bassett version assigned");
+  expect(view.container.textContent).toContain("Required for completed tests and version-specific dashboard reporting.");
+  act(() => view.container.querySelector('[data-testid="submit"]').click());
+  expect(toast.error).toHaveBeenCalledWith("Bassett version is required for completed tests and version-specific dashboard reporting.");
+  act(() => view.root.unmount());
+});
+
+test("explicit version selection updates both the saved ID and display name", () => {
+  const view = renderForm("bassett", {
+    id: "legacy-run", result: "Pass", version_id: "", bassett_version: "",
+  }, {
+    versions: [{ id: "version-1", name: "Bassett v9.26", active: true }],
+  });
+  const version = [...view.container.querySelectorAll("label")]
+    .find((node) => node.textContent.startsWith("Bassett version"))
+    .querySelector("select");
+  act(() => {
+    version.value = "version-1";
+    version.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  expect(view.latest().version_id).toBe("version-1");
+  expect(view.latest().bassett_version).toBe("Bassett v9.26");
+  expect(bassettVersionRequirementMessage(view.latest())).toBe("");
+  act(() => view.root.unmount());
+});
+
+test("Not Evaluated runs may remain without a Bassett version", () => {
+  expect(bassettVersionRequirementMessage({ result: "Not Evaluated", status: "New" })).toBe("");
+  expect(bassettVersionRequirementMessage({ result: "Pass", status: "Draft" })).toBe("");
 });
 
 test("expanded comparison locks common Bassett fields but leaves benchmark fields editable", () => {

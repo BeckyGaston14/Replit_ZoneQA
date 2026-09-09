@@ -90,6 +90,7 @@ class _Database:
                 "what_bassett_should_do": "Answer carefully", "success_criteria": "Correct answer",
                 "priority": "P1 - High", "archived": False,
             }],
+            "versions": [{"id": "version-1", "name": "Bassett v9.26", "active": True}],
             "config": [{"id": "global", "eval_dimensions": []}],
         }
         self.fail_workflow = False
@@ -139,6 +140,7 @@ def test_three_turn_workflow_create_reopen_reorder_and_link_finding(monkeypatch)
         "test_type": "Multi-turn",
         "turns": turns,
         "verified_correct_answer": "The verified conversation answer",
+        "version_id": "version-1",
         "result": "Pass",
         "test_date": "2026-09-08",
         "create_finding": True,

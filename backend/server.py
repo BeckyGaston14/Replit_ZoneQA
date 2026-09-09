@@ -3009,6 +3009,38 @@ def _validate_issue_required(doc):
         if not str(doc.get(field) or "").strip():
             raise HTTPException(400, f"{label} is required")
 
+
+def _bassett_version_is_required(doc):
+    status = str(doc.get("status") or "").strip().casefold()
+    return status != "draft" and _canonical_bassett_result(doc.get("result")) != "Not Evaluated"
+
+
+def _validate_bassett_version_requirement(doc):
+    if _bassett_version_is_required(doc) and not str(
+        doc.get("version_id") or doc.get("bassett_version") or ""
+    ).strip():
+        raise HTTPException(
+            400,
+            "Bassett version is required for completed tests and version-specific dashboard reporting",
+        )
+
+
+def _canonicalize_bassett_version_record(record, versions):
+    normalized = dict(record)
+    version_id = str(normalized.get("version_id") or "").strip()
+    version_name = str(normalized.get("bassett_version") or "").strip()
+    by_id = {str(version.get("id")): version for version in versions if version.get("id")}
+    by_name = {str(version.get("name")): version for version in versions if version.get("name")}
+    version = by_id.get(version_id) or by_name.get(version_name)
+    if version:
+        normalized["version_id"] = version["id"]
+        normalized["bassett_version"] = version.get("name") or version["id"]
+    elif not version_id and not version_name:
+        normalized["version_id"] = ""
+        normalized["bassett_version"] = ""
+    return normalized
+
+
 def _validate_bassett_run_result(doc, allow_legacy=False):
     allowed = BASSETT_RESULTS if allow_legacy else BASSETT_CANONICAL_RESULTS
     result = str(doc.get("result") or "Not Evaluated")
@@ -3081,15 +3113,22 @@ async def _validate_bassett_refs(doc, require_scenario=False):
         await _bassett_ref("bassett_scenarios", doc["scenario_id"], "Bassett scenario", allow_archived=False)
     elif require_scenario:
         raise HTTPException(400, "A Bassett scenario is required")
-    version_identifier = doc.get("version_id") or doc.get("bassett_version")
-    if version_identifier:
+    version_id = str(doc.get("version_id") or "").strip()
+    version_name = str(doc.get("bassett_version") or "").strip()
+    if not version_id and not version_name:
+        doc["version_id"] = ""
+        doc["bassett_version"] = ""
+    else:
         version = await db.versions.find_one(
-            {"$or": [{"id": str(version_identifier)}, {"name": str(version_identifier)}]}, {"_id": 0}
+            {"id": version_id} if version_id else {"name": version_name}, {"_id": 0}
         )
         if not version:
-            raise HTTPException(400, "Bassett version does not exist")
+            raise HTTPException(400, "Bassett version does not exist or is no longer available")
+        canonical_name = str(version.get("name") or version["id"]).strip()
+        if version_id and version_name and version_name != canonical_name:
+            raise HTTPException(400, "Bassett version ID and name refer to different versions")
         doc["version_id"] = version["id"]
-        doc["bassett_version"] = version.get("name") or version["id"]
+        doc["bassett_version"] = canonical_name
     return project, testcase
 
 async def _workflow_stage(stage_name):
@@ -3168,11 +3207,19 @@ async def bassett_list_issues(
     issues = await db.bassett_issues.find(query, {"_id": 0}).sort(
         [("test_date", -1), ("created_at", -1)]
     ).to_list(5000)
-    return _filter_sample_scope("bassett_issues", issues)
+    issues = _filter_sample_scope("bassett_issues", issues)
+    versions = _filter_sample_scope(
+        "versions", await db.versions.find({}, {"_id": 0}).to_list(1000)
+    )
+    return [_canonicalize_bassett_version_record(issue, versions) for issue in issues]
 
 @api.get("/bassett/issues/{id}")
 async def bassett_get_issue(id: str, user=Depends(get_current_user)):
     issue = await _bassett_ref("bassett_issues", id, "Issue")
+    versions = _filter_sample_scope(
+        "versions", await db.versions.find({}, {"_id": 0}).to_list(1000)
+    )
+    issue = _canonicalize_bassett_version_record(issue, versions)
     if issue.get("scenario_id"):
         issue["scenario"] = _normalize_bassett_stage_record(
             await db.bassett_scenarios.find_one({"id": issue["scenario_id"]}, {"_id": 0})
@@ -3401,6 +3448,7 @@ async def bassett_create_issue(body: Dict[str, Any], user=Depends(get_current_us
     doc["test_date"] = _validate_test_date(doc.get("test_date"))
     _validate_issue_required(doc)
     _validate_bassett_run_result(doc)
+    _validate_bassett_version_requirement(doc)
     if doc.get("status") not in (None, *BASSETT_ISSUE_STATUSES[:-1]):
         raise HTTPException(400, "Invalid issue status")
     await _validate_bassett_refs(doc, require_scenario=True)
@@ -3687,6 +3735,7 @@ async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_c
         incoming["test_type"] = "Single Prompt"
         incoming["turns"] = []
     _validate_bassett_run_result(merged, allow_legacy=True)
+    _validate_bassett_version_requirement(merged)
     if "result" in incoming:
         incoming["result"] = merged["result"]
     if "score" in incoming:
@@ -3700,6 +3749,8 @@ async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_c
         incoming["triaged_by_name"] = user.get("name")
         incoming["triaged_at"] = now_iso()
     await _validate_bassett_refs(merged)
+    incoming["version_id"] = merged.get("version_id", "")
+    incoming["bassett_version"] = merged.get("bassett_version", "")
     changed = {key: [existing.get(key), merged.get(key)] for key in incoming if existing.get(key) != merged.get(key)}
     incoming["updated_at"] = now_iso()
     current_revision = int(existing.get("revision", 1))
@@ -4121,6 +4172,11 @@ async def bassett_metrics(version_id: Optional[str] = None, environment: Optiona
         "bassett_executions",
         await db.bassett_executions.find({}, {"_id": 0}).to_list(10000),
     )
+    versions = _filter_sample_scope(
+        "versions", await db.versions.find({}, {"_id": 0}).to_list(1000)
+    )
+    issues = [_canonicalize_bassett_version_record(issue, versions) for issue in issues]
+    executions = [_canonicalize_bassett_version_record(execution, versions) for execution in executions]
     # A linked legacy execution and canonical issue describe one run.  Never
     # allow the migration representation to inflate coverage or pass rates.
     metric_runs = _canonical_bassett_lineages(
@@ -4135,7 +4191,7 @@ async def bassett_metrics(version_id: Optional[str] = None, environment: Optiona
     classified = [(e, _canonical_bassett_result(e.get("result"))) for e in metric_runs]
     completed = [
         e for e, result in classified
-        if result != "Not Evaluated" or e.get("result") == "Blocked"
+        if result != "Not Evaluated" and _bassett_version_is_required(e)
     ]
     pass_rate_runs = [e for e in completed if e.get("result") != "Blocked"]
     passed_runs = [
@@ -4143,7 +4199,8 @@ async def bassett_metrics(version_id: Optional[str] = None, environment: Optiona
     ]
     attention_runs = [
         e for e, result in classified
-        if result in (*FAIL_SET, "Needs Improvement") or e.get("result") == "Blocked"
+        if _bassett_version_is_required(e)
+        and (result in (*FAIL_SET, "Needs Improvement") or e.get("result") == "Blocked")
     ]
     eligible = pass_rate_runs
     active_scenario_ids = {scenario["id"] for scenario in scenarios}
@@ -4171,6 +4228,7 @@ async def bassett_metrics(version_id: Optional[str] = None, environment: Optiona
             _bassett_result_details(e.get("result"))["canonical_result"] != "Not Evaluated"
             or e.get("result") == "Blocked"
         )
+        and _bassett_version_is_required(e)
         and e.get("scenario_id") in active_scenario_ids
     }
     test_bank_coverage = {
@@ -4213,11 +4271,11 @@ def _bassett_csv_rows(resource, docs):
     fields = {
         "issues": ["id", "title", "question_asked", "exact_bassett_answer", "verified_correct_answer",
                    "issue_category", "severity", "priority", "status", "scenario_id", "finding_id",
-                   "bassett_version", "environment", "test_date", "reported_date", "result", "score",
+                    "version_id", "bassett_version", "environment", "test_date", "reported_date", "result", "score",
                    "resolution", "archived", "archived_at"],
         "scenarios": ["id", "stable_id", "workflow_stage", "report_type", "test_scenario", "complexity",
                       "why_it_matters", "what_bassett_should_do", "success_criteria", "priority",
-                      "bassett_version", "project_id", "testcase_id", "archived", "archived_at"],
+                       "version_id", "bassett_version", "project_id", "testcase_id", "archived", "archived_at"],
     }[resource]
     output = io.StringIO()
     writer = csv.DictWriter(output, fieldnames=fields, extrasaction="ignore")
@@ -4237,6 +4295,11 @@ async def bassett_export_csv(resource: str, include_archived: bool = False, user
     docs = _filter_sample_scope(
         collection, await db[collection].find(scope, {"_id": 0}).sort("created_at", 1).to_list(10000)
     )
+    if resource == "issues":
+        versions = _filter_sample_scope(
+            "versions", await db.versions.find({}, {"_id": 0}).to_list(1000)
+        )
+        docs = [_canonicalize_bassett_version_record(doc, versions) for doc in docs]
     return Response(content=_bassett_csv_rows(resource, docs), media_type="text/csv",
                     headers={
                         "Content-Disposition": f'attachment; filename="bassett-{resource}-{"all" if include_archived else "active"}.csv"',
@@ -6889,6 +6952,11 @@ async def _dashboard_bassett_populations(testcases, raw_evaluations, version, co
         "bassett_executions",
         await db.bassett_executions.find({"archived": {"$ne": True}}, {"_id": 0}).to_list(10000),
     )
+    versions = _filter_sample_scope(
+        "versions", await db.versions.find({}, {"_id": 0}).to_list(1000)
+    )
+    issues = [_canonicalize_bassett_version_record(issue, versions) for issue in issues]
+    executions = [_canonicalize_bassett_version_record(execution, versions) for execution in executions]
     comparison_issue_ids = set(comparison_source_issue_ids)
     for testcase in testcases:
         if (
@@ -6916,9 +6984,10 @@ async def _dashboard_bassett_populations(testcases, raw_evaluations, version, co
     latest_standalone = {}
     for run in lineages:
         scenario = scenario_by_id.get(run.get("scenario_id"), {})
-        run_version = run.get("bassett_version") or scenario.get("bassett_version")
+        run_version = run.get("bassett_version")
         if (
             run_version != version
+            or not _bassett_version_is_required(run)
             or run.get("id") in comparison_issue_ids
             or run.get("issue_id") in comparison_issue_ids
             or run.get("bassett_issue_id") in comparison_issue_ids

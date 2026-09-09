@@ -122,6 +122,7 @@ def test_concurrent_retest_completion_has_one_winner(isolated_database_url):
             await isolated_db.findings.insert_one(finding)
             await isolated_db.retests.insert_one(retest)
             await isolated_db.config.insert_one(config)
+            await isolated_db.versions.insert_one({"id": "version-2", "name": "v2", "active": True})
             server.app.dependency_overrides[server.require_writer] = lambda: actor
 
             async with httpx.AsyncClient(
@@ -240,11 +241,13 @@ def test_concurrent_bassett_run_submission_creates_one_canonical_record(isolated
             "scenario_id": definition["id"], "question_asked": "What is the setback?",
             "exact_bassett_answer": "Ten feet", "verified_correct_answer": "Twenty feet",
             "result": "Fail", "score": 25, "environment": "Staging", "test_date": "2026-09-01",
+            "version_id": "version-2",
         }
         try:
             server.db = isolated_db
             await isolated_db.users.insert_one(actor)
             await isolated_db.bassett_scenarios.insert_one(definition)
+            await isolated_db.versions.insert_one({"id": "version-2", "name": "v2", "active": True})
             responses = await asyncio.gather(
                 server.bassett_create_issue(dict(body), user=actor),
                 server.bassett_create_issue(dict(body), user=actor),
@@ -284,11 +287,13 @@ def test_bassett_run_creation_loses_cleanly_to_concurrent_archive(isolated_datab
             "submission_id": "archive-race-submission", "scenario_id": definition["id"],
             "question_asked": "What is allowed?", "exact_bassett_answer": "Answer",
             "verified_correct_answer": "Verified", "result": "Pass", "test_date": "2026-09-01",
+            "version_id": "version-2",
         }
         try:
             server.db = isolated_db
             await isolated_db.users.insert_one(actor)
             await isolated_db.bassett_scenarios.insert_one(definition)
+            await isolated_db.versions.insert_one({"id": "version-2", "name": "v2", "active": True})
             async with isolated_db.pool.acquire() as connection:
                 async with connection.transaction():
                     await connection.fetchrow(
