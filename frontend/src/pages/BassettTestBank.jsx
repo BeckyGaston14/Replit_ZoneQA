@@ -242,10 +242,10 @@ export default function BassettTestBank() {
 
   return <div>
     <PageHeader title="Bassett Test Bank" subtitle="Bassett-only Research and Analysis scenarios with explicit success criteria and Bassett test run history. Pass test runs are not findings.">
-      {canManage && <Button variant="outline" onClick={() => setShowImport(true)}><Upload /> Import reference data</Button>}
-       {canManage && <Button variant="outline" onClick={() => setShowWorkflowManager(true)}>Manage stages & prefixes</Button>}
-      <Button variant="outline" onClick={exportCsv}><Download /> Export</Button>
+      {canManage && <Button variant="outline" onClick={() => setShowImport(true)}><Upload /> Import CSV</Button>}
+      <Button variant="outline" onClick={exportCsv}><Download /> Export CSV</Button>
       <Button variant="outline" aria-pressed={showArchived} onClick={() => setShowArchived((value) => !value)}>{showArchived ? "Active scenarios" : "Archived scenarios"}</Button>
+      {canManage && <Button variant="outline" onClick={() => setShowWorkflowManager(true)}>Manage stages & prefixes</Button>}
       {canManage && <Button onClick={() => { const draft = { ...emptyScenario }; scenarioBaseline.current = draft; setFormErrors({}); setScenarioError(""); setConflict(null); setForm(draft); }} className="bg-[var(--orange)] hover:bg-[var(--orange-600)]"><Plus /> Add scenario</Button>}
     </PageHeader>
     {viewError && <div role="alert" className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">{viewError} <button type="button" className="ml-2 font-semibold underline" onClick={clearViewError}>Dismiss</button></div>}
@@ -334,7 +334,7 @@ export default function BassettTestBank() {
     {showImport && <FormModal open onOpenChange={(open) => !open && setShowImport(false)} title="Review spreadsheet reference scenarios" onSubmit={preview ? commitImport : previewImport} submitLabel={importing ? "Importing…" : preview ? "Confirm import accepted rows" : "Preview rows"} wide>
       <p className="text-sm text-muted-foreground">Upload the Research/Analysis export as CSV. The preview validates stable IDs before any write. Re-importing the same IDs updates in place; startup never seeds them.</p>
       <Input aria-label="Choose Test Bank CSV" type="file" accept=".csv" onChange={loadCsv} />
-      {preview ? <CsvReview preview={preview} /> : <div className="rounded-lg bg-[var(--paper)] p-3 text-sm">{importRows.length ? `${importFileName}: ${importRows.length} row(s) loaded and ready for preview.` : "Required columns: stable_id, workflow_stage, test_scenario, complexity, why_it_matters, what_bassett_should_do, success_criteria."}</div>}
+      {preview ? <CsvReview preview={preview} /> : <div className="rounded-lg bg-[var(--paper)] p-3 text-sm">{importRows.length ? `${importFileName}: ${importRows.length} row(s) loaded and ready for preview.` : <><b>Required columns:</b> workflow_stage, test_scenario, complexity, why_it_matters, what_bassett_should_do, success_criteria. <span className="text-muted-foreground">Use stable_id only when updating an existing scenario.</span></>}</div>}
     </FormModal>}
     {showWorkflowManager && <FormModal open onOpenChange={(open) => !open && setShowWorkflowManager(false)} title="Workflow stages & ID prefixes" onSubmit={saveStage} submitLabel={stageDraft.id ? "Save stage" : "Create stage"}>
       <p className="text-sm text-muted-foreground">Stages and prefixes are managed by the Test Bank service. Stable IDs are assigned automatically when a scenario is created.</p>

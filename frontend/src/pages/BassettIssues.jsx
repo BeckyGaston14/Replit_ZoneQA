@@ -273,7 +273,7 @@ export default function BassettIssues() {
   return <div>
     <PageHeader title={showingFindings ? "Bassett Findings" : "Bassett Test Runs"} subtitle={showingFindings ? "Findings created from Bassett testing. General Findings and model-comparison findings remain separate." : "Record a Bassett test result, evidence, and follow-up. Passing test runs are not findings."}>
       {canManage && !showingFindings && <Button variant="outline" onClick={() => setShowImport(true)}><Upload size={15} /> Import CSV</Button>}
-      {!showingFindings && <Button variant="outline" onClick={exportCsv}><Download size={15} /> Export</Button>}
+      {!showingFindings && <Button variant="outline" onClick={exportCsv}><Download size={15} /> Export CSV</Button>}
       <Link to={showingFindings ? "/bassett/issues" : "/bassett/issues?view=findings"}><Button variant="outline">{showingFindings ? "Bassett Test Runs" : "Bassett Findings"}</Button></Link>
       {showingFindings && <Link to="/findings"><Button variant="outline">Model Comparison Findings</Button></Link>}
       {!showingFindings && <Button variant="outline" aria-pressed={showArchived} onClick={() => setShowArchived((value) => !value)}>{showArchived ? "Active test runs" : "Archived test runs"}</Button>}
@@ -330,7 +330,7 @@ export default function BassettIssues() {
     {showImport && <FormModal open onOpenChange={(open) => !open && setShowImport(false)} title="Review Bassett test run CSV" onSubmit={importPreview ? commitImport : previewImport} submitDisabled={importing || !importRows.length || Boolean(importPreview?.invalid)} submitLabel={importing ? "Importing…" : importPreview ? "Confirm import accepted rows" : "Preview rows"}>
       <p className="text-sm text-muted-foreground">Administrator-controlled import. Existing IDs are updated; no rows are written until validation succeeds.</p>
       <Input aria-label="Choose Bassett test run CSV" type="file" accept=".csv" onChange={loadCsv} />
-      {!importPreview ? <div className="rounded-lg bg-[var(--paper)] p-3 text-sm">{importRows.length ? `${importFileName}: ${importRows.length} row(s) loaded and ready for review.` : "Expected columns include question_asked, exact_bassett_answer, and verified_correct_answer."}</div> : <ImportReview preview={importPreview} />}
+      {!importPreview ? <div className="rounded-lg bg-[var(--paper)] p-3 text-sm">{importRows.length ? `${importFileName}: ${importRows.length} row(s) loaded and ready for review.` : <><b>Required columns for new test runs:</b> scenario_id, question_asked, exact_bassett_answer, verified_correct_answer. <span className="text-muted-foreground">Include id only when updating an existing test run.</span></>}</div> : <ImportReview preview={importPreview} />}
     </FormModal>}
     <ConfirmActionDialog
       open={!!confirmingArchive}
