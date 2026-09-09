@@ -1,4 +1,4 @@
-import { SCORE_RUBRIC, scoreRubricReason } from "../lib/scoreRubric";
+import { SCORE_RUBRIC } from "../lib/scoreRubric";
 
 export function ScoreSelect({ value, onChange, disabled = false, id, testId, ariaLabel }) {
   const selected = value === null || value === undefined || value === "" ? "" : String(value);
@@ -19,7 +19,6 @@ export function ScoreSelect({ value, onChange, disabled = false, id, testId, ari
           <option key={score} value={score}>{score} — {reason}</option>
         ))}
       </select>
-      <p className="text-xs text-muted-foreground" aria-live="polite">{scoreRubricReason(value)}</p>
     </div>
   );
 }

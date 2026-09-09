@@ -150,6 +150,20 @@ test("both form modes expose all twelve plain-language scoring questions and one
   }
 });
 
+test("both evaluation form modes keep score labels and the shared rubric without repeated helper sentences", () => {
+  for (const mode of ["bassett", "comparison"]) {
+    const view = renderForm(mode, { id: `${mode}-score-edit` });
+    const selects = [...view.container.querySelectorAll('select[aria-label$=" score"]')];
+    expect(selects.length).toBeGreaterThan(0);
+    expect(selects.every((select) => select.options[0].textContent.includes("Not scored"))).toBe(true);
+    expect(selects.every((select) => select.options[1].textContent.includes("N/A — Not Applicable"))).toBe(true);
+    expect(view.container.textContent).toContain("View the shared 0–10 scoring rubric");
+    expect(view.container.textContent).not.toContain("missing evidence and Not Applicable");
+    expect(selects.every((select) => select.parentElement.querySelector("p") === null)).toBe(true);
+    act(() => view.root.unmount());
+  }
+});
+
 test("comparison drafts save locally without File objects", () => {
   const view = renderForm("comparison", { name: "Draft", attachments: [new File(["x"], "evidence.txt")] });
   act(() => [...view.container.querySelectorAll("button")].find((button) => button.textContent === "Save draft").click());
