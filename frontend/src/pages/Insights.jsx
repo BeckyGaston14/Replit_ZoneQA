@@ -83,7 +83,7 @@ export default function Insights() {
         </div>
       )}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <StatCard label="Benchmark Losses" value={summary.losses} sub={`worst gap −${summary.worst_gap}`} accent="#dc2626" icon={TrendingDown} testid="insights-losses" />
+        <StatCard label="Benchmark Losses" value={summary.losses} sub={summary.losses > 0 && summary.worst_gap != null ? `worst gap −${Math.abs(summary.worst_gap)}` : "no comparable losses"} accent="#dc2626" icon={TrendingDown} testid="insights-losses" />
         <StatCard label="Bassett Wins" value={summary.wins} sub="beat best benchmark" accent="#16a34a" icon={Trophy} />
         <StatCard label="vs ChatGPT" value={`${records.ChatGPT.wins}-${records.ChatGPT.losses}-${records.ChatGPT.ties}`} sub="W-L-T head-to-head" accent={MODEL_COLORS.ChatGPT} icon={Swords} />
         <StatCard label="vs Claude" value={`${records.Claude.wins}-${records.Claude.losses}-${records.Claude.ties}`} sub="W-L-T head-to-head" accent={MODEL_COLORS.Claude} icon={Swords} />

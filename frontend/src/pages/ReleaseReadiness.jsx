@@ -184,11 +184,11 @@ export default function ReleaseReadiness() {
               <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">System Recommendation — final decision belongs to an authorized reviewer</div>
               <div className="mt-1" data-testid="readiness-recommendation"><StatusBadge value={r.recommendation} definitions={RELEASE_DECISIONS} /></div>
               <div className="text-sm mt-2 text-[var(--navy)]">{r.reason}</div>
-               <div className="text-xs mt-1 text-muted-foreground">{r.version} · {r.evaluated} evaluated Bassett tests (latest complete comparison per test case for this version; Pass includes "Pass with Minor Issues")</div>
+               <div className="text-xs mt-1 text-muted-foreground">{r.version} · {r.evaluated} qualifying Bassett tests ({r.comparison_evaluated || 0} Model Comparison · {r.bassett_only_evaluated || 0} Bassett-only; Pass includes "Pass with Minor Issues")</div>
             </div>
             <DecisionPanel version={version} recommendation={r.recommendation} blockers={r.blockers} openSignal={reevalSignal} onSaved={() => qcRef.invalidateQueries({ queryKey: ["readiness", version] })} />
           </div>
-          {r.evaluated === 0 && <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">No completed Bassett evaluations exist for this version. Run and evaluate test cases before using this readiness recommendation for a release decision.</div>}
+          {r.evaluated === 0 && <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">No qualifying completed Bassett-only or Model Comparison evaluations exist for this version. Complete and score a test before using this readiness recommendation for a release decision.</div>}
 
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
              <StatCard label="Pass Rate" value={fmtPct(r.pass_rate)} accent={r.pass_rate != null && r.pass_rate >= 85 ? "#16a34a" : r.pass_rate != null && r.pass_rate >= 70 ? "#f59e0b" : "#dc2626"} icon={Percent} testid="stat-pass-rate" />
@@ -237,8 +237,13 @@ export default function ReleaseReadiness() {
                 <h3 className="font-semibold font-display text-[var(--navy)] mb-3">Failed Tests · {r.version}</h3>
                 {r.failed_tests.length === 0 && <p className="text-sm text-muted-foreground">No failed evaluations for this version.</p>}
                 <div className="space-y-1.5">
-                  {r.failed_tests.map((t) => (
-                    <Link key={t.testcase_id} to={`/testcases/${t.testcase_id}`} className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-[var(--paper)] text-sm">
+                  {r.failed_tests.map((t, index) => (
+                    t.source === "bassett_only" ? (
+                    <div key={`bassett-only-${t.testcase_id || index}`} className="flex items-center justify-between py-1.5 px-2 rounded-lg text-sm">
+                      <span className="flex items-center gap-2"><CritBadge value={t.criticality} /><span className="font-medium text-[var(--navy)]">{t.name}</span></span>
+                      <ResultBadge value={t.result} />
+                    </div>
+                    ) : <Link key={t.testcase_id} to={`/testcases/${t.testcase_id}`} className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-[var(--paper)] text-sm">
                       <span className="flex items-center gap-2"><CritBadge value={t.criticality} /><span className="font-medium text-[var(--navy)]">{t.name}</span></span>
                       <ResultBadge value={t.result} />
                     </Link>
@@ -273,7 +278,8 @@ export default function ReleaseReadiness() {
             </div>
           </div>
           <MethodologyDisclosure title="How release readiness metrics are calculated" testid="release-readiness-methodology">
-            <p>Release readiness is evaluated for the selected Bassett version. Pass rate and average score use the latest complete comparison per Test Case for that version; the page preserves the evaluated count and visible version scope.</p>
+            <p>Release readiness is evaluated for the selected Bassett version and combines two non-overlapping populations: the latest complete Bassett evaluation per Model Comparison Test Case, plus the latest eligible standalone Bassett Test Run per Test Bank definition.</p>
+            <p>Bassett-only drafts, retests, archived records, unevaluated runs, unsupported test types, and runs linked to or expanded into Model Comparison are excluded. This prevents the same testing lineage from being counted twice.</p>
             <p>Open findings, criticality, regression results, failed tests, and stale Gold Standard evidence contribute to blockers and the system recommendation. Missing and N/A values remain unavailable rather than zero.</p>
           </MethodologyDisclosure>
         </>

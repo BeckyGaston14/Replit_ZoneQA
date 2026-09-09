@@ -5784,14 +5784,34 @@ async def import_testcases(body: Dict[str, Any], user=Depends(require_writer)):
 # ---------- Release Readiness ----------
 @api.get("/release-readiness")
 async def release_readiness(version: str, user=Depends(get_current_user)):
+    raw_evaluations = await crud_list("evaluations")
+    testcase_rows = await crud_list("testcases")
+    tcs = {t["id"]: t for t in testcase_rows}
     evaluation_view = await _evaluation_read_model(
-        await crud_list("evaluations"), version=version,
+        raw_evaluations, valid_testcase_ids=set(tcs), version=version,
     )
-    tcs = {t["id"]: t for t in await crud_list("testcases")}
-    evals = [
-        evaluation for evaluation in evaluation_view["bassett"]
-        if evaluation.get("testcase_id") in tcs
-    ]
+    populations = await _dashboard_bassett_populations(
+        testcase_rows, raw_evaluations, version, comparison_view=evaluation_view,
+    )
+    comparison_evals = populations["model_comparison"]["records"]
+    config = await db.config.find_one({"id": "global"}, {"_id": 0}) or DEFAULT_CONFIG
+    dimensions = config.get("eval_dimensions", [])
+    bassett_only_evals = []
+    for run in populations["bassett_only"]["records"]:
+        scores = run.get("evaluation_scores") or run.get("scores") or {}
+        result = _canonical_bassett_result(run.get("result"))
+        bassett_only_evals.append({
+            **run,
+            **score_evaluation(scores, dimensions),
+            "normalized_result": result,
+            "final_result": result,
+            "_release_source": "bassett_only",
+            "_release_label": run.get("title") or run.get("name") or run.get("question")
+                or run.get("test_id") or "Bassett-only test run",
+        })
+    # Expanded/linked Bassett-only lineages are removed by the shared helper,
+    # so a result can influence readiness only once.
+    evals = [*comparison_evals, *bassett_only_evals]
     evaluation_summary = result_summary(evals)
     passed = evaluation_summary["passed_records"]
     failed = evaluation_summary["failed_records"]
@@ -5813,13 +5833,14 @@ async def release_readiness(version: str, user=Depends(get_current_user)):
     blockers = []
     if not evaluated:
         blockers.append({"type": "Insufficient Data", "label": "No completed Bassett evaluations",
-                         "detail": f"Complete at least one model-comparison evaluation for {version} before making a release decision.",
+                         "detail": f"Complete at least one qualifying Bassett-only or Model Comparison evaluation for {version} before making a release decision.",
                          "link_id": "", "link_type": ""})
     for f in open_crit5:
         blockers.append({"type": "Critical Finding", "label": f.get("title", ""), "detail": f"Criticality 5 · {f.get('developer_status')}", "link_id": f["id"], "link_type": "finding"})
     for e in critical_fails:
-        tc = tcs.get(e["testcase_id"], {})
-        blockers.append({"type": "Critical Fail Evaluation", "label": tc.get("name", e["testcase_id"]), "detail": f"Score {e.get('overall_score', '—')} · Critical Fail", "link_id": e["testcase_id"], "link_type": "testcase"})
+        testcase_id = e.get("testcase_id")
+        tc = tcs.get(testcase_id, {})
+        blockers.append({"type": "Critical Fail Evaluation", "label": tc.get("name") or e.get("_release_label") or testcase_id or "Bassett-only test run", "detail": f"Score {e.get('overall_score', '—')} · Critical Fail", "link_id": testcase_id if testcase_id in tcs else "", "link_type": "testcase" if testcase_id in tcs else ""})
     if newly_failing:
         blockers.append({"type": "Regression", "label": f"{newly_failing} newly failing regression test(s)", "detail": f"Suite: {reg.get('suite_name', '')}", "link_id": "", "link_type": ""})
     if evaluated and pass_rate < 70:
@@ -5829,7 +5850,7 @@ async def release_readiness(version: str, user=Depends(get_current_user)):
     # Stale Gold Standard warnings for tests evaluated on this version
     stale_map = await compute_stale_gold_map()
     stale_gold_tests = [{"testcase_id": tid, "name": tcs.get(tid, {}).get("name", "?"), "stale_evidence": stale_map[tid]}
-                        for tid in stale_map if tid in {e["testcase_id"] for e in evals}]
+                        for tid in stale_map if tid in {e.get("testcase_id") for e in evals if e.get("testcase_id") in tcs}]
 
     if not evaluated:
         recommendation, reason = "NOT-READY", "Insufficient evaluation data — complete Bassett evaluations before making a release decision."
@@ -5840,10 +5861,12 @@ async def release_readiness(version: str, user=Depends(get_current_user)):
     else:
         recommendation, reason = "GO", "Pass rate ≥ 85%, no critical blockers, no new regressions."
 
-    failed_tests = [{"testcase_id": e["testcase_id"], "name": tcs.get(e["testcase_id"], {}).get("name", "?"),
+    failed_tests = [{"testcase_id": e.get("testcase_id"), "name": tcs.get(e.get("testcase_id"), {}).get("name") or e.get("_release_label") or "Bassett-only test run",
                      "result": e.get("normalized_result"), "raw_result": e.get("final_result"),
                      "score": e.get("overall_score"),
-                     "criticality": tcs.get(e["testcase_id"], {}).get("criticality")} for e in failed]
+                     "criticality": tcs.get(e.get("testcase_id"), {}).get("criticality") or e.get("criticality"),
+                     "source": e.get("_release_source", "model_comparison")}
+                    for e in failed]
     decision = await db.release_decisions.find_one({"version": version}, {"_id": 0})
     if decision:
         snap = decision.get("snapshot") or {}
@@ -5868,6 +5891,8 @@ async def release_readiness(version: str, user=Depends(get_current_user)):
             "decision": decision,
             "stale_gold_tests": stale_gold_tests,
             "pass_rate": pass_rate, "avg_score": avg_score, "evaluated": evaluated,
+            "comparison_evaluated": len(comparison_evals),
+            "bassett_only_evaluated": len(bassett_only_evals),
             "passed": len(passed), "failed": len(failed), "critical_fail_evals": len(critical_fails),
             "open_findings": len(open_findings), "open_findings_version": len(version_findings),
             "open_crit5": len(open_crit5), "open_crit4": len(open_crit4),
@@ -6611,7 +6636,7 @@ async def analytics_competitive(user=Depends(get_current_user)):
     return {"records": records, "losses": losses, "wins": wins,
             "dimension_comparison": dimension_comparison,
             "summary": {"total_compared": len(by_tc), "losses": len(losses), "wins": len(wins),
-                        "worst_gap": losses[0]["delta"] if losses else 0}}
+                        "worst_gap": losses[0]["delta"] if losses else None}}
 
 # ---------- Calendar ----------
 @api.get("/calendar/all-events")

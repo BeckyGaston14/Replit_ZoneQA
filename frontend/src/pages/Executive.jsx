@@ -86,8 +86,13 @@ export default function Executive() {
   const hasEvaluatedData = d.has_evaluated_data ?? Number(k.total_evaluated || 0) > 0;
    const chartCategories = (reportingGroups.length ? reportingGroups : categories).filter((category) => evaluationScoreOrNull(category.score ?? category.avg_score) !== null);
 
-   const strongest = chartCategories[0];
-   const weakest = chartCategories[chartCategories.length - 1];
+  const rankedCategories = [...chartCategories].sort(
+    (a, b) => evaluationScoreOrNull(b.score ?? b.avg_score) - evaluationScoreOrNull(a.score ?? a.avg_score)
+  );
+  const strongest = rankedCategories[0];
+  const weakest = rankedCategories[rankedCategories.length - 1];
+  const strongestScore = strongest ? evaluationScoreOrNull(strongest.score ?? strongest.avg_score) : null;
+  const weakestScore = weakest ? evaluationScoreOrNull(weakest.score ?? weakest.avg_score) : null;
   const bassettAverage = evaluationScoreOrNull(k.bassett_avg);
   const benchmarkAverage = evaluationScoreOrNull(k.benchmark_avg);
   const includesComparison = d.report_scope !== "bassett";
@@ -109,8 +114,10 @@ export default function Executive() {
       : k.total_evaluated > 0
         ? "No outright head-to-head wins or losses are recorded in the current evaluated scope."
         : "Head-to-head results are unavailable until comparable model evaluations are recorded.",
-    strongest && weakest && strongest !== weakest
+    strongest && weakest && strongestScore > weakestScore
        ? `Strongest reporting group: ${strongest.label || strongest.category} (${fmtScore(strongest.score ?? strongest.avg_score)}/10). Weakest: ${weakest.label || weakest.category} (${fmtScore(weakest.score ?? weakest.avg_score)}/10).`
+      : strongest && weakest && strongestScore === weakestScore
+        ? `All available reporting groups are tied at ${fmtScore(strongestScore)}/10.`
       : null,
     k.open_critical > 0
       ? `${plural(k.open_critical, "open critical finding")} require${k.open_critical === 1 ? "s" : ""} resolution before the next release.`
