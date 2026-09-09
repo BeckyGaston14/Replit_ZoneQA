@@ -78,10 +78,16 @@ export default function Insights() {
       <PageHeader title="Competitive Insights" subtitle="Exactly where ChatGPT or Claude beat Bassett — and why." />
       <SampleDataBanner show={sampleScopeIncludesData({ records: [d] })} />
       {comparisonCount === 0 && (
-        <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900" role="status">
-          No comparable Bassett and benchmark evaluations are in scope yet. Competitive wins, losses, and dimension gaps will appear after the same test cases have evaluated scores for Bassett and at least one benchmark model.
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-6 text-blue-950" role="status" data-testid="insights-empty-state">
+          <h2 className="font-display text-lg font-bold">No comparable model evaluations yet</h2>
+          <p className="mt-2 max-w-3xl text-sm">Competitive insights require the same test case to have scored evaluations for Bassett and at least one benchmark model. Wins, losses, head-to-head records, and dimension gaps will appear automatically after that comparison exists.</p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link to="/testcases" className="rounded-lg bg-[var(--navy)] px-3 py-2 text-sm font-semibold text-white hover:opacity-90">Open Model Comparison Test Cases</Link>
+            <Link to="/comparison" className="rounded-lg border border-blue-300 bg-white px-3 py-2 text-sm font-semibold text-[var(--navy)] hover:bg-blue-100">Open AI Comparison</Link>
+          </div>
         </div>
       )}
+      {comparisonCount > 0 && <>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <StatCard label="Benchmark Losses" value={summary.losses} sub={summary.losses > 0 && summary.worst_gap != null ? `worst gap −${Math.abs(summary.worst_gap)}` : "no comparable losses"} accent="#dc2626" icon={TrendingDown} testid="insights-losses" />
         <StatCard label="Bassett Wins" value={summary.wins} sub="beat best benchmark" accent="#16a34a" icon={Trophy} />
@@ -95,16 +101,20 @@ export default function Insights() {
         </div>
       )}
 
-      <div className="grid lg:grid-cols-2 gap-4 mb-6">
-        <div className="space-y-3">
-          <h3 className="font-semibold font-display text-[var(--navy)] flex items-center gap-2"><TrendingDown size={16} className="text-red-600" /> Tests where a benchmark beat Bassett ({losses.length})</h3>
+      <div className="grid items-start gap-6 lg:grid-cols-2 mb-6">
+        <section className="space-y-3">
+          <h2 className="font-semibold font-display text-[var(--navy)] flex items-center gap-2"><TrendingDown size={16} className="text-red-600" /> Tests where a benchmark beat Bassett ({losses.length})</h2>
           {losses.length === 0 && <p className="text-sm text-muted-foreground bg-card border rounded-xl p-4">{comparisonCount === 0 ? "No head-to-head results are available yet." : "No benchmark losses — Bassett leads or ties on every compared test."}</p>}
           {losses.map((e) => <BattleCard key={e.testcase_id} e={e} type="loss" />)}
-          <h3 className="font-semibold font-display text-[var(--navy)] flex items-center gap-2 pt-2"><Trophy size={16} className="text-green-600" /> Tests where Bassett beat both benchmarks ({wins.length})</h3>
+        </section>
+        <section className="space-y-3">
+          <h2 className="font-semibold font-display text-[var(--navy)] flex items-center gap-2"><Trophy size={16} className="text-green-600" /> Tests where Bassett beat both benchmarks ({wins.length})</h2>
+          {wins.length === 0 && <p className="text-sm text-muted-foreground bg-card border rounded-xl p-4">No Bassett wins against both benchmark models are available in the current scope.</p>}
           {wins.map((e) => <BattleCard key={e.testcase_id} e={e} type="win" />)}
-        </div>
+        </section>
+      </div>
 
-        <div className="bg-card border rounded-xl p-5 h-fit" data-testid="insights-dim-chart">
+        <section className="bg-card border rounded-xl p-5 mb-6" data-testid="insights-dim-chart">
           <h3 className="font-semibold font-display text-[var(--navy)] mb-3 flex items-center gap-2"><Gauge size={16} /> Dimension Averages — Bassett vs Benchmarks</h3>
           <p className="text-xs text-muted-foreground mb-2">Scale: 0–10. Missing values are unavailable and are not plotted as zero.</p>
           <SafeResponsiveContainer height={Math.max(300, dimData.length * 40)} testId="insights-dimension-chart">
@@ -118,8 +128,8 @@ export default function Insights() {
             </BarChart>
           </SafeResponsiveContainer>
           <SrTable caption="Dimension averages — Bassett vs benchmarks. Scale: 0 to 10. Missing values are unavailable." columns={["Dimension", "Bassett score out of 10", "Benchmark score out of 10"]} rows={dimensionRows.map((x) => [x.dim, formatEvaluationScore(x.Bassett), formatEvaluationScore(x.Benchmarks)])} />
-        </div>
-      </div>
+        </section>
+      </>}
        <MethodologyDisclosure title="How competitive insight metrics are calculated" testid="insights-methodology">
          <p>Wins, losses, ties, and dimension gaps use comparable persisted evaluations where Bassett and at least one benchmark model evaluated the same test case.</p>
          <p>Scores use the 0–10 evaluation scale. Missing dimensions are unavailable and are not plotted or converted to zero; the current visibility scope controls the population.</p>

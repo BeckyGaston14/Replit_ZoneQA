@@ -90,10 +90,10 @@ export default function Coverage() {
       </div>
       {scope === "both" && <div className="mb-6 grid gap-3 md:grid-cols-2"><PopulationSummary title="Bassett-Only summary" population={bassettCounts} /><PopulationSummary title="Model Comparison summary" population={comparisonCounts} /></div>}
 
-      <div className="space-y-8">
-        {showBassett && <section aria-labelledby="bassett-coverage-heading">
+      <div className={scope === "both" ? "grid items-start gap-6 lg:grid-cols-2" : "space-y-8"}>
+        {showBassett && <section aria-labelledby="bassett-coverage-heading" className="self-start">
           <div className="mb-3"><h2 id="bassett-coverage-heading" className="text-lg font-bold font-display text-[var(--navy)]">Bassett-Only Coverage</h2><p className="text-sm text-muted-foreground">Coverage of reusable Test Bank scenarios by their defining attributes.</p></div>
-          <div className="grid gap-4 lg:grid-cols-2"><div className="bg-card border rounded-xl p-5" data-testid="coverage-workflow-stages">
+          <div className={`grid items-start gap-4 ${scope === "both" ? "" : "lg:grid-cols-2"}`}><div className="self-start bg-card border rounded-xl p-5" data-testid="coverage-workflow-stages">
           <div className="flex items-center justify-between mb-2">
             <h3 className="font-semibold font-display text-[var(--navy)]">Bassett-Only · Workflow Stages</h3>
             <Link to="/bassett/test-bank" className="text-xs text-[var(--orange)] font-semibold hover:underline">Open Test Bank →</Link>
@@ -113,9 +113,9 @@ export default function Coverage() {
         </div></div>
         </section>}
 
-        {showComparison && <section aria-labelledby="comparison-coverage-heading">
+        {showComparison && <section aria-labelledby="comparison-coverage-heading" className="self-start">
           <div className="mb-3"><h2 id="comparison-coverage-heading" className="text-lg font-bold font-display text-[var(--navy)]">Model Comparison Coverage</h2><p className="text-sm text-muted-foreground">Coverage of test cases evaluated across Bassett and benchmark models.</p></div>
-          {comparisonCounts.total_tests ? <div className="grid gap-4 lg:grid-cols-2"><>
+          {comparisonCounts.total_tests ? <div className={`grid items-start gap-4 ${scope === "both" ? "" : "lg:grid-cols-2"}`}><>
         <div className="bg-card border rounded-xl p-5" data-testid="coverage-categories">
           <div className="flex items-center justify-between mb-2">
             <h3 className="font-semibold font-display text-[var(--navy)]">Categories</h3>
