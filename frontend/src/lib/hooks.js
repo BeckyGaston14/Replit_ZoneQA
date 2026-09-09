@@ -89,6 +89,13 @@ export function useTestBank({ includeArchived = false, ...opts } = {}) {
   });
 }
 
+export function useGeneralSubtypes(opts = {}) {
+  return useQuery({
+    queryFn: async () => (await api.get("/bassett/general-subtypes")).data,
+    ...useAuthQueryOptions(["bassett-general-subtypes"], opts),
+  });
+}
+
 export function useSave(name) {
   const qc = useQueryClient();
   return useMutation({

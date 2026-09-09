@@ -24,7 +24,7 @@ import { formatTestDate } from "../lib/testDates";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { TABLE_ACTION_CELL_CLASS, TABLE_CELL_CLASS, TABLE_CLASS, TABLE_EMPTY_CELL_CLASS, TABLE_HEAD_CLASS } from "../lib/tableStyles";
 import { ConfirmActionDialog } from "../components/ConfirmActionDialog";
-import { useCollection, useConfig, useSavedView, useTestBank } from "../lib/hooks";
+import { useCollection, useConfig, useGeneralSubtypes, useSavedView, useTestBank } from "../lib/hooks";
 import { focusFormError, validateScenarioDraft } from "../lib/formValidation";
 import { loadBassettScenarioForEdit } from "../lib/bassettEditLoaders";
 
@@ -85,6 +85,7 @@ export default function BassettTestBank() {
   const { data: testcases = [] } = useCollection("testcases");
   const { data: versions = [] } = useCollection("versions");
   const { data: config } = useConfig();
+  const { data: generalSubtypes = [] } = useGeneralSubtypes();
   const { data: workflowStages = [] } = useCollection("bassett/workflow-stages");
   const testBankColumns = useMemo(() => TEST_BANK_SORT_COLUMNS.map((column) => column.key === "workflow_stage"
     ? { ...column, type: "status", order: workflowStages.map((item) => typeof item === "string" ? item : item.name || item.workflow_stage).filter(Boolean) }
@@ -329,7 +330,7 @@ export default function BassettTestBank() {
         </div>
       </details>
     </FormModal>}
-    {execute && <BassettTestRunForm form={execute} setForm={setExecute} scenarios={scenarios} versions={versions} projects={projects} onSubmit={recordExecution} onCancel={() => setExecute(null)} submitting={savingRun} />}
+    {execute && <BassettTestRunForm form={execute} setForm={setExecute} scenarios={scenarios} generalSubtypes={generalSubtypes} versions={versions} projects={projects} onSubmit={recordExecution} onCancel={() => setExecute(null)} submitting={savingRun} />}
     {showImport && <FormModal open onOpenChange={(open) => !open && setShowImport(false)} title="Review spreadsheet reference scenarios" onSubmit={preview ? commitImport : previewImport} submitLabel={importing ? "Importing…" : preview ? "Confirm import accepted rows" : "Preview rows"} wide>
       <p className="text-sm text-muted-foreground">Upload the Research/Analysis export as CSV. The preview validates stable IDs before any write. Re-importing the same IDs updates in place; startup never seeds them.</p>
       <Input aria-label="Choose Test Bank CSV" type="file" accept=".csv" onChange={loadCsv} />

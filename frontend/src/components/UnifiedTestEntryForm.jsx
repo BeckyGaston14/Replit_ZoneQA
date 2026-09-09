@@ -30,7 +30,7 @@ export const emptyBassettTestRun = {
   title: "", question_asked: "", exact_bassett_answer: "", verified_correct_answer: "",
   test_type: "Single Prompt", turns: [],
   issue_category: "General", severity: "Medium", priority: "Medium", environment: "",
-  test_date: "", scenario_id: "", project_id: "", municipality_id: "", property_id: "",
+  test_date: "", scenario_id: "", general_subtype_ids: [], project_id: "", municipality_id: "", property_id: "",
   version_id: "", bassett_version: "", status: "New", result: "Pass", score: "", notes: "", evidence: "",
   evaluation_scores: {}, create_finding: false, finding: {}, follow_up_action: "",
   retest_target: "", retest_date: "", source_links: "", attachments: [],
@@ -51,7 +51,7 @@ export function bassettVersionRequirementMessage(form) {
 export function createComparisonTestDraft(overrides = {}, timeZone, now = new Date()) {
   const submissionId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   return {
-    name: "", prompts: [{ turn: 1, text: "" }], expected_behaviors: [], scenario_id: "",
+    name: "", prompts: [{ turn: 1, text: "" }], expected_behaviors: [], scenario_id: "", general_subtype_ids: [],
     project_id: "", municipality_id: "", property_id: "", version_id: "", bassett_version: "",
     test_date: todayInTimeZone(timeZone, now), status: "Draft", test_type: "Competitive Benchmark",
     criticality: 3, difficulty: 2, environment: "", notes: "", reproduction_steps: "",
@@ -116,6 +116,41 @@ export function ScenarioDefinition({ scenario }) {
   if (!scenario) return null;
   const fields = [["Stable ID", scenario.stable_id], ["Workflow stage", scenario.workflow_stage], ["Test scenario", scenario.test_scenario], ["Complexity", scenario.complexity], ["Why it matters", scenario.why_it_matters], ["What Bassett should do", scenario.what_bassett_should_do], ["Success criteria", scenario.success_criteria], ["Priority", scenario.priority]];
   return <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">{fields.map(([label, value]) => <div key={label}><div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">{label}</div><div className="whitespace-pre-wrap">{value || "—"}</div></div>)}</div>;
+}
+
+export function GeneralSubtypeSelector({ subtypes = [], value = [], onChange, disabled = false }) {
+  const [query, setQuery] = useState("");
+  const selected = new Set(Array.isArray(value) ? value : []);
+  const shown = subtypes.filter((subtype) => [subtype.stable_id, subtype.test_scenario, subtype.priority]
+    .some((field) => String(field || "").toLowerCase().includes(query.trim().toLowerCase())));
+  const toggle = (id) => onChange(selected.has(id) ? value.filter((item) => item !== id) : [...value, id]);
+  return <div className="space-y-2" data-testid="general-subtype-selector">
+    <div>
+      <div className="text-sm font-medium text-[var(--navy)]">General test subtypes <span className="font-normal text-muted-foreground">(Optional)</span></div>
+      <p className="mt-1 text-xs text-muted-foreground">Select every cross-cutting behavior this test covers. These are subtypes only and do not change the workflow stage, test type, score, or pass-rate calculation.</p>
+    </div>
+    <Input aria-label="Search General test subtypes" placeholder="Search subtype ID, behavior, or priority…" value={query} onChange={(event) => setQuery(event.target.value)} disabled={disabled} />
+    <div className="max-h-56 overflow-y-auto rounded-lg border bg-background p-2" role="group" aria-label="General test subtypes">
+      {shown.map((subtype) => <label key={subtype.id} className="flex cursor-pointer items-start gap-2 rounded-md p-2 text-sm hover:bg-[var(--paper)]">
+        <Checkbox checked={selected.has(subtype.id)} disabled={disabled} onCheckedChange={() => toggle(subtype.id)} aria-label={`${subtype.stable_id} ${subtype.test_scenario}`} />
+        <span><span className="font-semibold text-[var(--navy)]">{subtype.stable_id}</span> · {subtype.test_scenario}<span className="ml-2 text-xs text-muted-foreground">{subtype.priority}</span></span>
+      </label>)}
+      {!shown.length && <p className="p-2 text-sm text-muted-foreground">No General subtypes match this search.</p>}
+    </div>
+  </div>;
+}
+
+function GeneralSubtypeGuidance({ subtypes = [], selectedIds = [] }) {
+  const selected = subtypes.filter((subtype) => selectedIds.includes(subtype.id));
+  if (!selected.length) return null;
+  return <details className="rounded-lg border border-blue-200 bg-blue-50 p-3" open>
+    <summary className="cursor-pointer text-sm font-semibold text-[var(--navy)]">Selected General subtype guidance ({selected.length})</summary>
+    <div className="mt-3 space-y-3">{selected.map((subtype) => <div key={subtype.id} className="rounded-md bg-white/80 p-3 text-xs">
+      <div className="font-semibold text-[var(--navy)]">{subtype.stable_id} · {subtype.test_scenario}</div>
+      <p className="mt-1"><b>Evaluate whether Bassett:</b> {subtype.what_bassett_should_do}</p>
+      <p className="mt-1"><b>Success looks like:</b> {subtype.success_criteria}</p>
+    </div>)}</div>
+  </details>;
 }
 
 function QuickAdd({ label, value, items, onChange, fields, defaults = {}, disabled, id: controlId }) {
@@ -310,7 +345,7 @@ function TurnBuilder({ turns = [], onChange, disabled = false, findingTurnId, on
 
 export default function UnifiedTestEntryForm({
   mode = "bassett", form, setForm, scenarios = [], versions = [], projects = [],
-  municipalities = [], properties = [], users = [], config = {}, onSubmit, onCancel,
+  municipalities = [], properties = [], users = [], generalSubtypes = [], config = {}, onSubmit, onCancel,
   onSaveDraft, submitting = false, conflictNotice = null, lockedCommon = false,
 }) {
   const isComparison = mode === "comparison";
@@ -446,6 +481,7 @@ export default function UnifiedTestEntryForm({
      <GuidedSection index={0} title="1. Test Setup" active={activeSection === 0} status={sectionStatus(0)} onActivate={activateSection}><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
        {!lockedCommon && <div className="sm:col-span-2"><ScenarioSelector scenarios={scenarios} value={form.scenario_id} onChange={(value) => update("scenario_id", value)} error={attemptedSections.has(0) && !String(form.scenario_id || "").trim() ? "Test Bank scenario is required." : undefined} /></div>}
       {selectedScenario && <div className="sm:col-span-2 rounded-xl border bg-[var(--paper)] p-4"><div className="font-semibold mb-3">Read-only Test Bank definition</div><ScenarioDefinition scenario={selectedScenario} /></div>}
+      <div className="sm:col-span-2"><GeneralSubtypeSelector subtypes={generalSubtypes} value={form.general_subtype_ids || []} onChange={(value) => update("general_subtype_ids", value)} disabled={lockedCommon} /></div>
       <Field label="Sequential Test ID"><Input value={form.test_id || "Assigned on save"} readOnly className="bg-muted" /></Field>
       <Field label="Workflow stage"><Input value={form.workflow_stage || selectedScenario?.workflow_stage || "Selected from Test Bank"} readOnly className="bg-muted" /></Field>
       <Field label="Test name" required={isComparison} error={attemptedSections.has(0) && isComparison && !String(form.name || "").trim() ? "Test name is required." : undefined}><Input value={form.name || form.title || ""} disabled={lockedCommon} onChange={(e) => update(isComparison ? "name" : "title", e.target.value)} /></Field>
@@ -474,7 +510,7 @@ export default function UnifiedTestEntryForm({
       <Field label="Category"><Input value={form.issue_category || form.category || ""} onChange={(e) => update(isComparison ? "category" : "issue_category", e.target.value)} /></Field>
     </div></GuidedSection>
 
-    <GuidedSection index={3} title="4. Canonical Evaluation" active={activeSection === 3} status={sectionStatus(3)} onActivate={activateSection}><p className="text-xs text-muted-foreground">Use the same behavior-based integer rubric for every model and dimension. Score the evidence before choosing a verdict. Blank dimensions remain unavailable and are excluded from the denominator.</p><div className="mt-4 space-y-4"><h4 className="font-semibold text-sm text-[var(--navy)]">Bassett evaluation · calculated score</h4><EvaluationGrid model="Bassett" scores={evaluationFor("Bassett").scores} dimensions={dimensions} onChange={updateEvaluation} locked={lockedCommon} /><Field label="Bassett score rationale" required={hasScoredDimension(evaluationFor("Bassett").scores)} description="Cite the specific answer evidence that supports the selected numbers (minimum 20 characters when scored)."><Textarea rows={3} value={evaluationFor("Bassett").rationale || form.score_rationale || ""} onChange={(e) => updateEvaluationRationale("Bassett", e.target.value)} /></Field></div></GuidedSection>
+    <GuidedSection index={3} title="4. Canonical Evaluation" active={activeSection === 3} status={sectionStatus(3)} onActivate={activateSection}><p className="text-xs text-muted-foreground">Use the same behavior-based integer rubric for every model and dimension. Score the evidence before choosing a verdict. Blank dimensions remain unavailable and are excluded from the denominator.</p><div className="mt-4 space-y-4"><GeneralSubtypeGuidance subtypes={generalSubtypes} selectedIds={form.general_subtype_ids || []} /><h4 className="font-semibold text-sm text-[var(--navy)]">Bassett evaluation · calculated score</h4><EvaluationGrid model="Bassett" scores={evaluationFor("Bassett").scores} dimensions={dimensions} onChange={updateEvaluation} locked={lockedCommon} /><Field label="Bassett score rationale" required={hasScoredDimension(evaluationFor("Bassett").scores)} description="Cite the specific answer evidence that supports the selected numbers (minimum 20 characters when scored)."><Textarea rows={3} value={evaluationFor("Bassett").rationale || form.score_rationale || ""} onChange={(e) => updateEvaluationRationale("Bassett", e.target.value)} /></Field></div></GuidedSection>
 
     <GuidedSection index={4} title="5. Findings & Ownership" active={activeSection === 4} status={sectionStatus(4)} onActivate={activateSection}><div className="space-y-4">
       <label className="flex items-center gap-2 text-sm"><Checkbox aria-label="Create a linked Bassett finding" checked={Boolean(form.create_finding)} onCheckedChange={(checked) => update("create_finding", checked === true)} /> Create a linked Bassett finding</label>
