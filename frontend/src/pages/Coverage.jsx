@@ -10,28 +10,35 @@ export function coverageStatusForCount(value) {
   return value === 0 ? "no_tests" : value < 2 ? "thin" : "covered";
 }
 
-function CoverageBar({ value, max }) {
+const BASSETT_COVERAGE_STATUSES = Object.fromEntries(Object.entries(COVERAGE_STATUSES).map(([key, definition]) => [key, {
+  ...definition,
+  description: definition.description.replace(/test cases?/g, (match) => match === "test case" ? "scenario" : "scenarios"),
+}]));
+
+function CoverageBar({ value, max, definitions = COVERAGE_STATUSES, noun = "tests" }) {
   const pct = max ? Math.min(100, (value / max) * 100) : 0;
   const status = coverageStatusForCount(value);
   return (
-    <div className="h-2 w-full rounded-full bg-[var(--paper)] overflow-hidden" role="img" aria-label={`${statusDefinition(status, COVERAGE_STATUSES).label}: ${value} tests`}>
-      <div className="h-full rounded-full" style={{ width: `${pct}%`, background: statusDefinition(status, COVERAGE_STATUSES).color }} />
+    <div className="h-2 w-full rounded-full bg-[var(--paper)] overflow-hidden" role="img" aria-label={`${statusDefinition(status, definitions).label}: ${value} ${noun}`}>
+      <div className="h-full rounded-full" style={{ width: `${pct}%`, background: statusDefinition(status, definitions).color }} />
     </div>
   );
 }
 
-export function GapRow({ label, sub, tests, evaluated, max, testid }) {
+export function GapRow({ label, sub, tests, evaluated, max, testid, bassett = false }) {
   const status = coverageStatusForCount(tests);
+  const definitions = bassett ? BASSETT_COVERAGE_STATUSES : COVERAGE_STATUSES;
+  const noun = bassett ? "scenario" : "test";
   return (
     <div className="flex min-w-0 flex-col gap-2 py-2 border-b last:border-0 sm:flex-row sm:items-center sm:gap-3" data-testid={testid}>
       <div className="min-w-0 sm:w-56 sm:shrink-0">
         <div className="text-sm font-medium truncate text-[var(--navy)]">{label}</div>
         {sub && <div className="text-[11px] text-muted-foreground">{sub}</div>}
       </div>
-      <div className="flex-1"><CoverageBar value={tests} max={max} /></div>
+      <div className="flex-1"><CoverageBar value={tests} max={max} definitions={definitions} noun={`${noun}${tests === 1 ? "" : "s"}`} /></div>
       <div className="flex shrink-0 flex-wrap items-center gap-2 text-xs sm:w-48 sm:justify-end sm:text-right">
-        <StatusBadge value={status} definitions={COVERAGE_STATUSES} compact />
-        <span className="text-muted-foreground"><b className="text-[var(--navy)]">{tests}</b> test{tests === 1 ? "" : "s"} · {evaluated} evaluation{evaluated === 1 ? "" : "s"}</span>
+        <StatusBadge value={status} definitions={definitions} compact />
+        <span className="text-muted-foreground"><b className="text-[var(--navy)]">{tests}</b> {noun}{tests === 1 ? "" : "s"} · {evaluated} evaluation{evaluated === 1 ? "" : "s"}</span>
       </div>
     </div>
   );
@@ -90,17 +97,17 @@ export default function Coverage() {
             <h3 className="font-semibold font-display text-[var(--navy)]">Bassett-Only · Workflow Stages</h3>
             <Link to="/bassett/test-bank" className="text-xs text-[var(--orange)] font-semibold hover:underline">Open Test Bank →</Link>
           </div>
-          {workflowStages.map((row) => <GapRow key={row.value} label={row.value} tests={row.tests} evaluated={row.evaluated} max={maxWorkflow} />)}
+          {workflowStages.map((row) => <GapRow key={row.value} label={row.value} tests={row.tests} evaluated={row.evaluated} max={maxWorkflow} bassett />)}
         </div>}
 
         {showBassett && <div className="space-y-4">
           <div className="bg-card border rounded-xl p-5" data-testid="coverage-complexity">
             <h3 className="font-semibold font-display text-[var(--navy)] mb-2">Bassett-Only · Complexity</h3>
-            {complexities.map((row) => <GapRow key={row.value} label={row.value} tests={row.tests} evaluated={row.evaluated} max={maxComplexity} />)}
+            {complexities.map((row) => <GapRow key={row.value} label={row.value} tests={row.tests} evaluated={row.evaluated} max={maxComplexity} bassett />)}
           </div>
           <div className="bg-card border rounded-xl p-5" data-testid="coverage-priority">
             <h3 className="font-semibold font-display text-[var(--navy)] mb-2">Bassett-Only · Priority</h3>
-            {priorities.map((row) => <GapRow key={row.value} label={row.value} tests={row.tests} evaluated={row.evaluated} max={maxPriority} />)}
+            {priorities.map((row) => <GapRow key={row.value} label={row.value} tests={row.tests} evaluated={row.evaluated} max={maxPriority} bassett />)}
           </div>
         </div>}
 
