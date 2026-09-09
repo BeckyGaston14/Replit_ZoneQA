@@ -5,7 +5,7 @@ import { api, formatApiErrorDetail } from "../lib/api";
 import { useConfig } from "../lib/hooks";
 import { useSavedView } from "../lib/savedViews";
 import { useAuth } from "../lib/auth";
-import { PageHeader, CritBadge, StatCard } from "../components/shared";
+import { PageHeader, CritBadge, Section, StatCard } from "../components/shared";
 import { FINDING_STATUSES, StatusBadge } from "../lib/statusMaps";
 import { Attachments } from "../components/Attachments";
 import { CommentsThread } from "../components/CommentsThread";
@@ -177,6 +177,7 @@ export default function Findings() {
   return (
     <div>
       <PageHeader title="Model Comparison Findings" subtitle="Findings from full Bassett vs. ChatGPT vs. Claude comparisons. Bassett-only findings remain separate.">
+        <Button variant="outline" onClick={() => nav("/testcases")}>Model Comparison Test Cases</Button>
         <Button variant="outline" onClick={() => nav("/bassett/findings")}>Bassett Findings</Button>
       </PageHeader>
       {viewError && <div role="alert" className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">{viewError} <button type="button" className="ml-2 font-semibold underline" onClick={retryView}>Retry saved view</button></div>}
@@ -186,27 +187,27 @@ export default function Findings() {
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <StatCard label="Open Findings" value={openFindings} sub="excludes fixed and closed findings" icon={Flag} accent="#f97316" />
         <StatCard label="New Findings" value={newFindings} sub="newly recorded findings" icon={AlertTriangle} accent="#2563eb" />
-        <StatCard label="High Severity Findings" value={highSeverityFindings} sub="criticality 4–5" icon={ShieldAlert} accent="#dc2626" />
+        <StatCard label="High severity findings" value={highSeverityFindings} sub="criticality 4–5" icon={ShieldAlert} accent="#dc2626" />
         <StatCard label="Total Findings" value={findings.length} sub="linked to model comparisons" icon={CheckCircle2} accent="#16a34a" />
       </div>
-      <div className="flex items-center gap-2 mb-3 flex-wrap" data-testid="findings-filter-bar">
-        <div className="relative flex-1 min-w-[220px]">
-          <Search size={15} className="absolute left-3 top-2.5 text-muted-foreground" />
-          <Input aria-label="Search model comparison findings" className="pl-9 h-8" placeholder="Search finding, type, version, assignee…" value={search} onChange={(event) => setSearch(event.target.value)} />
-        </div>
-        {[["status", config?.finding_statuses, "All statuses"], ["criticality", ["1", "2", "3", "4", "5"], "All criticality"], ["type", config?.finding_types, "All types"], ["retest", ["Pending", "In Progress", "Fixed", "Partially Fixed", "Not Fixed"], "All retest states"]].map(([key, opts, label]) => (
-          <select key={key} value={flt[key]} onChange={(e) => setFilter(key, e.target.value)} data-testid={`filter-${key}`}
-            className="h-8 text-xs border rounded-lg px-2 bg-card text-[var(--navy)]">
-            <option value={ALL}>{label}</option>
-            {(opts || []).map((o) => <option key={o} value={o}>{key === "criticality" ? `Criticality ${o}` : o}</option>)}
-          </select>
-        ))}
-        <span className="text-xs text-muted-foreground ml-auto">{shown.length} of {findings.length} findings</span>
-      </div>
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(360px,420px)]">
-        <div className="space-y-2">
-          {shown.length === 0 && <div className="bg-card border rounded-xl p-6 text-center text-sm text-muted-foreground">{findings.length === 0 ? "No model comparison findings have been recorded yet." : "No findings match the current filters."}{filtersActive && <Button size="sm" variant="outline" className="ml-3" onClick={clearFilters}>Clear filters</Button>}</div>}
-          {shown.map((f) => (
+        <Section title="Model comparison findings" action={<span className="text-xs text-muted-foreground">{shown.length} shown · archived records stay in history</span>}>
+          <div className="flex items-center gap-2 mb-4 flex-wrap" data-testid="findings-filter-bar">
+            <div className="relative flex-1 min-w-[220px]">
+              <Search size={15} className="absolute left-3 top-2.5 text-muted-foreground" />
+              <Input aria-label="Search model comparison findings" className="pl-9 h-9" placeholder="Search finding, type, version, assignee…" value={search} onChange={(event) => setSearch(event.target.value)} />
+            </div>
+            {[["status", config?.finding_statuses, "All statuses"], ["criticality", ["1", "2", "3", "4", "5"], "All criticality"], ["type", config?.finding_types, "All types"], ["retest", ["Pending", "In Progress", "Fixed", "Partially Fixed", "Not Fixed"], "All retest states"]].map(([key, opts, label]) => (
+              <select key={key} value={flt[key]} onChange={(e) => setFilter(key, e.target.value)} data-testid={`filter-${key}`}
+                className="h-9 text-sm border rounded-md px-3 bg-background text-[var(--navy)]">
+                <option value={ALL}>{label}</option>
+                {(opts || []).map((o) => <option key={o} value={o}>{key === "criticality" ? `Criticality ${o}` : o}</option>)}
+              </select>
+            ))}
+          </div>
+          <div className="space-y-2">
+            {shown.length === 0 && <div className="border rounded-xl p-6 text-center text-sm text-muted-foreground">{findings.length === 0 ? "No model comparison findings have been recorded yet." : "No findings match the current filters."}{filtersActive && <Button size="sm" variant="outline" className="ml-3" onClick={clearFilters}>Clear filters</Button>}</div>}
+            {shown.map((f) => (
              <button type="button" key={f.id} onClick={(event) => openFinding(f, event.currentTarget)} data-testid="finding-row"
                aria-label={`View finding ${f.title}`} aria-pressed={sel?.id === f.id}
                className={`w-full text-left bg-card border rounded-xl p-4 card-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)] focus-visible:ring-offset-2 ${sel?.id === f.id ? "border-[var(--orange)] border-2" : ""}`}>
@@ -217,8 +218,9 @@ export default function Findings() {
               <div className="font-semibold text-[var(--navy)]">{f.title}</div>
               <div className="text-xs text-muted-foreground mt-1">Root cause: {f.root_cause || "—"} · Found {f.version_found}{f.assignee_name ? <span> · <span className="font-semibold text-[var(--orange)]">@{f.assignee_name}</span></span> : ""}</div>
             </button>
-          ))}
-        </div>
+            ))}
+          </div>
+        </Section>
 
         {sel && <button type="button" aria-label="Close finding details"
           className="fixed inset-0 z-40 bg-slate-950/40 lg:hidden" onClick={closeFinding} />}
