@@ -45,12 +45,13 @@ test("Dashboard cards are keyboard-accessible links to exact metric record sets"
   const root = createRoot(container);
   act(() => root.render(<Dashboard />));
   const cards = [...container.querySelectorAll('a[data-testid^="stat-"]')];
-  expect(cards).toHaveLength(13);
-  expect(container.querySelectorAll('[data-testid="dashboard-metric-group"]')).toHaveLength(4);
+  expect(cards).toHaveLength(10);
+  expect(container.querySelectorAll('[data-testid="dashboard-metric-group"]')).toHaveLength(3);
   expect(cards.map((card) => card.getAttribute("href"))).toContain("/dashboard/records/model-comparison-pass-rate");
   expect(cards.map((card) => card.getAttribute("href"))).toContain("/dashboard/records/bassett-only-pass-rate");
   expect(cards.map((card) => card.getAttribute("href"))).toContain("/dashboard/records/all-model-evaluations");
-  expect(cards.map((card) => card.getAttribute("href"))).toContain("/dashboard/records/retests");
+  expect(cards.map((card) => card.getAttribute("href"))).not.toContain("/dashboard/records/retests");
+  expect(cards.map((card) => card.getAttribute("href"))).not.toContain("/dashboard/records/regression-current");
   expect(cards.every((card) => card.getAttribute("aria-describedby"))).toBe(true);
   expect(container.textContent).toContain("Active version: Bassett v2");
   expect(container.textContent).toContain("Bassett version: Bassett v2");
@@ -65,11 +66,13 @@ test("Dashboard starts with metric groups and does not render the redundant work
 
   expect(container.querySelector('[data-testid="workspace-path"]')).toBeNull();
   expect(container.querySelector("h1").textContent).toBe("QA Dashboard");
-  expect(container.querySelectorAll('[data-testid="dashboard-metric-group"]')).toHaveLength(4);
-  expect(container.querySelectorAll('a[data-testid^="stat-"]')).toHaveLength(13);
+  expect(container.querySelectorAll('[data-testid="dashboard-metric-group"]')).toHaveLength(3);
+  expect(container.querySelectorAll('a[data-testid^="stat-"]')).toHaveLength(10);
   expect(container.textContent).toContain("Bassett Quality");
   expect(container.textContent).toContain("Finding Workflow");
-  expect(container.textContent).toContain("Release Confidence");
+  expect(container.textContent).not.toContain("Release Confidence");
+  expect(container.textContent).not.toContain("Regression (latest run)");
+  expect(container.textContent).not.toContain("Retest Executions");
   expect(container.textContent).toContain("Program Operations");
   expect(container.textContent).toContain("Model Comparison — Bassett Pass Rate");
   expect(container.textContent).toContain("Bassett-Only Pass Rate");
@@ -84,7 +87,7 @@ test("dashboard methodology has one collapsed keyboard-accessible disclosure wit
   act(() => root.render(<Dashboard />));
 
   const infos = [...container.querySelectorAll('[data-testid="metric-info"]')];
-  expect(infos).toHaveLength(13);
+  expect(infos).toHaveLength(10);
   expect(infos.every((info) => info.getAttribute("aria-label"))).toBe(true);
   const methodology = container.querySelector('[data-testid="dashboard-methodology"]');
   expect(container.querySelectorAll('[data-testid="dashboard-methodology"]')).toHaveLength(1);

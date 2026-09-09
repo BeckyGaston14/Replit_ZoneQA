@@ -6,7 +6,7 @@ import { useCollection } from "../lib/hooks";
 import { Button } from "../components/ui/button";
 import {
   FolderKanban, CheckCircle2, XCircle, AlertTriangle, Flag, Wrench, RefreshCw, Star,
-  ClipboardCheck, Clock, FileClock, Activity as ActIcon,
+  ClipboardCheck, Activity as ActIcon,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from "recharts";
 import { dashboardRecordPath } from "../lib/routePaths";
@@ -53,17 +53,13 @@ export default function Dashboard() {
     { label: "Open Findings", value: fnd.open, sub: `${fnd.open_critical} critical (C4-C5)`, title: fnd.definition, icon: Flag, accent: "#f97316", to: dashboardRecordPath("open-findings") },
     { label: "Awaiting Fix", value: fnd.awaiting_fix, sub: "open findings in dev", title: fnd.definition, icon: Wrench, accent: "#2f3f96", to: dashboardRecordPath("awaiting-fix") },
     { label: "Ready for Retest", value: fnd.ready_for_retest, sub: "findings awaiting retest", title: fnd.definition, icon: RefreshCw, accent: "#0ea5e9", to: dashboardRecordPath("ready-for-retest") },
-    { label: "Regression (latest run)", value: m.regression_current ? `${m.regression_current.passed}/${m.regression_current.passed + m.regression_current.failed}` : "—", sub: m.regression_current ? `Regression Run Date ${m.regression_current.test_date || m.regression_current.execution_date || "not recorded"}` : `no run for ${versionLabel}`, title: m.regression_current?.definition, icon: FileClock, accent: "#dc2626", to: dashboardRecordPath("regression-current") },
-    { label: "Total Test Cases", value: m.test_cases.total, sub: `${bc.evaluated} evaluated on ${versionLabel} · ${m.test_cases.total - bc.evaluated} not yet`, title: m.test_cases.definition, icon: ClipboardCheck, accent: "#16215a", to: dashboardRecordPath("test-cases") },
     { label: "Active Projects", value: s.active_projects, sub: "testing projects", title: "Testing Projects whose status is Active.", icon: FolderKanban, accent: "#16215a", to: dashboardRecordPath("active-projects") },
-    { label: "Retest Executions", value: m.retests.total, sub: `${m.retests.completed} completed`, title: m.retests.definition, icon: Clock, accent: "#64748b", to: dashboardRecordPath("retests") },
     { label: "Demo Approved", value: s.demo_approved, sub: "demo library", title: "Demo records whose status is Approved.", icon: Star, accent: "#f59e0b", to: dashboardRecordPath("demo-approved") },
   ];
   const groups = [
     { title: "Bassett Quality", description: "Current-version quality and model evaluation outcomes.", cards: cards.slice(0, 5) },
     { title: "Finding Workflow", description: "Open issues moving from confirmation through retest.", cards: cards.slice(5, 8) },
-    { title: "Release Confidence", description: "Regression coverage, active test inventory, and retest execution.", cards: [cards[8], cards[9], cards[11]] },
-    { title: "Program Operations", description: "Active projects and approved demonstration assets.", cards: [cards[10], cards[12]] },
+    { title: "Program Operations", description: "Active projects and approved demonstration assets.", cards: cards.slice(8, 10) },
   ];
 
   const modelData = (perfQuery.data?.model_summary || [])
@@ -74,7 +70,7 @@ export default function Dashboard() {
       <PageHeader title="QA Dashboard" subtitle={`Scope: Active version: ${versionLabel} · Bassett dashboard scope · archived and unfinished records excluded.`} />
       <SampleDataBanner show={sampleDataShown} />
       {!m.active_version && <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-        <span><strong>Set an active Bassett version</strong> to calculate current-version pass rate, average score, regressions, and release-readiness metrics.</span>
+        <span><strong>Set an active Bassett version</strong> to calculate current-version pass rates and average scores.</span>
         <Button asChild size="sm"><Link to="/admin">Manage Bassett versions</Link></Button>
       </div>}
       <div className="grid gap-4 mb-6 xl:grid-cols-2" aria-label="Dashboard metric groups">
