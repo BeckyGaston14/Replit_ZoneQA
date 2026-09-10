@@ -59,7 +59,19 @@ export function useSampleVisibility() {
       });
       setOptimisticValue(data.include_sample_records === true);
       qc?.setQueryData(["sample-visibility", userId], data);
-      qc?.invalidateQueries();
+      if (qc) {
+        // Inactive page queries are configured not to refetch on mount. Remove
+        // them so a previously visited page cannot briefly restore records from
+        // the old visibility scope, then refresh everything currently visible.
+        qc.removeQueries({
+          predicate: (cachedQuery) => cachedQuery.queryKey?.[0] !== "sample-visibility"
+            && cachedQuery.getObserversCount() === 0,
+        });
+        await qc.invalidateQueries({
+          predicate: (cachedQuery) => cachedQuery.queryKey?.[0] !== "sample-visibility",
+          refetchType: "active",
+        });
+      }
     } catch (error) {
       setOptimisticValue(null);
       throw error;

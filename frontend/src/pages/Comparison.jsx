@@ -34,7 +34,6 @@ export default function Comparison() {
   const { data: config } = useConfig();
   const testsQuery = useTestCases();
   const { data: tcs = [], isLoading: testsLoading, isError: testsError, error: testsLoadError, refetch: refetchTests } = testsQuery;
-  const { data, isLoading, isError, error, refetch } = useQuery({ queryKey: ["cmp", tcId], enabled: !!tcId, queryFn: async () => (await api.get(`/comparison/${tcId}`)).data });
   const [retrying, setRetrying] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerQuery, setPickerQuery] = useState("");
@@ -52,6 +51,16 @@ export default function Comparison() {
       || String(left.id || "").localeCompare(String(right.id || ""))
   )), [tcs]);
   const selectedTestCase = sortedTcs.find((testCase) => testCase.id === tcId);
+  // Do not request a comparison until the selected record is confirmed in the
+  // current visibility scope. This prevents a hidden sample ID left in the URL
+  // from producing a transient 404/error panel while the picker selects a
+  // visible record.
+  const visibleTcId = selectedTestCase?.id || null;
+  const { data, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ["cmp", visibleTcId],
+    enabled: !!visibleTcId,
+    queryFn: async () => (await api.get(`/comparison/${visibleTcId}`)).data,
+  });
   const filteredTcs = useMemo(() => {
     const normalizedQuery = pickerQuery.trim().toLocaleLowerCase();
     if (!normalizedQuery) return sortedTcs;
