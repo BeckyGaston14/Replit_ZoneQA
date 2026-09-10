@@ -27,7 +27,7 @@ import { focusFormError, validateFormFields } from "../lib/formValidation";
 import { QueryState } from "./PageState";
 
 // schema field: {key,label,type,options,collection,labelFn,addFields,render,col}
-export default function ResourceList({ title, subtitle, collection, columns, fields, initial = {}, rowLink, attachable, singular, dataEndpoint, dateFilterColumn, exportFilename, parentLifecycle = false, dateRanges = [], filterFields = [] }) {
+export default function ResourceList({ title, subtitle, collection, columns, fields, initial = {}, rowLink, rowAction, attachable, singular, dataEndpoint, dateFilterColumn, exportFilename, parentLifecycle = false, dateRanges = [], filterFields = [] }) {
   const lifecycleEndpoint = `/resources/${collection}`;
   const listEndpoint = dataEndpoint || `/${collection}`;
   const defaultView = {
@@ -346,6 +346,7 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
                 </td>)}
                 <td className={TABLE_ACTION_CELL_CLASS} onClick={(e) => e.stopPropagation()}>
                   <div className="flex gap-1">
+                    {canWrite && !isArchived(row) && rowAction && <Button type="button" size="icon" variant="ghost" className="h-7 w-7" title={rowAction.label(row)} aria-label={rowAction.label(row)} onClick={() => rowAction.onClick(row)}>{rowAction.icon ? rowAction.icon(row) : <Plus size={13} />}</Button>}
                     {canWrite && !isArchived(row) && <Button type="button" size="icon" variant="ghost" className="h-7 w-7" aria-label={`Edit ${row.name || row.document_name || singular || "record"}`} onClick={() => openEdit(row)}><Pencil size={13} /></Button>}
                     {parentLifecycle && canManageLifecycle && <Button type="button" size="icon" variant="ghost" className="h-7 w-7" title={isArchived(row) ? "Restore" : "Archive"} aria-label={`${isArchived(row) ? "Restore" : "Archive"} ${row.name || singular || "record"}`} onClick={() => setConfirmingLifecycle({ row, action: isArchived(row) ? "restore" : "archive" })}>{isArchived(row) ? <ArchiveRestore size={14} /> : <Archive size={14} />}</Button>}
                     {parentLifecycle && isAdmin && isArchived(row) && <Button type="button" size="icon" variant="ghost" className="h-7 w-7 text-destructive" title="Review permanent deletion" aria-label={`Review permanent deletion of ${row.name || singular || "record"}`} onClick={() => loadPreflight(row)}><Trash2 size={13} /></Button>}

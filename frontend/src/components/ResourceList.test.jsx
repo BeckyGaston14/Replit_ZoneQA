@@ -184,6 +184,23 @@ test("project descriptions appear beneath the project name", async () => {
   act(() => root.unmount());
 });
 
+test("project rows can expose a direct linked-record action", async () => {
+  const onClick = jest.fn();
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  await act(async () => root.render(<ResourceList
+    title="Projects"
+    singular="Project"
+    collection="projects"
+    columns={[{ key: "name", label: "Project" }]}
+    fields={[]}
+    rowAction={{ label: (row) => `Add test run to ${row.name}`, onClick }}
+  />));
+  click(container.querySelector('[aria-label="Add test run to Active project"]'));
+  expect(onClick).toHaveBeenCalledWith(expect.objectContaining({ id: "project-active" }));
+  act(() => root.unmount());
+});
+
 test.each([
   ["projects", "project"],
   ["evidence", "evidence"],

@@ -160,6 +160,15 @@ export default function BassettIssues() {
   const { data: users = [] } = useQuery({ queryKey: ["users"], queryFn: async () => (await api.get("/users")).data });
   const { data: versions = [] } = useQuery({ queryKey: ["versions"], queryFn: async () => (await api.get("/versions")).data });
   const { data: config } = useQuery({ queryKey: ["config"], queryFn: async () => (await api.get("/config")).data });
+  useEffect(() => {
+    const projectId = searchParams.get("project_id");
+    if (!showingFindings && searchParams.get("new_run") === "1" && projectId) {
+      setForm(createBassettTestRunDraft({ project_id: projectId }, config?.application_timezone));
+      const next = new URLSearchParams(searchParams);
+      next.delete("new_run");
+      setSearchParams(next, { replace: true });
+    }
+  }, [config?.application_timezone, searchParams, setSearchParams, showingFindings]);
   const canManage = ["admin", "qa_manager"].includes(user?.role);
   const canWrite = ["admin", "qa_manager", "tester", "developer"].includes(user?.role);
   const scenarioMap = useMemo(() => Object.fromEntries(scenarios.map((scenario) => [scenario.id, scenario])), [scenarios]);

@@ -14,7 +14,14 @@ export { VerificationBadge };
 
 export function Projects() {
   const navigate = useNavigate();
-  return <ResourceList {...PROJECT_SCHEMA} rowLink={(project) => navigate(`/bassett/issues?project_id=${encodeURIComponent(project.id)}`)} />;
+  return <ResourceList
+    {...PROJECT_SCHEMA}
+    rowLink={(project) => navigate(`/bassett/issues?project_id=${encodeURIComponent(project.id)}`)}
+    rowAction={{
+      label: (project) => `Add test run to ${project.name}`,
+      onClick: (project) => navigate(`/bassett/issues?project_id=${encodeURIComponent(project.id)}&new_run=1`),
+    }}
+  />;
 }
 
 export function Municipalities() {
