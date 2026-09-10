@@ -187,9 +187,9 @@ export function DimSelect({ config, keyName, value, onChange, testid, id, requir
   );
 }
 
-export function ListSelect({ options, value, onChange, placeholder, testid, id, required, "aria-invalid": ariaInvalid, "aria-describedby": ariaDescribedby }) {
+export function ListSelect({ options, value, onChange, placeholder, testid, id, required, disabled = false, "aria-invalid": ariaInvalid, "aria-describedby": ariaDescribedby }) {
   return (
-    <Select value={value || ""} onValueChange={onChange}>
+    <Select value={value || ""} onValueChange={onChange} disabled={disabled}>
       <SelectTrigger id={id || testid} data-testid={testid} aria-required={required || undefined} aria-invalid={ariaInvalid || undefined} aria-describedby={ariaDescribedby}><SelectValue placeholder={placeholder} /></SelectTrigger>
       <SelectContent>{(options || []).map((option) => {
         const value = typeof option === "object" ? option.value : option;

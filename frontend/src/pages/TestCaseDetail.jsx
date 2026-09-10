@@ -525,10 +525,9 @@ export default function TestCaseDetail() {
                   <VerificationBadge value={e.verification_status} />
                 </div>
                 <div className="text-xs text-muted-foreground mt-1 flex flex-wrap gap-x-3 gap-y-0.5" data-testid="evidence-provenance">
-                  {e.jurisdiction && <span><b>Jurisdiction:</b> {e.jurisdiction}</span>}
                   {e.issuing_authority && <span><b>Authority:</b> {e.issuing_authority}</span>}
                   {e.document_version && <span><b>Version:</b> {e.document_version}</span>}
-                  <span>{e.citation}{e.section ? ` · ${e.section}` : ""}{e.page_number ? ` · p.${e.page_number}` : ""}</span>
+                  {e.section && <span><b>Code Section #:</b> {e.section}{e.page_number ? ` · p.${e.page_number}` : ""}</span>}
                   {e.effective_date && <span>Effective {e.effective_date}</span>}
                   {e.superseded_date && <span className="text-red-600 font-semibold">Superseded {e.superseded_date}</span>}
                   {e.verified_by && <span>Verified by {e.verified_by}{e.verified_date ? ` on ${e.verified_date}` : ""}</span>}
@@ -537,11 +536,6 @@ export default function TestCaseDetail() {
                 {e.freshness_warning && (
                   <div className="mt-2 text-xs bg-red-50 border border-red-300 text-red-800 rounded-lg px-2.5 py-1.5 font-semibold" data-testid="evidence-freshness-warning">
                     ⚠ STALE: {e.freshness_warning}
-                  </div>
-                )}
-                {e.conflicts_with && (
-                  <div className="mt-2 text-xs bg-amber-50 border border-amber-300 text-amber-800 rounded-lg px-2.5 py-1.5 font-semibold" data-testid="evidence-conflict-warning">
-                    ⚠ Conflicting evidence linked — reconcile before relying on this source for the Gold Standard.
                   </div>
                 )}
                 <p className="text-sm mt-2 prose-response bg-[var(--paper)] rounded p-2">{e.relevant_text}</p>

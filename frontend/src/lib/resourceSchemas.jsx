@@ -152,7 +152,7 @@ export function VerificationBadge({ value }) {
   return <span className="text-xs font-semibold rounded-full px-2 py-0.5" style={{ background: style.bg, color: style.color }}>{value || "Unverified"}</span>;
 }
 
-export function createEvidenceSchema(municipalities = []) {
+export function createEvidenceSchema(municipalities = [], users = [], currentUser = null) {
   const municipalityMap = Object.fromEntries(municipalities.map((municipality) => [municipality.id, municipality]));
   const staleOf = (row) => {
     if (row.superseded_date) return `Superseded ${row.superseded_date}`;
@@ -172,7 +172,7 @@ export function createEvidenceSchema(municipalities = []) {
       { key: "document_name", label: "Document", render: (row) => nameCell(row.document_name) },
       { key: "doc_type", label: "Type" },
       { key: "issuing_authority", label: "Issuing Authority", render: (row) => row.issuing_authority || "—" },
-      { key: "citation", label: "Citation" },
+      { key: "section", label: "Code Section #", render: (row) => row.section || "—" },
       {
         key: "verification_status",
         label: "Verification",
@@ -196,28 +196,25 @@ export function createEvidenceSchema(municipalities = []) {
           );
         },
       },
-      { key: "conflicts_with", label: "Conflicts", render: (row) => row.conflicts_with ? <span className="text-amber-700 font-semibold text-xs">⚠ linked</span> : "—" },
     ],
     fields: [
-      { key: "document_name", label: "Document Name", required: true, col: 2 },
-      { key: "municipality_id", label: "Municipality", required: true, ...municipalityRelation },
-      { key: "doc_type", label: "Document Type / Source Type", type: "select", options: ["Ordinance Section", "Municipal Code", "Zoning Map", "Planned Development Ordinance", "Overlay", "Official Interpretation", "Municipal Correspondence", "Approval", "Property Document", "Other"] },
-      { key: "jurisdiction", label: "Jurisdiction (e.g. City of New York, State of MI)" },
-      { key: "issuing_authority", label: "Issuing Authority (e.g. Dept. of City Planning)" },
-      { key: "document_version", label: "Ordinance / Document Version" },
-      { key: "section", label: "Exact Section" },
-      { key: "page_number", label: "Page Number" },
-      { key: "citation", label: "Citation" },
-      { key: "effective_date", label: "Effective Date", type: "date" },
-      { key: "superseded_date", label: "Superseded Date (if replaced)", type: "date" },
-      { key: "source_url", label: "Source URL", type: "url" },
-      { key: "verification_status", label: "Verification Status", type: "select", options: ["Unverified", "Verification in Progress", "Verified", "Superseded", "Conflicting", "Rejected"] },
-      { key: "verified_by", label: "Verified By" },
-      { key: "verified_date", label: "Verified Date", type: "date" },
-      { key: "conflicts_with", label: "Conflicting Evidence (link)", type: "relation", collection: "evidence", labelFn: (evidence) => evidence.document_name },
-      { key: "relevant_text", label: "Extracted Source Text", type: "textarea", col: 2 },
-      { key: "notes", label: "Notes", type: "textarea", col: 2 },
+      { key: "document_name", label: "Document Name", required: true, col: 2, group: "source", groupLabel: "Evidence source" },
+      { key: "municipality_id", label: "Municipality", required: true, ...municipalityRelation, group: "source", groupLabel: "Evidence source" },
+      { key: "doc_type", label: "Document Type / Source Type", type: "select", options: ["Ordinance Section", "Municipal Code", "Zoning Map", "Planned Development Ordinance", "Overlay", "Official Interpretation", "Municipal Correspondence", "Approval", "Property Document", "Other"], group: "source", groupLabel: "Evidence source" },
+      { key: "issuing_authority", label: "Issuing Authority", group: "source", groupLabel: "Evidence source" },
+      { key: "document_version", label: "Ordinance / Document Version", group: "source", groupLabel: "Evidence source" },
+      { key: "section", label: "Code Section #", group: "reference", groupLabel: "Code reference" },
+      { key: "page_number", label: "Page Number", group: "reference", groupLabel: "Code reference" },
+      { key: "effective_date", label: "Effective Date", type: "date", group: "reference", groupLabel: "Code reference" },
+      { key: "superseded_date", label: "Superseded Date", type: "date", group: "reference", groupLabel: "Code reference" },
+      { key: "source_url", label: "Source URL", type: "url", col: 2, group: "reference", groupLabel: "Code reference" },
+      { key: "verification_status", label: "Verification Status", type: "select", options: ["Unverified", "Verification in Progress", "Verified", "Superseded", "Conflicting", "Rejected"], group: "verification", groupLabel: "Verification" },
+      { key: "verified_by", label: "Verified By", type: "select", options: [...new Set(users.map((user) => user.name).filter(Boolean))], disabledWhen: (form) => !form.id, description: "Set to the signed-in user on first save; editable later.", group: "verification", groupLabel: "Verification" },
+      { key: "verified_date", label: "Verified Date", type: "date", disabledWhen: (form) => !form.id, description: "Set to today's date on first save; editable later.", group: "verification", groupLabel: "Verification" },
+      { key: "relevant_text", label: "Extracted Source Text", type: "textarea", col: 2, group: "content", groupLabel: "Evidence content" },
+      { key: "notes", label: "Notes", type: "textarea", col: 2, group: "content", groupLabel: "Evidence content" },
     ],
+    initial: currentUser ? { verified_by: currentUser.name, verified_date: new Date().toISOString().slice(0, 10) } : {},
     dateRanges: [{ start: "effective_date", end: "superseded_date", startLabel: "Effective Date", endLabel: "Superseded Date" }],
   };
 }

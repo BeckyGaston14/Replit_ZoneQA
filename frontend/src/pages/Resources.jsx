@@ -1,6 +1,7 @@
 import ResourceList from "../components/ResourceList";
 import { useNavigate } from "react-router-dom";
 import { useCollection } from "../lib/hooks";
+import { useAuth } from "../lib/auth";
 import {
   PROJECT_SCHEMA,
   MUNICIPALITY_SCHEMA,
@@ -26,5 +27,7 @@ export function Properties() {
 
 export function Evidence() {
   const { data: municipalities = [] } = useCollection("municipalities");
-  return <ResourceList {...createEvidenceSchema(municipalities)} />;
+  const { data: users = [] } = useCollection("users");
+  const { user } = useAuth();
+  return <ResourceList {...createEvidenceSchema(municipalities, users, user)} />;
 }

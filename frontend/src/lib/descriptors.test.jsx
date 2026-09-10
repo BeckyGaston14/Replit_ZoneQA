@@ -52,4 +52,18 @@ test("resource schemas preserve required and relation-field contracts", () => {
     type: "relation",
     collection: "municipalities",
   }));
+
+  const evidenceSchema = createEvidenceSchema([], [{ name: "QA Tester" }], { name: "QA Tester" });
+  expect(evidenceSchema.fields.map(({ key }) => key)).not.toEqual(expect.arrayContaining([
+    "jurisdiction", "citation", "conflicts_with",
+  ]));
+  expect(evidenceSchema.fields.find(({ key }) => key === "section")).toEqual(expect.objectContaining({
+    label: "Code Section #",
+    group: "reference",
+  }));
+  expect(evidenceSchema.fields.find(({ key }) => key === "verified_by")).toEqual(expect.objectContaining({
+    type: "select",
+    options: ["QA Tester"],
+  }));
+  expect(evidenceSchema.initial).toEqual(expect.objectContaining({ verified_by: "QA Tester" }));
 });

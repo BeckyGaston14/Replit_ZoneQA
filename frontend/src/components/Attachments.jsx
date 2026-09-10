@@ -119,13 +119,13 @@ export function Attachments({ entityType, entityId, canWrite, compact = false })
               {uploading ? "Uploading…" : "Attach files"}
             </Button>
             <input ref={fileRef} type="file" multiple className="hidden" data-testid="attach-file-input"
-              accept=".pdf,.docx,.png,.jpg,.jpeg,.gif,.webp,.txt,.csv" onChange={upload} />
+              accept=".pdf,.doc,.docx,.odt,.xls,.xlsx,.ods,.ppt,.pptx,.txt,.csv,.tsv,.md,.rtf,.html,.htm,.xml,.json,.eml,.msg,.png,.jpg,.jpeg,.gif,.webp,.tif,.tiff,.bmp" onChange={upload} />
           </>
         )}
       </div>
       {isLoading && <p role="status" className="text-xs text-muted-foreground">Loading attachments…</p>}
       {isError && <p role="alert" className="text-xs text-red-700">Unable to load attachments: {formatApiErrorDetail(error?.response?.data?.detail)} <button type="button" className="font-semibold underline" onClick={() => refetch()}>Retry</button></p>}
-      {!isLoading && !isError && files.length === 0 && <p className="text-xs text-muted-foreground">{canWrite ? "No files yet — attach ordinance PDFs or screenshots." : "No attachments."}</p>}
+      {!isLoading && !isError && files.length === 0 && <p className="text-xs text-muted-foreground">{canWrite ? "No files yet — attach ordinance documents, email files, spreadsheets, text files, or images (20 MB maximum per file)." : "No attachments."}</p>}
       <div className={compact ? "space-y-1.5" : "grid sm:grid-cols-2 gap-2"}>
         {files.map((f) => (
           <div key={f.id} className="flex items-start gap-2 bg-[var(--paper)] border rounded-lg px-2.5 py-2 min-w-0" data-testid="attachment-item">

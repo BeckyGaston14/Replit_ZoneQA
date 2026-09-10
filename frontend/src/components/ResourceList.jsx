@@ -162,19 +162,26 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
   const outcomeFields = fields.filter((field) => !field.required && (field.section === "outcome"
     || ["status", "priority", "verification_status", "completion_mode", "completion_override"].includes(field.key)));
   const optionalFields = fields.filter((field) => !field.required && !outcomeFields.includes(field));
+  const groupedFields = fields.some((field) => field.group);
+  const fieldGroups = fields.reduce((groups, field) => {
+    const key = field.group || "details";
+    if (!groups.some((group) => group.key === key)) groups.push({ key, label: field.groupLabel || "Details", fields: [] });
+    groups.find((group) => group.key === key).fields.push(field);
+    return groups;
+  }, []);
   const renderField = (f) => (
     <div key={f.key} className={f.col === 2 ? "col-span-2" : ""}>
-      <Field label={f.label} required={f.required} error={formErrors[f.key]}>
+      <Field label={f.label} required={f.required} error={formErrors[f.key]} description={f.description}>
         {f.type === "textarea" ? (
           <Textarea value={form[f.key] || ""} onChange={(e) => set(f.key, e.target.value)} rows={3} data-testid={`field-${f.key}`} />
         ) : f.type === "select" ? (
-          <ListSelect options={f.options || config?.[f.configKey] || []} value={form[f.key]} onChange={(v) => set(f.key, v)} placeholder={f.label} testid={`field-${f.key}`} required={f.required} />
+          <ListSelect options={f.options || config?.[f.configKey] || []} value={form[f.key]} onChange={(v) => set(f.key, v)} placeholder={f.label} testid={`field-${f.key}`} required={f.required} disabled={f.disabledWhen?.(form)} />
         ) : f.type === "dim" ? (
           <DimSelect config={config} keyName={f.configKey} value={form[f.key]} onChange={(v) => set(f.key, v)} testid={`field-${f.key}`} required={f.required} />
         ) : f.type === "relation" ? (
           <SelectOrAdd collection={f.collection} labelFn={f.labelFn} value={form[f.key] ?? form[f.canonicalKey]} onChange={(v) => { set(f.key, v); if (f.canonicalKey) set(f.canonicalKey, v); }} placeholder={`Select ${f.label}`} addFields={f.addFields} activeOnly={f.activeOnly} testid={`field-${f.key}`} required={f.required} />
         ) : (
-          <Input type={f.type || "text"} min={f.min} max={f.max} value={form[f.key] || ""} onChange={(e) => set(f.key, e.target.value)} data-testid={`field-${f.key}`} />
+          <Input type={f.type || "text"} min={f.min} max={f.max} value={form[f.key] || ""} onChange={(e) => set(f.key, e.target.value)} data-testid={`field-${f.key}`} disabled={f.disabledWhen?.(form)} />
         )}
       </Field>
     </div>
@@ -332,7 +339,12 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
             </div>
           </div>}
         </div>}
-        {requiredFields.length > 0 && <fieldset className="rounded-xl border p-4">
+        {groupedFields ? fieldGroups.map((group) => (
+          <fieldset key={group.key} className="rounded-xl border p-4">
+            <legend className="px-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">{group.label}</legend>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">{group.fields.filter((f) => !f.showWhen || f.showWhen(form)).map(renderField)}</div>
+          </fieldset>
+        )) : <>{requiredFields.length > 0 && <fieldset className="rounded-xl border p-4">
           <legend className="px-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">Required information</legend>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">{requiredFields.filter((f) => !f.showWhen || f.showWhen(form)).map(renderField)}</div>
         </fieldset>}
@@ -343,12 +355,13 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
         {optionalFields.length > 0 && <details className="rounded-xl border p-4">
           <summary className="cursor-pointer font-semibold text-sm text-[var(--navy)]">Optional details</summary>
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">{optionalFields.filter((f) => !f.showWhen || f.showWhen(form)).map(renderField)}</div>
-        </details>}
+        </details>}</>}
         {attachable && form.id && (
           <div className="border-t pt-4 mt-2">
             <Attachments entityType={attachable} entityId={form.id} canWrite={user && user.role !== "viewer" && !isArchived(form)} />
           </div>
         )}
+        {attachable && !form.id && <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">Save the evidence record first, then reopen it to attach source documents.</p>}
       </FormModal>
 
       <ConfirmActionDialog

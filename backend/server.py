@@ -1654,7 +1654,6 @@ async def _validate_relationships(coll, doc):
     finding = await _require_reference("findings", doc.get("finding_id"), "Finding", allow_archived=True)
     await _require_reference("retests", doc.get("retest_id"), "Retest", allow_archived=True)
     await _require_reference("regression_runs", doc.get("regression_run_id"), "Regression run", allow_archived=True)
-    await _require_reference("evidence", doc.get("conflicts_with"), "Conflicting evidence", allow_archived=True)
     if testcase and project and testcase.get("project_id") not in (None, "", project["id"]):
         raise HTTPException(400, "Test case does not belong to the selected project")
     if testcase and municipality and testcase.get("municipality_id") not in (None, "", municipality["id"]):
@@ -1787,6 +1786,11 @@ def _normalize_model(document, *, partial=False):
 
 async def crud_create(coll, body, user):
     doc = dict(body)
+    if coll == "evidence":
+        # Verification provenance is authoritative at creation time.  It may
+        # be corrected later through the normal edit workflow.
+        doc["verified_by"] = user["name"]
+        doc["verified_date"] = datetime.now(timezone.utc).date().isoformat()
     if coll == "evaluations" and "final_result" in doc:
         doc["final_result"] = normalize_evaluation_result(doc.get("final_result"))
     if coll == "models":
@@ -6879,7 +6883,26 @@ ALLOWED_CONTENT_TYPES = {
     "webp": "image/webp",
     "txt": "text/plain",
     "csv": "text/csv",
+    "tsv": "text/tab-separated-values",
+    "md": "text/markdown",
+    "rtf": "application/rtf",
+    "html": "text/html",
+    "htm": "text/html",
+    "xml": "application/xml",
+    "json": "application/json",
+    "eml": "message/rfc822",
+    "msg": "application/vnd.ms-outlook",
+    "doc": "application/msword",
     "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "odt": "application/vnd.oasis.opendocument.text",
+    "xls": "application/vnd.ms-excel",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "ods": "application/vnd.oasis.opendocument.spreadsheet",
+    "ppt": "application/vnd.ms-powerpoint",
+    "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "tif": "image/tiff",
+    "tiff": "image/tiff",
+    "bmp": "image/bmp",
 }
 ALLOWED_EXT = set(ALLOWED_CONTENT_TYPES)
 MAX_UPLOAD = 20 * 1024 * 1024  # 20 MB
@@ -8332,11 +8355,11 @@ async def global_search(q: str = "", user=Depends(get_current_user)):
         groups.append({"label": "Projects", "items": [
             {"type": "Project", "id": p["id"], "name": p.get("name", ""), "link": "/projects",
              "context": (p.get("description") or "")[:60], "status": p.get("status"), "criticality": None} for p in prj]})
-    evs = await find("evidence", ["document_name", "citation", "relevant_text", "jurisdiction"])
+    evs = await find("evidence", ["document_name", "section", "relevant_text", "issuing_authority"])
     if evs:
         groups.append({"label": "Evidence", "items": [
             {"type": "Evidence", "id": e["id"], "name": e.get("document_name", ""), "link": "/evidence",
-             "context": " · ".join(x for x in [e.get("citation"), munis.get(e.get("municipality_id"), {}).get("name")] if x),
+             "context": " · ".join(x for x in [e.get("section"), munis.get(e.get("municipality_id"), {}).get("name")] if x),
              "status": e.get("verification_status"), "criticality": None} for e in evs]})
     suites = await find("regression_suites", ["name", "description"])
     if suites:
