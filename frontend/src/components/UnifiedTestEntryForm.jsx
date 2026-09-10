@@ -175,6 +175,9 @@ function QuickAdd({ label, value, items, onChange, fields, defaults = {}, disabl
   const [draft, setDraft] = useState({});
   const [options, setOptions] = useState(items);
   const collection = label === "Project" ? "projects" : label === "Municipality" ? "municipalities" : "properties";
+  useEffect(() => {
+    setOptions(items);
+  }, [items]);
   const create = async () => {
     const required = fields.find((field) => !String(draft[field.key] || "").trim());
     if (required) return toast.error(`${required.label} is required`);
