@@ -5,7 +5,7 @@ import { api, formatApiErrorDetail } from "../lib/api";
 import { useConfig } from "../lib/hooks";
 import { useSavedView } from "../lib/savedViews";
 import { useAuth } from "../lib/auth";
-import { PageHeader, CritBadge, Section, StatCard } from "../components/shared";
+import { PageHeader, CritBadge, MethodologyDisclosure, Section, StatCard } from "../components/shared";
 import { FINDING_STATUSES, StatusBadge } from "../lib/statusMaps";
 import { Attachments } from "../components/Attachments";
 import { CommentsThread } from "../components/CommentsThread";
@@ -288,6 +288,11 @@ export default function Findings() {
           )}
         </aside>
       </div>
+      <MethodologyDisclosure title="How Model Finding metrics are calculated" testid="model-findings-methodology">
+        <p>Finding counts include only findings created from Model Comparison test cases in the current visibility scope.</p>
+        <p>Open Findings excludes Fixed, Closed, Won&apos;t Fix, and Duplicate statuses. New Findings includes records whose developer status is New. High severity findings includes criticality 4 and 5.</p>
+        <p>Total Findings includes every visible Model Comparison finding, while the list below reflects the active search and filters. Archived records remain in history but are excluded from active summary populations.</p>
+      </MethodologyDisclosure>
       </>}
 
       {retestForm && (
