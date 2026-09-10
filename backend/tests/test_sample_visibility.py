@@ -146,6 +146,39 @@ def test_sample_visibility_preference_is_isolated_per_user(monkeypatch):
     assert db.rows["saved_views"][0]["page"] == server.SAMPLE_VISIBILITY_PAGE
 
 
+def test_request_scope_reads_the_saved_visibility_preference(monkeypatch):
+    db = Db({"saved_views": []})
+    monkeypatch.setattr(server, "db", db)
+    monkeypatch.setattr(server, "_sample_visibility_context", server.ContextVar("request_visibility"))
+    monkeypatch.setattr(server, "_sample_scope_context", server.ContextVar("request_scope"))
+
+    asyncio.run(server.put_sample_visibility(
+        {"include_sample_records": True}, {"id": "user-a", "role": "viewer"}
+    ))
+    user = {"id": "user-a", "role": "viewer"}
+    assert asyncio.run(server._set_sample_scope_for_user(user)) is True
+    assert user["include_sample_records"] is True
+    assert server._sample_visibility_context.get() is True
+
+
+def test_loading_sample_data_invalidates_the_visibility_cache(monkeypatch):
+    async def fake_seed(*_args, **_kwargs):
+        return {"loaded": True, "testcases": 10}
+
+    async def fake_activity(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(server, "run_seed_impl", fake_seed)
+    monkeypatch.setattr(server, "log_activity", fake_activity)
+    server._SAMPLE_SCOPE_CACHE = {"testcases": set()}
+    server._SAMPLE_SCOPE_CACHE_AT = 123
+
+    result = asyncio.run(server.sample_data(True, {"id": "admin", "role": "admin"}))
+    assert result["loaded"] is True
+    assert server._SAMPLE_SCOPE_CACHE is None
+    assert server._SAMPLE_SCOPE_CACHE_AT == 0.0
+
+
 def test_sample_preference_does_not_delete_or_mutate_sample_records(monkeypatch):
     rows = {
         "saved_views": [],

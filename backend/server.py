@@ -5603,7 +5603,13 @@ def _filter_sample_scope(collection, records, include_sample=None):
 
 
 async def _set_sample_scope_for_user(user, requested=None):
-    include_sample = _sample_scope_enabled(user, requested)
+    if requested is None:
+        include_sample = await _sample_preference(user["id"])
+    else:
+        include_sample = bool(requested)
+    include_sample = _sample_scope_enabled(
+        {**user, "include_sample_records": include_sample}, include_sample
+    )
     if include_sample:
         _sample_scope_context.set({})
     else:
@@ -8359,11 +8365,16 @@ async def seed(confirm: bool = False, user=Depends(get_current_user)):
 
 @api.post("/sample-data")
 async def sample_data(confirm: bool = False, user=Depends(get_current_user)):
+    global _SAMPLE_SCOPE_CACHE, _SAMPLE_SCOPE_CACHE_AT
     if user["role"] != "admin":
         raise HTTPException(403, "Admin only")
     if not confirm:
         raise HTTPException(400, "Sample data import requires confirm=true")
     result = await run_seed_impl(db, new_id, now_iso, reset=False)
+    # A sample import changes the relationship-aware visibility scope. Force
+    # the next request to rebuild it instead of serving the pre-import cache.
+    _SAMPLE_SCOPE_CACHE = None
+    _SAMPLE_SCOPE_CACHE_AT = 0.0
     await log_activity("system", "sample-data", "sample data loaded", user, json.dumps(result))
     return result
 
