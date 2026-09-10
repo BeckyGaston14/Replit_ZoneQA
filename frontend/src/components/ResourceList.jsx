@@ -28,7 +28,7 @@ import { focusFormError, validateFormFields } from "../lib/formValidation";
 import { QueryState } from "./PageState";
 
 // schema field: {key,label,type,options,collection,labelFn,addFields,render,col}
-export default function ResourceList({ title, subtitle, collection, columns, fields, initial = {}, rowLink, attachable, singular, dataEndpoint, dateFilterColumn, exportFilename, parentLifecycle = false, dateRanges = [] }) {
+export default function ResourceList({ title, subtitle, collection, columns, fields, initial = {}, rowLink, attachable, singular, dataEndpoint, dateFilterColumn, exportFilename, parentLifecycle = false, dateRanges = [], filterFields = [] }) {
   const lifecycleEndpoint = `/resources/${collection}`;
   const listEndpoint = dataEndpoint || `/${collection}`;
   const defaultView = {
@@ -36,6 +36,7 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
       archived: parentLifecycle ? "active" : "all",
       date_from: "",
       date_to: "",
+      ...Object.fromEntries(filterFields.map((field) => [field.key, ""])),
     },
   };
   const savedView = useSavedView(
@@ -91,11 +92,15 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
   const lifecycleData = parentLifecycle
     ? data.filter((row) => view.filters.archived === "all" || (showArchived ? isArchived(row) : !isArchived(row)))
     : data;
-  const filteredData = dateFilterColumn
+  const dateFilteredData = dateFilterColumn
     ? lifecycleData.filter((row) => withinDateRange(row[dateFilterColumn], view.filters.date_from, view.filters.date_to))
     : lifecycleData;
+  const filteredData = dateFilteredData.filter((row) => filterFields.every((field) =>
+    !view.filters[field.key] || row[field.key] === view.filters[field.key]
+  ));
   const sortedData = sortTableRows(filteredData, sortColumns, sort, columns.slice(0, 2).map((column) => column.key));
   const hasFilters = view.filters.date_from || view.filters.date_to
+    || filterFields.some((field) => Boolean(view.filters[field.key]))
     || (parentLifecycle && view.filters.archived !== defaultView.filters.archived);
   const clearFilters = () => updateView({ ...view, filters: defaultView.filters });
 
@@ -198,7 +203,7 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
         {f.type === "textarea" ? (
           <Textarea value={form[f.key] || ""} onChange={(e) => set(f.key, e.target.value)} rows={3} data-testid={`field-${f.key}`} />
         ) : f.type === "select" ? (
-          <ListSelect options={f.options || config?.[f.configKey] || []} value={form[f.key]} onChange={(v) => set(f.key, v)} placeholder={f.label} testid={`field-${f.key}`} required={f.required} disabled={f.disabledWhen?.(form)} />
+          <ListSelect options={[...new Set([...(f.options || config?.[f.configKey] || []), form[f.key]].filter(Boolean))]} value={form[f.key]} onChange={(v) => set(f.key, v)} placeholder={f.label} testid={`field-${f.key}`} required={f.required} disabled={f.disabledWhen?.(form)} />
         ) : f.type === "dim" ? (
           <DimSelect config={config} keyName={f.configKey} value={form[f.key]} onChange={(v) => set(f.key, v)} testid={`field-${f.key}`} required={f.required} />
         ) : f.type === "relation" ? (
@@ -299,6 +304,22 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
         <label className="text-xs text-muted-foreground">to <Input type="date" value={view.filters.date_to} onChange={(event) => setDateFilter("date_to", event.target.value)} className="h-8 w-36 text-xs" aria-label="Last Tested Date to" aria-invalid={Boolean(dateFilterError)} /></label>
         {hasFilters && <Button type="button" size="sm" variant="outline" className="h-8 text-[var(--orange)]" onClick={clearFilters} data-testid={`${collection}-clear-filters`}><X size={13} className="mr-1" /> Clear filters</Button>}
         <span className="text-xs text-muted-foreground ml-auto">{filteredData.length} of {data.length} projects</span>
+      </div>}
+      {filterFields.length > 0 && <div className="flex items-end gap-2 mb-3 flex-wrap" aria-label={`${title} filters`}>
+        {filterFields.map((field) => {
+          const options = [...new Set([...(field.options || config?.[field.configKey] || []), ...data.map((row) => row[field.key])].filter(Boolean))].sort();
+          return <div key={field.key} className="min-w-48">
+            <label className="mb-1 block text-xs text-muted-foreground">{field.label}</label>
+            <ListSelect
+              options={[{ value: "__all__", label: `All ${field.label.toLowerCase()}s` }, ...options]}
+              value={view.filters[field.key] || "__all__"}
+              onChange={(value) => setSavedFilter(field.key, value === "__all__" ? "" : value)}
+              testid={`${collection}-filter-${field.key}`}
+            />
+          </div>;
+        })}
+        {hasFilters && <Button type="button" size="sm" variant="outline" className="h-9 text-[var(--orange)]" onClick={clearFilters} data-testid={`${collection}-clear-filters`}><X size={13} className="mr-1" /> Clear filters</Button>}
+        <span className="ml-auto text-xs text-muted-foreground">{filteredData.length} of {lifecycleData.length} records</span>
       </div>}
       <TableSortControls columns={sortColumns} sort={sort} setSort={setSort} defaultSort={defaultSort} className="mb-3" />
       {(isLoading || isError) && <QueryState query={collectionQuery} resource={title} onRetry={refetch} testId={`${collection}-query`} />}

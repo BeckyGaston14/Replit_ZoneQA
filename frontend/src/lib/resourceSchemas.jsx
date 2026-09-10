@@ -94,6 +94,7 @@ export const MUNICIPALITY_SCHEMA = {
     { key: "name", label: "Municipality", type: "text", render: (row) => nameCell(row.name) },
     { key: "state", label: "State" },
     { key: "county", label: "County" },
+    { key: "muni_type", label: "Type" },
     { key: "primary_code", label: "Primary Code" },
     { key: "latest_amendment_date", label: "Latest Amendment", type: "date", render: (row) => row.latest_amendment_date || "—" },
     { key: "last_verified", label: "Last Verified", type: "date" },
@@ -102,7 +103,7 @@ export const MUNICIPALITY_SCHEMA = {
     { key: "name", label: "Municipality", required: true },
     { key: "state", label: "State", required: true },
     { key: "county", label: "County" },
-    { key: "muni_type", label: "Type", type: "select", options: ["City", "County", "Town", "Village", "Township", "Unincorporated"] },
+    { key: "muni_type", label: "Type", type: "select", configKey: "municipality_types" },
     { key: "primary_code", label: "Primary Zoning Code", col: 2 },
     { key: "code_url", label: "Code URL", type: "url" },
     { key: "map_url", label: "Zoning Map URL", type: "url" },
@@ -111,6 +112,7 @@ export const MUNICIPALITY_SCHEMA = {
     { key: "latest_amendment_date", label: "Latest Known Amendment Date (drives evidence freshness flags)", type: "date" },
     { key: "notes", label: "Notes", type: "textarea", col: 2 },
   ],
+  filterFields: [{ key: "muni_type", label: "Type", configKey: "municipality_types" }],
 };
 
 export const PROPERTY_SCHEMA = {

@@ -8505,6 +8505,7 @@ DEFAULT_CONFIG = {
     "pass_results": list(CANONICAL_EVALUATION_RESULTS),
     "roles": ["admin", "qa_manager", "tester", "developer", "viewer"],
     "environments": ["Production", "Staging", "Development", "Experimental"],
+    "municipality_types": ["City", "County", "Town", "Village", "Township", "Borough", "Parish", "Unincorporated"],
     "version_types": ["Major", "Minor", "Patch", "Hotfix", "Experimental"],
     "release_channels": ["Production", "Staging", "Development", "Experimental"],
     "demo_statuses": ["Not Reviewed", "Potential Demo", "Needs Cleanup", "Approved", "Retired"],
@@ -8615,6 +8616,8 @@ async def startup():
             patch["annotation_types"] = DEFAULT_CONFIG["annotation_types"]
         if "version_types" not in cfg:
             patch["version_types"] = DEFAULT_CONFIG["version_types"]
+        if "municipality_types" not in cfg:
+            patch["municipality_types"] = DEFAULT_CONFIG["municipality_types"]
         if "release_channels" not in cfg:
             patch["release_channels"] = DEFAULT_CONFIG["release_channels"]
         if "bassett_workflow_stages" not in cfg:

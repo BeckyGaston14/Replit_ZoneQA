@@ -39,6 +39,14 @@ test("resource schemas preserve required and relation-field contracts", () => {
     collection: "versions",
   }));
   expect(MUNICIPALITY_SCHEMA.fields.filter(({ required }) => required).map(({ key }) => key)).toEqual(["name", "state"]);
+  expect(MUNICIPALITY_SCHEMA.fields.find(({ key }) => key === "muni_type")).toEqual(expect.objectContaining({
+    type: "select",
+    configKey: "municipality_types",
+  }));
+  expect(MUNICIPALITY_SCHEMA.filterFields).toContainEqual(expect.objectContaining({
+    key: "muni_type",
+    configKey: "municipality_types",
+  }));
   const propertyMunicipality = PROPERTY_SCHEMA.fields.find(({ key }) => key === "municipality_id");
   expect(propertyMunicipality).toEqual(expect.objectContaining({
     required: true,
