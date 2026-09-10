@@ -153,4 +153,21 @@ def test_project_completion_has_explicit_empty_automatic_state():
 
     assert result["completion"] is None
     assert result["completion_total"] == 0
-    assert result["completion_status"] == "No active linked test cases"
+    assert result["completion_status"] == "No active linked tests"
+
+
+def test_project_completion_includes_linked_bassett_only_runs():
+    result = _project_completion(
+        {"id": "p1", "completion_mode": "automatic"},
+        [],
+        [
+            {"id": "b1", "project_id": "p1", "result": "Pass"},
+            {"id": "b2", "project_id": "p1", "result": "Not Evaluated"},
+            {"id": "b3", "project_id": "other", "result": "Pass"},
+        ],
+    )
+
+    assert result["completion"] == 50
+    assert result["completion_completed"] == 1
+    assert result["completion_total"] == 2
+    assert result["completion_source"] == "Linked tests"

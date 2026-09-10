@@ -27,7 +27,7 @@ import { focusFormError, validateFormFields } from "../lib/formValidation";
 import { QueryState } from "./PageState";
 
 // schema field: {key,label,type,options,collection,labelFn,addFields,render,col}
-export default function ResourceList({ title, subtitle, collection, columns, fields, initial = {}, rowLink, rowAction, attachable, singular, dataEndpoint, dateFilterColumn, exportFilename, parentLifecycle = false, dateRanges = [], filterFields = [] }) {
+export default function ResourceList({ title, subtitle, collection, columns, fields, initial = {}, rowLink, rowAction, attachable, singular, dataEndpoint, dateFilterColumn, exportFilename, parentLifecycle = false, dateRanges = [], filterFields = [], renderCreateExtras, onCreateSuccess, onNewOpen }) {
   const lifecycleEndpoint = `/resources/${collection}`;
   const listEndpoint = dataEndpoint || `/${collection}`;
   const defaultView = {
@@ -104,7 +104,7 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
   const clearFilters = () => updateView({ ...view, filters: defaultView.filters });
 
   const resetFormState = () => { setFormErrors({}); setServerError(""); setConflictRecord(null); };
-  const openNew = () => { setForm({ ...initial }); setBaseRecord(null); setPendingAttachments([]); resetFormState(); setOpen(true); };
+  const openNew = () => { setForm({ ...initial }); setBaseRecord(null); setPendingAttachments([]); resetFormState(); onNewOpen?.(); setOpen(true); };
   const openEdit = (row) => { setForm({ ...row }); setBaseRecord(row); setPendingAttachments([]); resetFormState(); setOpen(true); };
   const validate = () => {
     const errors = validateFormFields(fields, form, { dateRanges });
@@ -125,6 +125,17 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
     save.mutate(versionedForm, {
        onSuccess: async (savedRecord) => {
          let failedUploads = 0;
+         try {
+           if (!form.id && onCreateSuccess) await onCreateSuccess(savedRecord);
+         } catch (error) {
+           submitInFlight.current = false;
+           const message = formatApiErrorDetail(error?.response?.data?.detail) || "The record was saved, but its selected related records could not be linked.";
+           setForm(savedRecord);
+           setBaseRecord(savedRecord);
+           setServerError(`${message} The project itself was saved. Use the test-run edit screen to finish linking.`);
+           toast.error(message);
+           return;
+         }
          if (!form.id && attachable && pendingAttachments.length) {
            setUploadingAttachments(true);
            const uploads = await Promise.allSettled(pendingAttachments.map((file) => {
@@ -414,6 +425,7 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
               data-testid={`${collection}-pending-attachments`} />
           </Field>
         </fieldset>}
+        {!form.id && renderCreateExtras?.()}
       </FormModal>
 
       <ConfirmActionDialog

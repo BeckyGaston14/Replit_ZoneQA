@@ -169,7 +169,7 @@ def _validate_project_completion_override(value):
     return int(number) if number.is_integer() else round(number, 1)
 
 
-def _project_completion(project, testcases):
+def _project_completion(project, testcases, bassett_runs=None):
     """Return one explainable completion value for a project.
 
     Projects created before completion_mode existed default to automatic.
@@ -182,10 +182,19 @@ def _project_completion(project, testcases):
         testcase for testcase in testcases
         if testcase.get("project_id") == project_id and not testcase.get("archived")
     ]
-    total = len(active_tests)
+    active_test_ids = {testcase.get("id") for testcase in active_tests}
+    active_bassett_runs = [
+        run for run in (bassett_runs or [])
+        if run.get("project_id") == project_id and not run.get("archived")
+        and run.get("testcase_id") not in active_test_ids
+    ]
+    total = len(active_tests) + len(active_bassett_runs)
     completed = sum(
         testcase.get("status") in PROJECT_COMPLETED_TEST_STATUSES
         for testcase in active_tests
+    ) + sum(
+        _canonical_bassett_result(run.get("result")) != "Not Evaluated"
+        for run in active_bassett_runs
     )
     automatic_percent = round(completed / total * 100, 1) if total else None
 
@@ -199,7 +208,7 @@ def _project_completion(project, testcases):
         source = "Manual override"
     else:
         percent = automatic_percent
-        source = "Linked active test cases"
+        source = "Linked tests"
 
     return {
         "completion": percent,
@@ -215,22 +224,22 @@ def _project_completion(project, testcases):
             if mode == "manual" else None
         ),
         "completion_status": (
-            "No active linked test cases"
+            "No active linked tests"
             if not total and mode == "automatic"
-            else f"{completed}/{total} active linked test cases completed"
+            else f"{completed}/{total} linked tests completed"
             if mode == "automatic"
             else "Manual override"
         ),
         "completion_definition": (
-            "Completed active linked test cases divided by all active linked test cases"
+            "Completed linked Model Comparison test cases and Bassett-only test runs divided by all active linked tests"
             if mode == "automatic"
             else "Explicit project completion override"
         ),
     }
 
 
-def _enrich_project_completions(projects, testcases):
-    return [{**project, **_project_completion(project, testcases)} for project in projects]
+def _enrich_project_completions(projects, testcases, bassett_runs=None):
+    return [{**project, **_project_completion(project, testcases, bassett_runs)} for project in projects]
 
 
 def _prepare_project_completion_input(incoming, existing=None):
@@ -4765,7 +4774,8 @@ async def testcases_enriched(include_archived: bool = False, user=Depends(get_cu
 async def projects_enriched(user=Depends(get_current_user)):
     projects = await crud_list("projects")
     testcases = await crud_list("testcases")
-    projects = _enrich_project_completions(projects, testcases)
+    bassett_runs = await db.bassett_issues.find({"archived": {"$ne": True}}, {"_id": 0}).to_list(5000)
+    projects = _enrich_project_completions(projects, testcases, bassett_runs)
     users = {record["id"]: record for record in await crud_list("users") if record.get("active", True)}
     last_tested = await _current_project_last_tested_dates(projects)
     for project in projects:
@@ -4777,6 +4787,36 @@ async def projects_enriched(user=Depends(get_current_user)):
             "standard Test Run, linked evaluation, or a recorded project-linked canonical Bassett run."
         )
     return projects
+
+
+@api.post("/projects/{project_id}/link-bassett-runs")
+async def link_existing_bassett_runs(project_id: str, body: Dict[str, Any], user=Depends(require_writer)):
+    """Attach selected, currently unassigned Bassett runs to a testing project."""
+    project = await db.projects.find_one({"id": project_id, "archived": {"$ne": True}}, {"_id": 0})
+    if not project:
+        raise HTTPException(404, "Testing project not found")
+    run_ids = body.get("run_ids") or []
+    if not isinstance(run_ids, list) or len(run_ids) > 500 or any(not isinstance(value, str) for value in run_ids):
+        raise HTTPException(400, "run_ids must be a list of up to 500 test-run IDs")
+    run_ids = list(dict.fromkeys(value for value in run_ids if value))
+    if not run_ids:
+        return {"project_id": project_id, "linked": 0}
+    runs = await db.bassett_issues.find({"id": {"$in": run_ids}, "archived": {"$ne": True}}, {"_id": 0}).to_list(500)
+    found = {run.get("id") for run in runs}
+    missing = [run_id for run_id in run_ids if run_id not in found]
+    assigned = [run for run in runs if run.get("project_id") not in (None, "", project_id)]
+    if missing:
+        raise HTTPException(400, f"Unknown or archived Bassett test run: {missing[0]}")
+    if assigned:
+        raise HTTPException(409, f"Test run is already assigned to another project: {assigned[0].get('name') or assigned[0].get('test_id') or assigned[0]['id']}")
+    stamp = now_iso()
+    updated_runs = []
+    for run in runs:
+        if run.get("project_id") in (None, ""):
+            updated_runs.append({**run, "project_id": project_id, "updated_at": stamp, "revision": int(run.get("revision") or 0) + 1})
+    if updated_runs:
+        await db.atomic_upsert_documents("bassett_issues", [(True, run) for run in updated_runs])
+    return {"project_id": project_id, "linked": len(updated_runs)}
 
 # ---------- Comments & Activity ----------
 @api.get("/comments/{entity_id}")

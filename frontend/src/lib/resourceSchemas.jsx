@@ -74,7 +74,7 @@ export const PROJECT_SCHEMA = {
       label: "Completion Calculation",
       type: "select",
       options: [
-        { value: "automatic", label: "Automatic from linked test cases" },
+        { value: "automatic", label: "Automatic from linked tests" },
         { value: "manual", label: "Manual override" },
       ],
     },
