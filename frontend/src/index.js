@@ -7,7 +7,11 @@ import App from "@/App";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 60_000,
+      // Reference data and analytical responses are explicitly invalidated
+      // after mutations. Reuse them while navigating instead of repeating the
+      // same expensive report requests on every return visit.
+      staleTime: 5 * 60_000,
+      gcTime: 30 * 60_000,
       refetchOnWindowFocus: false,
     },
   },

@@ -325,7 +325,7 @@ export default function BassettIssues() {
        <StatCard label={showingFindings ? "Open Findings" : "Tests Needing Attention"} value={showingFindings ? (metrics?.findings?.open ?? 0) : (metrics?.test_runs?.attention ?? "—")} sub={showingFindings ? "excludes fixed and closed findings" : "Needs Improvement, Fail, Critical Fail, or Blocked"} icon={Flag} accent="#f97316" />
        <StatCard label={showingFindings ? "New Findings" : "Untriaged Test Runs"} value={showingFindings ? (metrics?.findings?.new ?? 0) : (metrics?.issues?.new ?? "—")} sub={showingFindings ? "newly recorded findings" : "Workflow status is New."} icon={AlertTriangle} accent="#2563eb" />
        <StatCard label={showingFindings ? "High severity findings" : "High severity"} value={showingFindings ? (metrics?.findings?.critical ?? 0) : (metrics?.issues?.critical ?? "—")} sub="high / critical severity" icon={ShieldAlert} accent="#dc2626" />
-       <StatCard label={showingFindings ? "Total Findings" : "Scenario coverage"} value={showingFindings ? (metrics?.findings?.total ?? 0) : (metrics ? `${metrics.test_runs.test_bank_coverage.percent}%` : "—")} sub={showingFindings ? "linked to Bassett-only testing" : (metrics ? `${metrics.test_runs.test_bank_coverage.covered}/${metrics.test_runs.test_bank_coverage.total} active scenarios with a completed result` : "Drafts and Not Evaluated runs are excluded")} icon={CheckCircle2} accent="#16a34a" />
+       <StatCard label={showingFindings ? "Total Findings" : "Scenario coverage"} value={showingFindings ? (metrics?.findings?.total ?? 0) : (metrics ? `${metrics.test_runs.test_bank_coverage.percent}%` : "—")} sub={showingFindings ? "linked to Bassett-only testing" : (metrics ? `${metrics.test_runs.test_bank_coverage.covered}/${metrics.test_runs.test_bank_coverage.total} active scenarios with a qualifying completed evaluation` : "Draft, Incomplete, In Progress, and Not Evaluated runs are excluded")} icon={CheckCircle2} accent="#16a34a" />
     </div>
     <div className={showingFindings ? "grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]" : ""}>
     <Section title={showingFindings ? "Bassett findings" : "Bassett test runs"} action={<span className="text-xs text-muted-foreground">{shown.length} shown · archived records stay in history</span>}>
@@ -391,7 +391,7 @@ export default function BassettIssues() {
        ) : (
          <>
             <p>Tests Needing Attention includes Test result values of Needs Improvement, Fail, Critical Fail, or Blocked.</p>
-            <p>Scenario coverage is the percentage of active Test Bank scenarios with a completed Test result. Draft and Not Evaluated runs are excluded.</p>
+            <p>Scenario coverage is the percentage of active Test Bank scenarios with a qualifying completed evaluation. Draft, Incomplete, In Progress, Blocked, and Not Evaluated runs are excluded.</p>
          </>
        )}
        <p>Archived records remain available in history but are excluded from active summary populations. The visible test-date filters define the displayed date range.</p>

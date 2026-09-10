@@ -87,6 +87,28 @@ def test_explicit_evaluation_date_contributes_to_project_recency():
     assert result["p1"] == "2026-08-26"
 
 
+def test_standalone_completed_bassett_run_contributes_to_project_recency():
+    result = derive(
+        bassett_runs=[
+            {"id": "b1", "project_id": "p1", "status": "Triaged", "result": "Pass",
+             "bassett_version": "Bassett v9.26", "test_date": "2026-07-28"},
+            {"id": "b2", "project_id": "p1", "status": "In Progress", "result": "Pass",
+             "bassett_version": "Bassett v9.26", "test_date": "2026-09-02"},
+        ],
+    )
+    assert result["p1"] == "2026-07-28"
+
+
+def test_in_progress_bassett_result_is_not_a_completed_project_test():
+    result = derive(
+        bassett_runs=[
+            {"id": "b1", "project_id": "p1", "status": "In Progress", "result": "Pass",
+             "bassett_version": "Bassett v9.26", "test_date": "2026-09-02"},
+        ],
+    )
+    assert result["p1"] is None
+
+
 def test_project_completion_reaches_full_completion_at_ten_cases():
     testcases = [
         {"id": f"t{i}", "project_id": "p1", "status": "Closed"}

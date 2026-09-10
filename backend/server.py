@@ -341,7 +341,8 @@ def _eligible_completed_bassett_runs(issues, executions, *, active_scenario_ids=
         run for run in _canonical_bassett_lineages(
             issues, executions, active_scenario_ids=active_scenario_ids
         )
-        if _canonical_bassett_result(run.get("result")) != "Not Evaluated"
+        if _dashboard_bassett_result_is_eligible(run)
+        and _bassett_version_is_required(run)
     ]
 
 
@@ -352,8 +353,8 @@ def _project_last_tested_dates(
 
     Scope: active Test Cases currently linked to the project; their own test_date;
     completed standard Test Runs and evaluations linked to those Test Cases; and
-    recorded canonical Bassett runs whose project link agrees with the Test Case's
-    current project.
+    recorded canonical Bassett runs linked directly to the project, including
+    standalone Bassett-only runs that do not have a Model Comparison Test Case.
     Reusable Test Bank definitions, archived Test Cases, orphan/cross-project runs,
     failed/in-progress executions, and timestamp fallbacks are excluded.
     """
@@ -387,8 +388,12 @@ def _project_last_tested_dates(
     # canonical completed evidence only.
     for run in _eligible_completed_bassett_runs(bassett_runs, bassett_executions or []):
         testcase = active_tests.get(run.get("testcase_id"))
-        project_id = testcase.get("project_id") if testcase else None
-        if testcase and run.get("project_id") == project_id and run.get("result"):
+        direct_project_id = run.get("project_id")
+        project_id = testcase.get("project_id") if testcase else direct_project_id
+        # A Test Case owns the relationship when present; otherwise the explicit
+        # Bassett-only project link is authoritative. Never accept a conflicting
+        # cross-project link.
+        if project_id and (not testcase or direct_project_id in (None, "", project_id)):
             add(project_id, run.get("test_date"))
     return {project_id: max(values) if values else None for project_id, values in candidates.items()}
 
@@ -3119,6 +3124,22 @@ def _validate_bassett_version_requirement(doc):
         )
 
 
+async def _validate_configured_environment(doc):
+    """Keep analytical Environment values within the administrator lookup."""
+    environment = str(doc.get("environment") or "").strip()
+    if not environment:
+        doc["environment"] = ""
+        return
+    config = await db.config.find_one({"id": "global"}, {"_id": 0}) or DEFAULT_CONFIG
+    allowed = [str(value).strip() for value in config.get("environments", []) if str(value).strip()]
+    if environment not in allowed:
+        raise HTTPException(
+            400,
+            f"Environment must be one of the configured Administration lookup values: {', '.join(allowed)}",
+        )
+    doc["environment"] = environment
+
+
 def _canonicalize_bassett_version_record(record, versions):
     normalized = dict(record)
     version_id = str(normalized.get("version_id") or "").strip()
@@ -3549,6 +3570,7 @@ async def bassett_create_issue(body: Dict[str, Any], user=Depends(get_current_us
     _validate_issue_required(doc)
     _validate_bassett_run_result(doc)
     _validate_bassett_version_requirement(doc)
+    await _validate_configured_environment(doc)
     if doc.get("status") not in (None, *BASSETT_ISSUE_STATUSES[:-1]):
         raise HTTPException(400, "Invalid issue status")
     await _validate_bassett_refs(doc, require_scenario=True)
@@ -3849,6 +3871,9 @@ async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_c
         incoming["turns"] = []
     _validate_bassett_run_result(merged, allow_legacy=True)
     _validate_bassett_version_requirement(merged)
+    await _validate_configured_environment(merged)
+    if "environment" in incoming:
+        incoming["environment"] = merged["environment"]
     if "result" in incoming:
         incoming["result"] = merged["result"]
     if "score" in incoming:
@@ -4345,10 +4370,7 @@ async def bassett_metrics(version_id: Optional[str] = None, environment: Optiona
     # Keep legacy result text intact, but calculate canonical metrics using
     # the shared evaluation vocabulary.
     classified = [(e, _canonical_bassett_result(e.get("result"))) for e in metric_runs]
-    completed = [
-        e for e, result in classified
-        if result != "Not Evaluated" and _bassett_version_is_required(e)
-    ]
+    completed = [e for e in metric_runs if _dashboard_bassett_result_is_eligible(e) and _bassett_version_is_required(e)]
     pass_rate_runs = [e for e in completed if e.get("result") != "Blocked"]
     passed_runs = [
         e for e in pass_rate_runs if _canonical_bassett_result(e.get("result")) in PASS_SET
@@ -4379,13 +4401,8 @@ async def bassett_metrics(version_id: Optional[str] = None, environment: Optiona
         or finding.get("id") in issue_finding_ids or finding.get("id") in execution_finding_ids
     ]
     covered_scenarios = {
-        e.get("scenario_id") for e in metric_runs
-        if (
-            _bassett_result_details(e.get("result"))["canonical_result"] != "Not Evaluated"
-            or e.get("result") == "Blocked"
-        )
-        and _bassett_version_is_required(e)
-        and e.get("scenario_id") in active_scenario_ids
+        e.get("scenario_id") for e in completed
+        if e.get("scenario_id") in active_scenario_ids
     }
     test_bank_coverage = {
         "total": len(scenarios), "covered": len(covered_scenarios),
@@ -4417,7 +4434,7 @@ async def bassett_metrics(version_id: Optional[str] = None, environment: Optiona
             "pass_rate": round(len(passed_runs) / len(pass_rate_runs) * 100, 1) if pass_rate_runs else None,
             "test_bank_coverage": test_bank_coverage,
             "test_bank": {"coverage": test_bank_coverage["percent"], **test_bank_coverage},
-            "definition": "Completed excludes Not Evaluated, legacy Incomplete, and Blocked. Attention is Needs Improvement, Fail, Critical Fail, or Blocked. Pass rate excludes workflow-blocked and unevaluated tests.",
+            "definition": "Qualifying completed tests exclude Draft, Incomplete, In Progress, Not Evaluated, and Blocked. Attention is Needs Improvement, Fail, Critical Fail, or Blocked. Pass rate uses the same qualifying population.",
         },
         "failure_breakdown": [{"label": key, "count": value} for key, value in failure_breakdown.most_common()],
         "scope": {"version_id": version_id, "environment": environment},

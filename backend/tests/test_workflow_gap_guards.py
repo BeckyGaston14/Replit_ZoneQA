@@ -725,6 +725,28 @@ def test_performance_and_coverage_scope_include_standalone_bassett_runs(monkeypa
     assert coverage["summary"]["total_tests"] == 1
 
 
+def test_shared_bassett_eligibility_excludes_in_progress_scored_results():
+    run = {"id": "run-1", "scenario_id": "scenario-1", "status": "In Progress",
+           "result": "Pass", "bassett_version": "Bassett v9.26"}
+    assert server._eligible_completed_bassett_runs([run], [], active_scenario_ids={"scenario-1"}) == []
+    assert server._dashboard_bassett_result_is_eligible(run) is False
+
+
+def test_bassett_environment_must_come_from_administration_lookup(monkeypatch):
+    monkeypatch.setattr(server, "db", Db({
+        "config": [{"id": "global", "environments": ["Production", "Staging"]}],
+    }))
+    valid = {"environment": " Production "}
+    asyncio.run(server._validate_configured_environment(valid))
+    assert valid["environment"] == "Production"
+
+    with pytest.raises(server.HTTPException) as error:
+        asyncio.run(server._validate_configured_environment({
+            "environment": "Documented Bassett due-diligence test",
+        }))
+    assert error.value.status_code == 400
+
+
 def test_active_project_metric_uses_enriched_automatic_completion(monkeypatch):
     rows = {
         "projects": [
