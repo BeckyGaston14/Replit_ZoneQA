@@ -11,9 +11,8 @@ import { TableSortControls } from "./TableSortControls";
 import { nextSort, sortTableRows, usePersistentTableSort } from "../lib/tableSorting";
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
-import { Plus, Pencil, Trash2, Archive, ArchiveRestore, X } from "lucide-react";
+import { FileOutput, Plus, Pencil, Trash2, Archive, ArchiveRestore, X } from "lucide-react";
 import { toast } from "sonner";
-import { Download } from "lucide-react";
 import { downloadCsv, tableRowsToCsv, withinDateRange } from "../lib/tableData";
 import { api, formatApiErrorDetail } from "../lib/api";
 import {
@@ -291,7 +290,7 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
   return (
     <div>
       <PageHeader title={title} subtitle={subtitle}>
-        {exportFilename && <Button variant="outline" onClick={() => downloadCsv(exportFilename, tableRowsToCsv(sortedData, sortColumns))} aria-label={`Export filtered ${title} as CSV`}><Download size={15} className="mr-1" /> Export</Button>}
+        {exportFilename && <Button variant="outline" onClick={() => downloadCsv(exportFilename, tableRowsToCsv(sortedData, sortColumns))} aria-label={`Export filtered ${title} as CSV`}><FileOutput size={15} className="mr-1" /> Export</Button>}
         {parentLifecycle && <Button variant="outline" onClick={() => setSavedFilter("archived", showArchived ? "active" : "archived")} aria-pressed={showArchived}>
           {showArchived ? "Active records" : "Archived records"}
         </Button>}

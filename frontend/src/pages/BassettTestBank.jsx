@@ -10,7 +10,7 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
 import { Field, FormModal } from "../components/forms";
-import { Activity, Archive, ArchiveRestore, CheckCircle2, Download, FlaskConical, Loader2, Pencil, Plus, Search, Upload, X, XCircle } from "lucide-react";
+import { Activity, Archive, ArchiveRestore, CheckCircle2, FileInput, FileOutput, FlaskConical, Loader2, Pencil, Plus, Search, X, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { parseCsv } from "../lib/csv";
 import { SortableTableHeader } from "../components/SortableTableHeader";
@@ -255,8 +255,8 @@ export default function BassettTestBank() {
 
   return <div>
     <PageHeader title="Bassett Test Bank" subtitle="Bassett-only Research and Analysis scenarios with explicit success criteria and Bassett test run history. Pass test runs are not findings.">
-      {canManage && <Button variant="outline" onClick={() => setShowImport(true)}><Upload /> Import CSV</Button>}
-      <Button variant="outline" onClick={exportCsv}><Download /> Export CSV</Button>
+      {canManage && <Button variant="outline" onClick={() => setShowImport(true)}><FileInput /> Import CSV</Button>}
+      <Button variant="outline" onClick={exportCsv}><FileOutput /> Export CSV</Button>
       <Button variant="outline" aria-pressed={showArchived} onClick={() => setShowArchived((value) => !value)}>{showArchived ? "Active scenarios" : "Archived scenarios"}</Button>
       {canManage && <Button variant="outline" onClick={() => setShowWorkflowManager(true)}>Manage categories & prefixes</Button>}
       {canManage && <Button onClick={() => { const draft = { ...emptyScenario }; scenarioBaseline.current = draft; setFormErrors({}); setScenarioError(""); setConflict(null); setForm(draft); }} className="bg-[var(--orange)] hover:bg-[var(--orange-600)]"><Plus /> Add scenario</Button>}

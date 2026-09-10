@@ -12,7 +12,7 @@ import { Input } from "../components/ui/input";
 import { FormModal, Field, ListSelect } from "../components/forms";
 import { Textarea } from "../components/ui/textarea";
 import { BassettTestRunForm, ScenarioDefinition, ScenarioSelector, createBassettTestRunDraft } from "../components/BassettTestRunForm";
-import { AlertTriangle, Archive, ArchiveRestore, CheckCircle2, Download, ExternalLink, Flag, Loader2, Pencil, Plus, RefreshCw, Search, ShieldAlert, Upload, X } from "lucide-react";
+import { AlertTriangle, Archive, ArchiveRestore, CheckCircle2, ExternalLink, FileInput, FileOutput, Flag, Loader2, Pencil, Plus, RefreshCw, Search, ShieldAlert, X } from "lucide-react";
 import { toast } from "sonner";
 import { parseCsv } from "../lib/csv";
 import { SortableTableHeader } from "../components/SortableTableHeader";
@@ -304,8 +304,8 @@ export default function BassettIssues() {
 
   return <div>
     <PageHeader title={showingFindings ? "Bassett Findings" : "Bassett Test Runs"} subtitle={showingFindings ? "Findings created from Bassett testing. General Findings and model-comparison findings remain separate." : "Record a Bassett test result, evidence, and follow-up. Passing test runs are not findings."}>
-      {canManage && !showingFindings && <Button variant="outline" onClick={() => setShowImport(true)}><Upload size={15} /> Import CSV</Button>}
-      {!showingFindings && <Button variant="outline" onClick={exportCsv}><Download size={15} /> Export CSV</Button>}
+      {canManage && !showingFindings && <Button variant="outline" onClick={() => setShowImport(true)}><FileInput size={15} /> Import CSV</Button>}
+      {!showingFindings && <Button variant="outline" onClick={exportCsv}><FileOutput size={15} /> Export CSV</Button>}
       <Link to={showingFindings ? "/bassett/issues" : "/bassett/issues?view=findings"}><Button variant="outline">{showingFindings ? "Bassett Test Runs" : "Bassett Findings"}</Button></Link>
       {showingFindings && <Link to="/findings"><Button variant="outline">Model Comparison Findings</Button></Link>}
       {!showingFindings && <Button variant="outline" aria-pressed={showArchived} onClick={() => setShowArchived((value) => !value)}>{showArchived ? "Active test runs" : "Archived test runs"}</Button>}

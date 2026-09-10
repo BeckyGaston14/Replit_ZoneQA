@@ -29,7 +29,7 @@ import { Textarea } from "../components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
 import { Checkbox } from "../components/ui/checkbox";
-import { Download, Plus, Trash2, X, Upload, SlidersHorizontal, Columns3 } from "lucide-react";
+import { FileInput, FileOutput, Plus, Trash2, X, SlidersHorizontal, Columns3 } from "lucide-react";
 import { toast } from "sonner";
 import { focusFormError, validateTestCaseDraft } from "../lib/formValidation";
 import {
@@ -258,8 +258,8 @@ export default function TestCases() {
   return (
     <div>
       <PageHeader title="Model Comparison Test Cases" subtitle="Standard test cases for full Bassett vs ChatGPT vs Claude comparisons, evaluated against Gold Standards.">
-        <Button variant="outline" onClick={exportRows} disabled={!isLoading && data.length === 0} aria-label={`Export ${sortedRows.length} filtered Test Cases as CSV`}><Download size={15} className="mr-1" /> Export CSV</Button>
-        {canWrite && <Button data-testid="import-csv-btn" variant="outline" onClick={() => setImportOpen(true)}><Upload size={15} className="mr-1" /> Import CSV</Button>}
+        <Button variant="outline" onClick={exportRows} disabled={!isLoading && data.length === 0} aria-label={`Export ${sortedRows.length} filtered Test Cases as CSV`}><FileOutput size={15} className="mr-1" /> Export CSV</Button>
+        {canWrite && <Button data-testid="import-csv-btn" variant="outline" onClick={() => setImportOpen(true)}><FileInput size={15} className="mr-1" /> Import CSV</Button>}
         {canWrite && <Button data-testid="add-testcase-btn" onClick={openNew} className="bg-[var(--orange)] hover:bg-[var(--orange-600)]"><Plus size={16} className="mr-1" /> New Test Case</Button>}
       </PageHeader>
       <ProjectScopeNav projects={projects} />
