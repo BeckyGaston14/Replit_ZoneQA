@@ -81,6 +81,8 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
   const [conflictRecord, setConflictRecord] = useState(null);
   const submitInFlight = useRef(false);
   const [confirmingDelete, setConfirmingDelete] = useState(null);
+  const [pendingAttachments, setPendingAttachments] = useState([]);
+  const [uploadingAttachments, setUploadingAttachments] = useState(false);
   const sortColumns = columns.map((column) => ({ type: "text", ...column }));
   const defaultSort = { key: sortColumns[0].key, direction: "asc" };
   const [sort, setSort] = usePersistentTableSort(collection, sortColumns, defaultSort);
@@ -98,8 +100,8 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
   const clearFilters = () => updateView({ ...view, filters: defaultView.filters });
 
   const resetFormState = () => { setFormErrors({}); setServerError(""); setConflictRecord(null); };
-  const openNew = () => { setForm({ ...initial }); setBaseRecord(null); resetFormState(); setOpen(true); };
-  const openEdit = (row) => { setForm({ ...row }); setBaseRecord(row); resetFormState(); setOpen(true); };
+  const openNew = () => { setForm({ ...initial }); setBaseRecord(null); setPendingAttachments([]); resetFormState(); setOpen(true); };
+  const openEdit = (row) => { setForm({ ...row }); setBaseRecord(row); setPendingAttachments([]); resetFormState(); setOpen(true); };
   const validate = () => {
     const errors = validateFormFields(fields, form, { dateRanges });
     setFormErrors(errors);
@@ -109,7 +111,7 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
     return Object.keys(errors).length === 0;
   };
   const submit = () => {
-    if (submitInFlight.current || save.isPending) return false;
+    if (submitInFlight.current || save.isPending || uploadingAttachments) return false;
     if (!validate()) return;
     submitInFlight.current = true;
     const versionedForm = { ...form };
@@ -117,7 +119,28 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
     else if (form.updated_at) versionedForm.expected_updated_at = form.updated_at;
     else if (form.revision != null) versionedForm.expected_revision = form.revision;
     save.mutate(versionedForm, {
-       onSuccess: () => { submitInFlight.current = false; setOpen(false); resetFormState(); toast.success("Saved"); },
+       onSuccess: async (savedRecord) => {
+         let failedUploads = 0;
+         if (!form.id && attachable && pendingAttachments.length) {
+           setUploadingAttachments(true);
+           const uploads = await Promise.allSettled(pendingAttachments.map((file) => {
+             const payload = new FormData();
+             payload.append("entity_type", attachable);
+             payload.append("entity_id", savedRecord.id);
+             payload.append("file", file);
+             return api.post("/attachments/upload", payload, { headers: { "Content-Type": "multipart/form-data" }, timeout: 15000 });
+           }));
+           failedUploads = uploads.filter(({ status }) => status === "rejected").length;
+           setUploadingAttachments(false);
+           queryClient.invalidateQueries({ queryKey: ["attachments", attachable, savedRecord.id] });
+         }
+         submitInFlight.current = false;
+         setPendingAttachments([]);
+         setOpen(false);
+         resetFormState();
+         if (failedUploads) toast.warning(`Record saved, but ${failedUploads} attachment${failedUploads === 1 ? "" : "s"} could not be uploaded. Reopen the record to retry.`);
+         else toast.success(pendingAttachments.length ? "Saved with attachments" : "Saved");
+       },
       onError: (error) => {
          submitInFlight.current = false;
         if (error?.response?.status === 409) {
@@ -315,7 +338,7 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
         </table>
       </div>}
 
-      <FormModal open={open} onOpenChange={setOpen} title={form.id ? `Edit ${singular || title}` : `New ${singular || title}`} onSubmit={submit} submitDisabled={save.isPending || submitInFlight.current} submitLabel={save.isPending || submitInFlight.current ? "Saving…" : "Save"} dirty={formDirty} errors={formErrors} onFocusFirstError={focusFormError} wide>
+      <FormModal open={open} onOpenChange={setOpen} title={form.id ? `Edit ${singular || title}` : `New ${singular || title}`} onSubmit={submit} submitDisabled={save.isPending || submitInFlight.current || uploadingAttachments} submitLabel={uploadingAttachments ? "Uploading files…" : save.isPending || submitInFlight.current ? "Saving…" : "Save"} dirty={formDirty || pendingAttachments.length > 0} errors={formErrors} onFocusFirstError={focusFormError} wide>
         {serverError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           <p className="font-semibold">{serverError}</p>
           {conflictRecord && <div className="mt-3">
@@ -361,7 +384,15 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
             <Attachments entityType={attachable} entityId={form.id} canWrite={user && user.role !== "viewer" && !isArchived(form)} />
           </div>
         )}
-        {attachable && !form.id && <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">Save the evidence record first, then reopen it to attach source documents.</p>}
+        {attachable && !form.id && <fieldset className="rounded-xl border p-4">
+          <legend className="px-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">Attachments</legend>
+          <Field label="Documents / images" description={pendingAttachments.length ? `${pendingAttachments.length} file(s) selected. Files upload after the record is saved.` : "Select supporting documents now; they will upload immediately after the record is saved."}>
+            <Input type="file" multiple
+              accept=".pdf,.doc,.docx,.odt,.xls,.xlsx,.ods,.ppt,.pptx,.txt,.csv,.tsv,.md,.rtf,.html,.htm,.xml,.json,.eml,.msg,.png,.jpg,.jpeg,.gif,.webp,.tif,.tiff,.bmp"
+              onChange={(event) => setPendingAttachments(Array.from(event.target.files || []))}
+              data-testid={`${collection}-pending-attachments`} />
+          </Field>
+        </fieldset>}
       </FormModal>
 
       <ConfirmActionDialog

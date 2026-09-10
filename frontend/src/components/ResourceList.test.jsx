@@ -183,3 +183,19 @@ test("project descriptions appear beneath the project name", async () => {
   expect(firstCell.querySelector(".text-muted-foreground")).not.toBeNull();
   act(() => root.unmount());
 });
+
+test.each([
+  ["projects", "project"],
+  ["evidence", "evidence"],
+])("new %s records expose the same pre-save attachment input", async (collection, entityType) => {
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  await act(async () => root.render(<ResourceList title={collection} collection={collection} attachable={entityType} columns={[{ key: "name", label: "Name" }]} fields={[]} />));
+  click(container.querySelector(`[data-testid="add-${collection}-btn"]`));
+  const input = container.querySelector(`[data-testid="${collection}-pending-attachments"]`);
+  expect(input).not.toBeNull();
+  expect(input.multiple).toBe(true);
+  expect(input.accept).toContain(".eml");
+  expect(input.accept).toContain(".pdf");
+  act(() => root.unmount());
+});
