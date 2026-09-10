@@ -96,20 +96,29 @@ export function createComparisonEditDraft(full, timeZone, now = new Date()) {
   };
 }
 
-export function ScenarioSelector({ scenarios, value, onChange, error }) {
+export function ScenarioSelector({ scenarios, value, onChange, category = "", onCategoryChange, error }) {
   const id = useId();
   const [query, setQuery] = useState("");
-  const shown = scenarios.filter((scenario) => [scenario.stable_id, scenario.test_scenario, scenario.workflow_stage, scenario.priority]
+  const categories = [...new Set(scenarios.map((scenario) => scenario.workflow_stage).filter(Boolean))].sort();
+  const shown = scenarios.filter((scenario) => (!category || scenario.workflow_stage === category) && [scenario.stable_id, scenario.test_scenario, scenario.priority]
     .some((field) => String(field || "").toLowerCase().includes(query.toLowerCase())));
   const errorId = `${id}-error`;
-  return <Field label="Test Bank scenario" required controlId={`${id}-scenario`}>
-    <Input aria-label="Search Test Bank scenarios" placeholder="Search ID, scenario, stage, or priority…" value={query} onChange={(e) => setQuery(e.target.value)} />
-    <select required aria-label="Test Bank scenario" aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} className="mt-2 h-9 w-full rounded-md border bg-background px-3 text-sm" value={value || ""} onChange={(e) => onChange(e.target.value)}>
-      <option value="">Select a scenario</option>
+  return <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <Field label="Category" required controlId={`${id}-category`}>
+      <select id={`${id}-category`} required aria-label="Test Bank category" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={category || ""} onChange={(event) => { setQuery(""); onCategoryChange(event.target.value); }}>
+        <option value="">Select a category first</option>
+        {categories.map((item) => <option key={item} value={item}>{item}</option>)}
+      </select>
+    </Field>
+    <Field label="Test Bank scenario" required controlId={`${id}-scenario`}>
+      <Input aria-label="Search Test Bank scenarios" placeholder={category ? `Search ${category} scenarios…` : "Select a category first"} value={query} onChange={(e) => setQuery(e.target.value)} disabled={!category} />
+      <select required disabled={!category} aria-label="Test Bank scenario" aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} className="mt-2 h-9 w-full rounded-md border bg-background px-3 text-sm" value={value || ""} onChange={(e) => onChange(e.target.value)}>
+      <option value="">{category ? `Select one of ${shown.length} ${category} scenarios` : "Select a category first"}</option>
       {shown.map((scenario) => <option key={scenario.id} value={scenario.id}>{scenario.stable_id} · {scenario.test_scenario} · {scenario.workflow_stage} · {scenario.priority}</option>)}
-    </select>
-    {error && <p id={errorId} role="alert" className="text-xs text-red-700">{error}</p>}
-  </Field>;
+      </select>
+      {error && <p id={errorId} role="alert" className="text-xs text-red-700">{error}</p>}
+    </Field>
+  </div>;
 }
 
 export function ScenarioDefinition({ scenario }) {
@@ -120,15 +129,21 @@ export function ScenarioDefinition({ scenario }) {
 
 export function GeneralSubtypeSelector({ subtypes = [], value = [], onChange, disabled = false }) {
   const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
   const selected = new Set(Array.isArray(value) ? value : []);
   const shown = subtypes.filter((subtype) => [subtype.stable_id, subtype.test_scenario, subtype.priority]
     .some((field) => String(field || "").toLowerCase().includes(query.trim().toLowerCase())));
   const toggle = (id) => onChange(selected.has(id) ? value.filter((item) => item !== id) : [...value, id]);
-  return <div className="space-y-2" data-testid="general-subtype-selector">
-    <div>
-      <div className="text-sm font-medium text-[var(--navy)]">General test subtypes <span className="font-normal text-muted-foreground">(Optional)</span></div>
-      <p className="mt-1 text-xs text-muted-foreground">Select every cross-cutting behavior this test covers. These are subtypes only and do not change the category, test type, score, or pass-rate calculation.</p>
-    </div>
+  return <div className="rounded-lg border bg-background p-3" data-testid="general-subtype-selector">
+    <button type="button" className="flex w-full items-center justify-between text-left text-sm font-medium text-[var(--navy)]" aria-expanded={open} onClick={() => setOpen((current) => !current)}>
+      <span>General test subtypes <span className="font-normal text-muted-foreground">(Optional · {selected.size} selected)</span></span>
+      <span aria-hidden="true">{open ? "−" : "+"}</span>
+    </button>
+    <p className="mt-1 text-xs text-muted-foreground">These are subtypes only and do not change the category, test type, score, or pass-rate calculation.</p>
+    {open && <div className="mt-3 space-y-2">
+      <div>
+      <p className="mt-1 text-xs text-muted-foreground">Select every cross-cutting behavior this test covers.</p>
+      </div>
     <Input aria-label="Search General test subtypes" placeholder="Search subtype ID, behavior, or priority…" value={query} onChange={(event) => setQuery(event.target.value)} disabled={disabled} />
     <div className="max-h-56 overflow-y-auto rounded-lg border bg-background p-2" role="group" aria-label="General test subtypes">
       {shown.map((subtype) => <label key={subtype.id} className="flex cursor-pointer items-start gap-2 rounded-md p-2 text-sm hover:bg-[var(--paper)]">
@@ -137,6 +152,7 @@ export function GeneralSubtypeSelector({ subtypes = [], value = [], onChange, di
       </label>)}
       {!shown.length && <p className="p-2 text-sm text-muted-foreground">No General subtypes match this search.</p>}
     </div>
+    </div>}
   </div>;
 }
 
@@ -365,6 +381,12 @@ export default function UnifiedTestEntryForm({
     try { return Boolean(localStorage.getItem(DRAFT_KEYS[mode])); } catch { return false; }
   });
   useEffect(() => {
+    if (form.id || selectedVersionId || !versions.length) return;
+    const activeVersion = versions.find((version) => version.active === true);
+    if (!activeVersion) return;
+    setForm((current) => current.version_id || current.bassett_version ? current : ({ ...current, version_id: activeVersion.id, bassett_version: activeVersion.name }));
+  }, [form.id, selectedVersionId, setForm, versions]);
+  useEffect(() => {
     if (form.id) return undefined;
     const timeout = globalThis.setTimeout?.(() => {
       try { localStorage.setItem(DRAFT_KEYS[mode], JSON.stringify({ ...form, attachments: [] })); } catch { /* local draft storage is best effort */ }
@@ -483,18 +505,17 @@ export default function UnifiedTestEntryForm({
     {!form.id && draftAvailable && <div className="rounded-lg border border-[var(--orange)] bg-orange-50 p-3 text-sm flex items-center justify-between gap-3"><span>A saved {isComparison ? "comparison" : "Bassett"} draft is available.</span><Button type="button" size="sm" variant="outline" onClick={recoverDraft}>Recover draft</Button></div>}
 
      <GuidedSection index={0} title="1. Test Setup" active={activeSection === 0} status={sectionStatus(0)} onActivate={activateSection}><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-       {!lockedCommon && <div className="sm:col-span-2"><ScenarioSelector scenarios={scenarios} value={form.scenario_id} onChange={(value) => update("scenario_id", value)} error={attemptedSections.has(0) && !String(form.scenario_id || "").trim() ? "Test Bank scenario is required." : undefined} /></div>}
+       {!lockedCommon && <div className="sm:col-span-2"><ScenarioSelector scenarios={scenarios} category={form.workflow_stage || selectedScenario?.workflow_stage || ""} onCategoryChange={(category) => setForm((current) => ({ ...current, workflow_stage: category, scenario_id: "" }))} value={form.scenario_id} onChange={(value) => { const scenario = scenarios.find((item) => item.id === value); setForm((current) => ({ ...current, scenario_id: value, workflow_stage: scenario?.workflow_stage || current.workflow_stage })); }} error={attemptedSections.has(0) && !String(form.scenario_id || "").trim() ? "Test Bank scenario is required." : undefined} /></div>}
       {selectedScenario && <div className="sm:col-span-2 rounded-xl border bg-[var(--paper)] p-4"><div className="font-semibold mb-3">Read-only Test Bank definition</div><ScenarioDefinition scenario={selectedScenario} /></div>}
       <div className="sm:col-span-2"><GeneralSubtypeSelector subtypes={generalSubtypes} value={form.general_subtype_ids || []} onChange={(value) => update("general_subtype_ids", value)} disabled={lockedCommon} /></div>
       <Field label="Sequential Test ID"><Input value={form.test_id || "Assigned on save"} readOnly className="bg-muted" /></Field>
-      <Field label="Test Bank Category"><Input value={form.workflow_stage || selectedScenario?.workflow_stage || "Selected from Test Bank"} readOnly className="bg-muted" /></Field>
       <Field label="Test name" required={isComparison} error={attemptedSections.has(0) && isComparison && !String(form.name || "").trim() ? "Test name is required." : undefined}><Input value={form.name || form.title || ""} disabled={lockedCommon} onChange={(e) => update(isComparison ? "name" : "title", e.target.value)} /></Field>
        <Field label="Bassett version" description="Required for completed tests and version-specific dashboard reporting."><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={selectedVersionId} disabled={lockedCommon} onChange={(e) => { const selected = versions.find((version) => version.id === e.target.value); setForm((current) => ({ ...current, version_id: selected?.id || "", bassett_version: selected?.name || "" })); }}><option value="">Not specified</option>{savedVersionUnavailable && <option value={form.version_id}>{form.bassett_version || "Saved version unavailable"}</option>}{versions.map((version) => <option key={version.id} value={version.id}>{version.name}{version.active === false ? " (inactive)" : ""}</option>)}</select></Field>
        {form.id && versionError && <div role="alert" className="sm:col-span-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">This completed historical test run has no Bassett version assigned. Choose a version before saving; the historical record remains unchanged until you save.</div>}
       <Field label="Test date" required error={attemptedSections.has(0) && !String(form.test_date || "").trim() ? "Test date is required." : undefined}><Input type="date" value={form.test_date || ""} disabled={lockedCommon} onChange={(e) => update("test_date", e.target.value)} /></Field>
-      <Field label="Environment"><Input value={form.environment || ""} disabled={lockedCommon} onChange={(e) => update("environment", e.target.value)} placeholder="Production, Staging…" /></Field>
+      <Field label="Environment"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.environment || ""} disabled={lockedCommon} onChange={(e) => update("environment", e.target.value)}><option value="">Not specified</option>{[...new Set([...(config.environments || []), form.environment].filter(Boolean))].map((value) => <option key={value} value={value}>{value}</option>)}</select></Field>
         {!isComparison && <Field label="Test type" description="Single Prompt is one question and answer. Multi-turn stores an ordered conversation with turn-level evidence."><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.test_type || "Single Prompt"} disabled={lockedCommon} onChange={(e) => update("test_type", e.target.value)}><option>Single Prompt</option><option>Multi-turn</option></select></Field>}
-       {!isComparison && <Field label="Workflow status"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.status || "New"} disabled={lockedCommon} onChange={(e) => update("status", e.target.value)}>{["New", "Triaged", "In Progress", "Blocked", "Resolved", "Closed"].map((value) => <option key={value}>{value}</option>)}</select></Field>}
+       {!isComparison && <Field label="Workflow status"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.status || "New"} disabled={lockedCommon || !form.id} onChange={(e) => update("status", e.target.value)}>{["New", "Triaged", "In Progress", "Blocked", "Resolved", "Closed"].map((value) => <option key={value}>{value}</option>)}</select>{!form.id && <p className="mt-1 text-xs text-muted-foreground">New tests begin as New. Update the status after reviewing the saved test.</p>}</Field>}
     </div></GuidedSection>
 
      <GuidedSection index={1} title="2. Linked Records & Prompt" active={activeSection === 1} status={sectionStatus(1)} onActivate={activateSection}><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

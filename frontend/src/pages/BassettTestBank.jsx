@@ -33,7 +33,8 @@ const emptyScenario = {
   complexity: "Medium", why_it_matters: "", what_bassett_should_do: "",
   success_criteria: "", priority: "Medium", project_id: "", testcase_id: "", version_id: "",
 };
-const DEFAULT_TEST_BANK_VIEW = { filters: { search: "", stage: "all" } };
+const DEFAULT_TEST_BANK_VIEW = { filters: { search: "", stage: "all", complexity: "all", priority: "all" } };
+const PAGE_SIZE = 20;
 const displayResult = (value) => value === "Incomplete" ? "Legacy: Incomplete" : value;
 
 export function ResultPill({ value }) {
@@ -53,11 +54,16 @@ export default function BassettTestBank() {
       filters: {
         search: typeof saved.filters?.search === "string" ? saved.filters.search : "",
         stage: typeof saved.filters?.stage === "string" && saved.filters.stage ? saved.filters.stage : "all",
+        complexity: typeof saved.filters?.complexity === "string" && saved.filters.complexity ? saved.filters.complexity : "all",
+        priority: typeof saved.filters?.priority === "string" && saved.filters.priority ? saved.filters.priority : "all",
       },
     }),
   );
   const search = view.filters.search;
   const stage = view.filters.stage;
+  const complexity = view.filters.complexity;
+  const priority = view.filters.priority;
+  const [page, setPage] = useState(1);
   const [form, setForm] = useState(null);
   const [formErrors, setFormErrors] = useState({});
   const [scenarioError, setScenarioError] = useState("");
@@ -95,9 +101,13 @@ export default function BassettTestBank() {
   const shown = useMemo(() => sortTableRows(scenarios.filter((scenario) => {
     const q = search.trim().toLowerCase();
     return Boolean(scenario.archived) === showArchived && (stage === "all" || scenario.workflow_stage === stage) &&
+      (complexity === "all" || scenario.complexity === complexity) && (priority === "all" || scenario.priority === priority) &&
       (!q || [scenario.stable_id, scenario.test_scenario, scenario.why_it_matters]
         .some((value) => String(value || "").toLowerCase().includes(q)));
-  }), testBankColumns, sort, ["stable_id", "test_scenario"]), [scenarios, search, stage, sort, testBankColumns, showArchived]);
+  }), testBankColumns, sort, ["stable_id", "test_scenario"]), [scenarios, search, stage, complexity, priority, sort, testBankColumns, showArchived]);
+  const pageCount = Math.max(1, Math.ceil(shown.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const pageRows = shown.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   const saveScenario = async () => {
     const errors = validateScenarioDraft(form);
@@ -153,10 +163,13 @@ export default function BassettTestBank() {
     });
     setScenarioError("");
   };
-  const setViewFilter = (key, value) => updateView((current) => ({
-    ...current,
-    filters: { ...current.filters, [key]: value },
-  }));
+  const setViewFilter = (key, value) => {
+    setPage(1);
+    updateView((current) => ({
+      ...current,
+      filters: { ...current.filters, [key]: value },
+    }));
+  };
   const recordExecution = async () => {
     if (savingRun) return;
     setSavingRun(true);
@@ -257,9 +270,11 @@ export default function BassettTestBank() {
     </div>
     <Section title="Scenario library" action={<span className="text-xs text-muted-foreground">{shown.length} active scenario(s)</span>}>
       <div className="flex flex-wrap gap-2 mb-4">
-         <div className="relative flex-1 min-w-[240px]"><Search size={15} className="absolute left-3 top-2.5 text-muted-foreground" /><Input aria-label="Search Test Bank scenarios" className="pl-9" placeholder="Search ID, scenario, report type, purpose…" value={search} onChange={(e) => setViewFilter("search", e.target.value)} /></div>
+         <div className="relative flex-1 min-w-[240px]"><Search size={15} className="absolute left-3 top-2.5 text-muted-foreground" /><Input aria-label="Search Test Bank scenarios" className="pl-9" placeholder="Search ID, scenario, or purpose…" value={search} onChange={(e) => setViewFilter("search", e.target.value)} /></div>
          <select aria-label="Filter by category" className="h-9 rounded-md border bg-background px-3 text-sm" value={stage} onChange={(e) => setViewFilter("stage", e.target.value)}><option value="all">All categories</option>{stages.map((x) => <option key={x}>{x}</option>)}</select>
-         {(search || stage !== "all") && <Button type="button" size="sm" variant="outline" className="h-9 text-[var(--orange)]" onClick={() => { setViewFilter("search", ""); setViewFilter("stage", "all"); }} data-testid="test-bank-clear-filters"><X size={13} className="mr-1" /> Clear filters</Button>}
+         <select aria-label="Filter by complexity" className="h-9 rounded-md border bg-background px-3 text-sm" value={complexity} onChange={(e) => setViewFilter("complexity", e.target.value)}><option value="all">All complexity</option>{[...new Set(scenarios.map((item) => item.complexity).filter(Boolean))].sort().map((x) => <option key={x}>{x}</option>)}</select>
+         <select aria-label="Filter by priority" className="h-9 rounded-md border bg-background px-3 text-sm" value={priority} onChange={(e) => setViewFilter("priority", e.target.value)}><option value="all">All priorities</option>{[...new Set(scenarios.map((item) => item.priority).filter(Boolean))].sort().map((x) => <option key={x}>{x}</option>)}</select>
+         {(search || stage !== "all" || complexity !== "all" || priority !== "all") && <Button type="button" size="sm" variant="outline" className="h-9 text-[var(--orange)]" onClick={() => { setPage(1); updateView(DEFAULT_TEST_BANK_VIEW); }} data-testid="test-bank-clear-filters"><X size={13} className="mr-1" /> Clear filters</Button>}
          <span className="text-xs text-muted-foreground self-center">View saved to your account</span>
       </div>
       <TableSortControls columns={testBankColumns} sort={sort} setSort={setSort} defaultSort={{ key: "stable_id", direction: "asc" }} className="mb-3" />
@@ -267,7 +282,7 @@ export default function BassettTestBank() {
         {testBankColumns.map((column) => <SortableTableHeader key={column.key} column={column} sort={sort} onSort={(key) => setSort((current) => nextSort(current, key))} />)}
         <th className="px-2.5 py-2 text-right text-[11px] uppercase tracking-wide text-muted-foreground">Actions</th>
       </tr></thead>
-        <tbody>{isLoading ? <tr><td colSpan="7" className={TABLE_EMPTY_CELL_CLASS}>Loading Test Bank…</td></tr> : shown.map((scenario) => <tr key={scenario.id} className="border-t hover:bg-[var(--paper)]">
+        <tbody>{isLoading ? <tr><td colSpan="7" className={TABLE_EMPTY_CELL_CLASS}>Loading Test Bank…</td></tr> : pageRows.map((scenario) => <tr key={scenario.id} className="border-t hover:bg-[var(--paper)]">
           <td className={`${TABLE_CELL_CLASS} font-bold text-[var(--orange)]`}><button type="button" className="w-full text-left rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)] focus-visible:ring-offset-2" onClick={() => setSelected(scenario.id)} aria-label={`Open ${scenario.stable_id} scenario`}>{scenario.stable_id}</button></td><td className={`${TABLE_CELL_CLASS} font-semibold`}>{scenario.workflow_stage}</td>
           <td className={`${TABLE_CELL_CLASS} min-w-[260px]`}><div className="font-semibold text-[var(--navy)]">{scenario.test_scenario}</div><div className="text-xs text-muted-foreground mt-1 line-clamp-1">{scenario.why_it_matters}</div></td>
           <td className={TABLE_CELL_CLASS}>{scenario.complexity}</td><td className={TABLE_CELL_CLASS}>{scenario.priority}</td><td className={TABLE_CELL_CLASS}>{scenario.execution_count} test run(s)</td>
@@ -281,6 +296,10 @@ export default function BassettTestBank() {
               </div>}</td>
         </tr>)}{!isLoading && !shown.length && <tr><td colSpan="8" className={TABLE_EMPTY_CELL_CLASS}>No Test Bank scenarios match these filters.</td></tr>}</tbody>
       </table></div>
+      {!isLoading && shown.length > PAGE_SIZE && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">
+        <span className="text-muted-foreground">Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, shown.length)} of {shown.length}</span>
+        <div className="flex items-center gap-2"><Button type="button" size="sm" variant="outline" disabled={currentPage === 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>Previous</Button><span>Page {currentPage} of {pageCount}</span><Button type="button" size="sm" variant="outline" disabled={currentPage === pageCount} onClick={() => setPage((value) => Math.min(pageCount, value + 1))}>Next</Button></div>
+      </div>}
     </Section>
      <MethodologyDisclosure title="How Bassett Test Bank metrics are calculated" testid="bassett-test-bank-methodology">
        <p>Bassett Test Bank metrics describe active reusable scenarios and their canonical Bassett-only executions.</p>

@@ -93,6 +93,34 @@ test("General behaviors are optional subtypes and show their scoring guidance", 
   act(() => view.root.unmount());
 });
 
+test("category selection filters Test Bank scenarios before scenario selection", () => {
+  const analysisScenario = { ...scenario, id: "scenario-2", stable_id: "A-01", workflow_stage: "Analysis", test_scenario: "Analyze zoning" };
+  const view = renderForm("bassett", { scenario_id: "", workflow_stage: "" }, { scenarios: [scenario, analysisScenario] });
+  const category = view.container.querySelector('select[aria-label="Test Bank category"]');
+  const scenarioSelect = view.container.querySelector('select[aria-label="Test Bank scenario"]');
+  expect(scenarioSelect.disabled).toBe(true);
+  act(() => {
+    category.value = "Analysis";
+    category.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  expect(scenarioSelect.disabled).toBe(false);
+  expect([...scenarioSelect.options].map((option) => option.textContent).join(" ")).toContain("A-01");
+  expect([...scenarioSelect.options].map((option) => option.textContent).join(" ")).not.toContain("R-01");
+  act(() => view.root.unmount());
+});
+
+test("new tests default to the active Bassett version and configured environment options", () => {
+  const view = renderForm("bassett", { version_id: "", bassett_version: "" }, {
+    versions: [{ id: "version-1", name: "Bassett v9.26", active: true }],
+    config: { environments: ["Production", "Staging"] },
+  });
+  expect(view.latest().version_id).toBe("version-1");
+  expect(view.latest().bassett_version).toBe("Bassett v9.26");
+  const environment = [...view.container.querySelectorAll("label")].find((node) => node.textContent.startsWith("Environment")).querySelector("select");
+  expect([...environment.options].map((option) => option.textContent)).toEqual(["Not specified", "Production", "Staging"]);
+  act(() => view.root.unmount());
+});
+
 test("guided workflow opens one section at a time and supports Previous and Next navigation", () => {
   const view = renderForm("bassett");
   const sections = [...view.container.querySelectorAll("summary[data-guided-section]")]

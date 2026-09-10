@@ -65,7 +65,7 @@ export default function Reports() {
         ["test_date", "Test Date"],
       ].map(([key, label]) => ({ key, label }));
       downloadCsv("zoneqa-testcases.csv", tableRowsToCsv(data.testcases, columns));
-      toast.success("Test cases exported (CSV)");
+      toast.success("Model Comparison test cases exported (CSV)");
     } catch (error) {
       toast.error(error.response?.data?.detail || "Unable to export test cases. Please retry.");
     }
@@ -74,7 +74,7 @@ export default function Reports() {
   return (
     <div>
       <PageHeader title="Reports & Exports" subtitle="Generated from persisted QA records — never static.">
-        <Button variant="outline" className="w-full sm:w-auto" onClick={exportCSV}><FileDown size={15} className="mr-1" /> Export Test Cases CSV</Button>
+        <Button variant="outline" className="w-full sm:w-auto" onClick={exportCSV}><FileDown size={15} className="mr-1" /> Export Model Comparison Test Cases CSV</Button>
       </PageHeader>
 
       <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted-foreground">Data exports</h2>
