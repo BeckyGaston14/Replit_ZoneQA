@@ -10,7 +10,7 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
 import { Field, FormModal } from "../components/forms";
-import { Activity, Archive, ArchiveRestore, CheckCircle2, Download, FlaskConical, Loader2, Pencil, Plus, Search, Upload, XCircle } from "lucide-react";
+import { Activity, Archive, ArchiveRestore, CheckCircle2, Download, FlaskConical, Loader2, Pencil, Plus, Search, Upload, X, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { parseCsv } from "../lib/csv";
 import { SortableTableHeader } from "../components/SortableTableHeader";
@@ -259,6 +259,7 @@ export default function BassettTestBank() {
       <div className="flex flex-wrap gap-2 mb-4">
          <div className="relative flex-1 min-w-[240px]"><Search size={15} className="absolute left-3 top-2.5 text-muted-foreground" /><Input aria-label="Search Test Bank scenarios" className="pl-9" placeholder="Search ID, scenario, report type, purpose…" value={search} onChange={(e) => setViewFilter("search", e.target.value)} /></div>
          <select aria-label="Filter by category" className="h-9 rounded-md border bg-background px-3 text-sm" value={stage} onChange={(e) => setViewFilter("stage", e.target.value)}><option value="all">All categories</option>{stages.map((x) => <option key={x}>{x}</option>)}</select>
+         {(search || stage !== "all") && <Button type="button" size="sm" variant="outline" className="h-9 text-[var(--orange)]" onClick={() => { setViewFilter("search", ""); setViewFilter("stage", "all"); }} data-testid="test-bank-clear-filters"><X size={13} className="mr-1" /> Clear filters</Button>}
          <span className="text-xs text-muted-foreground self-center">View saved to your account</span>
       </div>
       <TableSortControls columns={testBankColumns} sort={sort} setSort={setSort} defaultSort={{ key: "stable_id", direction: "asc" }} className="mb-3" />

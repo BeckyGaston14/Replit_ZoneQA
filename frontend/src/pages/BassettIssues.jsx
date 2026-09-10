@@ -205,6 +205,15 @@ export default function BassettIssues() {
       .some((value) => String(value || "").toLowerCase().includes(query));
   }), runColumns, sort, [{ key: "test_date", direction: "desc" }, "title"]), [issues, filters, runColumns, sort, scenarioMap, showArchived, showingFindings]);
   const defaultSort = showingFindings ? { key: "severity", direction: "asc" } : DEFAULT_RUN_SORT;
+  const filtersActive = Boolean(filters.search || filters.dateFrom || filters.dateTo || Object.entries(filters).some(([key, value]) => !["search", "dateFrom", "dateTo"].includes(key) && value !== "all"));
+  const clearFilters = () => {
+    setFilters({ status: "all", severity: "all", type: "all", retest: "all", project: "all", version: "all", result: "all", stage: "all", testType: "all", priority: "all", environment: "all", search: "", dateFrom: "", dateTo: "" });
+    if (searchParams.has("project_id")) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("project_id");
+      setSearchParams(next, { replace: true });
+    }
+  };
 
   const save = async () => {
     if (saving) return;
@@ -323,6 +332,7 @@ export default function BassettIssues() {
         </>}
         <select aria-label="Filter by testing project" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.project} onChange={(e) => setFilters({ ...filters, project: e.target.value })}><option value="all">All testing projects</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select>
         {!showingFindings && <><Input aria-label="Test date from" title="Test date from" type="date" className="w-auto" value={filters.dateFrom} onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })} /><Input aria-label="Test date to" title="Test date to" type="date" className="w-auto" value={filters.dateTo} onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })} /></>}
+        {filtersActive && <Button type="button" size="sm" variant="outline" className="h-9 text-[var(--orange)]" onClick={clearFilters} data-testid="bassett-clear-filters"><X size={13} className="mr-1" /> Clear filters</Button>}
       </div>
       {showingFindings && <details className="mb-4 rounded-lg border bg-[var(--paper)] px-3 py-2">
         <summary className="cursor-pointer text-sm font-semibold text-[var(--navy)]">Additional filters</summary>

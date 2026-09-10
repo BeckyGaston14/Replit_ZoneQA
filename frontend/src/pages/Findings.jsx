@@ -157,8 +157,15 @@ export default function Findings() {
     (flt.version === ALL || f.version_found === flt.version) &&
     (!searchTerm || [f.title, f.description, f.root_cause, f.finding_type, f.version_found, f.assignee_name]
       .some((value) => String(value || "").toLowerCase().includes(searchTerm))));
-  const filtersActive = Object.values(flt).some((value) => value !== ALL);
-  const clearFilters = () => { updateSavedView({ filters: DEFAULT_FILTERS }); setSearch(""); };
+  const filtersActive = Object.values(flt).some((value) => value !== ALL) || Boolean(searchTerm) || testcaseFilter !== ALL || projectFilter !== ALL;
+  const clearFilters = () => {
+    updateSavedView({ filters: DEFAULT_FILTERS });
+    setSearch("");
+    const next = new URLSearchParams(sp);
+    next.delete("testcase_id");
+    next.delete("project_id");
+    setSp(next, { replace: true });
+  };
   const openFindings = findings.filter((finding) => !["Fixed", "Closed", "Won't Fix", "Duplicate"].includes(finding.developer_status)).length;
   const newFindings = findings.filter((finding) => finding.developer_status === "New").length;
   const highSeverityFindings = findings.filter((finding) => Number(finding.criticality) >= 4).length;
@@ -208,6 +215,7 @@ export default function Findings() {
                 {(opts || []).map((o) => <option key={o} value={o}>{o}</option>)}
               </select>
             ))}
+            {filtersActive && <Button type="button" size="sm" variant="outline" className="h-9 text-[var(--orange)]" onClick={clearFilters} data-testid="findings-clear-filters"><X size={13} className="mr-1" /> Clear filters</Button>}
           </div>
           <details className="mb-4 rounded-lg border bg-[var(--paper)] px-3 py-2">
             <summary className="cursor-pointer text-sm font-semibold text-[var(--navy)]">Additional filters</summary>

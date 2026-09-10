@@ -11,7 +11,7 @@ import { TableSortControls } from "./TableSortControls";
 import { nextSort, sortTableRows, usePersistentTableSort } from "../lib/tableSorting";
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
-import { Plus, Pencil, Trash2, Archive, ArchiveRestore } from "lucide-react";
+import { Plus, Pencil, Trash2, Archive, ArchiveRestore, X } from "lucide-react";
 import { toast } from "sonner";
 import { Download } from "lucide-react";
 import { downloadCsv, tableRowsToCsv, withinDateRange } from "../lib/tableData";
@@ -267,6 +267,7 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
       {dateFilterColumn && <div className="flex items-center gap-2 mb-3 flex-wrap" aria-label={`${title} date filters`}>
         <label className="text-xs text-muted-foreground">Last Tested from <Input type="date" value={view.filters.date_from} onChange={(event) => setDateFilter("date_from", event.target.value)} className="h-8 w-36 text-xs" aria-label="Last Tested Date from" aria-invalid={Boolean(dateFilterError)} /></label>
         <label className="text-xs text-muted-foreground">to <Input type="date" value={view.filters.date_to} onChange={(event) => setDateFilter("date_to", event.target.value)} className="h-8 w-36 text-xs" aria-label="Last Tested Date to" aria-invalid={Boolean(dateFilterError)} /></label>
+        {hasFilters && <Button type="button" size="sm" variant="outline" className="h-8 text-[var(--orange)]" onClick={clearFilters} data-testid={`${collection}-clear-filters`}><X size={13} className="mr-1" /> Clear filters</Button>}
         <span className="text-xs text-muted-foreground ml-auto">{filteredData.length} of {data.length} projects</span>
       </div>}
       <TableSortControls columns={sortColumns} sort={sort} setSort={setSort} defaultSort={defaultSort} className="mb-3" />
