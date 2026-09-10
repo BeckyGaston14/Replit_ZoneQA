@@ -13,6 +13,74 @@ async def run_seed_impl(db, new_id, now_iso, *, reset=True):
     """
     sample_date = "2026-09-03"
     sample_owner = None
+
+    async def ensure_bassett_only_samples():
+        """Add idempotent Bassett-only scenarios and completed test runs."""
+        sample_version = await db.versions.find_one(
+            {"name": "Bassett 9.26 (Sample)", "created_by": "seed"}, {"_id": 0}
+        )
+        if not sample_version:
+            return 0
+        definitions = [
+            ("SAMPLE-R-01", "Research", "Research an unfamiliar municipality and identify the controlling zoning source", "NYC Zoning Resolution Testing", "Pass", 9),
+            ("SAMPLE-R-02", "Research", "Recognize missing property information before giving a setback answer", "NYC Zoning Resolution Testing", "Pass with Minor Issues", 8),
+            ("SAMPLE-A-01", "Analysis", "Apply a planned-development ordinance instead of the underlying district", "Planned Development Testing", "Pass", 9),
+            ("SAMPLE-A-02", "Analysis", "Calculate a parking requirement from the verified municipal standard", "Parking Requirement Testing", "Needs Improvement", 6),
+        ]
+        created = 0
+        ts_local = now_iso()
+        for stable_id, category, scenario_text, project_name, result, score in definitions:
+            project = await db.projects.find_one(
+                {"name": project_name, "created_by": "seed"}, {"_id": 0}
+            )
+            if not project:
+                continue
+            scenario = await db.bassett_scenarios.find_one(
+                {"stable_id": stable_id, "created_by": "seed"}, {"_id": 0}
+            )
+            if not scenario:
+                scenario = {
+                    "id": new_id(), "stable_id": stable_id,
+                    "workflow_stage": category, "test_scenario": f"[SAMPLE] {scenario_text}",
+                    "complexity": "Moderate", "priority": "Medium",
+                    "why_it_matters": "Demonstrates the Bassett-only workflow and reporting metrics.",
+                    "what_bassett_should_do": "Use the supplied context and authoritative evidence to provide a supported answer.",
+                    "success_criteria": "The response is accurate, supported, complete, and professionally useful.",
+                    "project_id": project["id"], "version_id": sample_version["id"],
+                    "bassett_version": sample_version["name"], "archived": False,
+                    "sample_data": True, "created_at": ts_local, "updated_at": ts_local,
+                    "created_by": "seed", "revision": 1,
+                }
+                await db.bassett_scenarios.insert_one(dict(scenario))
+            existing_run = await db.bassett_issues.find_one(
+                {"test_id": stable_id.replace("SAMPLE-", "SAMPLE-T-"), "created_by": "seed"},
+                {"_id": 0, "id": 1},
+            )
+            if existing_run:
+                continue
+            dimension_score = score
+            run = {
+                "id": new_id(), "test_id": stable_id.replace("SAMPLE-", "SAMPLE-T-"),
+                "title": f"[SAMPLE] {scenario_text}", "question_asked": scenario_text,
+                "exact_bassett_answer": "Sample Bassett response captured for workflow and metric validation.",
+                "verified_correct_answer": "Sample expert-reviewed answer used to demonstrate the evaluation workflow.",
+                "test_type": "Single Prompt", "issue_category": category,
+                "workflow_stage": category, "scenario_id": scenario["id"],
+                "project_id": project["id"], "version_id": sample_version["id"],
+                "bassett_version": sample_version["name"], "environment": "Sample",
+                "test_date": "2026-09-03", "reported_date": "2026-09-03",
+                "status": "Triaged", "severity": "Medium", "priority": "Medium",
+                "result": result, "evaluation_scores": {key: dimension_score for key in DIMS},
+                "overall_score": float(dimension_score), "weighted_score": float(dimension_score),
+                "score": float(dimension_score) * 10, "score_mode": "weighted",
+                "system_recommended": result, "sample_data": True, "archived": False,
+                "created_at": ts_local, "updated_at": ts_local, "created_by": "seed",
+                "revision": 1,
+            }
+            await db.bassett_issues.insert_one(run)
+            created += 1
+        return created
+
     if not reset:
         sample_owner = await db.users.find_one(
             {"active": {"$ne": False}, "deleted_at": {"$exists": False}},
@@ -66,7 +134,8 @@ async def run_seed_impl(db, new_id, now_iso, *, reset=True):
                             {"name": f"[SAMPLE] {testcase_name}", "created_by": "seed"},
                             {"$set": {"project_id": project["id"]}},
                         )
-            return {"loaded": False, "repaired": True, "reason": "already_loaded", "testcases": existing_count}
+            bassett_runs = await ensure_bassett_only_samples()
+            return {"loaded": False, "repaired": True, "reason": "already_loaded", "testcases": existing_count, "bassett_test_runs_added": bassett_runs}
         if existing_count:
             # Recover from an interrupted sample import. Only seed-owned records
             # are removed; user-created and production records are never touched.
@@ -469,8 +538,10 @@ async def run_seed_impl(db, new_id, now_iso, *, reset=True):
          "unchanged": 4, "newly_failing": 1, "unresolved": 1, "created_at": ts, "created_by": "seed"},
     ])
 
+    bassett_runs = await ensure_bassett_only_samples()
+
     await db.activities.insert_one({"id": new_id(), "entity_type": "system", "entity_id": "system",
                                     "action": "Seed data loaded", "user": "seed", "detail": "10 sample tests",
                                     "created_at": ts, "_log": True})
-    return {"loaded": True, "testcases": len(tc_docs), "models": len(models), "versions": len(versions)}
+    return {"loaded": True, "testcases": len(tc_docs), "bassett_test_runs_added": bassett_runs, "models": len(models), "versions": len(versions)}
 

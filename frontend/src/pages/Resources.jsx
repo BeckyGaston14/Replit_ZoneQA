@@ -1,4 +1,5 @@
 import ResourceList from "../components/ResourceList";
+import { useNavigate } from "react-router-dom";
 import { useCollection } from "../lib/hooks";
 import {
   PROJECT_SCHEMA,
@@ -11,7 +12,8 @@ import {
 export { VerificationBadge };
 
 export function Projects() {
-  return <ResourceList {...PROJECT_SCHEMA} />;
+  const navigate = useNavigate();
+  return <ResourceList {...PROJECT_SCHEMA} rowLink={(project) => navigate(`/bassett/issues?project_id=${encodeURIComponent(project.id)}`)} />;
 }
 
 export function Municipalities() {

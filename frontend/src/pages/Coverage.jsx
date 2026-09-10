@@ -95,7 +95,7 @@ export default function Coverage() {
           <div className="mb-3"><h2 id="bassett-coverage-heading" className="text-lg font-bold font-display text-[var(--navy)]">Bassett-Only Coverage</h2><p className="text-sm text-muted-foreground">Coverage of reusable Test Bank scenarios by their defining attributes.</p></div>
           <div className={`grid items-start gap-4 ${scope === "both" ? "" : "lg:grid-cols-2"}`}><div className="self-start bg-card border rounded-xl p-5" data-testid="coverage-workflow-stages">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="font-semibold font-display text-[var(--navy)]">Bassett-Only · Workflow Stages</h3>
+            <h3 className="font-semibold font-display text-[var(--navy)]">Bassett-Only · Categories</h3>
             <Link to="/bassett/test-bank" className="text-xs text-[var(--orange)] font-semibold hover:underline">Open Test Bank →</Link>
           </div>
           {workflowStages.map((row) => <GapRow key={row.value} label={row.value} tests={row.tests} evaluated={row.evaluated} bassett />)}
@@ -138,7 +138,7 @@ export default function Coverage() {
         </section>}
        <MethodologyDisclosure title="How coverage metrics are calculated" testid="coverage-methodology">
          <p>Fully Evaluated means every active definition in the row has a qualifying completed evaluation. Partially Evaluated means only some definitions do. Defined, Not Evaluated means definitions exist but none has been evaluated; Not Represented means no active definition exists.</p>
-         <p>Bassett-only coverage uses Test Bank workflow stage, complexity, and priority. Model Comparison coverage uses municipality, category, and criticality. Expanded or linked Bassett-only runs are excluded from the Bassett-only population to prevent double counting.</p>
+         <p>Bassett-only coverage uses Test Bank category, complexity, and priority. Model Comparison coverage uses municipality, category, and criticality. Expanded or linked Bassett-only runs are excluded from the Bassett-only population to prevent double counting.</p>
          <p>Each row preserves its visible numerator and denominator as tests and evaluations. Sample visibility follows the current account scope.</p>
        </MethodologyDisclosure>
       </div>

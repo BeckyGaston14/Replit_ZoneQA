@@ -3197,7 +3197,7 @@ async def _workflow_stage(stage_name):
             {"code": "R" if canonical_name == "Research" else "A"}, {"_id": 0}
         )
     if not stage or not stage.get("active", True):
-        raise HTTPException(400, "Invalid workflow stage")
+        raise HTTPException(400, "Invalid category")
     return _normalize_bassett_stage_record(stage)
 
 async def _seed_bassett_catalog():
@@ -4045,7 +4045,7 @@ async def bassett_create_workflow_stage(body: Dict[str, Any], user=Depends(get_c
     name = _canonical_bassett_workflow_stage(body.get("name"))
     code = str(body.get("code") or "").strip().upper()
     if not name or not re.fullmatch(r"[A-Z]{1,8}", code):
-        raise HTTPException(400, "Workflow stage name and uppercase code are required")
+        raise HTTPException(400, "Category name and uppercase code are required")
     created_at = now_iso()
     doc = {"id": new_id(), "name": name, "code": code, "position": body.get("position", 100),
            "active": bool(body.get("active", True)), "created_at": created_at,
@@ -4053,21 +4053,21 @@ async def bassett_create_workflow_stage(body: Dict[str, Any], user=Depends(get_c
     try:
         await db.bassett_workflow_stages.insert_one(doc)
     except UniqueViolationError:
-        raise HTTPException(409, "Workflow stage name or code already exists")
+        raise HTTPException(409, "Category name or code already exists")
     return doc
 
 @api.put("/bassett/workflow-stages/{id}")
 async def bassett_update_workflow_stage(id: str, body: Dict[str, Any], user=Depends(get_current_user)):
     _require_bassett_manager(user)
-    existing = await _bassett_ref("bassett_workflow_stages", id, "Workflow stage")
+    existing = await _bassett_ref("bassett_workflow_stages", id, "Category")
     _require_fresh_version(existing, body)
     changes = {key: body[key] for key in ("name", "position", "active") if key in body}
     if "name" in changes:
         changes["name"] = _canonical_bassett_workflow_stage(changes["name"])
     if "code" in body and str(body["code"]).upper() != existing.get("code"):
-        raise HTTPException(409, "Workflow stage codes are immutable")
+        raise HTTPException(409, "Category codes are immutable")
     if "name" in changes and not str(changes["name"]).strip():
-        raise HTTPException(400, "Workflow stage name is required")
+        raise HTTPException(400, "Category name is required")
     changes["updated_at"] = now_iso()
     current_revision = int(existing.get("revision", 1))
     changes["revision"] = current_revision + 1
@@ -4077,14 +4077,14 @@ async def bassett_update_workflow_stage(id: str, body: Dict[str, Any], user=Depe
             {"$set": changes}, return_document=True
         )
     except UniqueViolationError:
-        raise HTTPException(409, "Workflow stage name already exists")
+        raise HTTPException(409, "Category name already exists")
     if not updated:
         current = await db.bassett_workflow_stages.find_one({"id": id}, {"_id": 0})
         if not current:
-            raise HTTPException(404, "Workflow stage not found")
+            raise HTTPException(404, "Category not found")
         raise HTTPException(409, detail={
             "code": "stale_update",
-            "message": "Someone else saved this workflow stage first. Reload the latest values and review your edits.",
+            "message": "Someone else saved this category first. Reload the latest values and review your edits.",
             "current_revision": current.get("revision", 1),
             "current_updated_at": current.get("updated_at"),
         })

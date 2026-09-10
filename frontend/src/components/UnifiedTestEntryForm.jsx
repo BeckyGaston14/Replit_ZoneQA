@@ -114,7 +114,7 @@ export function ScenarioSelector({ scenarios, value, onChange, error }) {
 
 export function ScenarioDefinition({ scenario }) {
   if (!scenario) return null;
-  const fields = [["Stable ID", scenario.stable_id], ["Workflow stage", scenario.workflow_stage], ["Test scenario", scenario.test_scenario], ["Complexity", scenario.complexity], ["Why it matters", scenario.why_it_matters], ["What Bassett should do", scenario.what_bassett_should_do], ["Success criteria", scenario.success_criteria], ["Priority", scenario.priority]];
+  const fields = [["Stable ID", scenario.stable_id], ["Category", scenario.workflow_stage], ["Test scenario", scenario.test_scenario], ["Complexity", scenario.complexity], ["Why it matters", scenario.why_it_matters], ["What Bassett should do", scenario.what_bassett_should_do], ["Success criteria", scenario.success_criteria], ["Priority", scenario.priority]];
   return <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">{fields.map(([label, value]) => <div key={label}><div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">{label}</div><div className="whitespace-pre-wrap">{value || "—"}</div></div>)}</div>;
 }
 
@@ -127,7 +127,7 @@ export function GeneralSubtypeSelector({ subtypes = [], value = [], onChange, di
   return <div className="space-y-2" data-testid="general-subtype-selector">
     <div>
       <div className="text-sm font-medium text-[var(--navy)]">General test subtypes <span className="font-normal text-muted-foreground">(Optional)</span></div>
-      <p className="mt-1 text-xs text-muted-foreground">Select every cross-cutting behavior this test covers. These are subtypes only and do not change the workflow stage, test type, score, or pass-rate calculation.</p>
+      <p className="mt-1 text-xs text-muted-foreground">Select every cross-cutting behavior this test covers. These are subtypes only and do not change the category, test type, score, or pass-rate calculation.</p>
     </div>
     <Input aria-label="Search General test subtypes" placeholder="Search subtype ID, behavior, or priority…" value={query} onChange={(event) => setQuery(event.target.value)} disabled={disabled} />
     <div className="max-h-56 overflow-y-auto rounded-lg border bg-background p-2" role="group" aria-label="General test subtypes">
@@ -483,7 +483,7 @@ export default function UnifiedTestEntryForm({
       {selectedScenario && <div className="sm:col-span-2 rounded-xl border bg-[var(--paper)] p-4"><div className="font-semibold mb-3">Read-only Test Bank definition</div><ScenarioDefinition scenario={selectedScenario} /></div>}
       <div className="sm:col-span-2"><GeneralSubtypeSelector subtypes={generalSubtypes} value={form.general_subtype_ids || []} onChange={(value) => update("general_subtype_ids", value)} disabled={lockedCommon} /></div>
       <Field label="Sequential Test ID"><Input value={form.test_id || "Assigned on save"} readOnly className="bg-muted" /></Field>
-      <Field label="Workflow stage"><Input value={form.workflow_stage || selectedScenario?.workflow_stage || "Selected from Test Bank"} readOnly className="bg-muted" /></Field>
+      <Field label="Category"><Input value={form.workflow_stage || selectedScenario?.workflow_stage || "Selected from Test Bank"} readOnly className="bg-muted" /></Field>
       <Field label="Test name" required={isComparison} error={attemptedSections.has(0) && isComparison && !String(form.name || "").trim() ? "Test name is required." : undefined}><Input value={form.name || form.title || ""} disabled={lockedCommon} onChange={(e) => update(isComparison ? "name" : "title", e.target.value)} /></Field>
        <Field label="Bassett version" description="Required for completed tests and version-specific dashboard reporting."><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={selectedVersionId} disabled={lockedCommon} onChange={(e) => { const selected = versions.find((version) => version.id === e.target.value); setForm((current) => ({ ...current, version_id: selected?.id || "", bassett_version: selected?.name || "" })); }}><option value="">Not specified</option>{savedVersionUnavailable && <option value={form.version_id}>{form.bassett_version || "Saved version unavailable"}</option>}{versions.map((version) => <option key={version.id} value={version.id}>{version.name}{version.active === false ? " (inactive)" : ""}</option>)}</select></Field>
        {form.id && versionError && <div role="alert" className="sm:col-span-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">This completed historical test run has no Bassett version assigned. Choose a version before saving; the historical record remains unchanged until you save.</div>}

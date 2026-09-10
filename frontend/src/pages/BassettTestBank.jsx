@@ -225,7 +225,7 @@ export default function BassettTestBank() {
       else await api.post("/bassett/workflow-stages", {
         name: stageDraft.name, code: stageDraft.code, position: Number(stageDraft.position), active: stageDraft.active,
       });
-      toast.success(stageDraft.id ? "Workflow stage updated" : "Workflow stage created");
+      toast.success(stageDraft.id ? "Category updated" : "Category created");
       setStageConflict(null);
       setStageDraft({ name: "", code: "", position: "", active: true });
       qc.invalidateQueries({ queryKey: ["bassett/workflow-stages"] });
@@ -233,9 +233,9 @@ export default function BassettTestBank() {
       if (error?.response?.status === 409 && stageDraft.id) {
         const latest = workflowStages.find((stage) => stage.id === stageDraft.id);
         setStageConflict(latest || { revision: error?.response?.data?.detail?.current_revision });
-        toast.error(staleUpdateMessage(error) || "This workflow stage changed elsewhere. Review your entries before reapplying them.");
+        toast.error(staleUpdateMessage(error) || "This category changed elsewhere. Review your entries before reapplying them.");
         qc.invalidateQueries({ queryKey: ["bassett/workflow-stages"] });
-      } else toast.error(importError(error, "Unable to save workflow stage"));
+      } else toast.error(importError(error, "Unable to save category"));
     }
   };
   const scenarioDirty = Boolean(form && scenarioBaseline.current && JSON.stringify(form) !== JSON.stringify(scenarioBaseline.current));
@@ -245,7 +245,7 @@ export default function BassettTestBank() {
       {canManage && <Button variant="outline" onClick={() => setShowImport(true)}><Upload /> Import CSV</Button>}
       <Button variant="outline" onClick={exportCsv}><Download /> Export CSV</Button>
       <Button variant="outline" aria-pressed={showArchived} onClick={() => setShowArchived((value) => !value)}>{showArchived ? "Active scenarios" : "Archived scenarios"}</Button>
-      {canManage && <Button variant="outline" onClick={() => setShowWorkflowManager(true)}>Manage stages & prefixes</Button>}
+      {canManage && <Button variant="outline" onClick={() => setShowWorkflowManager(true)}>Manage categories & prefixes</Button>}
       {canManage && <Button onClick={() => { const draft = { ...emptyScenario }; scenarioBaseline.current = draft; setFormErrors({}); setScenarioError(""); setConflict(null); setForm(draft); }} className="bg-[var(--orange)] hover:bg-[var(--orange-600)]"><Plus /> Add scenario</Button>}
     </PageHeader>
     {viewError && <div role="alert" className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">{viewError} <button type="button" className="ml-2 font-semibold underline" onClick={clearViewError}>Dismiss</button></div>}
@@ -258,7 +258,7 @@ export default function BassettTestBank() {
     <Section title="Scenario library" action={<span className="text-xs text-muted-foreground">{shown.length} active scenario(s)</span>}>
       <div className="flex flex-wrap gap-2 mb-4">
          <div className="relative flex-1 min-w-[240px]"><Search size={15} className="absolute left-3 top-2.5 text-muted-foreground" /><Input aria-label="Search Test Bank scenarios" className="pl-9" placeholder="Search ID, scenario, report type, purpose…" value={search} onChange={(e) => setViewFilter("search", e.target.value)} /></div>
-         <select aria-label="Filter by workflow stage" className="h-9 rounded-md border bg-background px-3 text-sm" value={stage} onChange={(e) => setViewFilter("stage", e.target.value)}><option value="all">All workflow stages</option>{stages.map((x) => <option key={x}>{x}</option>)}</select>
+         <select aria-label="Filter by category" className="h-9 rounded-md border bg-background px-3 text-sm" value={stage} onChange={(e) => setViewFilter("stage", e.target.value)}><option value="all">All categories</option>{stages.map((x) => <option key={x}>{x}</option>)}</select>
          <span className="text-xs text-muted-foreground self-center">View saved to your account</span>
       </div>
       <TableSortControls columns={testBankColumns} sort={sort} setSort={setSort} defaultSort={{ key: "stable_id", direction: "asc" }} className="mb-3" />
@@ -305,11 +305,11 @@ export default function BassettTestBank() {
         </div>
       </div>}
       {scenarioError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{scenarioError}</p>}
-      {form.id && <div className="text-sm rounded-md bg-[var(--paper)] px-3 py-2"><b>Stable ID:</b> {form.stable_id} <span className="text-muted-foreground">Generated from the workflow stage prefix.</span></div>}
+      {form.id && <div className="text-sm rounded-md bg-[var(--paper)] px-3 py-2"><b>Stable ID:</b> {form.stable_id} <span className="text-muted-foreground">Generated from the category prefix.</span></div>}
       <fieldset className="rounded-xl border p-4">
         <legend className="px-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">Required scenario definition</legend>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Workflow stage" required error={formErrors.workflow_stage}><select required data-testid="field-workflow_stage" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.workflow_stage} onChange={(e) => setScenarioField("workflow_stage", e.target.value)}><option value="">Select workflow stage</option>{stages.map((x) => <option key={x}>{x}</option>)}</select></Field>
+          <Field label="Category" required error={formErrors.workflow_stage}><select required data-testid="field-workflow_stage" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.workflow_stage} onChange={(e) => setScenarioField("workflow_stage", e.target.value)}><option value="">Select category</option>{stages.map((x) => <option key={x}>{x}</option>)}</select></Field>
           <Field label="Complexity" required error={formErrors.complexity}><select data-testid="field-complexity" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.complexity} onChange={(e) => setScenarioField("complexity", e.target.value)}>{["Low", "Moderate", "Medium", "High", "Very High"].map((x) => <option key={x}>{x}</option>)}</select></Field>
           <div className="sm:col-span-2"><Field label="Test scenario" required error={formErrors.test_scenario}><Textarea data-testid="field-test_scenario" rows={3} value={form.test_scenario} onChange={(e) => setScenarioField("test_scenario", e.target.value)} /></Field></div>
           <div className="sm:col-span-2"><Field label="Why it matters" required error={formErrors.why_it_matters}><Textarea data-testid="field-why_it_matters" rows={2} value={form.why_it_matters} onChange={(e) => setScenarioField("why_it_matters", e.target.value)} /></Field></div>
@@ -336,20 +336,20 @@ export default function BassettTestBank() {
       <Input aria-label="Choose Test Bank CSV" type="file" accept=".csv" onChange={loadCsv} />
       {preview ? <CsvReview preview={preview} /> : <div className="rounded-lg bg-[var(--paper)] p-3 text-sm">{importRows.length ? `${importFileName}: ${importRows.length} row(s) loaded and ready for preview.` : <><b>Required columns:</b> workflow_stage, test_scenario, complexity, why_it_matters, what_bassett_should_do, success_criteria. <span className="text-muted-foreground">Use stable_id only when updating an existing scenario.</span></>}</div>}
     </FormModal>}
-    {showWorkflowManager && <FormModal open onOpenChange={(open) => !open && setShowWorkflowManager(false)} title="Workflow stages & ID prefixes" onSubmit={saveStage} submitLabel={stageDraft.id ? "Save stage" : "Create stage"}>
-      <p className="text-sm text-muted-foreground">Stages and prefixes are managed by the Test Bank service. Stable IDs are assigned automatically when a scenario is created.</p>
-      {stageConflict && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"><p className="font-semibold">Someone else saved this workflow stage first. Your entries are still open for review.</p><div className="mt-2 flex gap-2"><Button size="sm" variant="outline" onClick={() => { setStageDraft(stageConflict); setStageConflict(null); }}>Load latest values</Button><Button size="sm" onClick={() => { setStageDraft((draft) => ({ ...draft, expected_revision: stageConflict.revision, expected_updated_at: stageConflict.updated_at })); setStageConflict(null); }}>Keep my entries and reapply</Button></div></div>}
+    {showWorkflowManager && <FormModal open onOpenChange={(open) => !open && setShowWorkflowManager(false)} title="Categories & ID prefixes" onSubmit={saveStage} submitLabel={stageDraft.id ? "Save category" : "Create category"}>
+      <p className="text-sm text-muted-foreground">Categories and prefixes are managed by the Test Bank service. Stable IDs are assigned automatically when a scenario is created.</p>
+      {stageConflict && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"><p className="font-semibold">Someone else saved this category first. Your entries are still open for review.</p><div className="mt-2 flex gap-2"><Button size="sm" variant="outline" onClick={() => { setStageDraft(stageConflict); setStageConflict(null); }}>Load latest values</Button><Button size="sm" onClick={() => { setStageDraft((draft) => ({ ...draft, expected_revision: stageConflict.revision, expected_updated_at: stageConflict.updated_at })); setStageConflict(null); }}>Keep my entries and reapply</Button></div></div>}
       <div className="grid grid-cols-2 gap-2 rounded-md border p-3">
-        <Input aria-label="Workflow stage name" placeholder="Stage name" value={stageDraft.name} onChange={(e) => setStageDraft({ ...stageDraft, name: e.target.value })} />
-        <Input aria-label="Workflow stage code" disabled={!!stageDraft.id} placeholder="Code (e.g. R)" value={stageDraft.code} onChange={(e) => setStageDraft({ ...stageDraft, code: e.target.value.toUpperCase() })} />
-        <Input aria-label="Workflow stage position" type="number" placeholder="Position" value={stageDraft.position} onChange={(e) => setStageDraft({ ...stageDraft, position: e.target.value })} />
+        <Input aria-label="Category name" placeholder="Category name" value={stageDraft.name} onChange={(e) => setStageDraft({ ...stageDraft, name: e.target.value })} />
+        <Input aria-label="Category code" disabled={!!stageDraft.id} placeholder="Code (e.g. R)" value={stageDraft.code} onChange={(e) => setStageDraft({ ...stageDraft, code: e.target.value.toUpperCase() })} />
+        <Input aria-label="Category position" type="number" placeholder="Position" value={stageDraft.position} onChange={(e) => setStageDraft({ ...stageDraft, position: e.target.value })} />
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={stageDraft.active} onChange={(e) => setStageDraft({ ...stageDraft, active: e.target.checked })} /> Active</label>
       </div>
       <div className="space-y-2">{workflowStages.length ? workflowStages.map((stageDef) => {
         const name = typeof stageDef === "string" ? stageDef : stageDef.name || stageDef.workflow_stage;
         const prefix = typeof stageDef === "string" ? "" : stageDef.prefix || stageDef.id_prefix;
         return <button type="button" key={name} onClick={() => typeof stageDef !== "string" && (setStageConflict(null), setStageDraft({ ...stageDef, position: stageDef.position ?? "", active: stageDef.active !== false }))} className="w-full flex justify-between rounded-md border px-3 py-2 text-sm text-left hover:bg-[var(--paper)]"><span className="font-medium">{name}</span><span className="text-muted-foreground">{prefix ? `Prefix: ${prefix}` : "Prefix assigned by service"} · Edit</span></button>;
-      }) : <p className="text-sm text-muted-foreground">No workflow stages are configured.</p>}</div>
+      }) : <p className="text-sm text-muted-foreground">No categories are configured.</p>}</div>
     </FormModal>}
   </div>;
 }

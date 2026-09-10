@@ -130,7 +130,7 @@ export default function Performance() {
         {sel("environment", ["Production", "Staging", "Development"], "All environments", "perf-filter-environment")}
         {sel("project_id", projects.map((p) => ({ value: p.id, label: p.name })), "All projects", "perf-filter-project")}
         {sel("municipality_id", munis.map((m) => ({ value: m.id, label: `${m.name}, ${m.state}` })), "All municipalities", "perf-filter-municipality")}
-        {sel("category", flt.scope === "bassett" ? ["Research", "Analysis"] : config?.categories || [], flt.scope === "bassett" ? "All workflow stages" : "All categories", "perf-filter-category")}
+        {sel("category", flt.scope === "bassett" ? ["Research", "Analysis"] : config?.categories || [], "All categories", "perf-filter-category")}
         {flt.scope !== "bassett" && sel("criticality", ["1", "2", "3", "4", "5"].map((c) => ({ value: c, label: `Criticality ${c}` })), "All criticality", "perf-filter-criticality")}
         {flt.scope !== "bassett" && sel("include_variants", [{ value: "true", label: "Variants included" }, { value: "false", label: "Variants excluded" }], "Variants included (default)", "perf-filter-variants")}
         <input type="date" value={flt.date_from} onChange={(e) => setFilter("date_from", e.target.value)} className="h-8 max-w-full text-xs border rounded-lg px-2 bg-card" data-testid="perf-filter-from" aria-label="Evaluated from date" title="Evaluated from date" />
