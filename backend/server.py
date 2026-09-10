@@ -2175,6 +2175,16 @@ def _comparison_finding_documents(body, testcase_id, user, timestamp):
     return documents
 
 
+def _bassett_finding_criticality(value=None, severity="Medium"):
+    try:
+        numeric = int(value)
+        if 1 <= numeric <= 5:
+            return numeric
+    except (TypeError, ValueError):
+        pass
+    return {"Low": 2, "Medium": 3, "High": 4, "Critical": 5}.get(str(severity), 3)
+
+
 def _bassett_finding_document(body, testcase_id, user, timestamp):
     testcase = body.get("testcase") if isinstance(body.get("testcase"), dict) else body
     finding = testcase.get("finding") if isinstance(testcase.get("finding"), dict) else {}
@@ -2186,7 +2196,10 @@ def _bassett_finding_document(body, testcase_id, user, timestamp):
         "id": finding.get("id") or new_id(), "testcase_id": testcase_id,
         "project_id": testcase.get("project_id"), "title": finding.get("title") or "Bassett finding",
         "description": finding.get("description") or "", "finding_type": finding.get("finding_type") or "Bassett error",
-        "criticality": finding.get("criticality") or testcase.get("criticality") or 3,
+        "criticality": _bassett_finding_criticality(
+            finding.get("criticality") or testcase.get("criticality"),
+            finding.get("severity") or testcase.get("severity", "Medium"),
+        ),
         "priority": finding.get("priority") or testcase.get("priority") or "Medium",
         "developer_status": finding.get("developer_status") or "New",
         "assignee_id": finding.get("assignee_id") or testcase.get("assignee_id"),
@@ -3660,9 +3673,15 @@ async def bassett_create_workflow(
             "project_id": doc.get("project_id"),
             "testcase_id": doc.get("testcase_id"),
             "developer_status": finding_input.get("developer_status") or "New",
-            "criticality": finding_input.get("criticality") or doc.get("severity", "Medium"),
+            "finding_type": finding_input.get("finding_type") or doc.get("issue_category") or "Bassett error",
+            "severity": finding_input.get("severity") or doc.get("severity", "Medium"),
+            "criticality": _bassett_finding_criticality(finding_input.get("criticality"), finding_input.get("severity") or doc.get("severity", "Medium")),
             "priority": finding_input.get("priority") or doc.get("priority", "Medium"),
             "bassett_issue_id": doc["id"] if doc.get("id") else None,
+            "scenario_id": doc.get("scenario_id"), "workflow_stage": doc.get("workflow_stage"),
+            "test_type": doc.get("test_type"), "result": doc.get("result"),
+            "version_found": doc.get("bassett_version"), "bassett_version": doc.get("bassett_version"),
+            "environment": doc.get("environment"), "test_date": doc.get("test_date"),
             "bassett_turn_id": finding_turn_id or None,
             "created_at": now_iso(),
             "created_by": user.get("name"),
@@ -3909,9 +3928,16 @@ async def bassett_convert_to_finding(id: str, body: Dict[str, Any] = None, user=
         "description": body.get("description") or issue.get("exact_bassett_answer", ""),
         "expected_behavior": body.get("expected_behavior") or issue.get("verified_correct_answer", ""),
         "project_id": issue.get("project_id"), "testcase_id": issue.get("testcase_id"),
-        "developer_status": "New", "criticality": body.get("criticality") or issue.get("severity", "Medium"),
+        "developer_status": "New", "finding_type": body.get("finding_type") or issue.get("issue_category") or "Bassett error",
+        "severity": body.get("severity") or issue.get("severity", "Medium"),
+        "criticality": _bassett_finding_criticality(body.get("criticality"), body.get("severity") or issue.get("severity", "Medium")),
+        "priority": body.get("priority") or issue.get("priority", "Medium"),
         "bassett_issue_id": id, "created_at": now_iso(), "created_by": user.get("name"),
         "bassett_turn_id": turn_id or None,
+        "scenario_id": issue.get("scenario_id"), "workflow_stage": issue.get("workflow_stage"),
+        "test_type": issue.get("test_type"), "result": issue.get("result"),
+        "version_found": issue.get("bassett_version"), "bassett_version": issue.get("bassett_version"),
+        "environment": issue.get("environment"), "test_date": issue.get("test_date"),
         "updated_at": now_iso(),
     }
     await db.findings.insert_one(finding)
@@ -4155,13 +4181,14 @@ async def bassett_findings(
     )
     issues = _filter_sample_scope(
         "bassett_issues",
-        await db.bassett_issues.find({}, {"_id": 0, "id": 1, "finding_id": 1}).to_list(5000),
+        await db.bassett_issues.find({}, {"_id": 0}).to_list(5000),
     )
     executions = _filter_sample_scope(
         "bassett_executions",
         await db.bassett_executions.find({}, {"_id": 0, "id": 1, "finding_id": 1}).to_list(5000),
     )
     issue_links = {issue.get("finding_id"): issue["id"] for issue in issues if issue.get("finding_id")}
+    issue_by_id = {issue.get("id"): issue for issue in issues if issue.get("id")}
     execution_links = {run.get("finding_id"): run["id"] for run in executions if run.get("finding_id")}
     linked = []
     for finding in findings:
@@ -4173,7 +4200,24 @@ async def bassett_findings(
             continue
         if execution_id and linked_execution != execution_id:
             continue
-        linked.append({**finding, "bassett_issue_id": linked_issue, "bassett_execution_id": linked_execution})
+        source = issue_by_id.get(linked_issue) or {}
+        linked.append({
+            **finding,
+            "bassett_issue_id": linked_issue,
+            "bassett_execution_id": linked_execution,
+            "finding_type": finding.get("finding_type") or source.get("issue_category") or "Bassett error",
+            "severity": finding.get("severity") or source.get("severity") or "Medium",
+            "priority": finding.get("priority") or source.get("priority") or "Medium",
+            "project_id": finding.get("project_id") or source.get("project_id"),
+            "scenario_id": finding.get("scenario_id") or source.get("scenario_id"),
+            "workflow_stage": finding.get("workflow_stage") or source.get("workflow_stage"),
+            "test_type": finding.get("test_type") or source.get("test_type"),
+            "result": finding.get("result") or source.get("result"),
+            "version_found": finding.get("version_found") or source.get("bassett_version"),
+            "bassett_version": finding.get("bassett_version") or source.get("bassett_version"),
+            "environment": finding.get("environment") or source.get("environment"),
+            "test_date": finding.get("test_date") or source.get("test_date"),
+        })
     return linked
 
 @api.post("/bassett/executions/{id}/create-finding")
@@ -4205,8 +4249,20 @@ async def bassett_execution_create_finding(id: str, body: Dict[str, Any] = None,
         "expected_behavior": body.get("expected_behavior") or (issue or {}).get("verified_correct_answer", ""),
         "project_id": body.get("project_id") or (issue or {}).get("project_id"),
         "testcase_id": body.get("testcase_id") or (issue or {}).get("testcase_id"),
-        "developer_status": "New", "criticality": body.get("criticality") or (issue or {}).get("severity", "Medium"),
+        "developer_status": "New",
+        "finding_type": body.get("finding_type") or (issue or {}).get("issue_category") or "Bassett error",
+        "severity": body.get("severity") or (issue or {}).get("severity") or execution.get("severity", "Medium"),
+        "criticality": _bassett_finding_criticality(body.get("criticality"), body.get("severity") or (issue or {}).get("severity") or execution.get("severity", "Medium")),
+        "priority": body.get("priority") or (issue or {}).get("priority") or execution.get("priority", "Medium"),
         "bassett_execution_id": id, "bassett_issue_id": (issue or {}).get("id"),
+        "scenario_id": (issue or {}).get("scenario_id") or execution.get("scenario_id"),
+        "workflow_stage": (issue or {}).get("workflow_stage") or execution.get("workflow_stage"),
+        "test_type": (issue or {}).get("test_type") or execution.get("test_type"),
+        "result": (issue or {}).get("result") or execution.get("result"),
+        "version_found": (issue or {}).get("bassett_version") or execution.get("bassett_version"),
+        "bassett_version": (issue or {}).get("bassett_version") or execution.get("bassett_version"),
+        "environment": (issue or {}).get("environment") or execution.get("environment"),
+        "test_date": (issue or {}).get("test_date") or execution.get("test_date") or execution.get("executed_at"),
         "created_at": now_iso(), "created_by": user.get("name"), "updated_at": now_iso(),
     }
     await _require_active_testcase(finding.get("testcase_id"))
