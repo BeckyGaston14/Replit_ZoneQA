@@ -171,3 +171,15 @@ def test_project_completion_includes_linked_bassett_only_runs():
     assert result["completion_completed"] == 1
     assert result["completion_total"] == 2
     assert result["completion_source"] == "Linked tests"
+
+
+def test_project_link_progress_uses_required_test_target():
+    result = _project_completion(
+        {"id": "p1", "required_test_count": 5},
+        [{"id": "t1", "project_id": "p1"}],
+        [{"id": "b1", "project_id": "p1", "result": "Pass"}],
+    )
+
+    assert result["linked_test_count"] == 2
+    assert result["required_test_count"] == 5
+    assert result["linked_test_status"] == "2 of 5 tests linked"

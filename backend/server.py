@@ -169,6 +169,20 @@ def _validate_project_completion_override(value):
     return int(number) if number.is_integer() else round(number, 1)
 
 
+def _validate_required_test_count(value):
+    if value in (None, ""):
+        return None
+    if isinstance(value, bool):
+        raise HTTPException(400, "Required Tests must be a whole number of 1 or more")
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        raise HTTPException(400, "Required Tests must be a whole number of 1 or more")
+    if number < 1 or str(number) != str(value).strip() and not isinstance(value, int):
+        raise HTTPException(400, "Required Tests must be a whole number of 1 or more")
+    return number
+
+
 def _project_completion(project, testcases, bassett_runs=None):
     """Return one explainable completion value for a project.
 
@@ -197,6 +211,7 @@ def _project_completion(project, testcases, bassett_runs=None):
         for run in active_bassett_runs
     )
     automatic_percent = round(completed / total * 100, 1) if total else None
+    required_test_count = _validate_required_test_count(project.get("required_test_count"))
 
     mode = project.get("completion_mode")
     if mode not in PROJECT_COMPLETION_MODES:
@@ -235,6 +250,13 @@ def _project_completion(project, testcases, bassett_runs=None):
             if mode == "automatic"
             else "Explicit project completion override"
         ),
+        "linked_test_count": total,
+        "required_test_count": required_test_count,
+        "linked_test_status": (
+            f"{total} of {required_test_count} tests linked"
+            if required_test_count is not None
+            else "Set required tests"
+        ),
     }
 
 
@@ -246,6 +268,9 @@ def _prepare_project_completion_input(incoming, existing=None):
     """Normalize project completion writes while preserving legacy clients."""
     existing = existing or {}
     merged = {**existing, **incoming}
+    required_test_count = _validate_required_test_count(merged.get("required_test_count"))
+    if required_test_count is not None:
+        incoming["required_test_count"] = required_test_count
     mode = merged.get("completion_mode")
     if mode not in PROJECT_COMPLETION_MODES:
         mode = "automatic"

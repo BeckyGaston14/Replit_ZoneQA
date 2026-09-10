@@ -25,7 +25,7 @@ export const PROJECT_SCHEMA = {
   attachable: "project",
   parentLifecycle: true,
   dateRanges: [{ start: "start_date", end: "target_date", startLabel: "Start Date", endLabel: "Target Completion" }],
-  initial: { status: "Active", priority: "Medium", completion_mode: "automatic" },
+  initial: { status: "Active", priority: "Medium", completion_mode: "automatic", required_test_count: "" },
   columns: [
     {
       key: "name", label: "Project", type: "text",
@@ -37,18 +37,16 @@ export const PROJECT_SCHEMA = {
     { key: "priority", label: "Priority", type: "priority" },
     { key: "bassett_version", label: "Bassett Version", type: "version" },
     {
-      key: "completion",
-      label: "Complete",
-      type: "percentage",
+      key: "linked_test_count",
+      label: "Tests Linked",
+      type: "number",
       render: (row) => (
-        <span title={row.completion_definition}>
-          <span className="font-semibold text-[var(--navy)]">{row.completion == null ? "—" : `${row.completion}%`}</span>
-          <span className="block text-[10px] text-muted-foreground">{row.completion_source} · {row.completion_status}</span>
+        <span title="Active linked Model Comparison test cases and Bassett-only test runs; expanded comparisons are counted once.">
+          <span className="font-semibold text-[var(--navy)]">{row.required_test_count ? `${row.linked_test_count} of ${row.required_test_count}` : row.linked_test_count}</span>
+          <span className="block text-[10px] text-muted-foreground">{row.required_test_count ? "tests linked" : "linked · set Required Tests"}</span>
         </span>
       ),
-      exportValue: (row) => row.completion == null
-        ? `${row.completion_source}: ${row.completion_status}`
-        : `${row.completion}% · ${row.completion_source} · ${row.completion_status}`,
+      exportValue: (row) => row.linked_test_status,
     },
     {
       key: "last_tested_date",
@@ -67,18 +65,9 @@ export const PROJECT_SCHEMA = {
     { key: "priority", label: "Priority", type: "select", options: ["Low", "Medium", "High", "Critical"] },
     { key: "status", label: "Status", type: "select", options: ["Active", "On Hold", "Completed", "Archived"] },
     { key: "version_id", label: "Bassett Version", type: "relation", collection: "versions", labelFn: (version) => version.name },
+    { key: "required_test_count", label: "Required Tests", type: "number", min: 1, required: true, description: "The number of tests this project is expected to include." },
     { key: "start_date", label: "Start Date", type: "date" },
     { key: "target_date", label: "Target Completion", type: "date" },
-    {
-      key: "completion_mode",
-      label: "Completion Calculation",
-      type: "select",
-      options: [
-        { value: "automatic", label: "Automatic from linked tests" },
-        { value: "manual", label: "Manual override" },
-      ],
-    },
-    { key: "completion_override", label: "Manual Completion %", type: "number", min: 0, max: 100, showWhen: (form) => form.completion_mode === "manual" },
     { key: "notes", label: "Notes", type: "textarea", col: 2 },
   ],
 };
