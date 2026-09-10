@@ -210,7 +210,7 @@ function GuidedSection({ index, title, active, status, onActivate, children, com
     >
       <span className="flex min-w-0 items-center justify-between gap-2">
         <span className="min-w-0">{title}</span>
-         <span className={`shrink-0 text-right text-xs font-medium ${status === "Needs attention" ? "text-red-700" : "text-muted-foreground"}`}>{status} · {index < 3 ? "Required" : "Optional"}</span>
+         <span className={`shrink-0 text-right text-xs font-medium ${status === "Needs attention" ? "text-red-700" : "text-muted-foreground"}`}>{status === "Optional" ? "Not started" : status} · {index < 3 ? "Required" : "Optional"}</span>
       </span>
       {comparisonOnly && <span className="mt-1 block text-[11px] font-normal text-muted-foreground">Comparison only</span>}
     </summary>
@@ -284,7 +284,7 @@ function ReviewSummary({ mode, progress, sectionStatus, sectionIssue, activateSe
         return <li key={label}>
           <button type="button" onClick={() => activateSection(index)} className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)]">
             <span><span className="font-semibold">{index + 1}.</span> {label} <span className="text-muted-foreground">({index < 3 ? "Required" : "Optional"})</span></span>
-            <span className={issue ? "font-semibold text-red-700" : "text-muted-foreground"}>{issue ? "Needs attention" : status}</span>
+            <span className={issue ? "font-semibold text-red-700" : "text-muted-foreground"}>{issue ? "Needs attention" : (status === "Optional" ? "Not started" : status)}</span>
           </button>
         </li>;
       })}
@@ -475,6 +475,10 @@ export default function UnifiedTestEntryForm({
       <div><div className="text-xs font-bold uppercase tracking-wide text-[var(--orange)]">Form mode</div><div className="text-lg font-semibold text-[var(--navy)]" data-testid="workflow-mode-label">{isComparison ? "Model comparison" : "Bassett-only test"}</div></div>
       <div className="text-right"><div className="text-xs font-semibold text-muted-foreground">Required completeness</div><div data-testid="workflow-completeness" className="font-semibold text-[var(--navy)]">{progress.complete}/{progress.total} required fields {progress.ready ? "· Ready" : "· In progress"}</div></div>
     </div>
+    <div className="sticky top-0 z-20 -mx-1 flex items-center justify-between rounded-lg border bg-background/95 px-3 py-2 text-sm shadow-sm backdrop-blur" aria-live="polite" data-testid="workflow-section-progress">
+      <span className="font-semibold text-[var(--navy)]">Section {activeSection + 1} of {totalSections}</span>
+      <span className="text-xs text-muted-foreground">{sectionStatus(activeSection)}</span>
+    </div>
     {conflictNotice}
     {!form.id && draftAvailable && <div className="rounded-lg border border-[var(--orange)] bg-orange-50 p-3 text-sm flex items-center justify-between gap-3"><span>A saved {isComparison ? "comparison" : "Bassett"} draft is available.</span><Button type="button" size="sm" variant="outline" onClick={recoverDraft}>Recover draft</Button></div>}
 
@@ -483,7 +487,7 @@ export default function UnifiedTestEntryForm({
       {selectedScenario && <div className="sm:col-span-2 rounded-xl border bg-[var(--paper)] p-4"><div className="font-semibold mb-3">Read-only Test Bank definition</div><ScenarioDefinition scenario={selectedScenario} /></div>}
       <div className="sm:col-span-2"><GeneralSubtypeSelector subtypes={generalSubtypes} value={form.general_subtype_ids || []} onChange={(value) => update("general_subtype_ids", value)} disabled={lockedCommon} /></div>
       <Field label="Sequential Test ID"><Input value={form.test_id || "Assigned on save"} readOnly className="bg-muted" /></Field>
-      <Field label="Category"><Input value={form.workflow_stage || selectedScenario?.workflow_stage || "Selected from Test Bank"} readOnly className="bg-muted" /></Field>
+      <Field label="Test Bank Category"><Input value={form.workflow_stage || selectedScenario?.workflow_stage || "Selected from Test Bank"} readOnly className="bg-muted" /></Field>
       <Field label="Test name" required={isComparison} error={attemptedSections.has(0) && isComparison && !String(form.name || "").trim() ? "Test name is required." : undefined}><Input value={form.name || form.title || ""} disabled={lockedCommon} onChange={(e) => update(isComparison ? "name" : "title", e.target.value)} /></Field>
        <Field label="Bassett version" description="Required for completed tests and version-specific dashboard reporting."><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={selectedVersionId} disabled={lockedCommon} onChange={(e) => { const selected = versions.find((version) => version.id === e.target.value); setForm((current) => ({ ...current, version_id: selected?.id || "", bassett_version: selected?.name || "" })); }}><option value="">Not specified</option>{savedVersionUnavailable && <option value={form.version_id}>{form.bassett_version || "Saved version unavailable"}</option>}{versions.map((version) => <option key={version.id} value={version.id}>{version.name}{version.active === false ? " (inactive)" : ""}</option>)}</select></Field>
        {form.id && versionError && <div role="alert" className="sm:col-span-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">This completed historical test run has no Bassett version assigned. Choose a version before saving; the historical record remains unchanged until you save.</div>}
@@ -507,7 +511,7 @@ export default function UnifiedTestEntryForm({
        <Field label="Test result"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={normalizeEvaluationResult(form.result)} onChange={(e) => update("result", e.target.value)}>{(isComparison ? COMPARISON_RESULT_OPTIONS : BASSETT_RESULT_OPTIONS).map((value) => <option key={value}>{value}</option>)}</select></Field>
        <Field label="Severity"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.severity || form.criticality || "Medium"} onChange={(e) => update("severity", e.target.value)}>{["Critical", "High", "Medium", "Low", "1", "2", "3", "4", "5"].map((value) => <option key={value}>{value}</option>)}</select></Field>
       <Field label="Priority"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.priority || "Medium"} onChange={(e) => update("priority", e.target.value)}>{["Critical", "High", "Medium", "Low"].map((value) => <option key={value}>{value}</option>)}</select></Field>
-      <Field label="Category"><Input value={form.issue_category || form.category || ""} onChange={(e) => update(isComparison ? "category" : "issue_category", e.target.value)} /></Field>
+      <Field label={isComparison ? "Comparison Category" : "Finding Category"}><Input value={form.issue_category || form.category || ""} onChange={(e) => update(isComparison ? "category" : "issue_category", e.target.value)} /></Field>
     </div></GuidedSection>
 
     <GuidedSection index={3} title="4. Canonical Evaluation" active={activeSection === 3} status={sectionStatus(3)} onActivate={activateSection}><p className="text-xs text-muted-foreground">Use the same behavior-based integer rubric for every model and dimension. Score the evidence before choosing a verdict. Blank dimensions remain unavailable and are excluded from the denominator.</p><div className="mt-4 space-y-4"><GeneralSubtypeGuidance subtypes={generalSubtypes} selectedIds={form.general_subtype_ids || []} /><h4 className="font-semibold text-sm text-[var(--navy)]">Bassett evaluation · calculated score</h4><EvaluationGrid model="Bassett" scores={evaluationFor("Bassett").scores} dimensions={dimensions} onChange={updateEvaluation} locked={lockedCommon} /><Field label="Bassett score rationale" required={hasScoredDimension(evaluationFor("Bassett").scores)} description="Cite the specific answer evidence that supports the selected numbers (minimum 20 characters when scored)."><Textarea rows={3} value={evaluationFor("Bassett").rationale || form.score_rationale || ""} onChange={(e) => updateEvaluationRationale("Bassett", e.target.value)} /></Field></div></GuidedSection>

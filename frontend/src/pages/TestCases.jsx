@@ -37,6 +37,7 @@ import {
   TABLE_FRAME_CLASS, TABLE_HEAD_CLASS,
 } from "../lib/tableStyles";
 import { QueryState } from "../components/PageState";
+import { ProjectScopeNav } from "../components/ProjectScopeNav";
 
 const MUNI_ADD = [{ key: "name", label: "Municipality" }, { key: "state", label: "State" }];
 export { TEST_CASE_COLUMNS };
@@ -73,6 +74,13 @@ export default function TestCases() {
   const setFilter = (k, val) => updateView({ ...view, filters: { ...view.filters, [k]: val } });
   const toggleCol = (k) => updateView({ ...view, cols: { ...view.cols, [k]: !view.cols[k] } });
   const activeFilters = Object.entries(view.filters).filter(([key, value]) => value && value !== ALL_TEST_CASES && !(key === "archived" && value === "active")).length;
+  const requestedProjectId = sp.get("project_id");
+  useEffect(() => {
+    if (viewLoading || projectsQuery.isLoading || !requestedProjectId || !projects.some((project) => project.id === requestedProjectId) || view.filters.project_id === requestedProjectId) return;
+    updateView((current) => ({ ...current, filters: { ...current.filters, project_id: requestedProjectId } }));
+  // The URL is authoritative when a user opens a project workspace tab.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedProjectId, viewLoading, projectsQuery.isLoading, projects, view.filters.project_id]);
   useEffect(() => {
     const selected = view.filters.project_id;
     if (viewLoading || projectsQuery.isLoading || selected === ALL_TEST_CASES || projects.some((project) => project.id === selected)) return;
@@ -250,13 +258,21 @@ export default function TestCases() {
   return (
     <div>
       <PageHeader title="Model Comparison Test Cases" subtitle="Standard test cases for full Bassett vs ChatGPT vs Claude comparisons, evaluated against Gold Standards.">
-        <Button variant="outline" onClick={exportRows} aria-label={`Export ${sortedRows.length} filtered Test Cases as CSV`}><Download size={15} className="mr-1" /> Export</Button>
+        <Button variant="outline" onClick={exportRows} disabled={!isLoading && data.length === 0} aria-label={`Export ${sortedRows.length} filtered Test Cases as CSV`}><Download size={15} className="mr-1" /> Export CSV</Button>
         {canWrite && <Button data-testid="import-csv-btn" variant="outline" onClick={() => setImportOpen(true)}><Upload size={15} className="mr-1" /> Import CSV</Button>}
         {canWrite && <Button data-testid="add-testcase-btn" onClick={openNew} className="bg-[var(--orange)] hover:bg-[var(--orange-600)]"><Plus size={16} className="mr-1" /> New Test Case</Button>}
       </PageHeader>
+      <ProjectScopeNav projects={projects} />
       {canWrite && <ImportCsvModal open={importOpen} onOpenChange={setImportOpen} />}
       {viewError && <div role="alert" className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">{viewError} <button type="button" className="ml-2 font-semibold underline" onClick={retryView}>Retry saved view</button></div>}
 
+      {!isLoading && !isError && data.length === 0 && <div className="rounded-xl border border-dashed bg-card px-5 py-12 text-center" data-testid="testcases-empty-state">
+        <h2 className="font-display text-lg font-semibold text-[var(--navy)]">No Model Comparison test cases yet</h2>
+        <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">Create the first test case to compare Bassett, ChatGPT, and Claude against the same Gold Standard. Filters and sorting will appear when records are available.</p>
+        {canWrite && <Button className="mt-4 bg-[var(--orange)] hover:bg-[var(--orange-600)]" onClick={openNew}><Plus size={16} className="mr-1" /> Create Test Case</Button>}
+      </div>}
+
+      {(isLoading || isError || data.length > 0) && <>
       <div className="flex items-center gap-2 mb-3 flex-wrap" data-testid="tc-filter-bar">
         <SlidersHorizontal size={15} className="text-muted-foreground" />
         <Select value={view.filters.status} onValueChange={(v) => setFilter("status", v)}>
@@ -304,9 +320,10 @@ export default function TestCases() {
         </Popover>
       </div>
       <TableSortControls columns={activeSortColumns} sort={effectiveSort} setSort={setSort} defaultSort={DEFAULT_TEST_CASE_SORT} className="mb-3" />
+      </>}
 
       {(isLoading || isError) && <QueryState query={{ isLoading, isError, error, refetch }} resource="test cases" onRetry={refetch} testId="testcases" />}
-      {!isLoading && !isError && <div className={TABLE_FRAME_CLASS} data-testid="testcases-table-scroll">
+      {!isLoading && !isError && data.length > 0 && <div className={TABLE_FRAME_CLASS} data-testid="testcases-table-scroll">
         <table className={TABLE_CLASS}>
           <thead className={TABLE_HEAD_CLASS}>
             <tr>{activeSortColumns.map((column) => <SortableTableHeader key={column.key} column={column} sort={effectiveSort} onSort={(key) => setSort((current) => nextSort(current, key))} className="px-4 font-semibold text-xs" />)}<th className="px-2 text-right">Actions</th></tr>

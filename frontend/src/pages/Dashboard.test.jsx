@@ -87,8 +87,7 @@ test("dashboard methodology has one collapsed keyboard-accessible disclosure wit
   act(() => root.render(<Dashboard />));
 
   const infos = [...container.querySelectorAll('[data-testid="metric-info"]')];
-  expect(infos).toHaveLength(10);
-  expect(infos.every((info) => info.getAttribute("aria-label"))).toBe(true);
+  expect(infos).toHaveLength(0);
   const methodology = container.querySelector('[data-testid="dashboard-methodology"]');
   expect(container.querySelectorAll('[data-testid="dashboard-methodology"]')).toHaveLength(1);
   expect(methodology.open).toBe(false);

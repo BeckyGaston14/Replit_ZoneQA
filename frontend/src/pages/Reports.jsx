@@ -85,7 +85,7 @@ export default function Reports() {
             <p className="text-sm text-muted-foreground mb-3">{report.desc}</p>
             <Button size="sm" variant="outline" onClick={() => exportData(report.key)} data-testid={`report-${report.key}`}>
               <FileDown size={14} className="mr-1" />
-              {report.key === "qa_summary" ? <span data-testid="export-qa-data-json">Export JSON</span> : "Export JSON"}
+              {report.key === "qa_summary" ? <span data-testid="export-qa-data-json">Download report data <span className="text-[10px] text-muted-foreground">(JSON)</span></span> : <>Download report data <span className="text-[10px] text-muted-foreground">(JSON)</span></>}
             </Button>
           </div>
         ))}

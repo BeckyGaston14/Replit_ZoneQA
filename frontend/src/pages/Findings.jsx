@@ -17,6 +17,7 @@ import { Input } from "../components/ui/input";
 import { AlertTriangle, CheckCircle2, Columns3, Flag, RefreshCw, Search, ShieldAlert, X } from "lucide-react";
 import { toast } from "sonner";
 import { QueryState } from "../components/PageState";
+import { ProjectScopeNav } from "../components/ProjectScopeNav";
 
 const ALL = "__all";
 const DEFAULT_FILTERS = { status: ALL, criticality: ALL, type: ALL, retest: ALL, version: ALL };
@@ -44,6 +45,7 @@ export default function Findings() {
   const findingsQuery = useQuery({ queryKey: ["findings"], queryFn: async () => (await api.get("/findings")).data });
   const { data: findings = [] } = findingsQuery;
   const testcaseFilter = sp.get("testcase_id") || ALL;
+  const projectFilter = sp.get("project_id") || ALL;
   const [sel, setSel] = useState(null);
   const [statusForm, setStatusForm] = useState(null);
   const [retestForm, setRetestForm] = useState(null);
@@ -147,6 +149,7 @@ export default function Findings() {
   const searchTerm = search.trim().toLowerCase();
   const shown = findings.filter((f) =>
     (testcaseFilter === ALL || f.testcase_id === testcaseFilter) &&
+    (projectFilter === ALL || f.project_id === projectFilter) &&
     (flt.status === ALL || f.developer_status === flt.status) &&
     (flt.criticality === ALL || String(f.criticality) === flt.criticality) &&
     (flt.type === ALL || f.finding_type === flt.type) &&
@@ -180,6 +183,7 @@ export default function Findings() {
         <Button variant="outline" onClick={() => nav("/testcases")}>Model Comparison Test Cases</Button>
         <Button variant="outline" onClick={() => nav("/bassett/findings")}>Bassett Findings</Button>
       </PageHeader>
+      <ProjectScopeNav />
       {viewError && <div role="alert" className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">{viewError} <button type="button" className="ml-2 font-semibold underline" onClick={retryView}>Retry saved view</button></div>}
       {(findingsQuery.isLoading || findingsQuery.isError) && <QueryState query={findingsQuery} resource="model comparison findings" testId="findings" />}
       {staleSelection && <div role="alert" className="mb-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950" data-testid="finding-not-found">That finding was not found or is no longer available. <Button size="sm" variant="outline" className="ml-3" onClick={closeFinding}>Return to findings</Button></div>}
@@ -197,14 +201,25 @@ export default function Findings() {
               <Search size={15} className="absolute left-3 top-2.5 text-muted-foreground" />
               <Input aria-label="Search model comparison findings" className="pl-9 h-9" placeholder="Search finding, type, version, assignee…" value={search} onChange={(event) => setSearch(event.target.value)} />
             </div>
-            {[["status", config?.finding_statuses, "All statuses"], ["criticality", ["1", "2", "3", "4", "5"], "All criticality"], ["type", config?.finding_types, "All types"], ["retest", ["Pending", "In Progress", "Fixed", "Partially Fixed", "Not Fixed"], "All retest states"]].map(([key, opts, label]) => (
+            {[["type", config?.finding_types, "All finding categories"], ["version", [...new Set(findings.map((finding) => finding.version_found).filter(Boolean))], "All Bassett versions"]].map(([key, opts, label]) => (
               <select key={key} value={flt[key]} onChange={(e) => setFilter(key, e.target.value)} data-testid={`filter-${key}`}
                 className="h-9 text-sm border rounded-md px-3 bg-background text-[var(--navy)]">
                 <option value={ALL}>{label}</option>
-                {(opts || []).map((o) => <option key={o} value={o}>{key === "criticality" ? `Criticality ${o}` : o}</option>)}
+                {(opts || []).map((o) => <option key={o} value={o}>{o}</option>)}
               </select>
             ))}
           </div>
+          <details className="mb-4 rounded-lg border bg-[var(--paper)] px-3 py-2">
+            <summary className="cursor-pointer text-sm font-semibold text-[var(--navy)]">Additional filters</summary>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {[["status", config?.finding_statuses, "All workflow statuses"], ["criticality", ["1", "2", "3", "4", "5"], "All criticality"], ["retest", ["Pending", "In Progress", "Fixed", "Partially Fixed", "Not Fixed"], "All retest states"]].map(([key, opts, label]) => (
+                <select key={key} value={flt[key]} onChange={(event) => setFilter(key, event.target.value)} data-testid={`filter-${key}`} className="h-9 rounded-md border bg-background px-3 text-sm text-[var(--navy)]">
+                  <option value={ALL}>{label}</option>
+                  {(opts || []).map((option) => <option key={option} value={option}>{key === "criticality" ? `Criticality ${option}` : option}</option>)}
+                </select>
+              ))}
+            </div>
+          </details>
           <div className="space-y-2">
             {shown.length === 0 && <div className="border rounded-xl p-6 text-center text-sm text-muted-foreground">{findings.length === 0 ? "No model comparison findings have been recorded yet." : "No findings match the current filters."}{filtersActive && <Button size="sm" variant="outline" className="ml-3" onClick={clearFilters}>Clear filters</Button>}</div>}
             {shown.map((f) => (

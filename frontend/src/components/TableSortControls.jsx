@@ -18,7 +18,7 @@ export function TableSortControls({ columns, sort, setSort, defaultSort, classNa
     </label>
     <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => setSort(nextSort(sort, sort.key))} aria-label={`Sort ${sort.direction === "asc" ? "descending" : "ascending"}`}>
       {sort.direction === "asc" ? <ArrowUp size={13} /> : <ArrowDown size={13} />}
-      <span className="hidden sm:inline">{sort.direction === "asc" ? "Ascending" : "Descending"}</span>
+      <span className="hidden sm:inline">Direction: {sort.direction === "asc" ? "Ascending" : "Descending"}</span>
     </Button>
     <Button type="button" size="sm" variant="ghost" className="h-8" disabled={reset} onClick={() => setSort(defaultSort)} aria-label="Restore default sort">
       <RotateCcw size={13} /><span className="hidden sm:inline">Default order</span>

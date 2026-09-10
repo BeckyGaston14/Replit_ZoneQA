@@ -83,10 +83,10 @@ export default function Coverage() {
       </div>
       <SampleDataBanner show={sampleScopeIncludesData({ records: [d] })} />
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 mb-4">
+        <StatCard label="Scenarios Needing Evaluation" value={remaining} sub="active definitions without a qualifying evaluation" accent={remaining ? "#b45309" : "#16a34a"} icon={AlertTriangle} />
         <StatCard label="Evaluated" value={`${evaluated} of ${total}`} sub="active definitions" accent="#16215a" icon={FlaskConical} />
-        <StatCard label="Remaining" value={remaining} sub="without a qualifying evaluation" accent={remaining ? "#b45309" : "#16a34a"} icon={AlertTriangle} />
         <StatCard label="Coverage Rate" value={`${coverageRate}%`} sub="evaluated ÷ active definitions" accent="#15803d" icon={Grid3X3} />
-        <StatCard label="Uncovered Groupings" value={s.gap_count} sub="not unique missing tests" accent={s.gap_count ? "#dc2626" : "#16a34a"} icon={Tags} testid="coverage-gaps" />
+        <StatCard label="Coverage Gaps by Attribute" value={s.gap_count} sub="supporting breakdown; not a count of unique tests" accent={s.gap_count ? "#dc2626" : "#16a34a"} icon={Tags} testid="coverage-gaps" />
       </div>
       {scope === "both" && <div className="mb-6 grid gap-3 md:grid-cols-2"><PopulationSummary title="Bassett-Only summary" population={bassettCounts} /><PopulationSummary title="Model Comparison summary" population={comparisonCounts} /></div>}
 

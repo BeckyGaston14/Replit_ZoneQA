@@ -26,7 +26,15 @@ export default function Dashboard() {
   });
   const versionsQuery = useCollection("versions");
 
-  if (stats.isLoading || metrics.isLoading) return <DashboardState title="Loading dashboard…" detail="Loading canonical metrics and project status." />;
+  if (stats.isLoading || metrics.isLoading) return <div>
+    <PageHeader title="QA Dashboard" subtitle="Loading the latest persisted QA metrics." />
+    <div className="grid gap-4 xl:grid-cols-2" aria-label="Loading dashboard sections">
+      {["Quality metrics", "Finding workflow", "Program operations"].map((label) => <section key={label} className="rounded-xl border bg-card p-4">
+        <h2 className="font-display font-semibold text-[var(--navy)]">{label}</h2>
+        <DashboardState compact title={`Loading ${label.toLowerCase()}…`} />
+      </section>)}
+    </div>
+  </div>;
   if (stats.isError || metrics.isError) {
     const error = stats.error || metrics.error;
     return <DashboardError error={error} retry={() => { stats.refetch(); metrics.refetch(); }} />;
@@ -56,8 +64,9 @@ export default function Dashboard() {
     { label: "Active Projects", value: s.active_projects, sub: "testing projects", title: "Testing Projects whose status is Active.", icon: FolderKanban, accent: "#16215a", to: dashboardRecordPath("active-projects") },
     { label: "Demo Approved", value: s.demo_approved, sub: "demo library", title: "Demo records whose status is Approved.", icon: Star, accent: "#f59e0b", to: dashboardRecordPath("demo-approved") },
   ];
+  const hasModelComparisonMetrics = Number(comparison.evaluated || 0) > 0;
   const groups = [
-    { title: "Bassett Quality", description: "Current-version quality and model evaluation outcomes.", cards: cards.slice(0, 5) },
+    { title: "Bassett Quality", description: hasModelComparisonMetrics ? "Current-version quality and model evaluation outcomes." : "Current-version Bassett-only quality.", cards: hasModelComparisonMetrics ? cards.slice(0, 5) : [cards[1]], showComparisonSetup: !hasModelComparisonMetrics },
     { title: "Finding Workflow", description: "Open issues moving from confirmation through retest.", cards: cards.slice(5, 8) },
     { title: "Program Operations", description: "Active projects and approved demonstration assets.", cards: cards.slice(8, 10) },
   ];
@@ -80,7 +89,12 @@ export default function Dashboard() {
             <p className="text-xs text-muted-foreground">{group.description}</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {group.cards.map((c) => <StatCard key={c.label} {...c} showCalculation={false} testid={`stat-${c.label.toLowerCase().replace(/\s+/g, "-")}`} />)}
+            {group.cards.map((c) => <StatCard key={c.label} {...c} showInfo={false} showCalculation={false} testid={`stat-${c.label.toLowerCase().replace(/\s+/g, "-")}`} />)}
+            {group.showComparisonSetup && <div className="flex min-h-36 flex-col justify-center rounded-xl border border-dashed bg-[var(--paper)] p-4 sm:col-span-1" data-testid="dashboard-comparison-setup">
+              <h3 className="font-semibold text-[var(--navy)]">Model Comparison metrics are not available yet</h3>
+              <p className="mt-1 text-xs text-muted-foreground">Complete a Model Comparison test for the active Bassett version to populate pass rate, failures, average score, and model evaluation metrics.</p>
+              <Button asChild size="sm" variant="outline" className="mt-3 self-start"><Link to="/testcases">Open Model Comparison Test Cases</Link></Button>
+            </div>}
           </div>
         </section>)}
       </div>

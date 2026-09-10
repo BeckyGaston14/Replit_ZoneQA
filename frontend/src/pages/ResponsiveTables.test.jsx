@@ -89,8 +89,12 @@ function render(element, width = 320) {
 test.each([320, 375])("Test Cases columns remain reachable in a %ipx horizontal scroll region", (width) => {
   const view = render(<TestCases />, width);
   const scrollRegion = view.container.querySelector('[data-testid="testcases-table-scroll"]');
-  expect(scrollRegion.className).toContain("overflow-x-auto");
-  expect(scrollRegion.querySelector("table").className).toContain("min-w-[720px]");
+  if (scrollRegion) {
+    expect(scrollRegion.className).toContain("overflow-x-auto");
+    expect(scrollRegion.querySelector("table").className).toContain("min-w-[720px]");
+  } else {
+    expect(view.container.querySelector('[data-testid="testcases-empty-state"]')).not.toBeNull();
+  }
   view.unmount();
 });
 

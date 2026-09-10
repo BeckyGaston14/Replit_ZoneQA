@@ -98,7 +98,7 @@ export function MethodologyDisclosure({ title = "How these metrics are calculate
   );
 }
 
-export function StatCard({ label, value, accent, icon: Icon, sub, testid, onClick, title, to, calculation, showCalculation = false }) {
+export function StatCard({ label, value, accent, icon: Icon, sub, testid, onClick, title, to, calculation, showCalculation = false, showInfo = true }) {
   const descriptionId = testid ? `${testid}-description` : undefined;
   const content = (
     <>
@@ -121,18 +121,18 @@ export function StatCard({ label, value, accent, icon: Icon, sub, testid, onClic
   if (to) {
     return <div className={classes}>
       <Link data-testid={testid} to={to} title={title} aria-label={accessibleName} aria-describedby={descriptionId} className="block rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)] focus-visible:ring-offset-2">{content}</Link>
-      {title && <div className="absolute right-14 top-3"><MetricInfo label={label} description={title} /></div>}
+      {title && showInfo && <div className="absolute right-14 top-3"><MetricInfo label={label} description={title} /></div>}
       {showCalculation && <HowCalculated definition={title || `${label}: ${value}`} calculation={calculation} drillDown={to} />}
     </div>;
   }
   if (onClick) {
     return <div className={classes}>
       <button type="button" data-testid={testid} onClick={onClick} title={title} aria-label={accessibleName} aria-describedby={descriptionId} className="w-full rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)] focus-visible:ring-offset-2">{content}</button>
-      {title && <div className="absolute right-14 top-3"><MetricInfo label={label} description={title} /></div>}
+      {title && showInfo && <div className="absolute right-14 top-3"><MetricInfo label={label} description={title} /></div>}
       {showCalculation && <HowCalculated definition={title || `${label}: ${value}`} calculation={calculation} />}
     </div>;
   }
-  return <div data-testid={testid} className={classes}>{content}{title && <div className="absolute right-14 top-3"><MetricInfo label={label} description={title} /></div>}{showCalculation && <HowCalculated definition={title || `${label}: ${value}`} calculation={calculation} />}</div>;
+  return <div data-testid={testid} className={classes}>{content}{title && showInfo && <div className="absolute right-14 top-3"><MetricInfo label={label} description={title} /></div>}{showCalculation && <HowCalculated definition={title || `${label}: ${value}`} calculation={calculation} />}</div>;
 }
 
 export function Section({ title, children, action }) {

@@ -23,6 +23,7 @@ import { useFocusTrap } from "../lib/useFocusTrap";
 import { FINDING_STATUSES, StatusBadge } from "../lib/statusMaps";
 import { normalizeEvaluationResult } from "../lib/evaluationResults";
 import { ConfirmActionDialog } from "../components/ConfirmActionDialog";
+import { ProjectScopeNav } from "../components/ProjectScopeNav";
 import { loadBassettTestRunForEdit } from "../lib/bassettEditLoaders";
 import {
   TABLE_ACTION_CELL_CLASS, TABLE_CELL_CLASS, TABLE_CLASS, TABLE_EMPTY_CELL_CLASS,
@@ -301,6 +302,7 @@ export default function BassettIssues() {
       {!showingFindings && <Button variant="outline" aria-pressed={showArchived} onClick={() => setShowArchived((value) => !value)}>{showArchived ? "Active test runs" : "Archived test runs"}</Button>}
       {canWrite && !showingFindings && <Button onClick={() => setForm(createBassettTestRunDraft({}, config?.application_timezone))} className="bg-[var(--orange)] hover:bg-[var(--orange-600)]"><Plus size={15} /> New Test Run</Button>}
     </PageHeader>
+    <ProjectScopeNav projects={projects} />
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-6">
        <StatCard label={showingFindings ? "Open Findings" : "Tests Needing Attention"} value={showingFindings ? (metrics?.findings?.open ?? 0) : (metrics?.test_runs?.attention ?? "—")} sub={showingFindings ? "excludes fixed and closed findings" : "Needs Improvement, Fail, Critical Fail, or Blocked"} icon={Flag} accent="#f97316" />
        <StatCard label={showingFindings ? "New Findings" : "Untriaged Test Runs"} value={showingFindings ? (metrics?.findings?.new ?? 0) : (metrics?.issues?.new ?? "—")} sub={showingFindings ? "newly recorded findings" : "Workflow status is New."} icon={AlertTriangle} accent="#2563eb" />
