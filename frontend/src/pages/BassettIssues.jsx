@@ -307,17 +307,16 @@ export default function BassettIssues() {
        <StatCard label={showingFindings ? "High severity findings" : "High severity"} value={showingFindings ? (metrics?.findings?.critical ?? 0) : (metrics?.issues?.critical ?? "—")} sub="high / critical severity" icon={ShieldAlert} accent="#dc2626" />
        <StatCard label={showingFindings ? "Total Findings" : "Scenario coverage"} value={showingFindings ? (metrics?.findings?.total ?? 0) : (metrics ? `${metrics.test_runs.test_bank_coverage.percent}%` : "—")} sub={showingFindings ? "linked to Bassett-only testing" : (metrics ? `${metrics.test_runs.test_bank_coverage.covered}/${metrics.test_runs.test_bank_coverage.total} active scenarios with a completed result` : "Drafts and Not Evaluated runs are excluded")} icon={CheckCircle2} accent="#16a34a" />
     </div>
-    <div className={showingFindings ? "grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]" : ""}>
+    <div className={showingFindings ? "grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]" : ""}>
     <Section title={showingFindings ? "Bassett findings" : "Bassett test runs"} action={<span className="text-xs text-muted-foreground">{shown.length} shown · archived records stay in history</span>}>
       <div className="flex flex-wrap gap-2 mb-4">
         <div className="relative flex-1 min-w-[220px]"><Search size={15} className="absolute left-3 top-2.5 text-muted-foreground" /><Input aria-label={showingFindings ? "Search Bassett findings" : "Search Bassett test runs"} className="pl-9" placeholder={showingFindings ? "Search finding, test run, category, scenario…" : "Search question, response, category, scenario…"} value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} /></div>
-         <select aria-label="Filter by Workflow status" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}><option value="all">All workflow statuses</option>{(showingFindings ? (config?.finding_statuses || []) : testStatuses).map((x) => <option key={x}>{x}</option>)}</select>
+         {!showingFindings && <select aria-label="Filter by Workflow status" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}><option value="all">All workflow statuses</option>{testStatuses.map((x) => <option key={x}>{x}</option>)}</select>}
          {showingFindings
            ? <select aria-label="Filter by severity" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.severity} onChange={(e) => setFilters({ ...filters, severity: e.target.value })}><option value="all">All severity</option>{["Critical", "High", "Medium", "Low"].map((x) => <option key={x}>{x}</option>)}</select>
            : <select aria-label="Filter by severity" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.severity} onChange={(e) => setFilters({ ...filters, severity: e.target.value })}><option value="all">All severity</option>{["Critical", "High", "Medium", "Low"].map((x) => <option key={x}>{x}</option>)}</select>}
         {showingFindings && <>
           <select aria-label="Filter by finding category" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.type} onChange={(e) => setFilters({ ...filters, type: e.target.value })}><option value="all">All finding categories</option>{findingTypes.map((x) => <option key={x}>{x}</option>)}</select>
-          <select aria-label="Filter by retest status" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.retest} onChange={(e) => setFilters({ ...filters, retest: e.target.value })}><option value="all">All retest states</option>{["Pending", "In Progress", "Fixed", "Partially Fixed", "Not Fixed"].map((x) => <option key={x}>{x}</option>)}</select>
           <select aria-label="Filter by testing project" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.project} onChange={(e) => setFilters({ ...filters, project: e.target.value })}><option value="all">All testing projects</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select>
           {findingVersions.length > 0 && <select aria-label="Filter by Bassett version" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.version} onChange={(e) => setFilters({ ...filters, version: e.target.value })}><option value="all">All Bassett versions</option>{findingVersions.map((x) => <option key={x}>{x}</option>)}</select>}
         </>}
@@ -326,6 +325,8 @@ export default function BassettIssues() {
       {showingFindings && <details className="mb-4 rounded-lg border bg-[var(--paper)] px-3 py-2">
         <summary className="cursor-pointer text-sm font-semibold text-[var(--navy)]">Additional filters</summary>
         <div className="mt-3 flex flex-wrap gap-2">
+          <select aria-label="Filter by Workflow status" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}><option value="all">All workflow statuses</option>{(config?.finding_statuses || []).map((x) => <option key={x}>{x}</option>)}</select>
+          <select aria-label="Filter by retest status" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.retest} onChange={(e) => setFilters({ ...filters, retest: e.target.value })}><option value="all">All retest states</option>{["Pending", "In Progress", "Fixed", "Partially Fixed", "Not Fixed"].map((x) => <option key={x}>{x}</option>)}</select>
           <select aria-label="Filter by test result" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.result} onChange={(e) => setFilters({ ...filters, result: e.target.value })}><option value="all">All test results</option>{findingOptions.results.map((x) => <option key={x}>{x}</option>)}</select>
           <select aria-label="Filter by workflow stage" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.stage} onChange={(e) => setFilters({ ...filters, stage: e.target.value })}><option value="all">All workflow stages</option>{findingOptions.stages.map((x) => <option key={x}>{x}</option>)}</select>
           <select aria-label="Filter by test type" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.testType} onChange={(e) => setFilters({ ...filters, testType: e.target.value })}><option value="all">All test types</option>{findingOptions.testTypes.map((x) => <option key={x}>{x}</option>)}</select>
@@ -361,7 +362,7 @@ export default function BassettIssues() {
     </Section>
     {showingFindings && (selected
       ? <BassettFindingDetail id={selected} onClose={() => setSelected(null)} canWrite={canWrite} refresh={() => qc.invalidateQueries()} embedded />
-      : <aside aria-label="Bassett Finding details" className="hidden md:block"><div className="bg-card border rounded-xl p-8 text-center text-sm text-muted-foreground">Select a Bassett finding to view its details.</div></aside>)}
+      : <aside aria-label="Bassett Finding details" className="hidden xl:block"><div className="bg-card border rounded-xl p-8 text-center text-sm text-muted-foreground">Select a Bassett finding to view its details.</div></aside>)}
     </div>
      <MethodologyDisclosure title={showingFindings ? "How Bassett Finding metrics are calculated" : "How Bassett Test Run metrics are calculated"} testid="bassett-test-runs-methodology">
        {showingFindings ? (
@@ -446,8 +447,8 @@ function BassettFindingDetail({ id, onClose, canWrite, refresh, embedded = false
     finally { setSubmitting(false); }
   };
 
-  return <div className={embedded ? "fixed inset-0 z-40 bg-black/20 flex justify-end md:static md:z-auto md:block md:bg-transparent" : "fixed inset-0 z-40 bg-black/20 flex justify-end"} onClick={(event) => event.target === event.currentTarget && onClose()} role="presentation">
-    <aside ref={drawerRef} tabIndex="-1" role="dialog" aria-modal={embedded ? undefined : "true"} aria-labelledby="bassett-finding-detail-title" className={embedded ? "bg-card h-full w-full max-w-2xl overflow-y-auto p-6 shadow-xl md:sticky md:top-20 md:h-auto md:max-h-[calc(100vh-6rem)] md:max-w-none md:rounded-xl md:border md:shadow-none" : "bg-card h-full w-full max-w-2xl overflow-y-auto p-6 shadow-xl"}>
+  return <div className={embedded ? "fixed inset-0 z-40 bg-black/20 flex justify-end xl:static xl:z-auto xl:block xl:bg-transparent" : "fixed inset-0 z-40 bg-black/20 flex justify-end"} onClick={(event) => event.target === event.currentTarget && onClose()} role="presentation">
+    <aside ref={drawerRef} tabIndex="-1" role="dialog" aria-modal={embedded ? undefined : "true"} aria-labelledby="bassett-finding-detail-title" className={embedded ? "bg-card h-full w-full max-w-2xl overflow-y-auto p-6 shadow-xl xl:sticky xl:top-20 xl:h-auto xl:max-h-[calc(100vh-6rem)] xl:max-w-none xl:rounded-xl xl:border xl:shadow-none" : "bg-card h-full w-full max-w-2xl overflow-y-auto p-6 shadow-xl"}>
       <div className="flex items-start justify-between gap-4 mb-6">
         <div className="min-w-0">
           <div className="text-xs uppercase tracking-wide text-muted-foreground">Bassett Finding Details</div>

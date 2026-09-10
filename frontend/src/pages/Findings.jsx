@@ -58,7 +58,7 @@ export default function Findings() {
 
   useEffect(() => {
     if (!window.matchMedia) return undefined;
-    const media = window.matchMedia("(max-width: 1023px)");
+    const media = window.matchMedia("(max-width: 1279px)");
     const update = () => setMobilePanel(media.matches);
     update();
     media.addEventListener?.("change", update);
@@ -190,7 +190,7 @@ export default function Findings() {
         <StatCard label="High severity findings" value={highSeverityFindings} sub="criticality 4–5" icon={ShieldAlert} accent="#dc2626" />
         <StatCard label="Total Findings" value={findings.length} sub="linked to model comparisons" icon={CheckCircle2} accent="#16a34a" />
       </div>
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(360px,420px)]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,420px)]">
         <Section title="Model comparison findings" action={<span className="text-xs text-muted-foreground">{shown.length} shown · archived records stay in history</span>}>
           <div className="flex items-center gap-2 mb-4 flex-wrap" data-testid="findings-filter-bar">
             <div className="relative flex-1 min-w-[220px]">
@@ -223,15 +223,15 @@ export default function Findings() {
         </Section>
 
         {sel && <button type="button" aria-label="Close finding details"
-          className="fixed inset-0 z-40 bg-slate-950/40 lg:hidden" onClick={closeFinding} />}
+          className="fixed inset-0 z-40 bg-slate-950/40 xl:hidden" onClick={closeFinding} />}
         <aside aria-label="Finding details" aria-labelledby={sel ? "finding-details-heading" : undefined}
           aria-modal={sel && mobilePanel ? "true" : undefined} role={sel && mobilePanel ? "dialog" : undefined}
           ref={panelRef} tabIndex={sel && mobilePanel ? -1 : undefined} data-testid="finding-panel"
           className={sel
-            ? "fixed inset-y-0 right-0 z-50 w-full max-w-xl overflow-y-auto bg-background p-4 shadow-2xl lg:static lg:z-auto lg:w-auto lg:max-w-none lg:overflow-visible lg:bg-transparent lg:p-0 lg:shadow-none"
-            : "hidden lg:block"}>
+            ? "fixed inset-y-0 right-0 z-50 w-full max-w-xl overflow-y-auto bg-background p-4 shadow-2xl xl:static xl:z-auto xl:w-auto xl:max-w-none xl:overflow-visible xl:bg-transparent xl:p-0 xl:shadow-none"
+            : "hidden xl:block"}>
           {!sel ? <div className="bg-card border rounded-xl p-8 text-center text-muted-foreground">Select a finding to view details.</div> : (
-            <div className="bg-card border rounded-xl p-5 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
+            <div className="bg-card border rounded-xl p-5 xl:sticky xl:top-20 xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto">
               <div className="flex items-start justify-between gap-2 mb-3">
                 <div>
                   <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Finding details</div>
