@@ -3785,10 +3785,20 @@ async def bassett_create_workflow(
                 raise HTTPException(400, "Finding turn linkage must reference a valid multi-turn")
         finding = {
             "id": new_id(),
-            "title": str(finding_input.get("title") or doc.get("title") or doc["question_asked"][:120]),
-            "description": str(finding_input.get("description") or doc["exact_bassett_answer"]),
+            "title": str(
+                finding_input.get("title")
+                or doc.get("title")
+                or str(doc.get("question_asked") or "")[:120]
+            ),
+            "description": str(
+                finding_input.get("description")
+                or doc.get("exact_bassett_answer")
+                or ""
+            ),
             "expected_behavior": str(
-                finding_input.get("expected_behavior") or doc["verified_correct_answer"]
+                finding_input.get("expected_behavior")
+                or doc.get("verified_correct_answer")
+                or ""
             ),
             "project_id": doc.get("project_id"),
             "testcase_id": doc.get("testcase_id"),

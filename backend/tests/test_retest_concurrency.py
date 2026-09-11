@@ -7,14 +7,30 @@ in-process.  It must never use the preview or production database.
 import asyncio
 import getpass
 import importlib
+import io
+import json
 import socket
 import subprocess
 from pathlib import Path
 
 import httpx
 import pytest
+from fastapi import UploadFile
 
 from postgres_store import PostgresDatabase
+
+
+class _WorkflowStorage:
+    def __init__(self):
+        self.objects = {}
+        self.deleted = []
+
+    async def upload_bytes(self, path, data, _content_type):
+        self.objects[path] = data
+
+    async def delete(self, path):
+        self.deleted.append(path)
+        self.objects.pop(path, None)
 
 
 def _unused_local_port() -> int:
@@ -186,6 +202,7 @@ def test_concurrent_retest_completion_has_one_winner(isolated_database_url):
     asyncio.run(scenario())
 
 
+
 def test_generic_record_compare_and_swap_has_one_winner(isolated_database_url):
     async def scenario():
         isolated_db = PostgresDatabase(isolated_database_url)
@@ -314,6 +331,132 @@ def test_bassett_run_creation_loses_cleanly_to_concurrent_archive(isolated_datab
             assert await isolated_db.bassett_issues.count_documents({}) == 0
         finally:
             server.db = original_db
+            await isolated_db.close()
+
+    asyncio.run(scenario())
+
+
+def test_uploaded_bassett_workflow_can_create_versionless_not_evaluated_run(
+    isolated_database_url,
+):
+    async def scenario():
+        server = importlib.import_module("server")
+        isolated_db = PostgresDatabase(isolated_database_url)
+        await isolated_db.connect()
+        storage = _WorkflowStorage()
+        original_db, original_storage = server.db, server.app_storage
+        actor = {
+            "id": "uploaded-create-user", "name": "Bassett Tester",
+            "email": "uploaded-create@example.test", "role": "tester", "active": True,
+        }
+        definition = {
+            "id": "uploaded-create-scenario", "stable_id": "R-20",
+            "workflow_stage": "Research", "report_type": "Property",
+            "test_scenario": "Uploaded conversation", "complexity": "Medium",
+            "why_it_matters": "Accuracy", "what_bassett_should_do": "Review the source",
+            "success_criteria": "Preserve the uploaded conversation", "priority": "P1 - High",
+            "archived": False,
+        }
+        body = {
+            "submission_id": "uploaded-not-evaluated-create",
+            "scenario_id": definition["id"],
+            "test_type": "Single Prompt",
+            "conversation_source": "uploaded_conversation",
+            "result": "Not Evaluated",
+            "test_date": "2026-09-11",
+            "create_finding": True,
+            "finding": {"title": "Review uploaded conversation"},
+        }
+        upload = UploadFile(
+            file=io.BytesIO(b"uploaded conversation"),
+            filename="conversation.pdf",
+        )
+        try:
+            server.db, server.app_storage = isolated_db, storage
+            await isolated_db.users.insert_one(actor)
+            await isolated_db.bassett_scenarios.insert_one(definition)
+            response = await server.bassett_create_workflow(
+                payload=json.dumps(body), files=[upload], user=actor,
+            )
+            issue = response["issue"]
+            assert issue["result"] == "Not Evaluated"
+            assert issue["version_id"] == ""
+            assert issue["bassett_version"] == ""
+            assert issue["transcript_status"] == "needs_review"
+            assert len(response["attachments"]) == 1
+            assert response["finding"]["title"] == "Review uploaded conversation"
+            assert response["finding"]["description"] == ""
+            assert await isolated_db.attachments.count_documents({
+                "entity_type": "bassett_issue", "entity_id": issue["id"],
+                "is_deleted": {"$ne": True},
+            }) == 1
+        finally:
+            server.db, server.app_storage = original_db, original_storage
+            await isolated_db.close()
+
+    asyncio.run(scenario())
+
+
+def test_uploaded_bassett_workflow_can_edit_existing_run_to_not_evaluated(
+    isolated_database_url,
+):
+    async def scenario():
+        server = importlib.import_module("server")
+        isolated_db = PostgresDatabase(isolated_database_url)
+        await isolated_db.connect()
+        storage = _WorkflowStorage()
+        original_db, original_storage = server.db, server.app_storage
+        actor = {
+            "id": "uploaded-edit-user", "name": "Bassett Tester",
+            "email": "uploaded-edit@example.test", "role": "tester", "active": True,
+        }
+        definition = {
+            "id": "uploaded-edit-scenario", "stable_id": "R-21",
+            "workflow_stage": "Research", "report_type": "Property",
+            "test_scenario": "Uploaded conversation edit", "complexity": "Medium",
+            "why_it_matters": "Accuracy", "what_bassett_should_do": "Review the source",
+            "success_criteria": "Preserve the uploaded conversation", "priority": "P1 - High",
+            "archived": False,
+        }
+        body = {
+            "submission_id": "uploaded-not-evaluated-edit",
+            "scenario_id": definition["id"],
+            "test_type": "Single Prompt",
+            "conversation_source": "uploaded_conversation",
+            "version_id": "uploaded-edit-version",
+            "result": "Pass",
+            "test_date": "2026-09-11",
+        }
+        upload = UploadFile(
+            file=io.BytesIO(b"uploaded conversation"),
+            filename="conversation.pdf",
+        )
+        try:
+            server.db, server.app_storage = isolated_db, storage
+            await isolated_db.users.insert_one(actor)
+            await isolated_db.bassett_scenarios.insert_one(definition)
+            await isolated_db.versions.insert_one({
+                "id": "uploaded-edit-version", "name": "Bassett v9.26", "active": True,
+            })
+            created = await server.bassett_create_workflow(
+                payload=json.dumps(body), files=[upload], user=actor,
+            )
+            issue = created["issue"]
+            updated = await server.bassett_update_issue(issue["id"], {
+                "result": "Not Evaluated",
+                "version_id": "",
+                "bassett_version": "",
+                "expected_revision": issue["revision"],
+            }, user=actor)
+            assert updated["result"] == "Not Evaluated"
+            assert updated["version_id"] == ""
+            assert updated["bassett_version"] == ""
+            assert await isolated_db.attachments.count_documents({
+                "entity_type": "bassett_issue", "entity_id": issue["id"],
+                "is_deleted": {"$ne": True},
+            }) == 1
+        finally:
+            server.db, server.app_storage = original_db, original_storage
             await isolated_db.close()
 
     asyncio.run(scenario())
