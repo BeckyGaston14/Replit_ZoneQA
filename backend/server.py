@@ -2785,6 +2785,8 @@ BASSETT_ISSUE_FIELDS = {
     "weighted_score", "system_recommended", "score_mode", "score_label",
     "weight_explanation", "follow_up_action", "retest_target", "retest_date",
     "source_links", "history_context", "score_rationale", "general_subtype_ids",
+    "conversation_source", "transcript_status", "transcript_confirmed_by",
+    "transcript_confirmed_at",
 }
 BASSETT_TEST_TYPES = ("Single Prompt", "Multi-turn")
 BASSETT_SCENARIO_FIELDS = {
@@ -3048,6 +3050,12 @@ def _normalize_bassett_turns(doc):
     if test_type not in BASSETT_TEST_TYPES:
         raise HTTPException(400, "Test type must be Single Prompt or Multi-turn")
     doc["test_type"] = test_type
+    if (
+        str(doc.get("conversation_source") or "structured_text").strip() == "uploaded_conversation"
+        and not doc.get("turns")
+    ):
+        doc["turns"] = []
+        return
     if test_type == "Single Prompt":
         doc.pop("turns", None)
         return
@@ -3095,8 +3103,32 @@ def _normalize_bassett_turns(doc):
     doc["question_asked"] = normalized[0]["prompt"]
     doc["exact_bassett_answer"] = normalized[0]["response"]
 
-def _validate_issue_required(doc):
+def _bassett_has_structured_transcript(doc):
+    if doc.get("test_type") == "Multi-turn":
+        turns = doc.get("turns") or []
+        return bool(turns) and all(
+            str(turn.get("prompt") or "").strip() and str(turn.get("response") or "").strip()
+            for turn in turns if isinstance(turn, dict)
+        )
+    return bool(
+        str(doc.get("question_asked") or "").strip()
+        and str(doc.get("exact_bassett_answer") or "").strip()
+    )
+
+
+def _validate_issue_required(doc, has_conversation_attachment=False):
     _normalize_bassett_turns(doc)
+    conversation_source = str(doc.get("conversation_source") or "structured_text").strip()
+    if conversation_source not in ("structured_text", "uploaded_conversation"):
+        raise HTTPException(400, "Conversation source must be structured text or uploaded conversation")
+    doc["conversation_source"] = conversation_source
+    if conversation_source == "uploaded_conversation":
+        if not has_conversation_attachment:
+            raise HTTPException(400, "Upload at least one Bassett conversation file before saving")
+        doc["transcript_status"] = (
+            "confirmed" if _bassett_has_structured_transcript(doc) else "needs_review"
+        )
+        return
     if doc.get("test_type") == "Multi-turn":
         return
     labels = {
@@ -3358,6 +3390,9 @@ async def bassett_get_issue(id: str, user=Depends(get_current_user)):
     issue["history"] = await db.bassett_history.find(
         {"entity_type": "issue", "entity_id": id}, {"_id": 0}
     ).sort("created_at", -1).to_list(5000)
+    issue["attachment_count"] = await db.attachments.count_documents({
+        "entity_type": "bassett_issue", "entity_id": id, "is_deleted": {"$ne": True}
+    })
     return issue
 
 @api.post("/bassett/issues/{id}/expand")
@@ -3365,6 +3400,11 @@ async def bassett_expand_issue(id: str, user=Depends(get_current_user)):
     _require_bassett_writer(user)
     issue = await _bassett_ref("bassett_issues", id, "Issue")
     _require_mutable_bassett_issue(issue)
+    if not _bassett_has_structured_transcript(issue):
+        raise HTTPException(409, detail={
+            "code": "transcript_review_required",
+            "message": "Review and enter the uploaded Bassett conversation as structured prompts and responses before expanding it to Model Comparison.",
+        })
     scenario = _normalize_bassett_stage_record(
         await _bassett_ref("bassett_scenarios", issue.get("scenario_id"), "Bassett scenario")
     )
@@ -3616,7 +3656,7 @@ async def bassett_create_issue(body: Dict[str, Any], user=Depends(get_current_us
         await log_activity("bassett_issue", doc["id"], "created", user, doc.get("title", ""))
     return {**doc, "idempotent_replay": not created}
 
-async def _prepare_bassett_workflow_document(body: Dict[str, Any], user: Dict[str, Any]):
+async def _prepare_bassett_workflow_document(body: Dict[str, Any], user: Dict[str, Any], has_conversation_attachment=False):
     """Validate and normalize the unified Bassett workflow payload."""
     doc = {key: value for key, value in body.items() if key in BASSETT_ISSUE_FIELDS}
     doc["general_subtype_ids"] = _normalize_general_subtype_ids(
@@ -3629,7 +3669,7 @@ async def _prepare_bassett_workflow_document(body: Dict[str, Any], user: Dict[st
         doc["retest_date"] = _validate_test_date(
             doc.get("retest_date"), required=False, field_name="Retest target date"
         )
-    _validate_issue_required(doc)
+    _validate_issue_required(doc, has_conversation_attachment=has_conversation_attachment)
     _validate_bassett_run_result(doc)
     if doc.get("status") not in (None, *BASSETT_ISSUE_STATUSES[:-1]):
         raise HTTPException(400, "Invalid test status")
@@ -3699,7 +3739,9 @@ async def bassett_create_workflow(
     if not isinstance(body, dict):
         raise HTTPException(400, "Workflow payload must be an object")
 
-    doc, scenario, project, testcase, authoritative = await _prepare_bassett_workflow_document(body, user)
+    doc, scenario, project, testcase, authoritative = await _prepare_bassett_workflow_document(
+        body, user, has_conversation_attachment=bool(files)
+    )
     creation_payload = "|".join(str(doc.get(key) or "").strip() for key in (
         "scenario_id", "test_date", "question_asked", "exact_bassett_answer",
         "verified_correct_answer", "bassett_version", "environment",
@@ -3859,7 +3901,13 @@ async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_c
     if "assignee_id" in incoming and user.get("role") not in BASSETT_MANAGER_ROLES:
         raise HTTPException(403, "Only QA managers and administrators can assign issues")
     merged = {**existing, **incoming}
-    _validate_issue_required(merged)
+    existing_attachment_count = await db.attachments.count_documents({
+        "entity_type": "bassett_issue", "entity_id": id, "is_deleted": {"$ne": True}
+    })
+    _validate_issue_required(
+        merged,
+        has_conversation_attachment=bool(existing_attachment_count or body.get("pending_attachment_count")),
+    )
     # _validate_issue_required normalizes compatibility mirrors on the merged
     # document; carry those normalized values into the persisted update too.
     if merged.get("test_type") == "Multi-turn":

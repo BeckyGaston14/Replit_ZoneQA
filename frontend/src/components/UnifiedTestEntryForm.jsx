@@ -28,7 +28,7 @@ const DRAFT_KEYS = { bassett: "zoneqa:bassett-workflow-draft", comparison: "zone
 
 export const emptyBassettTestRun = {
   title: "", question_asked: "", exact_bassett_answer: "", verified_correct_answer: "",
-  test_type: "Single Prompt", turns: [],
+  test_type: "Single Prompt", turns: [], conversation_source: "structured_text", transcript_status: "not_needed",
   issue_category: "General", severity: "Medium", priority: "Medium", environment: "",
   test_date: "", scenario_id: "", general_subtype_ids: [], project_id: "", municipality_id: "", property_id: "",
   version_id: "", bassett_version: "", status: "New", result: "Pass", score: "", notes: "", evidence: "",
@@ -237,9 +237,17 @@ function GuidedSection({ index, title, active, status, onActivate, children, com
   </details>;
 }
 
+function bassettTranscriptReady(form) {
+  if (form.test_type === "Multi-turn") return Boolean(form.turns?.length) && form.turns.every((turn) => String(turn.prompt || "").trim() && String(turn.response || "").trim());
+  return Boolean(String(form.question_asked || "").trim() && String(form.exact_bassett_answer || "").trim());
+}
+
 function progressFor(form, mode) {
+  const uploadedConversation = mode === "bassett" && form.conversation_source === "uploaded_conversation";
   const fields = mode === "bassett"
-    ? [["scenario_id", form.scenario_id], ...(form.test_type === "Multi-turn"
+    ? [["scenario_id", form.scenario_id], ...(uploadedConversation
+      ? [["conversation_attachment", Boolean(form.attachment_count || form.attachments?.length)], ["verified_correct_answer", form.verified_correct_answer]]
+      : form.test_type === "Multi-turn"
       ? [["turns", (form.turns || []).every((turn) => String(turn.prompt || "").trim() && String(turn.response || "").trim()) && (form.turns || []).length]]
       : [["question_asked", form.question_asked], ["exact_bassett_answer", form.exact_bassett_answer], ["verified_correct_answer", form.verified_correct_answer]]), ["test_date", form.test_date]]
     : [["scenario_id", form.scenario_id], ["name", form.name], ["prompt", form.prompts?.[0]?.text], ["gold_standard_answer", form.gold_standard_answer], ["exact_bassett_answer", form.exact_bassett_answer], ["test_date", form.test_date]];
@@ -250,6 +258,15 @@ function progressFor(form, mode) {
 function validate(form, mode) {
   if (mode === "bassett") {
     const versionError = bassettVersionRequirementMessage(form);
+    if (form.conversation_source === "uploaded_conversation") {
+      if (!form.attachment_count && !form.attachments?.length) return "Upload at least one Bassett conversation file before saving.";
+      if (!String(form.scenario_id || "").trim()) return "A Test Bank scenario is required";
+      if (!String(form.verified_correct_answer || "").trim()) return "The verified correct answer is required";
+      if (!String(form.test_date || "").trim()) return "The test date is required";
+      if (hasScoredDimension(form.evaluation_scores) && String(form.score_rationale || "").trim().length < 20) return "Explain the Bassett scores in the Score rationale using at least 20 characters.";
+      if (versionError) return versionError;
+      return null;
+    }
     if (form.test_type === "Multi-turn") {
       if (!Array.isArray(form.turns) || !form.turns.length || form.turns.some((turn) => !String(turn.prompt || "").trim() || !String(turn.response || "").trim())) {
         return "Add at least one complete multi-turn prompt and response.";
@@ -444,6 +461,11 @@ export default function UnifiedTestEntryForm({
       if (!String(form.test_date || "").trim()) return "Enter a test date.";
     }
     if (index === 1) {
+      if (!isComparison && form.conversation_source === "uploaded_conversation") {
+        if (!form.attachment_count && !form.attachments?.length) return "Upload the Bassett conversation file.";
+        if (!String(form.verified_correct_answer || "").trim()) return "Enter the verified correct answer.";
+        return null;
+      }
       if (!isComparison && form.test_type === "Multi-turn") {
         if (!Array.isArray(form.turns) || !form.turns.length || form.turns.some((turn) => !String(turn.prompt || "").trim() || !String(turn.response || "").trim())) return "Add at least one complete multi-turn prompt and response.";
         return null;
@@ -451,15 +473,16 @@ export default function UnifiedTestEntryForm({
       if (!String(form.question_asked || form.prompts?.[0]?.text || "").trim()) return isComparison ? "Enter the prompt or question." : "Enter the question asked.";
       if (!String(form.verified_correct_answer || form.gold_standard_answer || "").trim()) return isComparison ? "Enter the Gold Standard answer." : "Enter the verified correct answer.";
     }
-    if (index === 2 && (!isComparison && form.test_type === "Multi-turn" ? false : !String(form.exact_bassett_answer || responseFor("Bassett").response || "").trim())) {
+    if (index === 2 && (!isComparison && (form.test_type === "Multi-turn" || form.conversation_source === "uploaded_conversation") ? false : !String(form.exact_bassett_answer || responseFor("Bassett").response || "").trim())) {
       return isComparison ? "Enter the Bassett response." : "Enter the exact Bassett answer.";
     }
     if (index === 4 && form.create_finding && !String(finding.title || "").trim()) return "Enter a finding title.";
     return null;
   };
   const sectionHasValue = (index) => {
+    if (!isComparison && index === 1 && form.conversation_source === "uploaded_conversation") return Boolean((form.attachment_count || form.attachments?.length) && form.verified_correct_answer);
     if (!isComparison && index === 1 && form.test_type === "Multi-turn") return Boolean(form.turns?.length);
-    if (!isComparison && index === 2 && form.test_type === "Multi-turn") return false;
+    if (!isComparison && index === 2 && (form.test_type === "Multi-turn" || form.conversation_source === "uploaded_conversation")) return false;
     if (index === 3) return Object.values(evaluationFor("Bassett").scores || {}).some((value) => value !== null && value !== "");
     if (index === 4) return Boolean(form.create_finding || form.assignee_id);
     if (index === 5) return Boolean(form.source_links || form.evidence || form.notes || form.attachments?.length);
@@ -517,7 +540,10 @@ export default function UnifiedTestEntryForm({
        {form.id && versionError && <div role="alert" className="sm:col-span-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">This completed historical test run has no Bassett version assigned. Choose a version before saving; the historical record remains unchanged until you save.</div>}
       <Field label="Test date" required error={attemptedSections.has(0) && !String(form.test_date || "").trim() ? "Test date is required." : undefined}><Input type="date" value={form.test_date || ""} disabled={lockedCommon} onChange={(e) => update("test_date", e.target.value)} /></Field>
       <Field label="Environment"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.environment || ""} disabled={lockedCommon} onChange={(e) => update("environment", e.target.value)}><option value="">Not specified</option>{[...new Set([...(config.environments || []), form.environment].filter(Boolean))].map((value) => <option key={value} value={value}>{value}</option>)}</select></Field>
-        {!isComparison && <Field label="Test type" description="Single Prompt is one question and answer. Multi-turn stores an ordered conversation with turn-level evidence."><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.test_type || "Single Prompt"} disabled={lockedCommon} onChange={(e) => update("test_type", e.target.value)}><option>Single Prompt</option><option>Multi-turn</option></select></Field>}
+       {!isComparison && <Field label="Test type" description="Single Prompt is one question and answer. Multi-turn stores an ordered conversation with turn-level evidence."><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.test_type || "Single Prompt"} disabled={lockedCommon} onChange={(e) => update("test_type", e.target.value)}><option>Single Prompt</option><option>Multi-turn</option></select></Field>}
+       {!isComparison && <div className="sm:col-span-2"><Field label="How are you recording this Bassett interaction?" required description="The original upload remains the authoritative conversation record."><div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Bassett conversation source">
+         {[['structured_text', 'Enter conversation in ZoneQA', 'Enter a single prompt or an ordered multi-turn conversation.'], ['uploaded_conversation', 'Use an uploaded Bassett conversation', 'Attach the exported conversation now; transcript entry is optional until comparison.']].map(([value, label, description]) => <label key={value} className={`cursor-pointer rounded-lg border p-3 ${(form.conversation_source || 'structured_text') === value ? 'border-[var(--orange)] bg-orange-50' : 'bg-background'}`}><span className="flex items-start gap-2"><input type="radio" name="conversation-source" value={value} checked={(form.conversation_source || 'structured_text') === value} disabled={lockedCommon} onChange={() => setForm((current) => ({ ...current, conversation_source: value, transcript_status: value === 'structured_text' ? 'not_needed' : (bassettTranscriptReady(current) ? 'confirmed' : 'needs_review') }))} /><span><span className="block font-semibold text-[var(--navy)]">{label}</span><span className="mt-1 block text-xs text-muted-foreground">{description}</span></span></span></label>)}
+       </div></Field></div>}
        {!isComparison && <Field label="Workflow status"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.status || "New"} disabled={lockedCommon || !form.id} onChange={(e) => update("status", e.target.value)}>{["New", "Triaged", "In Progress", "Blocked", "Resolved", "Closed"].map((value) => <option key={value}>{value}</option>)}</select>{!form.id && <p className="mt-1 text-xs text-muted-foreground">New tests begin as New. Update the status after reviewing the saved test.</p>}</Field>}
     </div></GuidedSection>
 
@@ -525,12 +551,13 @@ export default function UnifiedTestEntryForm({
       <Field label="Project"><QuickAdd label="Project" value={form.project_id} items={projects} onChange={(value) => update("project_id", value)} fields={[{ key: "name", label: "Project name" }]} disabled={lockedCommon} /></Field>
       <Field label="Municipality"><QuickAdd label="Municipality" value={form.municipality_id} items={municipalities} onChange={setMunicipality} fields={[{ key: "name", label: "Municipality name" }, { key: "state", label: "State" }]} disabled={lockedCommon} /></Field>
       <Field label="Property / address"><QuickAdd label="Property" value={form.property_id} items={filteredProperties} defaults={{ municipality_id: form.municipality_id }} onChange={(value) => update("property_id", value)} fields={[{ key: "name", label: "Property name" }, { key: "address", label: "Address" }]} disabled={lockedCommon} /></Field>
-        {(!isComparison && form.test_type === "Multi-turn") ? <TurnBuilder turns={form.turns} disabled={lockedCommon} onChange={(turns) => setForm((current) => ({ ...current, turns, question_asked: turns[0]?.prompt || "", exact_bassett_answer: turns[0]?.response || "" }))} findingTurnId={form.finding_turn_id || ""} onFindingTurnChange={(value) => update("finding_turn_id", value)} /> : <><Field label={isComparison ? "Prompt / question" : "Question asked"} required error={attemptedSections.has(1) && !String(form.question_asked || form.prompts?.[0]?.text || "").trim() ? "Prompt or question is required." : undefined}><Textarea rows={3} value={form.question_asked || form.prompts?.[0]?.text || ""} disabled={lockedCommon} onChange={(e) => updatePrompt(e.target.value)} /></Field>
+        {!isComparison && form.conversation_source === "uploaded_conversation" && <div className="sm:col-span-2 rounded-lg border border-[var(--orange)] bg-orange-50 p-3"><Field label="Bassett conversation file" required description={(form.attachment_count || form.attachments?.length) ? `${form.attachment_count || form.attachments?.length} conversation file(s) available` : "Upload the exported Bassett conversation. PDF, email, document, spreadsheet, text, and image formats are supported."}><Input data-testid="bassett-conversation-upload" type="file" multiple accept=".pdf,.doc,.docx,.odt,.xls,.xlsx,.ods,.ppt,.pptx,.txt,.csv,.tsv,.md,.rtf,.html,.htm,.xml,.json,.eml,.msg,.png,.jpg,.jpeg,.gif,.webp,.tif,.tiff,.bmp" onChange={(e) => update("attachments", Array.from(e.target.files || []))} /></Field></div>}
+        {(!isComparison && form.test_type === "Multi-turn") ? <details className="sm:col-span-2" open={form.conversation_source !== "uploaded_conversation"}><summary className="cursor-pointer font-semibold text-[var(--navy)]">{form.conversation_source === "uploaded_conversation" ? "Add or review structured transcript (required before Model Comparison)" : "Structured conversation"}</summary><div className="mt-3"><TurnBuilder turns={form.turns} disabled={lockedCommon} onChange={(turns) => setForm((current) => ({ ...current, turns, question_asked: turns[0]?.prompt || "", exact_bassett_answer: turns[0]?.response || "", transcript_status: turns.length ? "confirmed" : current.transcript_status }))} findingTurnId={form.finding_turn_id || ""} onFindingTurnChange={(value) => update("finding_turn_id", value)} /></div></details> : <><Field label={isComparison ? "Prompt / question" : "Question asked"} required={isComparison || form.conversation_source !== "uploaded_conversation"} description={!isComparison && form.conversation_source === "uploaded_conversation" ? "Optional now; required before expanding to Model Comparison." : undefined} error={attemptedSections.has(1) && (isComparison || form.conversation_source !== "uploaded_conversation") && !String(form.question_asked || form.prompts?.[0]?.text || "").trim() ? "Prompt or question is required." : undefined}><Textarea rows={3} value={form.question_asked || form.prompts?.[0]?.text || ""} disabled={lockedCommon} onChange={(e) => updatePrompt(e.target.value)} /></Field>
         <div className="sm:col-span-2"><Field label={isComparison ? "Verified answer / Gold Standard" : "Verified correct answer"} required error={attemptedSections.has(1) && !String(form.verified_correct_answer || form.gold_standard_answer || "").trim() ? "Verified answer is required." : undefined}><Textarea rows={4} value={form.verified_correct_answer || form.gold_standard_answer || ""} disabled={lockedCommon} onChange={(e) => setForm((current) => ({ ...current, verified_correct_answer: e.target.value, gold_standard_answer: e.target.value }))} /></Field></div></>}
     </div></GuidedSection>
 
       <GuidedSection index={2} title="3. Bassett Test Result" active={activeSection === 2} status={sectionStatus(2)} onActivate={activateSection}><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-       {(isComparison || form.test_type !== "Multi-turn") && <Field label={isComparison ? "Bassett response" : "Exact Bassett answer"} required error={attemptedSections.has(2) && !String(responseFor("Bassett").response || "").trim() ? "Bassett response is required." : undefined}><Textarea rows={6} value={responseFor("Bassett").response || ""} disabled={lockedCommon} onChange={(e) => updateResponse("Bassett", "response", e.target.value)} /></Field>}
+       {(isComparison || form.test_type !== "Multi-turn") && <Field label={isComparison ? "Bassett response" : "Exact Bassett answer"} required={isComparison || form.conversation_source !== "uploaded_conversation"} description={!isComparison && form.conversation_source === "uploaded_conversation" ? "Optional now; required before expanding to Model Comparison." : undefined} error={attemptedSections.has(2) && (isComparison || form.conversation_source !== "uploaded_conversation") && !String(responseFor("Bassett").response || "").trim() ? "Bassett response is required." : undefined}><Textarea rows={6} value={responseFor("Bassett").response || ""} disabled={lockedCommon} onChange={(e) => updateResponse("Bassett", "response", e.target.value)} /></Field>}
        {!isComparison && form.test_type === "Multi-turn" && <div className="sm:col-span-2 rounded-lg border bg-[var(--paper)] p-3 text-sm text-muted-foreground">Responses are captured within the ordered turns above. The overall verdict and evaluation below still apply to the complete conversation.</div>}
        <Field label="Test result"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={normalizeEvaluationResult(form.result)} onChange={(e) => update("result", e.target.value)}>{(isComparison ? COMPARISON_RESULT_OPTIONS : BASSETT_RESULT_OPTIONS).map((value) => <option key={value}>{value}</option>)}</select></Field>
        <Field label="Severity"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.severity || form.criticality || "Medium"} onChange={(e) => update("severity", e.target.value)}>{["Critical", "High", "Medium", "Low", "1", "2", "3", "4", "5"].map((value) => <option key={value}>{value}</option>)}</select></Field>
@@ -549,7 +576,7 @@ export default function UnifiedTestEntryForm({
     <GuidedSection index={5} title="6. Sources, Documents & Notes" active={activeSection === 5} status={sectionStatus(5)} onActivate={activateSection}><div className="space-y-4">
       <Field label={isComparison ? "Sources / evidence links" : "Evidence / context"}><Textarea rows={3} value={form.source_links || form.evidence || ""} onChange={(e) => update(isComparison ? "source_links" : "evidence", e.target.value)} placeholder="Citations, URLs, source context…" /></Field>
       <Field label="Notes / reproduction steps"><Textarea rows={4} value={form.notes || ""} onChange={(e) => update("notes", e.target.value)} /></Field>
-      <Field label="Documents / images" description={form.attachments?.length ? `${form.attachments.length} file(s) selected` : "Files upload after the test record is saved; a failed upload will not discard the test."}><Input type="file" multiple accept=".pdf,.doc,.docx,.odt,.xls,.xlsx,.ods,.ppt,.pptx,.txt,.csv,.tsv,.md,.rtf,.html,.htm,.xml,.json,.eml,.msg,.png,.jpg,.jpeg,.gif,.webp,.tif,.tiff,.bmp" onChange={(e) => update("attachments", Array.from(e.target.files || []))} /></Field>
+      {(isComparison || form.conversation_source !== "uploaded_conversation") && <Field label="Documents / images" description={form.attachments?.length ? `${form.attachments.length} file(s) selected` : "Files upload after the test record is saved; a failed upload will not discard the test."}><Input type="file" multiple accept=".pdf,.doc,.docx,.odt,.xls,.xlsx,.ods,.ppt,.pptx,.txt,.csv,.tsv,.md,.rtf,.html,.htm,.xml,.json,.eml,.msg,.png,.jpg,.jpeg,.gif,.webp,.tif,.tiff,.bmp" onChange={(e) => update("attachments", Array.from(e.target.files || []))} /></Field>}
     </div></GuidedSection>
 
     <GuidedSection index={6} title="7. Follow-up, Retesting & Regression" active={activeSection === 6} status={sectionStatus(6)} onActivate={activateSection}><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

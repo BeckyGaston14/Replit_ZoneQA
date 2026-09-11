@@ -62,6 +62,9 @@ class _Collection:
     async def find_one(self, query, *_args, **_kwargs):
         return next((dict(row) for row in self.database.records.get(self.name, []) if self._matches(row, query)), None)
 
+    async def count_documents(self, query):
+        return len([row for row in self.database.records.get(self.name, []) if self._matches(row, query)])
+
     async def insert_one(self, document):
         if self.name == "attachments" and self.database.fail_attachment_metadata:
             raise RuntimeError("attachment metadata failure")
@@ -250,5 +253,47 @@ def test_workflow_and_attachment_metadata_failures_clean_up_private_objects(monk
         assert failed_attachment.status_code == 500
         assert storage.objects == {}
         assert len(database.records.get("attachments", [])) == 0
+    finally:
+        server.app.dependency_overrides.pop(server.get_current_user, None)
+
+
+def test_uploaded_conversation_requires_file_and_can_be_saved_without_transcript(monkeypatch):
+    database = _Database()
+    storage = _Storage()
+    monkeypatch.setattr(server, "db", database)
+    monkeypatch.setattr(server, "app_storage", storage)
+    actor = {"id": "tester-1", "name": "Tester", "role": "tester"}
+    server.app.dependency_overrides[server.get_current_user] = lambda: actor
+    client = TestClient(server.app)
+    payload = {
+        "submission_id": "uploaded-conversation-test",
+        "scenario_id": "scenario-1",
+        "test_type": "Single Prompt",
+        "conversation_source": "uploaded_conversation",
+        "verified_correct_answer": "Verified from authoritative sources",
+        "version_id": "version-1",
+        "result": "Pass",
+        "test_date": "2026-09-11",
+    }
+    try:
+        missing = client.post("/api/bassett/issues/workflow", files={
+            "payload": (None, json.dumps(payload)),
+        })
+        assert missing.status_code == 400
+        assert "Upload at least one" in missing.text
+
+        created = client.post("/api/bassett/issues/workflow", files=[
+            ("payload", (None, json.dumps(payload))),
+            ("files", ("conversation.pdf", b"conversation", "application/pdf")),
+        ])
+        assert created.status_code == 200, created.text
+        issue = created.json()["issue"]
+        assert issue["conversation_source"] == "uploaded_conversation"
+        assert issue["transcript_status"] == "needs_review"
+        assert issue.get("question_asked") in (None, "")
+
+        expansion = client.post(f"/api/bassett/issues/{issue['id']}/expand")
+        assert expansion.status_code == 409
+        assert expansion.json()["detail"]["code"] == "transcript_review_required"
     finally:
         server.app.dependency_overrides.pop(server.get_current_user, None)

@@ -346,3 +346,18 @@ test("multi-turn mode replaces single-prompt fields with an ordered turn builder
   act(() => view.root.unmount());
 });
 
+test("uploaded Bassett conversations require a file while prompt and response become optional", () => {
+  const view = renderForm("bassett", {
+    conversation_source: "uploaded_conversation",
+    question_asked: "",
+    exact_bassett_answer: "",
+    verified_correct_answer: "Verified answer",
+  });
+  expect(view.container.textContent).toContain("Use an uploaded Bassett conversation");
+  expect(view.container.querySelector('[data-testid="bassett-conversation-upload"]')).not.toBeNull();
+  expect(view.container.textContent).toContain("Optional now; required before expanding to Model Comparison.");
+  act(() => view.container.querySelector('[data-testid="submit"]').click());
+  expect(toast.error).toHaveBeenCalledWith("Upload at least one Bassett conversation file before saving.");
+  act(() => view.root.unmount());
+});
+
