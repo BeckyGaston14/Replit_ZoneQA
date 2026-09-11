@@ -66,7 +66,7 @@ test("Bassett and comparison modes share the core section order while benchmarks
     expect(comparison.container.textContent).toContain(section);
   }
   expect(bassett.container.textContent).not.toContain("Comparison-only sections");
-  expect(bassett.container.textContent).toContain("Workflow statusNewTriagedIn ProgressBlockedResolvedClosed");
+  expect(bassett.container.textContent).toContain("Workflow statusNot StartedIn ReviewEngineeringClosed / ResolvedReady for Retesting");
   expect(comparison.container.textContent).not.toContain("Workflow status");
   expect(comparison.container.textContent).toContain("Comparison-only sections");
   expect(comparison.container.textContent).toContain("ChatGPT response");

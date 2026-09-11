@@ -21,6 +21,7 @@ import { ConfirmActionDialog } from "../components/ConfirmActionDialog";
 const LOOKUPS = [
   ["categories", "Test Categories"], ["test_types", "Test Types"], ["failure_modes", "Failure Modes"],
   ["root_causes", "Root Causes"], ["test_statuses", "Test Statuses"], ["finding_statuses", "Finding Statuses"],
+  ["bassett_workflow_statuses", "Bassett Test Run Workflow Statuses"],
   ["pass_results", "Pass / Fail Results"], ["environments", "Environments"], ["demo_statuses", "Demo Statuses"],
   ["municipality_types", "Municipality Types"],
   ["finding_types", "Finding Types"], ["version_types", "Bassett Version Types"],

@@ -1075,7 +1075,7 @@ class PostgresDatabase:
         history: Dict[str, Any],
         activity: Dict[str, Any],
     ) -> Dict[str, Any]:
-        """Atomically triage one active New Bassett run and record its audit trail."""
+        """Atomically move one active unstarted Bassett run into review."""
         if self.pool is None:
             raise RuntimeError("PostgreSQL database has not been connected")
         async with self.pool.acquire() as connection:
@@ -1103,10 +1103,10 @@ class PostgresDatabase:
                     }
                 if target.get("archived") or target.get("status") == "Archived":
                     return {"error": "archived"}
-                if target.get("status") != "New":
+                if target.get("status") not in ("Not Started", "New"):
                     return {"error": "not_new"}
                 target.update({
-                    "status": "Triaged",
+                    "status": "In Review",
                     "triaged_by": triaged_by,
                     "triaged_by_name": triaged_by_name,
                     "triaged_at": timestamp,

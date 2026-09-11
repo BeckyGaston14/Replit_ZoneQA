@@ -29,7 +29,7 @@ import {
   TABLE_ACTION_CELL_CLASS, TABLE_CELL_CLASS, TABLE_CLASS, TABLE_EMPTY_CELL_CLASS,
   TABLE_FRAME_CLASS, TABLE_HEAD_CLASS,
 } from "../lib/tableStyles";
-const testStatuses = ["New", "Triaged", "In Progress", "Blocked", "Resolved", "Closed"];
+const defaultTestStatuses = ["Not Started", "In Review", "Engineering", "Closed / Resolved", "Ready for Retesting"];
 const DEFAULT_RUN_SORT = { key: "test_date", direction: "desc" };
 
 export async function persistBassettTestRun(form, apiClient = api) {
@@ -161,6 +161,7 @@ export default function BassettIssues() {
   const { data: users = [] } = useQuery({ queryKey: ["users"], queryFn: async () => (await api.get("/users")).data });
   const { data: versions = [] } = useQuery({ queryKey: ["versions"], queryFn: async () => (await api.get("/versions")).data });
   const { data: config } = useQuery({ queryKey: ["config"], queryFn: async () => (await api.get("/config")).data });
+  const testStatuses = config?.bassett_workflow_statuses || defaultTestStatuses;
   useEffect(() => {
     const projectId = searchParams.get("project_id");
     if (!showingFindings && searchParams.get("new_run") === "1" && projectId) {
@@ -183,7 +184,7 @@ export default function BassettIssues() {
     { key: "bassett_version", label: "Bassett version", type: "text" },
     { key: "environment", label: "Environment", type: "text" },
     { key: "test_date", label: "Test Date", type: "date" },
-  ], [scenarioMap]);
+  ], [scenarioMap, testStatuses]);
   const [sort, setSort] = usePersistentTableSort(showingFindings ? "bassett-findings" : "bassett-test-runs", runColumns, showingFindings ? { key: "severity", direction: "asc" } : DEFAULT_RUN_SORT);
 
   const findingTypes = useMemo(() => [...new Set(issues.map((item) => item.finding_type).filter(Boolean))].sort(), [issues]);
@@ -324,9 +325,9 @@ export default function BassettIssues() {
     <ProjectScopeNav projects={projects} />
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-6">
        <StatCard label={showingFindings ? "Open Findings" : "Tests Needing Attention"} value={showingFindings ? (metrics?.findings?.open ?? 0) : (metrics?.test_runs?.attention ?? "—")} sub={showingFindings ? "excludes fixed and closed findings" : "Needs Improvement, Fail, Critical Fail, or Blocked"} icon={Flag} accent="#f97316" />
-       <StatCard label={showingFindings ? "New Findings" : "Untriaged Test Runs"} value={showingFindings ? (metrics?.findings?.new ?? 0) : (metrics?.issues?.new ?? "—")} sub={showingFindings ? "newly recorded findings" : "Workflow status is New."} icon={AlertTriangle} accent="#2563eb" />
+       <StatCard label={showingFindings ? "New Findings" : "Not Started Test Runs"} value={showingFindings ? (metrics?.findings?.new ?? 0) : (metrics?.issues?.new ?? "—")} sub={showingFindings ? "newly recorded findings" : "Workflow status is Not Started."} icon={AlertTriangle} accent="#2563eb" />
        <StatCard label={showingFindings ? "High severity findings" : "High severity"} value={showingFindings ? (metrics?.findings?.critical ?? 0) : (metrics?.issues?.critical ?? "—")} sub="high / critical severity" icon={ShieldAlert} accent="#dc2626" />
-       <StatCard label={showingFindings ? "Total Findings" : "Scenario coverage"} value={showingFindings ? (metrics?.findings?.total ?? 0) : (metrics ? `${metrics.test_runs.test_bank_coverage.percent}%` : "—")} sub={showingFindings ? "linked to Bassett-only testing" : (metrics ? `${metrics.test_runs.test_bank_coverage.covered}/${metrics.test_runs.test_bank_coverage.total} active scenarios with a qualifying completed evaluation` : "Draft, Incomplete, In Progress, and Not Evaluated runs are excluded")} icon={CheckCircle2} accent="#16a34a" />
+       <StatCard label={showingFindings ? "Total Findings" : "Scenario coverage"} value={showingFindings ? (metrics?.findings?.total ?? 0) : (metrics ? `${metrics.test_runs.test_bank_coverage.percent}%` : "—")} sub={showingFindings ? "linked to Bassett-only testing" : (metrics ? `${metrics.test_runs.test_bank_coverage.covered}/${metrics.test_runs.test_bank_coverage.total} active scenarios with a qualifying completed evaluation` : "Draft and Not Evaluated runs are excluded")} icon={CheckCircle2} accent="#16a34a" />
     </div>
     <div className={showingFindings ? "grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]" : ""}>
     <Section title={showingFindings ? "Bassett findings" : "Bassett test runs"} action={<span className="text-xs text-muted-foreground">{shown.length} shown · archived records stay in history</span>}>
@@ -392,7 +393,7 @@ export default function BassettIssues() {
        ) : (
          <>
             <p>Tests Needing Attention includes Test result values of Needs Improvement, Fail, Critical Fail, or Blocked.</p>
-            <p>Scenario coverage is the percentage of active Test Bank scenarios with a qualifying completed evaluation. Draft, Incomplete, In Progress, Blocked, and Not Evaluated runs are excluded.</p>
+            <p>Scenario coverage is the percentage of active Test Bank scenarios with a qualifying completed evaluation. Draft and Not Evaluated runs are excluded; workflow status does not remove a completed result.</p>
          </>
        )}
        <p>Archived records remain available in history but are excluded from active summary populations. The visible test-date filters define the displayed date range.</p>
@@ -551,7 +552,7 @@ function IssueDetail({ id, onClose, onEdit, onRestore, canWrite, canManage, refr
    const triage = async () => {
      try {
        await api.post(`/bassett/issues/${id}/triage`, withExpectedVersion(issue, {}));
-       toast.success("Test run marked as Triaged");
+       toast.success("Test run moved to In Review");
        refresh();
      } catch (error) { toast.error(formatApiErrorDetail(error.response?.data?.detail)); }
    };
@@ -569,7 +570,7 @@ function IssueDetail({ id, onClose, onEdit, onRestore, canWrite, canManage, refr
       <Attachments entityType="bassett_issue" entityId={issue.id} canWrite={canWrite && !issue.archived && issue.status !== "Archived"} />
       <div className="rounded-xl border p-4"><div className="font-semibold text-[var(--navy)] mb-3">Immutable history</div><div className="space-y-3">{(issue.history || []).map((entry) => <div key={entry.id} className="border-l-2 border-[var(--orange)] pl-3"><div className="font-medium">{entry.action}</div><div className="text-xs text-muted-foreground">{entry.actor} · {new Date(entry.created_at).toLocaleString()}</div></div>)}</div></div>
     </div>
-      <div className="mt-6 flex flex-wrap gap-2">{canWrite && !issue.archived && issue.status === "New" && <Button type="button" className="bg-[var(--orange)] hover:bg-[var(--orange-600)]" onClick={triage}>Mark as Triaged</Button>}{canWrite && !issue.archived && issue.status !== "Archived" && <Button type="button" className="bg-[var(--navy)]" onClick={() => onEdit(issue)}>Edit Test Run</Button>}</div>
+      <div className="mt-6 flex flex-wrap gap-2">{canWrite && !issue.archived && ["Not Started", "New"].includes(issue.status) && <Button type="button" className="bg-[var(--orange)] hover:bg-[var(--orange-600)]" onClick={triage}>Start Review</Button>}{canWrite && !issue.archived && issue.status !== "Archived" && <Button type="button" className="bg-[var(--navy)]" onClick={() => onEdit(issue)}>Edit Test Run</Button>}</div>
      {canManage && (issue.archived || issue.status === "Archived") && <Button type="button" className="mt-6" variant="outline" onClick={() => onRestore(issue)}><ArchiveRestore size={15} /> Restore Test Run</Button>}
   </aside></div>;
 }

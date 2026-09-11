@@ -2757,7 +2757,27 @@ for _n, _c in COLLECTIONS.items():
 # keys so archiving a Bassett record never changes legacy delete behavior.
 BASSETT_MANAGER_ROLES = {"admin", "qa_manager"}
 BASSETT_WRITE_ROLES = {"admin", "qa_manager", "tester", "developer"}
-BASSETT_ISSUE_STATUSES = ("New", "Triaged", "In Progress", "Blocked", "Resolved", "Closed", "Archived")
+BASSETT_DEFAULT_WORKFLOW_STATUSES = (
+    "Not Started", "In Review", "Engineering", "Closed / Resolved", "Ready for Retesting",
+)
+# Historical values remain accepted so records created before workflow statuses
+# became configurable can still be opened and updated.
+BASSETT_LEGACY_ISSUE_STATUSES = ("New", "Triaged", "In Progress", "Blocked", "Resolved", "Closed")
+BASSETT_ISSUE_STATUSES = (*BASSETT_DEFAULT_WORKFLOW_STATUSES, *BASSETT_LEGACY_ISSUE_STATUSES, "Archived")
+
+
+async def _configured_bassett_issue_statuses():
+    config = await db.config.find_one({"id": "global"}, {"_id": 0}) or DEFAULT_CONFIG
+    values = config.get("bassett_workflow_statuses") or list(BASSETT_DEFAULT_WORKFLOW_STATUSES)
+    return tuple(dict.fromkeys(str(value).strip() for value in values if str(value).strip()))
+
+
+async def _validate_bassett_issue_status(value):
+    if value is None:
+        return
+    allowed = await _configured_bassett_issue_statuses()
+    if value not in (*allowed, *BASSETT_LEGACY_ISSUE_STATUSES):
+        raise HTTPException(400, f"Workflow status must be one of the configured Administration lookup values: {', '.join(allowed)}")
 BASSETT_WORKFLOW_STAGE_NAMES = ("Research", "Analysis")
 _BASSETT_LEGACY_ANALYSIS_ALIAS = " ".join(("report", "writing"))
 # New test runs use the canonical result vocabulary. Legacy values remain
@@ -3548,19 +3568,19 @@ async def bassett_issue_history(id: str, user=Depends(get_current_user)):
 
 @api.post("/bassett/issues/{id}/triage")
 async def bassett_triage_issue(id: str, body: Dict[str, Any] = None, user=Depends(get_current_user)):
-    """Move an active New test run to Triaged with atomic audit metadata."""
+    """Move an active Not Started test run to In Review with atomic audit metadata."""
     _require_bassett_writer(user)
     existing = await _bassett_ref("bassett_issues", id, "Issue")
     _require_mutable_bassett_issue(existing)
-    if (existing.get("status") or "New") != "New":
-        raise HTTPException(409, "Only New test runs can be marked as Triaged")
+    if (existing.get("status") or "Not Started") not in ("Not Started", "New"):
+        raise HTTPException(409, "Only Not Started test runs can be moved to In Review")
     body = body or {}
     timestamp = now_iso()
     history = {
         "id": new_id(), "entity_type": "issue", "entity_id": id,
         "action": "triaged",
         "changes": {
-            "status": {"old": existing.get("status") or "New", "new": "Triaged"},
+            "status": {"old": existing.get("status") or "Not Started", "new": "In Review"},
             "triaged_by": user.get("id"),
             "triaged_by_name": user.get("name"),
             "triaged_at": timestamp,
@@ -3571,7 +3591,7 @@ async def bassett_triage_issue(id: str, body: Dict[str, Any] = None, user=Depend
     activity = {
         "id": new_id(), "entity_type": "bassett_issue", "entity_id": id,
         "action": "triaged", "user": user.get("name", "system"),
-        "detail": "Workflow status changed from New to Triaged",
+        "detail": "Workflow status changed to In Review",
         "created_at": timestamp, "_log": True,
     }
     result = await db.triage_bassett_issue(
@@ -3596,7 +3616,7 @@ async def bassett_triage_issue(id: str, body: Dict[str, Any] = None, user=Depend
     if result.get("error") == "archived":
         raise HTTPException(409, "Archived issues are immutable; history and relationships are preserved")
     if result.get("error") == "not_new":
-        raise HTTPException(409, "Only New test runs can be marked as Triaged")
+        raise HTTPException(409, "Only Not Started test runs can be moved to In Review")
     return result["issue"]
 
 @api.post("/bassett/issues")
@@ -3611,8 +3631,7 @@ async def bassett_create_issue(body: Dict[str, Any], user=Depends(get_current_us
     _validate_bassett_run_result(doc)
     _validate_bassett_version_requirement(doc)
     await _validate_configured_environment(doc)
-    if doc.get("status") not in (None, *BASSETT_ISSUE_STATUSES[:-1]):
-        raise HTTPException(400, "Invalid issue status")
+    await _validate_bassett_issue_status(doc.get("status"))
     await _validate_bassett_refs(doc, require_scenario=True)
     scenario = await db.bassett_scenarios.find_one({"id": doc["scenario_id"]}, {"_id": 0})
     _validate_scenario_required(scenario)
@@ -3622,7 +3641,7 @@ async def bassett_create_issue(body: Dict[str, Any], user=Depends(get_current_us
     ))
     server_creation_key = hashlib.sha256(f"{user['id']}|{creation_payload}".encode()).hexdigest()
     doc.update({
-        "id": body.get("id") or new_id(), "status": doc.get("status") or "New",
+        "id": body.get("id") or new_id(), "status": doc.get("status") or "Not Started",
         "issue_category": doc.get("issue_category") or "General",
         "severity": doc.get("severity") or "Medium", "priority": doc.get("priority") or "Medium",
         "reported_date": doc.get("reported_date"),
@@ -3671,8 +3690,7 @@ async def _prepare_bassett_workflow_document(body: Dict[str, Any], user: Dict[st
         )
     _validate_issue_required(doc, has_conversation_attachment=has_conversation_attachment)
     _validate_bassett_run_result(doc)
-    if doc.get("status") not in (None, *BASSETT_ISSUE_STATUSES[:-1]):
-        raise HTTPException(400, "Invalid test status")
+    await _validate_bassett_issue_status(doc.get("status"))
     project, testcase = await _validate_bassett_refs(doc, require_scenario=True)
     scenario = await db.bassett_scenarios.find_one({"id": doc["scenario_id"]}, {"_id": 0})
     if not scenario:
@@ -3702,7 +3720,7 @@ async def _prepare_bassett_workflow_document(body: Dict[str, Any], user: Dict[st
         "score_mode": authoritative["score_mode"],
         "score_label": authoritative["score_label"],
         "weight_explanation": authoritative["weight_explanation"],
-        "status": doc.get("status") or "New",
+        "status": doc.get("status") or "Not Started",
         "issue_category": doc.get("issue_category") or "General",
         "severity": doc.get("severity") or "Medium",
         "priority": doc.get("priority") or "Medium",
@@ -3892,8 +3910,7 @@ async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_c
     if "test_date" in incoming:
         incoming["test_date"] = _validate_test_date(incoming.get("test_date"))
     if "status" in incoming:
-        if incoming["status"] not in BASSETT_ISSUE_STATUSES[:-1]:
-            raise HTTPException(400, "Invalid issue status")
+        await _validate_bassett_issue_status(incoming["status"])
     # Triage metadata is server-owned; workflow status may be edited by
     # authorized writers, but audit identity and timestamp cannot be spoofed.
     for field in ("triaged_by", "triaged_by_name", "triaged_at"):
@@ -4458,8 +4475,8 @@ async def bassett_metrics(version_id: Optional[str] = None, environment: Optiona
     }
     return {
         "issues": {
-            "total": len(issues), "new": sum(i.get("status") == "New" for i in issues),
-            "open": sum(i.get("status") not in ("Resolved", "Closed") for i in issues),
+            "total": len(issues), "new": sum(i.get("status") in ("Not Started", "New") for i in issues),
+            "open": sum(i.get("status") not in ("Closed / Resolved", "Resolved", "Closed") for i in issues),
             "critical": sum(str(i.get("severity", "")).lower() in ("critical", "high", "5", "4") for i in issues),
         },
         "scenarios": {"active": len(scenarios), "with_execution": len(completed_scenarios)},
@@ -4482,7 +4499,7 @@ async def bassett_metrics(version_id: Optional[str] = None, environment: Optiona
             "pass_rate": round(len(passed_runs) / len(pass_rate_runs) * 100, 1) if pass_rate_runs else None,
             "test_bank_coverage": test_bank_coverage,
             "test_bank": {"coverage": test_bank_coverage["percent"], **test_bank_coverage},
-            "definition": "Qualifying completed tests exclude Draft, Incomplete, In Progress, Not Evaluated, and Blocked. Attention is Needs Improvement, Fail, Critical Fail, or Blocked. Pass rate uses the same qualifying population.",
+            "definition": "Qualifying completed tests exclude Draft and Not Evaluated results. Workflow status does not remove a completed evaluation. Attention is Needs Improvement, Fail, Critical Fail, or legacy Blocked.",
         },
         "failure_breakdown": [{"label": key, "count": value} for key, value in failure_breakdown.most_common()],
         "scope": {"version_id": version_id, "environment": environment},
@@ -4535,6 +4552,7 @@ async def _bassett_import_preview(resource, rows):
     issue_required = ["question_asked", "exact_bassett_answer", "verified_correct_answer"]
     seen = set()
     preview = []
+    configured_issue_statuses = await _configured_bassett_issue_statuses()
     for index, row in enumerate(rows):
         if not isinstance(row, dict):
             preview.append({"row": index + 1, "valid": False, "errors": ["Row must be an object"]})
@@ -4569,7 +4587,7 @@ async def _bassett_import_preview(resource, rows):
                     await _workflow_stage(str(row.get("workflow_stage") or "").strip())
                 except HTTPException as exc:
                     errors.append(str(exc.detail))
-        if resource == "issues" and row.get("status") and row["status"] not in BASSETT_ISSUE_STATUSES[:-1]:
+        if resource == "issues" and row.get("status") and row["status"] not in (*configured_issue_statuses, *BASSETT_LEGACY_ISSUE_STATUSES):
             errors.append("Invalid issue status")
         if resource == "issues":
             candidate = {**(existing_issue or {}), **row}
@@ -4695,8 +4713,7 @@ async def bassett_csv_import(resource: str, body: Dict[str, Any], user=Depends(g
                 if document.get("scenario_id") != existing.get("scenario_id"):
                     raise HTTPException(409, "A test run's Test Bank scenario link is immutable")
                 _validate_bassett_run_result(document, allow_legacy=True)
-                if document.get("status") not in BASSETT_ISSUE_STATUSES[:-1]:
-                    raise HTTPException(400, "Invalid issue status")
+                await _validate_bassett_issue_status(document.get("status"))
                 await _validate_bassett_refs(document)
                 operations.append((True, document))
                 updated += 1
@@ -4705,11 +4722,10 @@ async def bassett_csv_import(resource: str, body: Dict[str, Any], user=Depends(g
             document["test_date"] = _validate_test_date(document.get("test_date"))
             _validate_issue_required(document)
             _validate_bassett_run_result(document)
-            if document.get("status") not in (None, *BASSETT_ISSUE_STATUSES[:-1]):
-                raise HTTPException(400, "Invalid issue status")
+            await _validate_bassett_issue_status(document.get("status"))
             await _validate_bassett_refs(document, require_scenario=True)
             document.update({
-                "id": identifier or new_id(), "status": document.get("status") or "New",
+                "id": identifier or new_id(), "status": document.get("status") or "Not Started",
                 "issue_category": document.get("issue_category") or "General",
                 "severity": document.get("severity") or "Medium",
                 "priority": document.get("priority") or "Medium",
@@ -7397,8 +7413,9 @@ def _canonical_retest_executions(retests, testcases):
 
 
 def _dashboard_bassett_result_is_eligible(record):
-    status = str(record.get("status") or "").strip().casefold()
-    if status in {"draft", "incomplete", "in progress"}:
+    # Workflow status and evaluation result are independent. An evaluated test
+    # remains dashboard evidence while it moves through review or engineering.
+    if str(record.get("status") or "").strip().casefold() == "draft":
         return False
     return _canonical_bassett_result(record.get("result")) in EVALUATED_RESULTS
 
@@ -8595,6 +8612,7 @@ DEFAULT_CONFIG = {
                       "Evaluated", "Retest Required", "Retested", "Closed"],
     "finding_statuses": ["New", "Confirmed", "Needs Investigation", "Planned", "In Development",
                          "Ready for Retest", "Fixed", "Won't Fix", "Duplicate", "Closed"],
+    "bassett_workflow_statuses": list(BASSETT_DEFAULT_WORKFLOW_STATUSES),
     "categories": ["Property & Regulatory Identification", "Zoning Code Requirements",
                    "Special Districts / Entitlements", "Municipal Research", "Compliance",
                    "Risk Assessment", "Agency / Due Diligence", "Conversational Performance",
@@ -8750,6 +8768,8 @@ async def startup():
             patch["municipality_types"] = DEFAULT_CONFIG["municipality_types"]
         if "release_channels" not in cfg:
             patch["release_channels"] = DEFAULT_CONFIG["release_channels"]
+        if "bassett_workflow_statuses" not in cfg:
+            patch["bassett_workflow_statuses"] = DEFAULT_CONFIG["bassett_workflow_statuses"]
         if "bassett_workflow_stages" not in cfg:
             patch["bassett_workflow_stages"] = DEFAULT_CONFIG["bassett_workflow_stages"]
         else:
