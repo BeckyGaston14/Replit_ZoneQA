@@ -368,6 +368,7 @@ test("uploaded Bassett conversations require a file while prompt and response be
     verified_correct_answer: "",
     attachment_count: 1,
   }, { onSubmit });
+  expect(uploaded.container.querySelector('[data-testid="bassett-conversation-upload"]').required).toBe(false);
   act(() => uploaded.container.querySelector('[data-testid="submit"]').click());
   expect(toast.error).not.toHaveBeenCalledWith("The verified correct answer is required");
   expect(onSubmit).toHaveBeenCalled();
