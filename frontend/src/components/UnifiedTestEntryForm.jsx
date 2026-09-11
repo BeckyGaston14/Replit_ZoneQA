@@ -246,7 +246,7 @@ function progressFor(form, mode) {
   const uploadedConversation = mode === "bassett" && form.conversation_source === "uploaded_conversation";
   const fields = mode === "bassett"
     ? [["scenario_id", form.scenario_id], ...(uploadedConversation
-      ? [["conversation_attachment", Boolean(form.attachment_count || form.attachments?.length)], ["verified_correct_answer", form.verified_correct_answer]]
+      ? [["conversation_attachment", Boolean(form.attachment_count || form.attachments?.length)]]
       : form.test_type === "Multi-turn"
       ? [["turns", (form.turns || []).every((turn) => String(turn.prompt || "").trim() && String(turn.response || "").trim()) && (form.turns || []).length]]
       : [["question_asked", form.question_asked], ["exact_bassett_answer", form.exact_bassett_answer], ["verified_correct_answer", form.verified_correct_answer]]), ["test_date", form.test_date]]
@@ -261,7 +261,6 @@ function validate(form, mode) {
     if (form.conversation_source === "uploaded_conversation") {
       if (!form.attachment_count && !form.attachments?.length) return "Upload at least one Bassett conversation file before saving.";
       if (!String(form.scenario_id || "").trim()) return "A Test Bank scenario is required";
-      if (!String(form.verified_correct_answer || "").trim()) return "The verified correct answer is required";
       if (!String(form.test_date || "").trim()) return "The test date is required";
       if (hasScoredDimension(form.evaluation_scores) && String(form.score_rationale || "").trim().length < 20) return "Explain the Bassett scores in the Score rationale using at least 20 characters.";
       if (versionError) return versionError;
@@ -463,7 +462,6 @@ export default function UnifiedTestEntryForm({
     if (index === 1) {
       if (!isComparison && form.conversation_source === "uploaded_conversation") {
         if (!form.attachment_count && !form.attachments?.length) return "Upload the Bassett conversation file.";
-        if (!String(form.verified_correct_answer || "").trim()) return "Enter the verified correct answer.";
         return null;
       }
       if (!isComparison && form.test_type === "Multi-turn") {
@@ -480,7 +478,7 @@ export default function UnifiedTestEntryForm({
     return null;
   };
   const sectionHasValue = (index) => {
-    if (!isComparison && index === 1 && form.conversation_source === "uploaded_conversation") return Boolean((form.attachment_count || form.attachments?.length) && form.verified_correct_answer);
+    if (!isComparison && index === 1 && form.conversation_source === "uploaded_conversation") return Boolean(form.attachment_count || form.attachments?.length);
     if (!isComparison && index === 1 && form.test_type === "Multi-turn") return Boolean(form.turns?.length);
     if (!isComparison && index === 2 && (form.test_type === "Multi-turn" || form.conversation_source === "uploaded_conversation")) return false;
     if (index === 3) return Object.values(evaluationFor("Bassett").scores || {}).some((value) => value !== null && value !== "");

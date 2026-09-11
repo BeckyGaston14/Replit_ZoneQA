@@ -347,17 +347,30 @@ test("multi-turn mode replaces single-prompt fields with an ordered turn builder
 });
 
 test("uploaded Bassett conversations require a file while prompt and response become optional", () => {
+  const onSubmit = jest.fn();
   const view = renderForm("bassett", {
     conversation_source: "uploaded_conversation",
     question_asked: "",
     exact_bassett_answer: "",
-    verified_correct_answer: "Verified answer",
-  });
+    verified_correct_answer: "",
+  }, { onSubmit });
   expect(view.container.textContent).toContain("Use an uploaded Bassett conversation");
   expect(view.container.querySelector('[data-testid="bassett-conversation-upload"]')).not.toBeNull();
   expect(view.container.textContent).toContain("Optional now; required before expanding to Model Comparison.");
   act(() => view.container.querySelector('[data-testid="submit"]').click());
   expect(toast.error).toHaveBeenCalledWith("Upload at least one Bassett conversation file before saving.");
   act(() => view.root.unmount());
+
+  const uploaded = renderForm("bassett", {
+    conversation_source: "uploaded_conversation",
+    question_asked: "",
+    exact_bassett_answer: "",
+    verified_correct_answer: "",
+    attachment_count: 1,
+  }, { onSubmit });
+  act(() => uploaded.container.querySelector('[data-testid="submit"]').click());
+  expect(toast.error).not.toHaveBeenCalledWith("The verified correct answer is required");
+  expect(onSubmit).toHaveBeenCalled();
+  act(() => uploaded.root.unmount());
 });
 
