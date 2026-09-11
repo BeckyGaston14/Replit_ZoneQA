@@ -506,6 +506,8 @@ class PostgresDatabase:
             await connection.set_type_codec(
                 "jsonb", encoder=json.dumps, decoder=json.loads, schema="pg_catalog"
             )
+        async def reset_connection(connection):
+            await connection.execute("SELECT 1")
 
         connect_options = {"timeout": connect_timeout} if connect_timeout is not None else {}
         self.pool = await asyncpg.create_pool(
@@ -513,6 +515,7 @@ class PostgresDatabase:
             min_size=1,
             max_size=5,
             init=configure_connection,
+            reset=reset_connection,
             **connect_options,
         )
         await self.apply_migrations()
