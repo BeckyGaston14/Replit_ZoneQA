@@ -5,6 +5,7 @@ import json
 from fastapi.testclient import TestClient
 
 import server
+from object_storage import ObjectStorageUnavailable
 
 
 class _Storage:
@@ -212,7 +213,7 @@ def test_three_turn_workflow_create_reopen_reorder_and_link_finding(monkeypatch)
         server.app.dependency_overrides.pop(server.get_current_user, None)
 
 
-def test_workflow_and_attachment_metadata_failures_clean_up_private_objects(monkeypatch):
+def test_workflow_and_attachment_metadata_failures_clean_up_private_objects(monkeypatch, caplog):
     database = _Database()
     storage = _Storage()
     monkeypatch.setattr(server, "db", database)
@@ -239,6 +240,14 @@ def test_workflow_and_attachment_metadata_failures_clean_up_private_objects(monk
         assert failed_parent.status_code == 500
         assert storage.objects == {}
         assert len(storage.deleted) == 1
+        diagnostic = next(
+            json.loads(record.getMessage())
+            for record in caplog.records
+            if '"event":"bassett_create_workflow_failed"' in record.getMessage()
+        )
+        assert diagnostic["exception_type"] == "RuntimeError"
+        assert diagnostic["message"] == "parent workflow persistence failure"
+        assert "create_bassett_workflow" in diagnostic["traceback"]
 
         database.fail_workflow = False
         created = client.post("/api/bassett/issues/workflow", files={
@@ -253,6 +262,41 @@ def test_workflow_and_attachment_metadata_failures_clean_up_private_objects(monk
         assert failed_attachment.status_code == 500
         assert storage.objects == {}
         assert len(database.records.get("attachments", [])) == 0
+    finally:
+        server.app.dependency_overrides.pop(server.get_current_user, None)
+
+
+def test_workflow_storage_failure_returns_503_without_metadata(monkeypatch):
+    database = _Database()
+    storage = _Storage()
+
+    async def fail_upload(_path, _data, _content_type):
+        raise ObjectStorageUnavailable("storage write failed")
+
+    storage.upload_bytes = fail_upload
+    monkeypatch.setattr(server, "db", database)
+    monkeypatch.setattr(server, "app_storage", storage)
+    actor = {"id": "tester-1", "name": "Tester", "role": "tester"}
+    server.app.dependency_overrides[server.get_current_user] = lambda: actor
+    client = TestClient(server.app, raise_server_exceptions=False)
+    payload = {
+        "submission_id": "storage-failure-workflow-test",
+        "scenario_id": "scenario-1",
+        "test_type": "Single Prompt",
+        "conversation_source": "uploaded_conversation",
+        "result": "Not Evaluated",
+        "test_date": "2026-09-11",
+    }
+    try:
+        response = client.post("/api/bassett/issues/workflow", files=[
+            ("payload", (None, json.dumps(payload))),
+            ("files", ("conversation.pdf", b"conversation", "application/pdf")),
+        ])
+        assert response.status_code == 503
+        assert response.json()["detail"] == "Replit App Storage is unavailable"
+        assert storage.objects == {}
+        assert database.records.get("bassett_issues", []) == []
+        assert database.records.get("attachments", []) == []
     finally:
         server.app.dependency_overrides.pop(server.get_current_user, None)
 

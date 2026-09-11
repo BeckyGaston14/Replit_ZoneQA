@@ -3,7 +3,7 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-import os, uuid, logging, json, re, hashlib, hmac, secrets, ipaddress, csv, io, base64, math, time
+import os, uuid, logging, json, re, hashlib, hmac, secrets, ipaddress, csv, io, base64, math, time, traceback
 from collections import Counter
 from contextvars import ContextVar
 from functools import cmp_to_key
@@ -3742,8 +3742,7 @@ async def _uploaded_storage_cleanup(paths):
         except ObjectStorageUnavailable as error:
             logger.error("Unable to clean up failed Bassett workflow object %s: %s", path, error)
 
-@api.post("/bassett/issues/workflow")
-async def bassett_create_workflow(
+async def _bassett_create_workflow_impl(
     payload: str = Form(...),
     files: List[UploadFile] = File(default=[]),
     user=Depends(get_current_user),
@@ -3835,7 +3834,19 @@ async def bassett_create_workflow(
             finally:
                 await file.close()
             path = f"{APP_STORAGE_PREFIX}/uploads/bassett_issue/{new_id()}.{ext}"
-            await app_storage.upload_bytes(path, file_bytes, ALLOWED_CONTENT_TYPES[ext])
+            try:
+                await app_storage.upload_bytes(path, file_bytes, ALLOWED_CONTENT_TYPES[ext])
+            except ObjectStorageUnavailable as error:
+                logger.error(
+                    "%s",
+                    json.dumps({
+                        "event": "bassett_workflow_storage_upload_failed",
+                        "exception_type": type(error).__name__,
+                        "message": str(error),
+                        "filename": original_filename,
+                    }, ensure_ascii=True, separators=(",", ":")),
+                )
+                raise HTTPException(503, "Replit App Storage is unavailable") from error
             uploaded_paths.append(path)
             attachment_documents.append({
                 "id": new_id(),
@@ -3901,6 +3912,29 @@ async def bassett_create_workflow(
         }
     except Exception:
         await _uploaded_storage_cleanup(uploaded_paths)
+        raise
+
+
+@api.post("/bassett/issues/workflow")
+async def bassett_create_workflow(
+    payload: str = Form(...),
+    files: List[UploadFile] = File(default=[]),
+    user=Depends(get_current_user),
+):
+    try:
+        return await _bassett_create_workflow_impl(payload, files, user)
+    except HTTPException:
+        raise
+    except Exception as error:
+        logger.error(
+            "%s",
+            json.dumps({
+                "event": "bassett_create_workflow_failed",
+                "exception_type": type(error).__name__,
+                "message": str(error),
+                "traceback": traceback.format_exc(),
+            }, ensure_ascii=True, separators=(",", ":")),
+        )
         raise
 
 @api.put("/bassett/issues/{id}")
