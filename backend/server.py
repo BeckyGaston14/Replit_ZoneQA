@@ -3890,10 +3890,15 @@ async def _bassett_create_workflow_impl(
             "action": "created", "user": user.get("name", "system"),
             "detail": doc.get("title", ""), "created_at": doc["created_at"], "_log": True,
         }
-        result, created = await db.create_bassett_workflow(
-            doc, creation_key, BASSETT_DEFINITION_SNAPSHOT_FIELDS, finding,
-            attachment_documents, history_documents, activity_document,
-        )
+        try:
+            result, created = await db.create_bassett_workflow(
+                doc, creation_key, BASSETT_DEFINITION_SNAPSHOT_FIELDS, finding,
+                attachment_documents, history_documents, activity_document,
+            )
+        except BassettScenarioUnavailableError as error:
+            raise HTTPException(400, str(error)) from error
+        except BassettScenarioInvalidError as error:
+            raise HTTPException(409, str(error)) from error
         if not created:
             await _uploaded_storage_cleanup(uploaded_paths)
             existing_finding = None

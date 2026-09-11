@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 import server
 from object_storage import ObjectStorageUnavailable
+from postgres_store import BassettScenarioInvalidError
 
 
 class _Storage:
@@ -110,6 +111,8 @@ class _Database:
         self, document, _creation_key, _snapshot_fields, finding=None,
         attachment_documents=(), history_documents=(), activity_document=None,
     ):
+        if isinstance(self.fail_workflow, Exception):
+            raise self.fail_workflow
         if self.fail_workflow:
             raise RuntimeError("parent workflow persistence failure")
         stored = dict(document)
@@ -295,6 +298,42 @@ def test_workflow_storage_failure_returns_503_without_metadata(monkeypatch):
         assert response.status_code == 503
         assert response.json()["detail"] == "Replit App Storage is unavailable"
         assert storage.objects == {}
+        assert database.records.get("bassett_issues", []) == []
+        assert database.records.get("attachments", []) == []
+    finally:
+        server.app.dependency_overrides.pop(server.get_current_user, None)
+
+
+def test_incomplete_scenario_race_returns_409_and_cleans_up_upload(monkeypatch):
+    database = _Database()
+    database.fail_workflow = BassettScenarioInvalidError(
+        "Bassett scenario does not have a complete definition"
+    )
+    storage = _Storage()
+    monkeypatch.setattr(server, "db", database)
+    monkeypatch.setattr(server, "app_storage", storage)
+    actor = {"id": "tester-1", "name": "Tester", "role": "tester"}
+    server.app.dependency_overrides[server.get_current_user] = lambda: actor
+    client = TestClient(server.app, raise_server_exceptions=False)
+    payload = {
+        "submission_id": "incomplete-scenario-race-test",
+        "scenario_id": "scenario-1",
+        "test_type": "Single Prompt",
+        "conversation_source": "uploaded_conversation",
+        "result": "Not Evaluated",
+        "test_date": "2026-09-11",
+    }
+    try:
+        response = client.post("/api/bassett/issues/workflow", files=[
+            ("payload", (None, json.dumps(payload))),
+            ("files", ("conversation.pdf", b"conversation", "application/pdf")),
+        ])
+        assert response.status_code == 409
+        assert response.json()["detail"] == (
+            "Bassett scenario does not have a complete definition"
+        )
+        assert storage.objects == {}
+        assert len(storage.deleted) == 1
         assert database.records.get("bassett_issues", []) == []
         assert database.records.get("attachments", []) == []
     finally:
