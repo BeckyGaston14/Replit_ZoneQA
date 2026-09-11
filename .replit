@@ -49,7 +49,7 @@ localPort = 5050
 externalPort = 3002
 
 [objectStorage]
-defaultBucketID = "replit-objstore-c6026641-5903-4e1a-a316-ca5db1ca26b7"
+defaultBucketID = "replit-objstore-21338d44-bea6-4063-9b1e-86981ef6b9f8"
 
 [deployment]
 run = ["sh", "-c", "exec env APP_ENV=production SERVE_MODE=production HOST=0.0.0.0 PORT=5000 python scripts/start_production.py"]
