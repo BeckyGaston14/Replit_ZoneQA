@@ -621,6 +621,19 @@ class PostgresDatabase:
         async def reset_connection(connection):
             await connection.execute("SELECT 1")
 
+        async def reset_connection(connection):
+            """Keep pooled connections reusable behind Replit's Postgres proxy.
+
+            asyncpg's default reset issues a group of session-level cleanup
+            commands.  The Replit proxy can close the connection while that
+            reset is running, which leaves the pool holder without a live
+            connection and masks the request with ``NoneType.terminate``.
+            ZoneQA does not retain session settings between acquisitions, and
+            every write transaction is closed by its context manager, so a
+            lightweight health check is sufficient here.
+            """
+            await connection.execute("SELECT 1")
+
         connect_options = {"timeout": connect_timeout} if connect_timeout is not None else {}
         self.pool = await asyncpg.create_pool(
             self.database_url,
