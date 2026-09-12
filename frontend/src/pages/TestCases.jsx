@@ -261,7 +261,7 @@ export default function TestCases() {
       <PageHeader title="Model Comparison Test Cases" subtitle="Standard test cases for full Bassett vs ChatGPT vs Claude comparisons, evaluated against Gold Standards.">
         <Button variant="outline" onClick={exportRows} disabled={!isLoading && data.length === 0} aria-label={`Export ${sortedRows.length} filtered Test Cases as CSV`}><FileOutput size={15} className="mr-1" /> Export CSV</Button>
         {canWrite && <Button data-testid="import-csv-btn" variant="outline" onClick={() => setImportOpen(true)}><FileInput size={15} className="mr-1" /> Import CSV</Button>}
-        {canWrite && <Button data-testid="add-testcase-btn" onClick={openNew} className="bg-[var(--orange)] hover:bg-[var(--orange-600)]"><Plus size={16} className="mr-1" /> New Test Case</Button>}
+         {canWrite && <Button data-testid="add-testcase-btn" onClick={openNew} className="bg-[var(--orange)] hover:bg-[var(--orange-600)]"><Plus size={16} className="mr-1" /> New Model Comparison Test Case</Button>}
       </PageHeader>
       <ProjectScopeNav projects={projects} />
       {canWrite && <ImportCsvModal open={importOpen} onOpenChange={setImportOpen} />}

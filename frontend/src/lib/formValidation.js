@@ -61,7 +61,7 @@ export function validateTestCaseDraft(draft) {
 export function validateScenarioDraft(draft) {
   const labels = {
     workflow_stage: "Category",
-    test_scenario: "Test scenario",
+    test_scenario: "Test Scenario",
     complexity: "Complexity",
     why_it_matters: "Why it matters",
     what_bassett_should_do: "What Bassett should do",

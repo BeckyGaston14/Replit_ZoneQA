@@ -182,6 +182,8 @@ test("new-user form defaults to sending a welcome email and allows opting out", 
   openUsers(view);
   act(() => view.container.querySelector('[data-testid="add-user-btn"]').click());
 
+  expect(view.container.querySelector("#add-user-heading").textContent).toBe("Create User");
+  expect(view.container.querySelector('form[aria-labelledby="add-user-heading"] button[type="submit"]').textContent).toContain("Create User");
   const checkbox = view.container.querySelector("#new-user-welcome-email");
   expect(checkbox.checked).toBe(true);
   expect(view.container.textContent).toContain("Send welcome email with secure setup link");

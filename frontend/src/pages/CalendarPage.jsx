@@ -131,12 +131,18 @@ export default function CalendarPage() {
   );
 }
 
-function AddEventModal({ data, setData, onDone, onError }) {
+export function AddEventModal({ data, setData, onDone, onError }) {
   const set = (k, v) => setData({ ...data, [k]: v });
   const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState({});
   const save = async () => {
     if (saving) return;
-    if (!data.title.trim()) return toast.error("Title required");
+    const nextErrors = validateCalendarEvent(data);
+    if (Object.keys(nextErrors).length) {
+      setErrors(nextErrors);
+      return;
+    }
+    setErrors({});
     setSaving(true);
     try {
       await api.post("/calendar_events", { title: data.title, date: data.date, event_type: data.event_type, notes: data.notes });
@@ -145,15 +151,22 @@ function AddEventModal({ data, setData, onDone, onError }) {
     finally { setSaving(false); }
   };
   return (
-    <FormModal open onOpenChange={() => setData(null)} title="Schedule Event" onSubmit={save} submitLabel={saving ? "Scheduling…" : "Schedule"}>
-      <Field label="Title"><Input value={data.title} onChange={(e) => set("title", e.target.value)} placeholder="e.g. v2.0 regression run" data-testid="event-title" /></Field>
+    <FormModal open onOpenChange={() => setData(null)} title="Schedule Event" onSubmit={save} submitLabel={saving ? "Scheduling…" : "Schedule Event"} errors={errors}>
+      <Field label="Event Title" required error={errors.title}><Input value={data.title} onChange={(e) => { set("title", e.target.value); setErrors((current) => ({ ...current, title: "" })); }} placeholder="e.g. v2.0 regression run" data-testid="event-title" /></Field>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Date"><Input type="date" value={data.date} onChange={(e) => set("date", e.target.value)} data-testid="event-date" /></Field>
-        <Field label="Type"><ListSelect options={ADD_TYPES.map(([k]) => k)} value={data.event_type} onChange={(v) => set("event_type", v)} testid="event-type" /></Field>
+        <Field label="Date" required error={errors.date}><Input type="date" value={data.date} onChange={(e) => { set("date", e.target.value); setErrors((current) => ({ ...current, date: "" })); }} data-testid="event-date" /></Field>
+        <Field label="Event Type" optional><ListSelect options={ADD_TYPES.map(([k]) => k)} value={data.event_type} onChange={(v) => set("event_type", v)} testid="event-type" /></Field>
       </div>
-      <Field label="Notes"><Textarea rows={2} value={data.notes} onChange={(e) => set("notes", e.target.value)} /></Field>
+      <Field label="Notes" optional><Textarea rows={2} value={data.notes} onChange={(e) => set("notes", e.target.value)} /></Field>
     </FormModal>
   );
+}
+
+export function validateCalendarEvent(data) {
+  const errors = {};
+  if (!String(data?.title || "").trim()) errors.title = "Event Title is required.";
+  if (!String(data?.date || "").trim()) errors.date = "Date is required.";
+  return errors;
 }
 
 function calendarError(error, fallback) {

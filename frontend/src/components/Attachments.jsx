@@ -140,14 +140,14 @@ export function Attachments({ entityType, entityId, canWrite, compact = false })
     <div data-testid={`attachments-${entityType}`}>
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1.5">
-          <Paperclip size={12} /> Attachments{activeFileCount > 0 && ` (${activeFileCount})`}
+           <Paperclip size={12} /> Documents / Images{activeFileCount > 0 && ` (${activeFileCount})`}
         </span>
         {canWrite && (
           <>
             <Button type="button" size="sm" variant="outline" className="h-7 text-xs" disabled={uploading}
               onClick={() => fileRef.current?.click()} data-testid="attach-file-btn">
               {uploading ? <Loader2 size={12} className="mr-1 animate-spin" /> : <Paperclip size={12} className="mr-1" />}
-              {uploading ? "Uploading…" : "Attach files"}
+               {uploading ? "Uploading…" : "Attach Documents / Images"}
             </Button>
             <input ref={fileRef} type="file" multiple className="hidden" data-testid="attach-file-input"
               accept=".pdf,.doc,.docx,.odt,.xls,.xlsx,.ods,.ppt,.pptx,.txt,.csv,.tsv,.md,.rtf,.html,.htm,.xml,.json,.eml,.msg,.png,.jpg,.jpeg,.gif,.webp,.tif,.tiff,.bmp" onChange={upload} />

@@ -65,17 +65,12 @@ export default function Login() {
             <h2 className="font-display font-bold text-2xl text-[var(--navy)]">Sign in</h2>
             <p className="text-sm text-muted-foreground mt-1">Access the Bassett QA platform</p>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="login-email">Email</Label>
-            <Input id="login-email" data-testid="login-email" value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoComplete="username" required aria-required="true" aria-invalid={Boolean(err)} aria-describedby={err ? "login-error" : undefined} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="login-password">Password</Label>
-            <Input id="login-password" data-testid="login-password" value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete="current-password" required aria-required="true" aria-invalid={Boolean(err)} aria-describedby={err ? "login-error" : undefined} />
-          </div>
+           <p className="text-xs text-muted-foreground">* Required</p>
+           <div className="space-y-1.5"><Label htmlFor="login-email">Email <span className="text-red-700" aria-hidden="true"> *</span></Label><Input id="login-email" data-testid="login-email" value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoComplete="username" required aria-required="true" aria-invalid={Boolean(err)} aria-describedby={err ? "login-error" : undefined} /></div>
+           <div className="space-y-1.5"><Label htmlFor="login-password">Password <span className="text-red-700" aria-hidden="true"> *</span></Label><Input id="login-password" data-testid="login-password" value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete="current-password" required aria-required="true" aria-invalid={Boolean(err)} aria-describedby={err ? "login-error" : undefined} /></div>
           {err && <div id="login-error" data-testid="login-error" role="alert" aria-live="assertive" className="text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2">{err}</div>}
           <Button data-testid="login-submit" disabled={busy} className="w-full bg-[var(--orange)] hover:bg-[var(--orange-600)] h-11">
-            {busy ? "Signing in…" : "Sign in"}
+             {busy ? "Signing In…" : "Sign In"}
           </Button>
           {busy && <span role="status" aria-live="polite" className="sr-only">Signing in…</span>}
           <a href="/forgot-password" className="block text-center text-sm text-primary underline">Forgot password?</a>

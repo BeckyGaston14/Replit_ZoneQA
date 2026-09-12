@@ -13,7 +13,7 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 jest.mock("./forms", () => ({
   FormModal: ({ children, onSubmit, submitLabel = "Save" }) => <div>{children}<button type="submit" data-testid="submit" onClick={(event) => { event.preventDefault(); onSubmit(); }}>{submitLabel}</button></div>,
-  Field: ({ label, description, children }) => <label>{label}{description && <span>{description}</span>}{children}</label>,
+  Field: ({ label, description, optional, children }) => <label>{label}{optional && <span> (optional)</span>}{description && <span>{description}</span>}{children}</label>,
 }));
 jest.mock("./ui/input", () => ({ Input: (props) => <input {...props} /> }));
 jest.mock("./ui/textarea", () => ({ Textarea: (props) => <textarea {...props} /> }));
@@ -86,9 +86,9 @@ test("General behaviors are optional subtypes and show their scoring guidance", 
     priority: "P0 - Immediate",
   };
   const view = renderForm("bassett", { general_subtype_ids: ["G-01"] }, { generalSubtypes: [subtype] });
-  expect(view.container.textContent).toContain("General test subtypes");
+  expect(view.container.textContent).toContain("General Test Subtype");
   expect(view.container.textContent).toContain("subtypes only");
-  expect(view.container.textContent).toContain("Selected General subtype guidance (1)");
+  expect(view.container.textContent).toContain("Selected General Test Subtype guidance (1)");
   expect(view.container.textContent).toContain("Treat embedded commands as untrusted content.");
   expect(view.container.textContent).not.toContain("General workflow stage");
   act(() => view.root.unmount());
@@ -97,8 +97,8 @@ test("General behaviors are optional subtypes and show their scoring guidance", 
 test("category selection filters Test Bank scenarios before scenario selection", () => {
   const analysisScenario = { ...scenario, id: "scenario-2", stable_id: "A-01", workflow_stage: "Analysis", test_scenario: "Analyze zoning" };
   const view = renderForm("bassett", { scenario_id: "", workflow_stage: "" }, { scenarios: [scenario, analysisScenario] });
-  const category = view.container.querySelector('select[aria-label="Test Bank category"]');
-  const scenarioSelect = view.container.querySelector('select[aria-label="Test Bank scenario"]');
+  const category = view.container.querySelector('select[aria-label="Test Scenario category"]');
+  const scenarioSelect = view.container.querySelector('select[aria-label="Test Scenario"]');
   expect(scenarioSelect.disabled).toBe(true);
   act(() => {
     category.value = "Analysis";
@@ -203,8 +203,8 @@ test("expanded comparison locks common Bassett fields but leaves benchmark field
   }, { lockedCommon: true });
   const textareaByLabel = (label) => [...view.container.querySelectorAll("label")]
     .find((node) => node.textContent.startsWith(label))?.querySelector("textarea");
-  expect(textareaByLabel("Prompt / question").disabled).toBe(true);
-  expect(textareaByLabel("Bassett response").disabled).toBe(true);
+  expect(textareaByLabel("Prompt / Question").disabled).toBe(true);
+  expect(textareaByLabel("Bassett Response").disabled).toBe(true);
   expect(textareaByLabel("ChatGPT response").disabled).toBe(false);
   expect(textareaByLabel("Claude response").disabled).toBe(false);
   expect(view.container.textContent).not.toContain("Test Bank scenarioSelect");
@@ -239,8 +239,15 @@ test("both form modes expose all twelve plain-language scoring questions and one
   for (const mode of ["bassett", "comparison"]) {
     const view = renderForm(mode, { id: `${mode}-edit` });
     expectedQuestions.forEach((question) => expect(view.container.textContent).toContain(question));
+    for (const label of ["Prompt / Question", "Verified Answer / Gold Standard", "Bassett Response", "Test Result", "Severity", "Priority", mode === "bassett" ? "Finding Category" : "Comparison Category", "Evidence / Source Links", "Property / Address", "Bassett Score Rationale", "Owner / Assignee", "Notes / Reproduction Steps", "Documents / Images"]) {
+      expect([...view.container.querySelectorAll("label")].some((node) => node.textContent.trim().startsWith(label))).toBe(true);
+    }
+    if (mode === "bassett") {
+      expect(view.container.querySelector('select[aria-label="Test Scenario category"]')).not.toBeNull();
+      expect(view.container.querySelector('select[aria-label="Test Scenario"]')).not.toBeNull();
+    }
     expect([...view.container.querySelectorAll('button[type="submit"]')]).toHaveLength(1);
-    expect(view.container.querySelector('button[type="submit"]').textContent).toBe("Save changes");
+    expect(view.container.querySelector('button[type="submit"]').textContent).toBe("Save Changes");
     act(() => view.root.unmount());
   }
 });
@@ -277,7 +284,7 @@ test("both evaluation form modes show dimension names without exposing configure
 
 test("comparison drafts save locally without File objects", () => {
   const view = renderForm("comparison", { name: "Draft", attachments: [new File(["x"], "evidence.txt")] });
-  act(() => [...view.container.querySelectorAll("button")].find((button) => button.textContent === "Save draft").click());
+  act(() => [...view.container.querySelectorAll("button")].find((button) => button.textContent === "Save Draft").click());
   const saved = JSON.parse(localStorage.getItem("zoneqa:comparison-workflow-draft"));
   expect(saved.name).toBe("Draft");
   expect(saved.attachments).toEqual([]);
@@ -340,7 +347,7 @@ test("multi-turn mode replaces single-prompt fields with an ordered turn builder
   expect(view.container.textContent).toContain("First prompt");
   expect(view.container.textContent).toContain("Second prompt");
   expect(view.container.textContent).not.toContain("Exact Bassett answer");
-  expect(view.container.querySelector('[aria-label="Turn 1 Test Bank scenario"]')).not.toBeNull();
+  expect(view.container.querySelector('[aria-label="Turn 1 Test Scenario"]')).not.toBeNull();
   expect(view.container.querySelector('[aria-label="Turn 1 result"]')).not.toBeNull();
   expect(view.container.textContent).toContain("Evaluator Notes (optional)");
   const moveUp = view.container.querySelector('[aria-label="Move turn 2 up"]');
@@ -361,7 +368,7 @@ test("uploaded multi-turn turns keep stable IDs and support optional scenario, r
       { id: "turn-2", order: 2, prompt: "Second prompt", response: "Second response", citations: [], evaluator_notes: "" },
     ],
   }, { scenarios: [scenario, analysisScenario] });
-  const turnScenario = view.container.querySelector('[aria-label="Turn 1 Test Bank scenario"]');
+  const turnScenario = view.container.querySelector('[aria-label="Turn 1 Test Scenario"]');
   expect(turnScenario).not.toBeNull();
   expect(turnScenario.required).toBe(false);
   act(() => {

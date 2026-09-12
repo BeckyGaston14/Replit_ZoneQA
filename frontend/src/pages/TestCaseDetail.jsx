@@ -639,7 +639,7 @@ export default function TestCaseDetail() {
       {variantModal && <VariantModal tc={tc} setOpen={setVariantModal} nav={nav} />}
       {retestModal && <CompleteRetestModal rt={retestModal} setRt={setRetestModal} versions={config?.__versions} applicationTimeZone={config?.application_timezone} onDone={refresh} />}
       {runModal && <FormModal open onOpenChange={() => setRunModal(null)} title={`Run ${runModal.models.join(", ")}`} onSubmit={runModels} submitLabel={running ? "Running…" : "Run Models"}>
-        <Field label="Test Date *"><Input required type="date" value={runModal.test_date} onChange={(e) => setRunModal({ ...runModal, test_date: e.target.value })} /></Field>
+              <Field label="Test Date" required><Input type="date" value={runModal.test_date} onChange={(e) => setRunModal({ ...runModal, test_date: e.target.value })} /></Field>
         <p className="text-xs text-muted-foreground">One Test Date applies to every model response in this comparison.</p>
       </FormModal>}
       {editForm && <UnifiedTestEntryForm
@@ -688,13 +688,13 @@ function CompleteRetestModal({ rt, setRt, onDone, applicationTimeZone }) {
         <Field label="New Bassett Version"><Input value={f.new_bassett_version} onChange={(e) => set("new_bassett_version", e.target.value)} placeholder="Bassett v2.0" data-testid="retest-version" /></Field>
         <Field label="Environment"><ListSelect options={["Production", "Staging", "Development"]} value={f.new_environment} onChange={(v) => set("new_environment", v)} /></Field>
       </div>
-      <Field label="Test Date *"><Input required type="date" value={f.test_date} onChange={(e) => set("test_date", e.target.value)} /></Field>
-      <Field label="New Bassett Response (raw)"><Textarea rows={4} value={f.new_response} onChange={(e) => set("new_response", e.target.value)} data-testid="retest-response" /></Field>
+      <Field label="Test Date" required><Input type="date" value={f.test_date} onChange={(e) => set("test_date", e.target.value)} /></Field>
+      <Field label="Bassett Response"><Textarea rows={4} value={f.new_response} onChange={(e) => set("new_response", e.target.value)} data-testid="retest-response" /></Field>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Field label="New Score (0-10)"><ScoreSelect value={f.new_score} onChange={(value) => set("new_score", value ?? "")} testId="retest-score" ariaLabel="New retest score" /></Field>
         <Field label="New Result"><ListSelect options={["Pass", "Pass with Minor Issues", "Needs Improvement", "Fail", "Critical Fail"]} value={f.new_result} onChange={(v) => set("new_result", v)} /></Field>
       </div>
-      <Field label="Reviewer Notes"><Textarea rows={2} value={f.notes} onChange={(e) => set("notes", e.target.value)} /></Field>
+      <Field label="Notes / Reproduction Steps"><Textarea rows={2} value={f.notes} onChange={(e) => set("notes", e.target.value)} /></Field>
     </FormModal>
   );
 }
@@ -735,7 +735,7 @@ function VariantModal({ tc, setOpen, nav }) {
     <FormModal open onOpenChange={() => setOpen(false)} title="Clone as Variant — tweak the prompts" onSubmit={save} submitLabel={busy ? "Creating…" : "Create Variant"} wide>
       <p className="text-xs text-muted-foreground -mt-1">Copies municipality, property, category, criticality, expected behaviors and the Gold Standard (as draft). Responses and evaluations start fresh.</p>
       <Field label="Variant Name"><Input value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} data-testid="variant-name" /></Field>
-      <Field label="Scenario"><Textarea rows={2} value={v.scenario} onChange={(e) => setV({ ...v, scenario: e.target.value })} /></Field>
+      <Field label="Test Scenario"><Textarea rows={2} value={v.scenario} onChange={(e) => setV({ ...v, scenario: e.target.value })} /></Field>
       <div>
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs font-semibold text-muted-foreground">TWEAKED PROMPT SEQUENCE</span>
@@ -798,7 +798,7 @@ function ResponseModal({ data, setData, tcId, prompts, onDone }) {
         <Field label="Turn"><ListSelect options={(prompts || [{ turn: 1 }]).map((p) => String(p.turn))} value={String(data.turn)} onChange={(v) => setData({ ...data, turn: Number(v) })} /></Field>
       </div>
       <Field label="Response (raw — never modified)"><Textarea rows={6} value={data.response} onChange={(e) => setData({ ...data, response: e.target.value })} data-testid="resp-text" /></Field>
-      <Field label="Citations / Sources"><Input value={data.citations} onChange={(e) => setData({ ...data, citations: e.target.value })} /></Field>
+      <Field label="Evidence / Source Links"><Input value={data.citations} onChange={(e) => setData({ ...data, citations: e.target.value })} /></Field>
     </FormModal>
   );
 }
@@ -934,7 +934,7 @@ function EvalModal({ data, setData, config, tc, onDone }) {
           <Textarea rows={2} value={data.override_reason || ""} onChange={(e) => setData({ ...data, override_reason: e.target.value })} data-testid="override-reason" />
         </Field>
       )}
-      <Field label="Score rationale" required={hasScoredDimension(data.scores)} description="Identify the answer evidence supporting the scores. Minimum 20 characters when any dimension is scored."><Textarea rows={3} value={data.notes || ""} onChange={(e) => setData({ ...data, notes: e.target.value })} /></Field>
+      <Field label="Bassett Score Rationale" required={hasScoredDimension(data.scores)} description="Identify the answer evidence supporting the scores. Minimum 20 characters when any dimension is scored."><Textarea rows={3} value={data.notes || ""} onChange={(e) => setData({ ...data, notes: e.target.value })} /></Field>
     </FormModal>
   );
 }
@@ -979,7 +979,7 @@ function GoldModal({ open, setOpen, existing, tcId, evidence = [], onDone }) {
   return (
     <>
     <FormModal open={open} onOpenChange={setOpen} title="Gold Standard" onSubmit={save} wide>
-      <Field label="Gold Standard Answer"><Textarea rows={3} value={g.answer} onChange={(e) => set("answer", e.target.value)} data-testid="gold-answer" /></Field>
+      <Field label="Verified Answer / Gold Standard"><Textarea rows={3} value={g.answer} onChange={(e) => set("answer", e.target.value)} data-testid="gold-answer" /></Field>
       <Field label="Explanation (required for Insufficient Verified Evidence)"><Textarea rows={3} value={g.explanation} onChange={(e) => set("explanation", e.target.value)} data-testid="gold-explanation" /></Field>
       <Field label="Limitations / caveats"><Textarea rows={2} value={g.limitations || ""} onChange={(e) => set("limitations", e.target.value)} /></Field>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">

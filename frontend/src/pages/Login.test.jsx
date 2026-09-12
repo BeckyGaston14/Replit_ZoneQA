@@ -54,6 +54,11 @@ test("Login has stable accessible fields and announces invalid credentials", asy
   const view = renderLogin();
   const email = view.container.querySelector("#login-email");
   const password = view.container.querySelector("#login-password");
+  expect(view.container.textContent.match(/\* Required/g)).toHaveLength(1);
+  expect(view.container.querySelector("label[for='login-email']").textContent).toContain("Email");
+  expect(view.container.querySelector("label[for='login-email']").textContent).toContain("*");
+  expect(view.container.querySelector("label[for='login-password']").textContent).toContain("Password");
+  expect(view.container.querySelector("label[for='login-password']").textContent).toContain("*");
   expect(view.container.querySelector('label[for="login-email"]')).not.toBeNull();
   expect(view.container.querySelector('label[for="login-password"]')).not.toBeNull();
   expect(email.getAttribute("autocomplete")).toBe("username");

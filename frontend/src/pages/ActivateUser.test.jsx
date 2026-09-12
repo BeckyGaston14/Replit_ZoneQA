@@ -58,6 +58,11 @@ beforeEach(() => {
 
 test("activation fields expose stable IDs, required state, and password autocomplete", () => {
   const view = renderActivation();
+  expect(view.container.textContent.match(/\* Required/g)).toHaveLength(1);
+  expect(view.container.querySelector("label[for='activation-password']").textContent).toContain("Password");
+  expect(view.container.querySelector("label[for='activation-password']").textContent).toContain("*");
+  expect(view.container.querySelector("label[for='activation-confirm']").textContent).toContain("Confirm Password");
+  expect(view.container.querySelector("label[for='activation-confirm']").textContent).toContain("*");
   expect(view.container.querySelector('label[for="activation-password"]')).not.toBeNull();
   expect(view.container.querySelector('label[for="activation-confirm"]')).not.toBeNull();
   expect(view.container.querySelector("#activation-password").getAttribute("autocomplete")).toBe("new-password");

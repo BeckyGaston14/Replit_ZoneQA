@@ -193,7 +193,7 @@ test("scenario selector searches and displays the full scenario identity", () =>
     ]} />);
   });
   expect(container.textContent).toContain("R-01 · Setback research · Research · High");
-  const search = container.querySelector('input[aria-label="Search Test Bank scenarios"]');
+   const search = container.querySelector('input[aria-label="Search Test Scenario records"]');
   act(() => {
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
     setter.call(search, "analysis");

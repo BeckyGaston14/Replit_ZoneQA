@@ -332,7 +332,7 @@ export default function Findings() {
       )}
 
       {statusForm && (
-        <FormModal open onOpenChange={() => setStatusForm(null)} title="Update Developer Status" onSubmit={saveStatus} submitLabel={submitting ? "Saving…" : "Save status"}>
+        <FormModal open onOpenChange={() => setStatusForm(null)} title="Update Developer Status" onSubmit={saveStatus} submitLabel={submitting ? "Saving…" : "Save Status"}>
           <Field label="Status"><ListSelect options={config?.finding_statuses} value={statusForm.status} onChange={(v) => setStatusForm({ ...statusForm, status: v })} testid="status-select" /></Field>
           <Field label="Root Cause"><ListSelect options={config?.root_causes} value={statusForm.root_cause} onChange={(v) => setStatusForm({ ...statusForm, root_cause: v })} /></Field>
           <Field label="Resolution"><Textarea rows={3} value={statusForm.resolution} onChange={(e) => setStatusForm({ ...statusForm, resolution: e.target.value })} /></Field>

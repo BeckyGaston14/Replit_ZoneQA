@@ -70,7 +70,7 @@ export const PROJECT_SCHEMA = {
     { key: "required_test_count", label: "Required Tests", type: "number", min: 1, required: true, description: "The number of tests this project is expected to include." },
     { key: "start_date", label: "Start Date", type: "date" },
     { key: "target_date", label: "Target Completion", type: "date" },
-    { key: "notes", label: "Notes", type: "textarea", col: 2 },
+    { key: "notes", label: "Notes / Reproduction Steps", type: "textarea", col: 2 },
   ],
 };
 
@@ -102,7 +102,7 @@ export const MUNICIPALITY_SCHEMA = {
     { key: "code_effective_date", label: "Code Effective Date", type: "date" },
     { key: "last_verified", label: "Last Verified Date", type: "date" },
     { key: "latest_amendment_date", label: "Latest Known Amendment Date (drives evidence freshness flags)", type: "date" },
-    { key: "notes", label: "Notes", type: "textarea", col: 2 },
+    { key: "notes", label: "Notes / Reproduction Steps", type: "textarea", col: 2 },
   ],
   filterFields: [{ key: "muni_type", label: "Type", configKey: "municipality_types" }],
 };
@@ -110,6 +110,8 @@ export const MUNICIPALITY_SCHEMA = {
 export const PROPERTY_SCHEMA = {
   title: "Properties",
   singular: "Property",
+  newLabel: "New Property",
+  emptyActionLabel: "Create a property record.",
   subtitle: "Property-specific testing records.",
   collection: "properties",
   parentLifecycle: true,
@@ -128,7 +130,7 @@ export const PROPERTY_SCHEMA = {
     { key: "zoning_district", label: "Zoning District" },
     { key: "overlay", label: "Overlay" },
     { key: "special_district", label: "Special District" },
-    { key: "notes", label: "Notes", type: "textarea", col: 2 },
+    { key: "notes", label: "Notes / Reproduction Steps", type: "textarea", col: 2 },
   ],
 };
 
@@ -159,6 +161,10 @@ export function createEvidenceSchema(municipalities = [], users = [], currentUse
 
   return {
     title: "Ordinance Evidence",
+    singular: "Ordinance Evidence",
+    newLabel: "New Ordinance Evidence",
+    emptyStateTitle: "No ordinance evidence records have been created yet.",
+    emptyActionLabel: "Create an ordinance evidence record.",
     subtitle: "Authoritative zoning sources & Gold Standard evidence base — full provenance per record.",
     collection: "evidence",
     attachable: "evidence",
@@ -203,10 +209,10 @@ export function createEvidenceSchema(municipalities = [], users = [], currentUse
       { key: "superseded_date", label: "Superseded Date", type: "date", group: "reference", groupLabel: "Code reference" },
       { key: "source_url", label: "Source URL", type: "url", col: 2, group: "reference", groupLabel: "Code reference" },
       { key: "verification_status", label: "Verification Status", type: "select", options: ["Unverified", "Verification in Progress", "Verified", "Superseded", "Conflicting", "Rejected"], group: "verification", groupLabel: "Verification" },
-      { key: "verified_by", label: "Verified By", type: "select", options: [...new Set(users.map((user) => user.name).filter(Boolean))], disabledWhen: (form) => !form.id, description: "Set to the signed-in user on first save; editable later.", group: "verification", groupLabel: "Verification" },
-      { key: "verified_date", label: "Verified Date", type: "date", disabledWhen: (form) => !form.id, description: "Set to today's date on first save; editable later.", group: "verification", groupLabel: "Verification" },
+      { key: "verified_by", label: "Verified By", type: "select", options: [...new Set(users.map((user) => user.name).filter(Boolean))], disabledWhen: (form) => !form.id, description: "Automatically set when first saved. Editable on later updates.", group: "verification", groupLabel: "Verification" },
+      { key: "verified_date", label: "Verified Date", type: "date", disabledWhen: (form) => !form.id, description: "Automatically set when first saved. Editable on later updates.", group: "verification", groupLabel: "Verification" },
       { key: "relevant_text", label: "Extracted Source Text", type: "textarea", col: 2, group: "content", groupLabel: "Evidence content" },
-      { key: "notes", label: "Notes", type: "textarea", col: 2, group: "content", groupLabel: "Evidence content" },
+      { key: "notes", label: "Notes / Reproduction Steps", type: "textarea", col: 2, group: "content", groupLabel: "Evidence content" },
     ],
     initial: currentUser ? { verified_by: currentUser.name, verified_date: new Date().toISOString().slice(0, 10) } : {},
     dateRanges: [{ start: "effective_date", end: "superseded_date", startLabel: "Effective Date", endLabel: "Superseded Date" }],

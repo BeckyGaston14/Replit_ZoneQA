@@ -61,7 +61,7 @@ test("scenario validation preserves exact required definition semantics", () => 
     success_criteria: "Uses the verified source",
   });
   expect(errors).toEqual({
-    test_scenario: "Test scenario is required.",
+    test_scenario: "Test Scenario is required.",
   });
 });
 

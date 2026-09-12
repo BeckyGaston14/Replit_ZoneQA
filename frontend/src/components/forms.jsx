@@ -10,7 +10,7 @@ import { api, formatApiErrorDetail } from "../lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCollection } from "../lib/hooks";
 
-export function Field({ label, children, required = false, error, description, controlId }) {
+export function Field({ label, children, required = false, optional = false, error, description, controlId }) {
   const generatedId = useId();
   const id = controlId || (isValidElement(children) && children.props.id ? children.props.id : generatedId);
   const errorId = `${id}-error`;
@@ -22,14 +22,14 @@ export function Field({ label, children, required = false, error, description, c
   const control = isValidElement(children) ? cloneElement(children, {
     id,
     required: children.props.required ?? required,
+    "aria-required": children.props["aria-required"] ?? ((children.props.required ?? required) || undefined),
     "aria-invalid": Boolean(error),
     "aria-describedby": describedBy,
   }) : children;
   return <div className="space-y-1.5">
     <Label htmlFor={id} className="text-xs font-semibold text-muted-foreground">
       {label}{required && <span className="text-red-700" aria-hidden="true"> *</span>}
-      {required && <span className="sr-only"> (required)</span>}
-      <span className="ml-1 font-normal text-[11px] text-muted-foreground">({required ? "Required" : "Optional"})</span>
+      {optional && <span className="ml-1 font-normal text-[11px] text-muted-foreground">(optional)</span>}
     </Label>
     {description && <p id={`${id}-description`} className="text-xs text-muted-foreground">{description}</p>}
     {control}
@@ -100,7 +100,7 @@ export function SelectOrAdd({ collection, valueField = "id", labelFn, value, onC
              const fieldId = `${addPrefix}-${f.key}`;
               const fieldErrorId = `${fieldId}-error`;
              return <div key={f.key} className="space-y-1">
-                 <label htmlFor={fieldId} className="text-xs font-semibold text-muted-foreground">{f.label}{f.required !== false && <><span className="text-red-700" aria-hidden="true"> *</span><span className="sr-only"> (required)</span></>}</label>
+                  <label htmlFor={fieldId} className="text-xs font-semibold text-muted-foreground">{f.label}{f.required !== false && <span className="text-red-700" aria-hidden="true"> *</span>}</label>
                <Input id={fieldId} placeholder={f.label} value={form[f.key] || ""}
                   onChange={(e) => { setForm({ ...form, [f.key]: e.target.value }); setFieldErrors((current) => ({ ...current, [f.key]: "" })); setError(""); }}
                  onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); create(); } }}
@@ -152,6 +152,7 @@ export function FormModal({ open, onOpenChange, title, description = "Complete t
           <DialogDescription className="sr-only">{description}</DialogDescription>
         </DialogHeader>
         <form className="space-y-4 py-2" onSubmit={handleSubmit} aria-busy={submitDisabled}>
+           <p className="text-xs text-muted-foreground" data-testid="required-note">* Required</p>
           {errorEntries.length > 0 && <div role="alert" aria-live="assertive" tabIndex="-1" aria-label="Form errors" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
             <p className="font-semibold">Please fix {errorEntries.length === 1 ? "the highlighted field" : "the highlighted fields"} before saving.</p>
             <ul className="mt-1 list-disc pl-5">{errorEntries.map(([key, message]) => <li key={key}><button type="button" className="underline text-left" onClick={() => onFocusFirstError?.(key)}>{message}</button></li>)}</ul>

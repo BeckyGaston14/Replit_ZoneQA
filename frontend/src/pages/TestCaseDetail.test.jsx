@@ -102,7 +102,7 @@ test("detail-page edit action opens the hydrated comparison editor", () => {
   const root = createRoot(container);
   act(() => root.render(<TestCaseDetail />));
   act(() => container.querySelector("[data-testid='detail-edit-action']").click());
-  expect(container.querySelector("[data-modal-title='Edit Model Comparison']")).not.toBeNull();
+  expect(container.querySelector("[data-modal-title='Edit Model Comparison Test Case']")).not.toBeNull();
   expect(container.textContent).toContain("Prompt");
   expect(container.textContent).toContain("answer");
   act(() => root.unmount());

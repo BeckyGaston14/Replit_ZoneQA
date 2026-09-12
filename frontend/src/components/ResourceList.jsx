@@ -37,7 +37,7 @@ function ResourceEmptyState({ title, description, action, testid }) {
   );
 }
 
-export default function ResourceList({ title, subtitle, collection, columns, fields, initial = {}, rowLink, rowAction, attachable, singular, dataEndpoint, dateFilterColumn, exportFilename, exportLabel = "Export", newLabel = "New", parentLifecycle = false, dateRanges = [], filterFields = [], renderCreateExtras, onCreateSuccess, onNewOpen }) {
+export default function ResourceList({ title, subtitle, collection, columns, fields, initial = {}, rowLink, rowAction, attachable, singular, dataEndpoint, dateFilterColumn, exportFilename, exportLabel = "Export", newLabel = "New", emptyStateTitle, emptyStateDescription, emptyActionLabel, parentLifecycle = false, dateRanges = [], filterFields = [], renderCreateExtras, onCreateSuccess, onNewOpen }) {
   const lifecycleEndpoint = `/resources/${collection}`;
   const listEndpoint = dataEndpoint || `/${collection}`;
   const defaultView = {
@@ -353,9 +353,13 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
           <tbody>
              {filteredData.length === 0 && <tr><td colSpan={columns.length + 1} className={TABLE_EMPTY_CELL_CLASS}>
                <ResourceEmptyState
-                 title={data.length === 0 ? `No ${title.toLowerCase()} ${title.toLowerCase().endsWith("evidence") ? "has" : "have"} been created yet.` : "No records match the current filters."}
-                 description={data.length === 0 ? `Create a ${singular || title.replace(/s$/, "")} to begin tracking this area.` : "Adjust or clear the current filters to see available records."}
-                 action={hasFilters ? <Button type="button" size="sm" variant="outline" onClick={clearFilters}>Clear filters</Button> : null}
+                  title={data.length === 0 ? (emptyStateTitle || `No ${title.toLowerCase()} have been created yet.`) : "No records match the current filters."}
+                  description={data.length === 0 ? (emptyStateDescription || `Create a ${singular || title.replace(/s$/, "")} to begin tracking this area.`) : "Adjust or clear the current filters to see available records."}
+                  action={hasFilters
+                    ? <Button type="button" size="sm" variant="outline" onClick={clearFilters}>Clear filters</Button>
+                    : canWrite && emptyActionLabel
+                      ? <Button type="button" size="sm" className="bg-[var(--orange)] hover:bg-[var(--orange-600)]" onClick={openNew}>{emptyActionLabel}</Button>
+                      : null}
                  testid={`${collection}-empty-state`}
                />
              </td></tr>}
@@ -384,7 +388,7 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
         </table>
       </div>}
 
-      <FormModal open={open} onOpenChange={setOpen} title={form.id ? `Edit ${singular || title}` : `New ${singular || title}`} onSubmit={submit} submitDisabled={save.isPending || submitInFlight.current || uploadingAttachments} submitLabel={uploadingAttachments ? "Uploading files…" : save.isPending || submitInFlight.current ? "Saving…" : "Save"} dirty={formDirty || pendingAttachments.length > 0} errors={formErrors} onFocusFirstError={focusFormError} wide>
+      <FormModal open={open} onOpenChange={setOpen} title={form.id ? `Edit ${singular || title}` : `New ${singular || title}`} onSubmit={submit} submitDisabled={save.isPending || submitInFlight.current || uploadingAttachments} submitLabel={uploadingAttachments ? "Uploading Files…" : save.isPending || submitInFlight.current ? (form.id ? "Saving…" : "Creating…") : form.id ? "Save Changes" : `Create ${singular || title}`} dirty={formDirty || pendingAttachments.length > 0} errors={formErrors} onFocusFirstError={focusFormError} wide>
         {serverError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           <p className="font-semibold">{serverError}</p>
           {conflictRecord && <div className="mt-3">
@@ -431,8 +435,8 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
           </div>
         )}
         {attachable && !form.id && <fieldset className="rounded-xl border p-4">
-          <legend className="px-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">Attachments</legend>
-          <Field label="Documents / images" description={pendingAttachments.length ? `${pendingAttachments.length} file(s) selected. Files upload after the record is saved.` : "Select supporting documents now; they will upload immediately after the record is saved."}>
+          <legend className="px-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">Documents / Images</legend>
+          <Field label="Documents / Images" description={pendingAttachments.length ? `${pendingAttachments.length} file(s) selected. Files upload after the record is saved.` : "Select supporting documents now; they will upload immediately after the record is saved."}>
             <Input type="file" multiple
               accept=".pdf,.doc,.docx,.odt,.xls,.xlsx,.ods,.ppt,.pptx,.txt,.csv,.tsv,.md,.rtf,.html,.htm,.xml,.json,.eml,.msg,.png,.jpg,.jpeg,.gif,.webp,.tif,.tiff,.bmp"
               onChange={(event) => setPendingAttachments(Array.from(event.target.files || []))}

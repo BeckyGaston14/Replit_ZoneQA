@@ -40,15 +40,13 @@ export default function ForgotPassword() {
               <h1 className="font-display font-bold text-2xl text-[var(--navy)]">Forgot password?</h1>
               <p className="text-sm text-muted-foreground mt-1">Enter your account email and we’ll send a secure reset link.</p>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="forgot-password-email">Email</Label>
-              <Input id="forgot-password-email" data-testid="forgot-password-email" type="email" autoComplete="email"
-                value={email} onChange={(event) => setEmail(event.target.value)} required aria-required="true"
-                aria-invalid={Boolean(error)} aria-describedby={error ? "forgot-password-error" : undefined} />
-            </div>
+             <p className="text-xs text-muted-foreground">* Required</p>
+             <div className="space-y-1.5"><Label htmlFor="forgot-password-email">Email <span className="text-red-700" aria-hidden="true"> *</span></Label><Input id="forgot-password-email" data-testid="forgot-password-email" type="email" autoComplete="email"
+                 value={email} onChange={(event) => setEmail(event.target.value)}
+                 required aria-required="true" aria-invalid={Boolean(error)} aria-describedby={error ? "forgot-password-error" : undefined} /></div>
             {error && <p id="forgot-password-error" role="alert" aria-live="assertive" className="text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2">{error}</p>}
             <Button data-testid="forgot-password-submit" type="submit" disabled={busy} className="w-full bg-[var(--orange)] hover:bg-[var(--orange-600)]">
-              {busy ? "Sending…" : "Send reset link"}
+               {busy ? "Sending…" : "Send Reset Link"}
             </Button>
             <Link className="block text-center text-sm text-primary underline" to="/login">Return to sign in</Link>
           </form>

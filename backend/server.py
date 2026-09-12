@@ -1955,6 +1955,10 @@ RESOURCE_REQUIRED_FIELDS = {
         "document_name": "Document name",
         "municipality_id": "Municipality",
     },
+    "calendar_events": {
+        "title": "Event Title",
+        "date": "Date",
+    },
     "demos": {
         "testcase_id": "Test case",
         "why_good": "Why this is a strong demo",

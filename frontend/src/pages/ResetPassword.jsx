@@ -9,7 +9,7 @@ function PasswordField({ id, label, value, onChange }) {
   const [visible, setVisible] = useState(false);
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={id}>{label}</Label>
+      <Label htmlFor={id}>{label} <span className="text-red-700" aria-hidden="true"> *</span></Label>
       <div className="flex gap-2">
         <Input id={id} type={visible ? "text" : "password"} autoComplete="new-password"
           value={value} onChange={(event) => onChange(event.target.value)} required aria-required="true" />
@@ -67,16 +67,17 @@ export default function ResetPassword() {
           </div>
         ) : (
           <form onSubmit={submit} noValidate aria-busy={busy} className="space-y-5">
-            <div>
+           <div>
               <h1 className="font-display font-bold text-2xl text-[var(--navy)]">Create a new password</h1>
               <p className="text-sm text-muted-foreground mt-1">This secure link works once and expires after one hour.</p>
             </div>
+           <p className="text-xs text-muted-foreground">* Required</p>
             <PasswordField id="reset-password" label="New password" value={password} onChange={setPassword} />
             <p className="text-xs text-muted-foreground">Use 12–128 characters.</p>
             <PasswordField id="reset-password-confirmation" label="Confirm new password" value={confirmation} onChange={setConfirmation} />
             {error && <p id="reset-password-error" role="alert" aria-live="assertive" className="text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2">{error}</p>}
             <Button data-testid="reset-password-submit" type="submit" disabled={busy} className="w-full bg-[var(--orange)] hover:bg-[var(--orange-600)]">
-              {busy ? "Resetting password…" : "Reset password"}
+               {busy ? "Resetting Password…" : "Reset Password"}
             </Button>
           </form>
         )}

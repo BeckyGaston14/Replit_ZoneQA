@@ -62,20 +62,17 @@ export default function ActivateUser() {
             Create a private password to finish activating your ZoneQA account.
           </p>
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="activation-password">Password</Label>
-          <Input id="activation-password" type="password" autoComplete="new-password" minLength={12}
-            value={password} onChange={(e) => setPassword(e.target.value)} required aria-required="true" aria-invalid={Boolean(error)} aria-describedby={error ? "activation-error" : "activation-password-help"} />
+         <p className="text-xs text-muted-foreground">* Required</p>
+         <div className="space-y-1.5"><Label htmlFor="activation-password">Password <span className="text-red-700" aria-hidden="true"> *</span></Label><Input id="activation-password" type="password" autoComplete="new-password" minLength={12}
+             value={password} onChange={(e) => setPassword(e.target.value)} required aria-required="true" aria-invalid={Boolean(error)} aria-describedby={error ? "activation-error" : "activation-password-help"} />
           <p id="activation-password-help" className="text-xs text-muted-foreground">Use at least 12 characters.</p>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="activation-confirm">Confirm password</Label>
-          <Input id="activation-confirm" type="password" autoComplete="new-password"
-            value={confirm} onChange={(e) => setConfirm(e.target.value)} required aria-required="true" aria-invalid={Boolean(error)} aria-describedby={error ? "activation-error" : undefined} />
-        </div>
+         </div>
+         <div className="space-y-1.5"><Label htmlFor="activation-confirm">Confirm Password <span className="text-red-700" aria-hidden="true"> *</span></Label><Input id="activation-confirm" type="password" autoComplete="new-password"
+             value={confirm} onChange={(e) => setConfirm(e.target.value)} required aria-required="true" aria-invalid={Boolean(error)} aria-describedby={error ? "activation-error" : undefined} />
+         </div>
         {error && <p id="activation-error" className="text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2" role="alert" aria-live="assertive">{error}</p>}
         <Button type="submit" disabled={busy} className="w-full bg-[var(--orange)] hover:bg-[var(--orange-600)]">
-          {busy ? "Setting password…" : "Set password"}
+           {busy ? "Setting Password…" : "Set Password"}
         </Button>
         {busy && <span role="status" aria-live="polite" className="sr-only">Setting password…</span>}
       </form>

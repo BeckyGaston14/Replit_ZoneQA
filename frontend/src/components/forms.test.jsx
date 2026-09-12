@@ -40,10 +40,21 @@ test("required fields expose visible and programmatic required state", () => {
   act(() => root.render(<Field label="Project name" required error="Project name is required."><input /></Field>));
   const input = container.querySelector("input");
   expect(container.querySelector("label").textContent).toContain("*");
-  expect(container.querySelector("label").textContent).toContain("(required)");
+  expect(container.querySelector("label").textContent).not.toContain("required");
   expect(input.required).toBe(true);
+  expect(input.getAttribute("aria-required")).toBe("true");
   expect(input.getAttribute("aria-invalid")).toBe("true");
   expect(input.getAttribute("aria-describedby")).toContain("-error");
+  act(() => root.unmount());
+});
+
+test("forms show the required convention once without repeating required wording", () => {
+  const container = document.createElement("div"); const root = createRoot(container);
+  act(() => root.render(<FormModal open onOpenChange={jest.fn()} title="Create User" onSubmit={jest.fn()}><Field label="Name" required><input /></Field></FormModal>));
+  expect(container.textContent.match(/\* Required/g)).toHaveLength(1);
+  expect(container.querySelector("label").textContent).toBe("Name *");
+  expect(container.querySelector("label").textContent.toLowerCase()).not.toContain("required");
+  expect(container.querySelector("input").getAttribute("aria-label")).toBeNull();
   act(() => root.unmount());
 });
 

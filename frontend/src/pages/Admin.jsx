@@ -385,19 +385,20 @@ export default function Admin() {
         <TabsContent value="models">
           <form onSubmit={saveModel} className="bg-card border rounded-xl p-4 mb-4 space-y-3" aria-labelledby="model-form-heading">
             <div className="flex items-center justify-between gap-2">
-              <div><h3 id="model-form-heading" className="font-semibold text-[var(--navy)]">{editingModel ? `Edit ${editingModel.name}` : "Add Model"}</h3><p className="text-xs text-muted-foreground mt-1">Maintain the models available for QA records and reporting.</p></div>
+              <div><h3 id="model-form-heading" className="font-semibold text-[var(--navy)]">{editingModel ? `Edit ${editingModel.name}` : "Create Model"}</h3><p className="text-xs text-muted-foreground mt-1">Maintain the models available for QA records and reporting.</p></div>
               {editingModel && <Button type="button" variant="ghost" size="sm" onClick={() => setEditingModel(null)} aria-label="Cancel model edit"><X size={16}/></Button>}
             </div>
-            {(() => {
+             <p className="text-xs text-muted-foreground">* Required</p>
+             {(() => {
               const model = editingModel || newModel;
               const setModel = editingModel ? setEditingModel : setNewModel;
               return <div className="grid md:grid-cols-5 gap-3 items-end">
-                <div><Label htmlFor="model-name">Display name</Label><Input id="model-name" value={model.name || ""} onChange={(e)=>setModel({...model,name:e.target.value})} placeholder="ChatGPT" required /></div>
+                 <div><Label htmlFor="model-name">Display Name <span className="text-red-700" aria-hidden="true"> *</span></Label><Input id="model-name" value={model.name || ""} onChange={(e)=>setModel({...model,name:e.target.value})} placeholder="ChatGPT" required /></div>
                 <div><Label htmlFor="model-provider">Provider</Label><Input id="model-provider" value={model.provider || ""} onChange={(e)=>setModel({...model,provider:e.target.value})} placeholder="OpenAI" /></div>
                 <div><Label htmlFor="model-identifier">API model identifier</Label><Input id="model-identifier" value={model.model_name || ""} onChange={(e)=>setModel({...model,model_name:e.target.value})} placeholder="gpt-5.4" /></div>
                 <div><Label htmlFor="model-type">Type</Label><select id="model-type" className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm" value={model.role_type || "Benchmark"} onChange={(e)=>setModel({...model,role_type:e.target.value})}><option value="Primary">Primary</option><option value="Benchmark">Benchmark</option></select></div>
                 <label htmlFor="model-active" className="flex h-9 items-center gap-2 text-sm"><input id="model-active" type="checkbox" checked={model.active !== false} onChange={(e)=>setModel({...model,active:e.target.checked})}/> Active</label>
-                <div className="md:col-span-5 flex gap-2"><Button type="submit" disabled={modelSaving}><Save size={14}/> {editingModel ? "Save changes" : "Add model"}</Button>{editingModel && <Button type="button" variant="outline" onClick={()=>setEditingModel(null)}>Cancel</Button>}</div>
+                 <div className="md:col-span-5 flex gap-2"><Button type="submit" disabled={modelSaving}><Save size={14}/> {editingModel ? "Save Changes" : "Create Model"}</Button>{editingModel && <Button type="button" variant="outline" onClick={()=>setEditingModel(null)}>Cancel</Button>}</div>
               </div>;
             })()}
           </form>
@@ -411,18 +412,19 @@ export default function Admin() {
 
         <TabsContent value="versions">
           <div className="bg-card border rounded-xl p-4 mb-4">
-            <h3 className="font-semibold text-[var(--navy)] mb-3">{editingVersion ? "Edit Bassett Version" : "Add Bassett Version"}</h3>
+            <h3 className="font-semibold text-[var(--navy)] mb-3">{editingVersion ? "Edit Bassett Version" : "Create Bassett Version"}</h3>
+            <p className="mb-3 text-xs text-muted-foreground">* Required</p>
             {(() => {
               const v = editingVersion || newVersion;
               const setV = editingVersion ? setEditingVersion : setNewVersion;
               return <div className="grid md:grid-cols-4 gap-3">
-                <div><Label>Name</Label><Input value={v.name || ""} onChange={(e) => setV({...v, name:e.target.value})} placeholder="Bassett v2.1" /></div>
-                <div><Label>Release number</Label><Input value={v.release_number || ""} onChange={(e) => setV({...v, release_number:e.target.value})} placeholder="2.1.0" /></div>
+                 <div><Label>Name <span className="text-red-700" aria-hidden="true"> *</span></Label><Input value={v.name || ""} onChange={(e) => setV({...v, name:e.target.value})} placeholder="Bassett v2.1" required /></div>
+                 <div><Label>Release Number <span className="text-red-700" aria-hidden="true"> *</span></Label><Input value={v.release_number || ""} onChange={(e) => setV({...v, release_number:e.target.value})} placeholder="2.1.0" required /></div>
                 <div><Label>Release date</Label><Input type="date" value={v.release_date || ""} onChange={(e) => setV({...v, release_date:e.target.value})} /></div>
                 <div><Label>Environment</Label><Select value={v.environment || "Staging"} onValueChange={(x) => setV({...v, environment:x})}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{(config.environments || []).map(x=><SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div>
                 <div><Label>Version type</Label><Select value={v.version_type || ""} onValueChange={(x) => setV({...v, version_type:x})}><SelectTrigger><SelectValue placeholder="Select version type" /></SelectTrigger><SelectContent>{(config.version_types || []).map(x=><SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div>
                 <div><Label>Release channel</Label><Select value={v.release_channel || ""} onValueChange={(x) => setV({...v, release_channel:x})}><SelectTrigger><SelectValue placeholder="Select release channel" /></SelectTrigger><SelectContent>{(config.release_channels || []).map(x=><SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div>
-                <div className="flex items-end gap-2"><Button onClick={() => saveVersion(v, !editingVersion)}><Save size={14} className="mr-1"/>Save</Button>{editingVersion && <Button variant="outline" onClick={()=>setEditingVersion(null)}>Cancel</Button>}</div>
+                 <div className="flex items-end gap-2"><Button onClick={() => saveVersion(v, !editingVersion)}><Save size={14} className="mr-1"/>{editingVersion ? "Save Changes" : "Create Bassett Version"}</Button>{editingVersion && <Button variant="outline" onClick={()=>setEditingVersion(null)}>Cancel</Button>}</div>
               </div>;
             })()}
           </div>
@@ -439,8 +441,8 @@ export default function Admin() {
               <h2 className="font-display font-semibold text-[var(--navy)]">Users & Roles</h2>
               <p className="text-xs text-muted-foreground">Create accounts with a one-time password setup link.</p>
             </div>
-            <Button onClick={() => { setAddingUser(true); setActivationPath(""); setWelcomeEmailResult(null); }} data-testid="add-user-btn" aria-label="Add user">
-              <Plus size={15} /> Add User
+             <Button onClick={() => { setAddingUser(true); setActivationPath(""); setWelcomeEmailResult(null); }} data-testid="add-user-btn" aria-label="New User">
+               <Plus size={15} /> New User
             </Button>
           </div>}
           {activationPath && <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4" role="status" aria-live="polite">
@@ -458,15 +460,16 @@ export default function Admin() {
             {!welcomeEmailResult.sent && welcomeEmailResult.message && <span> {welcomeEmailResult.message}</span>}
           </div>}
           {addingUser && <form onSubmit={createUser} className="bg-card border rounded-xl p-4 mb-4 space-y-3" aria-labelledby="add-user-heading">
-            <div className="flex items-center justify-between">
-              <h3 id="add-user-heading" className="font-semibold text-[var(--navy)]">Add User</h3>
+             <div className="flex items-center justify-between">
+               <h3 id="add-user-heading" className="font-semibold text-[var(--navy)]">Create User</h3>
               <Button type="button" size="sm" variant="ghost" onClick={() => setAddingUser(false)} aria-label="Cancel add user"><X size={16} /></Button>
             </div>
+             <p className="text-xs text-muted-foreground">* Required</p>
              <div className="grid md:grid-cols-4 gap-3">
-              <div><Label htmlFor="new-user-name">Name</Label><Input id="new-user-name" value={newUser.name} onChange={(e) => setNewUser({...newUser, name: e.target.value})} required /></div>
-              <div><Label htmlFor="new-user-email">Email</Label><Input id="new-user-email" type="email" autoComplete="email" value={newUser.email} onChange={(e) => setNewUser({...newUser, email: e.target.value})} required /></div>
-              <div><Label htmlFor="new-user-role">Role</Label><select id="new-user-role" value={newUser.role} onChange={(e) => setNewUser({...newUser, role: e.target.value})} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm" required>{ROLES.map((role) => <option key={role} value={role}>{userRoleLabel(role)}</option>)}</select></div>
-              <label htmlFor="new-user-active" className="flex items-center gap-2 pt-6 text-sm"><input id="new-user-active" type="checkbox" checked={newUser.active} onChange={(e) => setNewUser({...newUser, active: e.target.checked})} /> Active now</label>
+               <div><Label htmlFor="new-user-name">Name <span className="text-red-700" aria-hidden="true"> *</span></Label><Input id="new-user-name" value={newUser.name} onChange={(e) => setNewUser({...newUser, name: e.target.value})} required /></div>
+               <div><Label htmlFor="new-user-email">Email <span className="text-red-700" aria-hidden="true"> *</span></Label><Input id="new-user-email" type="email" autoComplete="email" value={newUser.email} onChange={(e) => setNewUser({...newUser, email: e.target.value})} required /></div>
+               <div><Label htmlFor="new-user-role">Role <span className="text-red-700" aria-hidden="true"> *</span></Label><select id="new-user-role" value={newUser.role} onChange={(e) => setNewUser({...newUser, role: e.target.value})} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm" required>{ROLES.map((role) => <option key={role} value={role}>{userRoleLabel(role)}</option>)}</select></div>
+               <label htmlFor="new-user-active" className="flex items-center gap-2 pt-6 text-sm"><input id="new-user-active" type="checkbox" checked={newUser.active} onChange={(e) => setNewUser({...newUser, active: e.target.checked})} /> Activate User Immediately</label>
                {welcomeEmailReady ? <div className="md:col-span-4 rounded-lg border border-[var(--orange)]/30 bg-[var(--paper)]/60 p-3">
                  <label htmlFor="new-user-welcome-email" aria-describedby="new-user-welcome-email-help" className="flex items-start gap-2 text-sm font-semibold text-[var(--navy)]">
                    <input id="new-user-welcome-email" type="checkbox" className="mt-0.5 h-4 w-4 shrink-0" checked={newUser.send_welcome_email !== false} onChange={(e) => setNewUser({...newUser, send_welcome_email: e.target.checked})} />
@@ -475,7 +478,7 @@ export default function Admin() {
                  <p id="new-user-welcome-email-help" className="ml-6 mt-1 text-xs text-muted-foreground">The recipient will receive a single-use link valid for 24 hours and will create their own password.</p>
                </div> : <div className="md:col-span-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" role="status">Welcome email delivery is unavailable because Gmail or the published app URL is not configured. Create the user, then copy and share the one-time setup link securely.</div>}
             </div>
-            <div className="flex gap-2"><Button type="submit"><Plus size={14} /> Create user</Button><Button type="button" variant="outline" onClick={() => setAddingUser(false)}>Cancel</Button></div>
+             <div className="flex gap-2"><Button type="submit"><Plus size={14} /> Create User</Button><Button type="button" variant="outline" onClick={() => setAddingUser(false)}>Cancel</Button></div>
           </form>}
           {editingUser && <form onSubmit={saveUser} noValidate className="bg-card border rounded-xl p-4 mb-4" aria-labelledby="edit-user-heading">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
@@ -488,13 +491,14 @@ export default function Admin() {
               <p className="font-semibold">Someone else saved this user first. Your entries are still open for review.</p>
                <div className="mt-2 flex gap-2"><Button type="button" size="sm" variant="outline" onClick={() => { setEditingUser(userConflict); setUserConflict(null); }}>Load latest values</Button><Button type="button" size="sm" onClick={() => { setEditingUser((draft) => ({ ...draft, expected_revision: userConflict.revision, expected_updated_at: userConflict.updated_at })); setUserConflict(null); }}>Keep my entries and reapply</Button></div>
             </div>}
+             <p className="mb-3 text-xs text-muted-foreground">* Required</p>
             <div className="grid md:grid-cols-4 gap-3">
-              <div><Label htmlFor="edit-user-name">Name</Label><Input id="edit-user-name" autoComplete="name" required disabled={userSaving} value={editingUser.name} onChange={e=>setEditingUser({...editingUser,name:e.target.value})}/></div>
-              <div><Label htmlFor="edit-user-email">Email</Label><Input id="edit-user-email" type="email" autoComplete="email" required disabled={userSaving} aria-describedby={userSaveError ? "edit-user-error" : undefined} value={editingUser.email} onChange={e=>setEditingUser({...editingUser,email:e.target.value})}/></div>
-              <div><Label htmlFor="edit-user-role">Role</Label><Select value={editingUser.role} onValueChange={role=>setEditingUser({...editingUser,role})} disabled={userSaving}><SelectTrigger id="edit-user-role" aria-label="Edit user role"><SelectValue>{userRoleLabel(editingUser.role)}</SelectValue></SelectTrigger><SelectContent>{ROLES.map(r=><SelectItem key={r} value={r}>{userRoleLabel(r)}</SelectItem>)}</SelectContent></Select></div>
+               <div><Label htmlFor="edit-user-name">Name <span className="text-red-700" aria-hidden="true"> *</span></Label><Input id="edit-user-name" autoComplete="name" required disabled={userSaving} value={editingUser.name} onChange={e=>setEditingUser({...editingUser,name:e.target.value})}/></div>
+               <div><Label htmlFor="edit-user-email">Email <span className="text-red-700" aria-hidden="true"> *</span></Label><Input id="edit-user-email" type="email" autoComplete="email" required disabled={userSaving} aria-describedby={userSaveError ? "edit-user-error" : undefined} value={editingUser.email} onChange={e=>setEditingUser({...editingUser,email:e.target.value})}/></div>
+                <div><Label htmlFor="edit-user-role">Role <span className="text-red-700" aria-hidden="true"> *</span></Label><Select value={editingUser.role} onValueChange={role=>setEditingUser({...editingUser,role})} disabled={userSaving}><SelectTrigger id="edit-user-role" aria-label="Edit user role" aria-required="true"><SelectValue>{userRoleLabel(editingUser.role)}</SelectValue></SelectTrigger><SelectContent>{ROLES.map(r=><SelectItem key={r} value={r}>{userRoleLabel(r)}</SelectItem>)}</SelectContent></Select></div>
             </div>
             <div className="flex flex-wrap gap-2 mt-3">
-              <Button type="submit" disabled={userSaving}><Save size={14} className="mr-1"/>{userSaving ? "Saving…" : "Save"}</Button>
+               <Button type="submit" disabled={userSaving}><Save size={14} className="mr-1"/>{userSaving ? "Saving…" : "Save Changes"}</Button>
               <Button type="button" variant="outline" disabled={userSaving} onClick={()=>{ setUserConflict(null); setUserSaveError(""); setUserSaveSuccess(""); setEditingUser(null); }}>Cancel</Button>
               {editingUser.active === false
                 ? <Button type="button" variant="outline" disabled={userSaving} onClick={() => toggleUser(editingUser)}><UserCheck size={14} /> Reactivate user</Button>

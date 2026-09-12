@@ -157,14 +157,14 @@ export function ScenarioSelector({ scenarios, value, onChange, category = "", on
   const errorId = `${id}-error`;
   return <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
     <Field label="Category" required controlId={`${id}-category`}>
-      <select id={`${id}-category`} required aria-label="Test Bank category" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={category || ""} onChange={(event) => { setQuery(""); onCategoryChange(event.target.value); }}>
+       <select id={`${id}-category`} required aria-label="Test Scenario category" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={category || ""} onChange={(event) => { setQuery(""); onCategoryChange(event.target.value); }}>
         <option value="">Select a category first</option>
         {categories.map((item) => <option key={item} value={item}>{item}</option>)}
       </select>
     </Field>
-    <Field label="Test Bank scenario" required controlId={`${id}-scenario`}>
-      <Input aria-label="Search Test Bank scenarios" placeholder={category ? `Search ${category} scenarios…` : "Select a category first"} value={query} onChange={(e) => setQuery(e.target.value)} disabled={!category} />
-      <select required disabled={!category} aria-label="Test Bank scenario" aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} className="mt-2 h-9 w-full rounded-md border bg-background px-3 text-sm" value={value || ""} onChange={(e) => onChange(e.target.value)}>
+    <Field label="Test Scenario" required controlId={`${id}-scenario`}>
+      <Input aria-label="Search Test Scenario records" placeholder={category ? `Search ${category} scenarios…` : "Select a category first"} value={query} onChange={(e) => setQuery(e.target.value)} disabled={!category} />
+      <select required disabled={!category} aria-label="Test Scenario" aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} className="mt-2 h-9 w-full rounded-md border bg-background px-3 text-sm" value={value || ""} onChange={(e) => onChange(e.target.value)}>
       <option value="">{category ? `Select one of ${shown.length} ${category} scenarios` : "Select a category first"}</option>
       {shown.map((scenario) => <option key={scenario.id} value={scenario.id}>{scenario.stable_id} · {scenario.test_scenario} · {scenario.workflow_stage} · {scenario.priority}</option>)}
       </select>
@@ -175,7 +175,7 @@ export function ScenarioSelector({ scenarios, value, onChange, category = "", on
 
 export function ScenarioDefinition({ scenario }) {
   if (!scenario) return null;
-  const fields = [["Stable ID", scenario.stable_id], ["Category", scenario.workflow_stage], ["Test scenario", scenario.test_scenario], ["Complexity", scenario.complexity], ["Why it matters", scenario.why_it_matters], ["What Bassett should do", scenario.what_bassett_should_do], ["Success criteria", scenario.success_criteria], ["Priority", scenario.priority]];
+  const fields = [["Stable ID", scenario.stable_id], ["Category", scenario.workflow_stage], ["Test Scenario", scenario.test_scenario], ["Complexity", scenario.complexity], ["Why it matters", scenario.why_it_matters], ["What Bassett should do", scenario.what_bassett_should_do], ["Success criteria", scenario.success_criteria], ["Priority", scenario.priority]];
   return <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">{fields.map(([label, value]) => <div key={label}><div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">{label}</div><div className="whitespace-pre-wrap">{value || "—"}</div></div>)}</div>;
 }
 
@@ -188,7 +188,7 @@ export function GeneralSubtypeSelector({ subtypes = [], value = [], onChange, di
   const toggle = (id) => onChange(selected.has(id) ? value.filter((item) => item !== id) : [...value, id]);
   return <div className="rounded-lg border bg-background p-3" data-testid="general-subtype-selector">
     <button type="button" className="flex w-full items-center justify-between text-left text-sm font-medium text-[var(--navy)]" aria-expanded={open} onClick={() => setOpen((current) => !current)}>
-      <span>General test subtypes <span className="font-normal text-muted-foreground">(Optional · {selected.size} selected)</span></span>
+       <span>General Test Subtype <span className="font-normal text-muted-foreground">(optional)</span> <span className="font-normal text-muted-foreground">· {selected.size} selected</span></span>
       <span aria-hidden="true">{open ? "−" : "+"}</span>
     </button>
     <p className="mt-1 text-xs text-muted-foreground">These are subtypes only and do not change the category, test type, score, or pass-rate calculation.</p>
@@ -196,13 +196,13 @@ export function GeneralSubtypeSelector({ subtypes = [], value = [], onChange, di
       <div>
       <p className="mt-1 text-xs text-muted-foreground">Select every cross-cutting behavior this test covers.</p>
       </div>
-    <Input aria-label="Search General test subtypes" placeholder="Search subtype ID, behavior, or priority…" value={query} onChange={(event) => setQuery(event.target.value)} disabled={disabled} />
-    <div className="max-h-56 overflow-y-auto rounded-lg border bg-background p-2" role="group" aria-label="General test subtypes">
+     <Input aria-label="Search General Test Subtype" placeholder="Search subtype ID, behavior, or priority…" value={query} onChange={(event) => setQuery(event.target.value)} disabled={disabled} />
+     <div className="max-h-56 overflow-y-auto rounded-lg border bg-background p-2" role="group" aria-label="General Test Subtype">
       {shown.map((subtype) => <label key={subtype.id} className="flex cursor-pointer items-start gap-2 rounded-md p-2 text-sm hover:bg-[var(--paper)]">
         <Checkbox checked={selected.has(subtype.id)} disabled={disabled} onCheckedChange={() => toggle(subtype.id)} aria-label={`${subtype.stable_id} ${subtype.test_scenario}`} />
         <span><span className="font-semibold text-[var(--navy)]">{subtype.stable_id}</span> · {subtype.test_scenario}<span className="ml-2 text-xs text-muted-foreground">{subtype.priority}</span></span>
       </label>)}
-      {!shown.length && <p className="p-2 text-sm text-muted-foreground">No General subtypes match this search.</p>}
+       {!shown.length && <p className="p-2 text-sm text-muted-foreground">No General Test Subtype records match this search.</p>}
     </div>
     </div>}
   </div>;
@@ -212,7 +212,7 @@ function GeneralSubtypeGuidance({ subtypes = [], selectedIds = [] }) {
   const selected = subtypes.filter((subtype) => selectedIds.includes(subtype.id));
   if (!selected.length) return null;
   return <details className="rounded-lg border border-blue-200 bg-blue-50 p-3" open>
-    <summary className="cursor-pointer text-sm font-semibold text-[var(--navy)]">Selected General subtype guidance ({selected.length})</summary>
+     <summary className="cursor-pointer text-sm font-semibold text-[var(--navy)]">Selected General Test Subtype guidance ({selected.length})</summary>
     <div className="mt-3 space-y-3">{selected.map((subtype) => <div key={subtype.id} className="rounded-md bg-white/80 p-3 text-xs">
       <div className="font-semibold text-[var(--navy)]">{subtype.stable_id} · {subtype.test_scenario}</div>
       <p className="mt-1"><b>Evaluate whether Bassett:</b> {subtype.what_bassett_should_do}</p>
@@ -312,7 +312,7 @@ function validate(form, mode) {
     const versionError = bassettVersionRequirementMessage(form);
     if (form.conversation_source === "uploaded_conversation") {
       if (!form.attachment_count && !form.attachments?.length) return "Upload at least one Bassett conversation file before saving.";
-      if (!String(form.scenario_id || "").trim()) return "A Test Bank scenario is required";
+      if (!String(form.scenario_id || "").trim()) return "A Test Scenario is required";
       if (!String(form.test_date || "").trim()) return "The test date is required";
       if (hasScoredDimension(form.evaluation_scores) && String(form.score_rationale || "").trim().length < 20) return "Explain the Bassett scores in the Score rationale using at least 20 characters.";
       if (versionError) return versionError;
@@ -323,13 +323,13 @@ function validate(form, mode) {
         return "Add at least one complete multi-turn prompt and response.";
       }
       if (hasScoredDimension(form.evaluation_scores) && String(form.score_rationale || "").trim().length < 20) return "Explain the Bassett scores in the Score rationale using at least 20 characters.";
-      if (!String(form.scenario_id || "").trim()) return "A Test Bank scenario is required";
+      if (!String(form.scenario_id || "").trim()) return "A Test Scenario is required";
       if (!String(form.test_date || "").trim()) return "The test date is required";
       if (versionError) return versionError;
       return null;
     }
     const required = [
-      ["scenario_id", "A Test Bank scenario is required"],
+      ["scenario_id", "A Test Scenario is required"],
       ["question_asked", "The question asked is required"],
       ["exact_bassett_answer", "The exact Bassett answer is required"],
       ["verified_correct_answer", "The verified correct answer is required"],
@@ -393,9 +393,9 @@ export function TurnScenarioSelector({ turn, turnNumber, scenarios = [], onChang
   const categories = [...new Set(scenarios.map((scenario) => scenario.workflow_stage).filter(Boolean))].sort();
   const shown = scenarios.filter((scenario) => !category || scenario.workflow_stage === category);
   return <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-    <Field label="Test Bank category (optional)">
+     <Field label="Test Scenario Category" optional>
       <select
-        aria-label={`Turn ${turnNumber} Test Bank category`}
+         aria-label={`Turn ${turnNumber} Test Scenario category`}
         className="h-9 w-full rounded-md border bg-background px-3 text-sm"
         value={category}
         disabled={disabled}
@@ -405,9 +405,9 @@ export function TurnScenarioSelector({ turn, turnNumber, scenarios = [], onChang
         {categories.map((item) => <option key={item} value={item}>{item}</option>)}
       </select>
     </Field>
-    <Field label="Test Bank scenario (optional)">
+     <Field label="Test Scenario" optional>
       <select
-        aria-label={`Turn ${turnNumber} Test Bank scenario`}
+         aria-label={`Turn ${turnNumber} Test Scenario`}
         className="h-9 w-full rounded-md border bg-background px-3 text-sm"
         value={turn.scenario_id || ""}
         disabled={disabled}
@@ -456,12 +456,12 @@ function TurnBuilder({ turns = [], scenarios = [], uploadedConversation = false,
         </div>
       </div>
        <div className="grid grid-cols-1 gap-3">
-        <Field label="Prompt" required><Textarea rows={3} value={turn.prompt || ""} disabled={disabled} onChange={(e) => update(turn.id, "prompt", e.target.value)} /></Field>
-        <Field label="Bassett response" required><Textarea rows={5} value={turn.response || ""} disabled={disabled} onChange={(e) => update(turn.id, "response", e.target.value)} /></Field>
+        <Field label="Prompt / Question" required><Textarea rows={3} value={turn.prompt || ""} disabled={disabled} onChange={(e) => update(turn.id, "prompt", e.target.value)} /></Field>
+        <Field label="Bassett Response" required><Textarea rows={5} value={turn.response || ""} disabled={disabled} onChange={(e) => update(turn.id, "response", e.target.value)} /></Field>
          <TurnScenarioSelector turn={turn} turnNumber={index + 1} scenarios={scenarios} disabled={disabled} onChange={(value) => updateScenario(turn.id, value)} />
-         <Field label="Test Result (optional)"><select aria-label={`Turn ${index + 1} result`} className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={turn.result ?? turn.turn_result ?? ""} disabled={disabled} onChange={(e) => update(turn.id, "result", e.target.value)}><option value="">Not evaluated</option>{TURN_RESULT_OPTIONS.map((value) => <option key={value}>{value}</option>)}</select></Field>
+         <Field label="Test Result" optional><select aria-label={`Turn ${index + 1} result`} className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={turn.result ?? turn.turn_result ?? ""} disabled={disabled} onChange={(e) => update(turn.id, "result", e.target.value)}><option value="">Not evaluated</option>{TURN_RESULT_OPTIONS.map((value) => <option key={value}>{value}</option>)}</select></Field>
         <Field label="Citations / source references" description="One URL, citation, or source reference per line."><Textarea rows={2} value={(turn.citations || []).join("\n")} disabled={disabled} onChange={(e) => update(turn.id, "citations", e.target.value.split("\n").map((item) => item.trim()).filter(Boolean))} /></Field>
-         <Field label="Evaluator Notes (optional)"><Textarea rows={2} value={turn.notes ?? turn.evaluator_notes ?? ""} disabled={disabled} onChange={(e) => onChange(ordered.map((item) => item.id === turn.id ? { ...item, notes: e.target.value, evaluator_notes: e.target.value } : item))} /></Field>
+         <Field label="Evaluator Notes" optional><Textarea rows={2} value={turn.notes ?? turn.evaluator_notes ?? ""} disabled={disabled} onChange={(e) => onChange(ordered.map((item) => item.id === turn.id ? { ...item, notes: e.target.value, evaluator_notes: e.target.value } : item))} /></Field>
       </div>
       {onFindingTurnChange && <label className="flex items-center gap-2 text-xs"><input type="radio" name="finding-turn" checked={findingTurnId === turn.id} disabled={disabled} onChange={() => onFindingTurnChange(turn.id)} /> Link the new finding to this turn</label>}
     </div>)}
@@ -563,7 +563,7 @@ export default function UnifiedTestEntryForm({
   };
   const sectionIssue = (index) => {
     if (index === 0) {
-      if (!String(form.scenario_id || "").trim()) return "Select a Test Bank scenario.";
+      if (!String(form.scenario_id || "").trim()) return "Select a Test Scenario.";
       if (isComparison && !String(form.name || "").trim()) return "Enter a test name.";
       if (!String(form.test_date || "").trim()) return "Enter a test date.";
     }
@@ -624,7 +624,11 @@ export default function UnifiedTestEntryForm({
   const finding = form.finding || {};
   const comparison = form.comparison || {};
   const totalSections = isComparison ? 11 : 7;
-  return <FormModal open onOpenChange={(open) => !open && onCancel()} title={`${form.id ? "Edit" : "Create"} ${isComparison ? "Model Comparison" : "Bassett-only test"}`} onSubmit={submit} submitLabel={form.id ? "Save changes" : `Create ${isComparison ? "Model Comparison" : "Bassett-only test"}`} wide submitDisabled={submitting}>
+  const formTitle = form.id
+    ? `Edit ${isComparison ? "Model Comparison Test Case" : "Bassett Test Run"}`
+    : isComparison ? "New Model Comparison Test Case" : "New Bassett Test Run";
+  const submitLabel = form.id ? "Save Changes" : isComparison ? "Create Test Case" : "Create Test Run";
+  return <FormModal open onOpenChange={(open) => !open && onCancel()} title={formTitle} onSubmit={submit} submitLabel={submitLabel} wide submitDisabled={submitting}>
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--orange)] bg-orange-50 p-3">
       <div><div className="text-xs font-bold uppercase tracking-wide text-[var(--orange)]">Form mode</div><div className="text-lg font-semibold text-[var(--navy)]" data-testid="workflow-mode-label">{isComparison ? "Model comparison" : "Bassett-only test"}</div></div>
       <div className="text-right"><div className="text-xs font-semibold text-muted-foreground">Required completeness</div><div data-testid="workflow-completeness" className="font-semibold text-[var(--navy)]">{progress.complete}/{progress.total} required fields {progress.ready ? "· Ready" : "· In progress"}</div></div>
@@ -637,14 +641,14 @@ export default function UnifiedTestEntryForm({
     {!form.id && draftAvailable && <div className="rounded-lg border border-[var(--orange)] bg-orange-50 p-3 text-sm flex items-center justify-between gap-3"><span>A saved {isComparison ? "comparison" : "Bassett"} draft is available.</span><Button type="button" size="sm" variant="outline" onClick={recoverDraft}>Recover draft</Button></div>}
 
      <GuidedSection index={0} title="1. Test Setup" active={activeSection === 0} status={sectionStatus(0)} onActivate={activateSection}><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-       {!lockedCommon && <div className="sm:col-span-2"><ScenarioSelector scenarios={scenarios} category={form.workflow_stage || selectedScenario?.workflow_stage || ""} onCategoryChange={(category) => setForm((current) => ({ ...current, workflow_stage: category, scenario_id: "" }))} value={form.scenario_id} onChange={(value) => { const scenario = scenarios.find((item) => item.id === value); setForm((current) => ({ ...current, scenario_id: value, workflow_stage: scenario?.workflow_stage || current.workflow_stage })); }} error={attemptedSections.has(0) && !String(form.scenario_id || "").trim() ? "Test Bank scenario is required." : undefined} /></div>}
+       {!lockedCommon && <div className="sm:col-span-2"><ScenarioSelector scenarios={scenarios} category={form.workflow_stage || selectedScenario?.workflow_stage || ""} onCategoryChange={(category) => setForm((current) => ({ ...current, workflow_stage: category, scenario_id: "" }))} value={form.scenario_id} onChange={(value) => { const scenario = scenarios.find((item) => item.id === value); setForm((current) => ({ ...current, scenario_id: value, workflow_stage: scenario?.workflow_stage || current.workflow_stage })); }} error={attemptedSections.has(0) && !String(form.scenario_id || "").trim() ? "Test Scenario is required." : undefined} /></div>}
       {selectedScenario && <div className="sm:col-span-2 rounded-xl border bg-[var(--paper)] p-4"><div className="font-semibold mb-3">Read-only Test Bank definition</div><ScenarioDefinition scenario={selectedScenario} /></div>}
       <div className="sm:col-span-2"><GeneralSubtypeSelector subtypes={generalSubtypes} value={form.general_subtype_ids || []} onChange={(value) => update("general_subtype_ids", value)} disabled={lockedCommon} /></div>
       <Field label="Sequential Test ID"><Input value={form.test_id || "Assigned on save"} readOnly className="bg-muted" /></Field>
-      <Field label="Test name" required={isComparison} error={attemptedSections.has(0) && isComparison && !String(form.name || "").trim() ? "Test name is required." : undefined}><Input value={form.name || form.title || ""} disabled={lockedCommon} onChange={(e) => update(isComparison ? "name" : "title", e.target.value)} /></Field>
+       <Field label="Test Name" required={isComparison} error={attemptedSections.has(0) && isComparison && !String(form.name || "").trim() ? "Test Name is required." : undefined}><Input value={form.name || form.title || ""} disabled={lockedCommon} onChange={(e) => update(isComparison ? "name" : "title", e.target.value)} /></Field>
        <Field label="Bassett version" description="Required for completed tests and version-specific dashboard reporting."><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={selectedVersionId} disabled={lockedCommon} onChange={(e) => { const selected = versions.find((version) => version.id === e.target.value); setForm((current) => ({ ...current, version_id: selected?.id || "", bassett_version: selected?.name || "" })); }}><option value="">Not specified</option>{savedVersionUnavailable && <option value={form.version_id}>{form.bassett_version || "Saved version unavailable"}</option>}{versions.map((version) => <option key={version.id} value={version.id}>{version.name}{version.active === false ? " (inactive)" : ""}</option>)}</select></Field>
        {form.id && versionError && <div role="alert" className="sm:col-span-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">This completed historical test run has no Bassett version assigned. Choose a version before saving; the historical record remains unchanged until you save.</div>}
-      <Field label="Test date" required error={attemptedSections.has(0) && !String(form.test_date || "").trim() ? "Test date is required." : undefined}><Input type="date" value={form.test_date || ""} disabled={lockedCommon} onChange={(e) => update("test_date", e.target.value)} /></Field>
+       <Field label="Test Date" required error={attemptedSections.has(0) && !String(form.test_date || "").trim() ? "Test Date is required." : undefined}><Input type="date" value={form.test_date || ""} disabled={lockedCommon} onChange={(e) => update("test_date", e.target.value)} /></Field>
       <Field label="Environment"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.environment || ""} disabled={lockedCommon} onChange={(e) => update("environment", e.target.value)}><option value="">Not specified</option>{[...new Set([...(config.environments || []), form.environment].filter(Boolean))].map((value) => <option key={value} value={value}>{value}</option>)}</select></Field>
        {!isComparison && <Field label="Test type" description="Single Prompt is one question and answer. Multi-turn stores an ordered conversation with turn-level evidence."><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.test_type || "Single Prompt"} disabled={lockedCommon} onChange={(e) => update("test_type", e.target.value)}><option>Single Prompt</option><option>Multi-turn</option></select></Field>}
        {!isComparison && <div className="sm:col-span-2"><Field label="How are you recording this Bassett interaction?" required description="The original upload remains the authoritative conversation record."><div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Bassett conversation source">
@@ -656,33 +660,33 @@ export default function UnifiedTestEntryForm({
      <GuidedSection index={1} title="2. Linked Records & Prompt" active={activeSection === 1} status={sectionStatus(1)} onActivate={activateSection}><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <Field label="Project"><QuickAdd label="Project" value={form.project_id} items={projects} onChange={(value) => update("project_id", value)} fields={[{ key: "name", label: "Project name" }]} disabled={lockedCommon} /></Field>
       <Field label="Municipality"><QuickAdd label="Municipality" value={form.municipality_id} items={municipalities} onChange={setMunicipality} fields={[{ key: "name", label: "Municipality name" }, { key: "state", label: "State" }]} disabled={lockedCommon} /></Field>
-      <Field label="Property / address"><QuickAdd label="Property" value={form.property_id} items={filteredProperties} defaults={{ municipality_id: form.municipality_id }} onChange={(value) => update("property_id", value)} fields={[{ key: "name", label: "Property name" }, { key: "address", label: "Address" }]} disabled={lockedCommon} /></Field>
+       <Field label="Property / Address"><QuickAdd label="Property" value={form.property_id} items={filteredProperties} defaults={{ municipality_id: form.municipality_id }} onChange={(value) => update("property_id", value)} fields={[{ key: "name", label: "Property name" }, { key: "address", label: "Address" }]} disabled={lockedCommon} /></Field>
          {!isComparison && form.conversation_source === "uploaded_conversation" && <div className="sm:col-span-2 rounded-lg border border-[var(--orange)] bg-orange-50 p-3"><Field label="Bassett conversation file" required description={(form.attachment_count || form.attachments?.length) ? "One authoritative conversation file is attached to this parent test run." : "Upload one exported Bassett conversation. PDF, email, document, spreadsheet, text, and image formats are supported."}><Input data-testid="bassett-conversation-upload" type="file" required={!Boolean(form.attachment_count || form.attachments?.length)} accept=".pdf,.doc,.docx,.odt,.xls,.xlsx,.ods,.ppt,.pptx,.txt,.csv,.tsv,.md,.rtf,.html,.htm,.xml,.json,.eml,.msg,.png,.jpg,.jpeg,.gif,.webp,.tif,.tiff,.bmp" onChange={(e) => update("attachments", Array.from(e.target.files || []).slice(0, 1))} /></Field></div>}
-         {(!isComparison && form.test_type === "Multi-turn") ? <details className="sm:col-span-2" open={form.conversation_source !== "uploaded_conversation"}><summary className="cursor-pointer font-semibold text-[var(--navy)]">{form.conversation_source === "uploaded_conversation" ? "Add or review structured transcript (required before Model Comparison)" : "Structured conversation"}</summary><div className="mt-3"><TurnBuilder turns={form.turns} scenarios={scenarios} uploadedConversation={form.conversation_source === "uploaded_conversation"} disabled={lockedCommon} onChange={(turns) => setForm((current) => ({ ...current, turns, question_asked: turns[0]?.prompt || "", exact_bassett_answer: turns[0]?.response || "", transcript_status: turns.length ? "confirmed" : current.transcript_status }))} findingTurnId={form.finding_turn_id || ""} onFindingTurnChange={(value) => update("finding_turn_id", value)} /></div></details> : <><Field label={isComparison ? "Prompt / question" : "Question asked"} required={isComparison || form.conversation_source !== "uploaded_conversation"} description={!isComparison && form.conversation_source === "uploaded_conversation" ? "Optional now; required before expanding to Model Comparison." : undefined} error={attemptedSections.has(1) && (isComparison || form.conversation_source !== "uploaded_conversation") && !String(form.question_asked || form.prompts?.[0]?.text || "").trim() ? "Prompt or question is required." : undefined}><Textarea rows={3} value={form.question_asked || form.prompts?.[0]?.text || ""} disabled={lockedCommon} onChange={(e) => updatePrompt(e.target.value)} /></Field>
-        <div className="sm:col-span-2"><Field label={isComparison ? "Verified answer / Gold Standard" : "Verified correct answer"} required error={attemptedSections.has(1) && !String(form.verified_correct_answer || form.gold_standard_answer || "").trim() ? "Verified answer is required." : undefined}><Textarea rows={4} value={form.verified_correct_answer || form.gold_standard_answer || ""} disabled={lockedCommon} onChange={(e) => setForm((current) => ({ ...current, verified_correct_answer: e.target.value, gold_standard_answer: e.target.value }))} /></Field></div></>}
+         {(!isComparison && form.test_type === "Multi-turn") ? <details className="sm:col-span-2" open={form.conversation_source !== "uploaded_conversation"}><summary className="cursor-pointer font-semibold text-[var(--navy)]">{form.conversation_source === "uploaded_conversation" ? "Add or review structured transcript (required before Model Comparison)" : "Structured conversation"}</summary><div className="mt-3"><TurnBuilder turns={form.turns} scenarios={scenarios} uploadedConversation={form.conversation_source === "uploaded_conversation"} disabled={lockedCommon} onChange={(turns) => setForm((current) => ({ ...current, turns, question_asked: turns[0]?.prompt || "", exact_bassett_answer: turns[0]?.response || "", transcript_status: turns.length ? "confirmed" : current.transcript_status }))} findingTurnId={form.finding_turn_id || ""} onFindingTurnChange={(value) => update("finding_turn_id", value)} /></div></details> : <><Field label="Prompt / Question" required={isComparison || form.conversation_source !== "uploaded_conversation"} description={!isComparison && form.conversation_source === "uploaded_conversation" ? "Optional now; required before expanding to Model Comparison." : undefined} error={attemptedSections.has(1) && (isComparison || form.conversation_source !== "uploaded_conversation") && !String(form.question_asked || form.prompts?.[0]?.text || "").trim() ? "Prompt or Question is required." : undefined}><Textarea rows={3} value={form.question_asked || form.prompts?.[0]?.text || ""} disabled={lockedCommon} onChange={(e) => updatePrompt(e.target.value)} /></Field>
+        <div className="sm:col-span-2"><Field label="Verified Answer / Gold Standard" required error={attemptedSections.has(1) && !String(form.verified_correct_answer || form.gold_standard_answer || "").trim() ? "Verified Answer is required." : undefined}><Textarea rows={4} value={form.verified_correct_answer || form.gold_standard_answer || ""} disabled={lockedCommon} onChange={(e) => setForm((current) => ({ ...current, verified_correct_answer: e.target.value, gold_standard_answer: e.target.value }))} /></Field></div></>}
     </div></GuidedSection>
 
       <GuidedSection index={2} title="3. Bassett Test Result" active={activeSection === 2} status={sectionStatus(2)} onActivate={activateSection}><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-       {(isComparison || form.test_type !== "Multi-turn") && <Field label={isComparison ? "Bassett response" : "Exact Bassett answer"} required={isComparison || form.conversation_source !== "uploaded_conversation"} description={!isComparison && form.conversation_source === "uploaded_conversation" ? "Optional now; required before expanding to Model Comparison." : undefined} error={attemptedSections.has(2) && (isComparison || form.conversation_source !== "uploaded_conversation") && !String(responseFor("Bassett").response || "").trim() ? "Bassett response is required." : undefined}><Textarea rows={6} value={responseFor("Bassett").response || ""} disabled={lockedCommon} onChange={(e) => updateResponse("Bassett", "response", e.target.value)} /></Field>}
+       {(isComparison || form.test_type !== "Multi-turn") && <Field label="Bassett Response" required={isComparison || form.conversation_source !== "uploaded_conversation"} description={!isComparison && form.conversation_source === "uploaded_conversation" ? "Optional now; required before expanding to Model Comparison." : undefined} error={attemptedSections.has(2) && (isComparison || form.conversation_source !== "uploaded_conversation") && !String(responseFor("Bassett").response || "").trim() ? "Bassett Response is required." : undefined}><Textarea rows={6} value={responseFor("Bassett").response || ""} disabled={lockedCommon} onChange={(e) => updateResponse("Bassett", "response", e.target.value)} /></Field>}
        {!isComparison && form.test_type === "Multi-turn" && <div className="sm:col-span-2 rounded-lg border bg-[var(--paper)] p-3 text-sm text-muted-foreground">Responses are captured within the ordered turns above. The overall verdict and evaluation below still apply to the complete conversation.</div>}
-       <Field label="Test result"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={normalizeEvaluationResult(form.result)} onChange={(e) => update("result", e.target.value)}>{(isComparison ? COMPARISON_RESULT_OPTIONS : BASSETT_RESULT_OPTIONS).map((value) => <option key={value}>{value}</option>)}</select></Field>
+       <Field label="Test Result"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={normalizeEvaluationResult(form.result)} onChange={(e) => update("result", e.target.value)}>{(isComparison ? COMPARISON_RESULT_OPTIONS : BASSETT_RESULT_OPTIONS).map((value) => <option key={value}>{value}</option>)}</select></Field>
        <Field label="Severity"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={severityLabel(form.severity || form.criticality) || "Medium"} onChange={(e) => setForm((current) => ({ ...current, severity: e.target.value, criticality: severityNumber(e.target.value) }))}>{SEVERITY_LABELS.map((value) => <option key={value}>{value}</option>)}</select></Field>
       <Field label="Priority"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.priority || "Medium"} onChange={(e) => update("priority", e.target.value)}>{["Critical", "High", "Medium", "Low"].map((value) => <option key={value}>{value}</option>)}</select></Field>
       <Field label={isComparison ? "Comparison Category" : "Finding Category"}><Input value={form.issue_category || form.category || ""} onChange={(e) => update(isComparison ? "category" : "issue_category", e.target.value)} /></Field>
     </div></GuidedSection>
 
-    <GuidedSection index={3} title="4. Canonical Evaluation" active={activeSection === 3} status={sectionStatus(3)} onActivate={activateSection}><p className="text-xs text-muted-foreground">Use the same behavior-based integer rubric for every model and dimension. Score the evidence before choosing a verdict. Blank dimensions remain unavailable and are excluded from the denominator.</p><div className="mt-4 space-y-4"><GeneralSubtypeGuidance subtypes={generalSubtypes} selectedIds={form.general_subtype_ids || []} /><h4 className="font-semibold text-sm text-[var(--navy)]">Bassett evaluation · calculated score</h4><EvaluationGrid model="Bassett" scores={evaluationFor("Bassett").scores} dimensions={dimensions} onChange={updateEvaluation} locked={lockedCommon} /><Field label="Bassett score rationale" required={hasScoredDimension(evaluationFor("Bassett").scores)} description="Cite the specific answer evidence that supports the selected numbers (minimum 20 characters when scored)."><Textarea rows={3} value={evaluationFor("Bassett").rationale || form.score_rationale || ""} onChange={(e) => updateEvaluationRationale("Bassett", e.target.value)} /></Field></div></GuidedSection>
+    <GuidedSection index={3} title="4. Canonical Evaluation" active={activeSection === 3} status={sectionStatus(3)} onActivate={activateSection}><p className="text-xs text-muted-foreground">Use the same behavior-based integer rubric for every model and dimension. Score the evidence before choosing a verdict. Blank dimensions remain unavailable and are excluded from the denominator.</p><div className="mt-4 space-y-4"><GeneralSubtypeGuidance subtypes={generalSubtypes} selectedIds={form.general_subtype_ids || []} /><h4 className="font-semibold text-sm text-[var(--navy)]">Bassett evaluation · calculated score</h4><EvaluationGrid model="Bassett" scores={evaluationFor("Bassett").scores} dimensions={dimensions} onChange={updateEvaluation} locked={lockedCommon} /><Field label="Bassett Score Rationale" required={hasScoredDimension(evaluationFor("Bassett").scores)} description="Cite the specific answer evidence that supports the selected numbers (minimum 20 characters when scored)."><Textarea rows={3} value={evaluationFor("Bassett").rationale || form.score_rationale || ""} onChange={(e) => updateEvaluationRationale("Bassett", e.target.value)} /></Field></div></GuidedSection>
 
     <GuidedSection index={4} title="5. Findings & Ownership" active={activeSection === 4} status={sectionStatus(4)} onActivate={activateSection}><div className="space-y-4">
       <label className="flex items-center gap-2 text-sm"><Checkbox aria-label="Create a linked Bassett finding" checked={Boolean(form.create_finding)} onCheckedChange={(checked) => update("create_finding", checked === true)} /> Create a linked Bassett finding</label>
-      {form.create_finding && <div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><Field label="Finding title" required error={attemptedSections.has(4) && !String(finding.title || "").trim() ? "Finding title is required." : undefined}><Input value={finding.title || ""} onChange={(e) => updateNested("finding", "title", e.target.value)} /></Field><Field label="Owner / assignee"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.assignee_id || ""} onChange={(e) => update("assignee_id", e.target.value)}><option value="">Unassigned</option>{ownerOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field><Field label="Finding description"><Textarea rows={3} value={finding.description || ""} onChange={(e) => updateNested("finding", "description", e.target.value)} /></Field><Field label="Reproduction steps"><Textarea rows={3} value={form.reproduction_steps || ""} onChange={(e) => update("reproduction_steps", e.target.value)} /></Field></div>}
-      {!form.create_finding && <Field label="Owner / assignee"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.assignee_id || ""} onChange={(e) => update("assignee_id", e.target.value)}><option value="">Unassigned</option>{ownerOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>}
+       {form.create_finding && <div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><Field label="Finding title" required error={attemptedSections.has(4) && !String(finding.title || "").trim() ? "Finding title is required." : undefined}><Input value={finding.title || ""} onChange={(e) => updateNested("finding", "title", e.target.value)} /></Field><Field label="Owner / Assignee"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.assignee_id || ""} onChange={(e) => update("assignee_id", e.target.value)}><option value="">Unassigned</option>{ownerOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field><Field label="Finding description"><Textarea rows={3} value={finding.description || ""} onChange={(e) => updateNested("finding", "description", e.target.value)} /></Field><Field label="Notes / Reproduction Steps"><Textarea rows={3} value={form.reproduction_steps || ""} onChange={(e) => update("reproduction_steps", e.target.value)} /></Field></div>}
+      {!form.create_finding && <Field label="Owner / Assignee"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.assignee_id || ""} onChange={(e) => update("assignee_id", e.target.value)}><option value="">Unassigned</option>{ownerOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>}
     </div></GuidedSection>
 
     <GuidedSection index={5} title="6. Sources, Documents & Notes" active={activeSection === 5} status={sectionStatus(5)} onActivate={activateSection}><div className="space-y-4">
-      <Field label={isComparison ? "Sources / evidence links" : "Evidence / context"}><Textarea rows={3} value={form.source_links || form.evidence || ""} onChange={(e) => update(isComparison ? "source_links" : "evidence", e.target.value)} placeholder="Citations, URLs, source context…" /></Field>
-      <Field label="Notes / reproduction steps"><Textarea rows={4} value={form.notes || ""} onChange={(e) => update("notes", e.target.value)} /></Field>
-      {(isComparison || form.conversation_source !== "uploaded_conversation") && <Field label="Documents / images" description={form.attachments?.length ? `${form.attachments.length} file(s) selected` : "Files upload after the test record is saved; a failed upload will not discard the test."}><Input type="file" multiple accept=".pdf,.doc,.docx,.odt,.xls,.xlsx,.ods,.ppt,.pptx,.txt,.csv,.tsv,.md,.rtf,.html,.htm,.xml,.json,.eml,.msg,.png,.jpg,.jpeg,.gif,.webp,.tif,.tiff,.bmp" onChange={(e) => update("attachments", Array.from(e.target.files || []))} /></Field>}
+       <Field label="Evidence / Source Links"><Textarea rows={3} value={form.source_links || form.evidence || ""} onChange={(e) => update(isComparison ? "source_links" : "evidence", e.target.value)} placeholder="Citations, URLs, source context…" /></Field>
+       <Field label="Notes / Reproduction Steps"><Textarea rows={4} value={form.notes || ""} onChange={(e) => update("notes", e.target.value)} /></Field>
+       {(isComparison || form.conversation_source !== "uploaded_conversation") && <Field label="Documents / Images" description={form.attachments?.length ? `${form.attachments.length} file(s) selected` : "Files upload after the test record is saved; a failed upload will not discard the test."}><Input type="file" multiple accept=".pdf,.doc,.docx,.odt,.xls,.xlsx,.ods,.ppt,.pptx,.txt,.csv,.tsv,.md,.rtf,.html,.htm,.xml,.json,.eml,.msg,.png,.jpg,.jpeg,.gif,.webp,.tif,.tiff,.bmp" onChange={(e) => update("attachments", Array.from(e.target.files || []))} /></Field>}
     </div></GuidedSection>
 
     <GuidedSection index={6} title="7. Follow-up, Retesting & Regression" active={activeSection === 6} status={sectionStatus(6)} onActivate={activateSection}><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -705,7 +709,7 @@ export default function UnifiedTestEntryForm({
      <div className="sticky bottom-0 z-10 flex flex-wrap items-center gap-2 border-t bg-background/95 py-3">
       <Button type="button" variant="outline" disabled={activeSection === 0} onClick={() => activateSection(activeSection - 1)}>Previous</Button>
       {activeSection < totalSections - 1 && <Button type="button" onClick={() => activateSection(activeSection + 1)}>Next</Button>}
-       {!form.id && <Button type="button" variant="outline" className="sm:ml-auto" onClick={saveDraft}>Save draft</Button>}
+       {!form.id && <Button type="button" variant="outline" className="sm:ml-auto" onClick={saveDraft}>Save Draft</Button>}
     </div>
   </FormModal>;
 }
