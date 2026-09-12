@@ -1,0 +1,23 @@
+Implement the full independent QA cleanup below as one focused, data-safe batch. Preserve all user records and audit history. Do not publish; stop after code changes, migration preparation, tests, production build, and runtime verification.
+
+1. Fix category reporting. Bassett Performance by Category must use the current active Test Bank Category linked through scenario_id, not an obsolete testing_type/category fallback. The qualifying 404 Southwestern Boulevard / A-11 run must display under Analysis, consistently in Performance, Dashboard/Executive supporting data, drill-downs, exports, coverage, and release readiness where category is shown. Preserve sensible fallback only for records with no linked Test Bank definition.
+
+2. Safely consolidate the two exact duplicate City of Milwaukee, Wisconsin municipality records. Create a deterministic migration that selects a canonical record (prefer the record with the most complete metadata and linked records, then oldest ID as tie-breaker), reassigns every relationship across tests, Bassett runs, projects, properties, ordinance evidence, findings, attachments or other tables/documents, merges non-conflicting nonblank metadata, and only then removes or archives the empty duplicate. Never discard conflicting values silently; preserve them in an audit/migration note. Preserve history. Add duplicate-prevention validation for normalized municipality name + state when creating/editing records and a clear user-facing error.
+
+3. Standardize severity throughout the app to exactly: Very Low, Low, Medium, High, Critical. This applies to Bassett Test Runs, Bassett Findings, Model Comparison Findings, filters, forms, tables, metric cards, CSV import/export, reports, charts, tooltips and Administration lookups where applicable. Use numeric criticality 1–5 internally where existing finding logic requires it, mapped as 1 Very Low, 2 Low, 3 Medium, 4 High, 5 Critical. Normalize legacy labels safely (Informational/Info -> Very Low; Minor -> Low; Moderate -> Medium; High -> High; Critical/Critical Fail severity -> Critical) without changing Pass/Fail result semantics. Make all high-severity descriptors say “High or Critical severity” and use the same calculation everywhere. Keep status/result vocabularies separate from severity.
+
+4. Executive Summary: show one limited-data warning per applicable report scope/section, not once for every reporting-group bar. Use correct singular/plural grammar (“1 evaluated record”, “2 evaluated records”). Remove the stray rendered 0 at the bottom of Executive Summary and Bassett Performance without hiding legitimate zero metrics.
+
+5. Rename the Municipalities primary action from “New” to “New Municipality”.
+
+6. Improve dashboard initial loading without altering metrics: consolidate duplicate requests, reuse shared analytics responses/cache where safe, prevent serial waterfalls, and retain clear loading and error states. Add tests ensuring the dashboard resolves and does not remain stuck on Loading.
+
+7. Sample controls: “Review SAMPLE Test Dates Only” and “Review SAMPLE metadata repair” must not appear on Data Integrity when sample records are hidden or no applicable sample records exist. Keep sample loading/hiding controls only in Administration’s existing Sample Records section. Data Integrity may show sample-repair actions only when samples are visible and the corresponding issue actually exists.
+
+8. Reports & Exports: standardize all JSON buttons to the single label “Download JSON”; keep CSV controls labeled “Import CSV”/“Export CSV”. Prevent parenthetical file types from wrapping as separate button text where practical.
+
+9. Standardize shared empty-state language and presentation across primary list/report pages: say what is missing and give one clear next action when applicable. Do not replace accurate domain-specific explanations with vague generic text.
+
+10. Preserve the recent fixes: 404 pass eligibility, workflow-status normalization, manual cached Data Integrity, turn-level scenario/result/notes, authenticated attachment handling, and Test Bank validation without Report Type.
+
+Add focused backend/frontend regression tests for each correction. Run backend tests, relevant frontend tests, production build, seed validation, and runtime health. Report exact root causes, migration number/behavior, files changed, and results.
