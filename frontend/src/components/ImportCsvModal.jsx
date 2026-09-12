@@ -14,7 +14,7 @@ import { nextSort, sortTableRows } from "../lib/tableSorting";
 const TARGETS = [
   ["", "— skip —"], ["name", "Test Name"], ["municipality", "Municipality"], ["state", "State"],
   ["category", "Category"], ["subcategory", "Subcategory"], ["test_type", "Test Type"],
-  ["criticality", "Criticality (1-5)"], ["difficulty", "Difficulty (1-5)"], ["scenario", "Scenario"],
+  ["criticality", "Severity (1-5)"], ["difficulty", "Difficulty (1-5)"], ["scenario", "Scenario"],
   ["purpose", "Purpose"], ["prompt", "Prompt"], ["expected_behavior", "Expected Behavior"], ["status", "Status"],
 ];
 

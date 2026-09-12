@@ -27,6 +27,16 @@ import { focusFormError, validateFormFields } from "../lib/formValidation";
 import { QueryState } from "./PageState";
 
 // schema field: {key,label,type,options,collection,labelFn,addFields,render,col}
+function ResourceEmptyState({ title, description, action, testid }) {
+  return (
+    <div role="status" data-testid={testid} className="rounded-xl border border-dashed bg-card px-5 py-10 text-center">
+      <p className="font-semibold text-[var(--navy)]">{title}</p>
+      {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
+      {action && <div className="mt-4">{action}</div>}
+    </div>
+  );
+}
+
 export default function ResourceList({ title, subtitle, collection, columns, fields, initial = {}, rowLink, rowAction, attachable, singular, dataEndpoint, dateFilterColumn, exportFilename, exportLabel = "Export", newLabel = "New", parentLifecycle = false, dateRanges = [], filterFields = [], renderCreateExtras, onCreateSuccess, onNewOpen }) {
   const lifecycleEndpoint = `/resources/${collection}`;
   const listEndpoint = dataEndpoint || `/${collection}`;
@@ -342,8 +352,12 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
           </thead>
           <tbody>
              {filteredData.length === 0 && <tr><td colSpan={columns.length + 1} className={TABLE_EMPTY_CELL_CLASS}>
-               {data.length === 0 ? `No ${title.toLowerCase()} ${title.toLowerCase().endsWith("evidence") ? "has" : "have"} been created yet.` : "No records match the current filters."}
-               {hasFilters && <Button type="button" size="sm" variant="outline" className="ml-3" onClick={clearFilters}>Clear filters</Button>}
+               <ResourceEmptyState
+                 title={data.length === 0 ? `No ${title.toLowerCase()} ${title.toLowerCase().endsWith("evidence") ? "has" : "have"} been created yet.` : "No records match the current filters."}
+                 description={data.length === 0 ? `Create a ${singular || title.replace(/s$/, "")} to begin tracking this area.` : "Adjust or clear the current filters to see available records."}
+                 action={hasFilters ? <Button type="button" size="sm" variant="outline" onClick={clearFilters}>Clear filters</Button> : null}
+                 testid={`${collection}-empty-state`}
+               />
              </td></tr>}
             {sortedData.map((row) => (
               <tr key={row.id} data-testid={`${collection}-row`} className={`border-t ${canWrite && !isArchived(row) ? "hover:bg-[var(--paper)]" : "bg-slate-50/60"}`}>

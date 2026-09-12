@@ -3,7 +3,7 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-import os, uuid, logging, json, re, hashlib, hmac, secrets, ipaddress, csv, io, base64, math, time, traceback
+import os, uuid, logging, json, re, hashlib, hmac, secrets, ipaddress, csv, io, base64, math, time, traceback, unicodedata
 from collections import Counter
 from contextvars import ContextVar
 from functools import cmp_to_key
@@ -128,6 +128,164 @@ DATABASE_STARTUP_TIMEOUT = _positive_timeout("DATABASE_STARTUP_TIMEOUT", 30)
 def now_iso():
     return datetime.now(timezone.utc).isoformat()
 
+
+# Severity is deliberately separate from workflow status and evaluation result.
+# The numeric value remains the internal criticality used by finding metrics.
+CANONICAL_SEVERITIES = ("Very Low", "Low", "Medium", "High", "Critical")
+SEVERITY_CRITICALITY = {label: index for index, label in enumerate(CANONICAL_SEVERITIES, 1)}
+SEVERITY_ALIASES = {
+    "informational": "Very Low", "info": "Very Low", "very low": "Very Low",
+    "minor": "Low", "low": "Low", "moderate": "Medium", "medium": "Medium",
+    "high": "High", "critical": "Critical", "critical fail": "Critical",
+}
+
+
+def _normalize_severity(value, default="Medium"):
+    """Normalize legacy severity labels without changing result/status values."""
+    if value in (None, ""):
+        return default
+    try:
+        numeric = int(value)
+        if str(value).strip() == str(numeric) and 1 <= numeric <= 5:
+            return CANONICAL_SEVERITIES[numeric - 1]
+    except (TypeError, ValueError):
+        pass
+    normalized = " ".join(str(value).strip().casefold().replace("-", " ").split())
+    canonical = SEVERITY_ALIASES.get(normalized)
+    if canonical:
+        return canonical
+    raise HTTPException(
+        400,
+        detail={"severity": "Severity must be Very Low, Low, Medium, High, or Critical"},
+    )
+
+
+def _criticality_severity(value):
+    """Convert a legacy numeric criticality to the canonical severity pair."""
+    try:
+        numeric = int(value)
+    except (TypeError, ValueError):
+        try:
+            normalized = _normalize_severity(value)
+            return normalized, SEVERITY_CRITICALITY[normalized]
+        except HTTPException:
+            raise HTTPException(400, detail={"criticality": "Criticality must be an integer from 1 to 5"})
+    if numeric < 1 or numeric > 5:
+        raise HTTPException(400, detail={"criticality": "Criticality must be an integer from 1 to 5"})
+    return CANONICAL_SEVERITIES[numeric - 1], numeric
+
+
+def _canonical_severity_pair(
+    severity=None, criticality=None, *, default="Medium", allow_invalid_severity_fallback=False,
+):
+    """Return one deterministic severity/criticality pair.
+
+    A supplied severity is authoritative. Legacy records without severity use
+    numeric criticality to derive it. Read paths may opt into the fallback for
+    malformed legacy labels; write paths remain strict and reject them.
+    """
+    if severity not in (None, ""):
+        try:
+            normalized = _normalize_severity(severity)
+            return normalized, SEVERITY_CRITICALITY[normalized]
+        except HTTPException:
+            if not allow_invalid_severity_fallback or criticality in (None, ""):
+                raise
+    if criticality not in (None, ""):
+        return _criticality_severity(criticality)
+    normalized = _normalize_severity(default)
+    return normalized, SEVERITY_CRITICALITY[normalized]
+
+
+def _severity_criticality(value=None, severity="Medium"):
+    # Retain the helper's public role, but make severity authoritative whenever
+    # both legacy fields are present.
+    if severity == "Medium" and value not in (None, ""):
+        try:
+            return _canonical_severity_pair(None, value)[1]
+        except HTTPException:
+            return _canonical_severity_pair(value, None)[1]
+    return _canonical_severity_pair(severity, value)[1]
+
+
+def _severity_is_high_or_critical(value):
+    try:
+        return _severity_criticality(value) >= 4
+    except (HTTPException, TypeError, ValueError):
+        return False
+
+
+def _finding_is_high_or_critical(finding):
+    if not isinstance(finding, dict):
+        return False
+    try:
+        return _canonical_severity_pair(
+            finding.get("severity"), finding.get("criticality"),
+            allow_invalid_severity_fallback=True,
+        )[1] >= 4
+    except (HTTPException, TypeError, ValueError):
+        return False
+
+
+def _finding_criticality(finding):
+    if not isinstance(finding, dict):
+        return SEVERITY_CRITICALITY["Medium"]
+    try:
+        return _canonical_severity_pair(
+            finding.get("severity"), finding.get("criticality"),
+            allow_invalid_severity_fallback=True,
+        )[1]
+    except (HTTPException, TypeError, ValueError):
+        return SEVERITY_CRITICALITY["Medium"]
+
+
+def _canonicalize_finding_severity(document):
+    """Return a read-safe finding with matching severity and criticality."""
+    normalized = dict(document)
+    severity, criticality = _canonical_severity_pair(
+        normalized.get("severity"), normalized.get("criticality"),
+        allow_invalid_severity_fallback=True,
+    )
+    normalized["severity"] = severity
+    normalized["criticality"] = criticality
+    return normalized
+
+
+def _normalize_municipality_part(value):
+    value = unicodedata.normalize("NFKC", str(value or ""))
+    return " ".join(value.strip().casefold().split())
+
+
+def _municipality_key(name, state):
+    return (_normalize_municipality_part(name), _normalize_municipality_part(state))
+
+
+async def _validate_unique_municipality(document, *, exclude_id=None):
+    """Reject duplicate municipality identity before any write or import."""
+    key = _municipality_key(document.get("name"), document.get("state"))
+    if not key[0]:
+        return
+    candidates = await db.municipalities.find({}, {"_id": 0}).to_list(10000)
+    duplicate = next(
+        (
+            record for record in candidates
+            if record.get("id") != exclude_id
+            and not record.get("deleted_at")
+            and not record.get("archived")
+            and _municipality_key(record.get("name"), record.get("state")) == key
+        ),
+        None,
+    )
+    if duplicate:
+        raise HTTPException(
+            409,
+            detail={
+                "code": "duplicate_municipality",
+                "message": "A municipality with this normalized name and state already exists.",
+                "existing_id": duplicate.get("id"),
+            },
+        )
+
 TEST_DATE_MIN = date(1900, 1, 1)
 PROJECT_COMPLETION_MODES = ("automatic", "manual")
 PROJECT_COMPLETED_TEST_STATUSES = frozenset({
@@ -230,7 +388,11 @@ def _project_completion(project, testcases, bassett_runs=None):
         "completion": percent,
         "completion_percent": percent,
         "completion_mode": mode,
-        "completion_source": source,
+        "completion_source": (
+            "Linked tests"
+            if mode == "automatic" and not active_tests and active_bassett_runs
+            else source
+        ),
         "completion_completed": completed,
         "completion_total": total,
         "completion_override": (
@@ -247,7 +409,7 @@ def _project_completion(project, testcases, bassett_runs=None):
             else "Manual override"
         ),
         "completion_definition": (
-            "Completed linked Model Comparison test cases and Bassett-only test runs divided by all active linked tests"
+            "Completed active linked Model Comparison test cases and Bassett-only test runs divided by all active linked tests"
             if mode == "automatic"
             else "Explicit project completion override"
         ),
@@ -390,12 +552,16 @@ def _project_last_tested_dates(
     for run in _eligible_completed_bassett_runs(bassett_runs, bassett_executions or []):
         testcase = active_tests.get(run.get("testcase_id"))
         direct_project_id = run.get("project_id")
-        project_id = testcase.get("project_id") if testcase else direct_project_id
-        # A Test Case owns the relationship when present; otherwise the explicit
-        # Bassett-only project link is authoritative. Never accept a conflicting
-        # cross-project link.
-        if project_id and (not testcase or direct_project_id in (None, "", project_id)):
-            add(project_id, run.get("test_date"))
+        if testcase:
+            project_id = testcase.get("project_id")
+            # A linked Bassett run must carry the same explicit project link
+            # as its active Test Case. Missing links are orphaned here rather
+            # than inferred across project history.
+            if project_id and direct_project_id == project_id:
+                add(project_id, run.get("test_date"))
+        elif direct_project_id:
+            # A standalone Bassett-only run owns its explicit project link.
+            add(direct_project_id, run.get("test_date"))
     return {project_id: max(values) if values else None for project_id, values in candidates.items()}
 
 
@@ -1598,6 +1764,8 @@ async def crud_list(coll, filt=None, include_archived=False, include_sample=None
         filt = {**filt, "archived": {"$ne": True}}
     docs = await db[coll].find(filt, {"_id": 0}).to_list(5000)
     docs = _filter_sample_scope(coll, docs, include_sample)
+    if coll == "findings":
+        docs = [_canonicalize_finding_severity(doc) for doc in docs]
     if coll == "projects":
         versions = await crud_list("versions", include_sample=include_sample)
         docs = [_canonicalize_bassett_version_record(doc, versions) for doc in docs]
@@ -1609,6 +1777,8 @@ async def crud_get(coll, id, include_sample=None):
         raise HTTPException(404, f"{coll} not found")
     if not _filter_sample_scope(coll, [doc], include_sample):
         raise HTTPException(404, f"{coll} not found")
+    if coll == "findings":
+        doc = _canonicalize_finding_severity(doc)
     if coll == "projects":
         versions = await crud_list("versions", include_sample=include_sample)
         doc = _canonicalize_bassett_version_record(doc, versions)
@@ -1826,6 +1996,16 @@ def _normalize_model(document, *, partial=False):
 
 async def crud_create(coll, body, user):
     doc = dict(body)
+    if coll == "municipalities":
+        await _validate_unique_municipality(doc)
+    if coll in ("findings", "bassett_issues") and (
+        "severity" in doc or "criticality" in doc
+    ):
+        doc["severity"], doc["criticality"] = _canonical_severity_pair(
+            doc.get("severity"), doc.get("criticality")
+        )
+    elif coll in ("findings", "bassett_issues"):
+        doc["severity"], doc["criticality"] = _canonical_severity_pair()
     if coll == "evidence":
         # Verification provenance is authoritative at creation time.  It may
         # be corrected later through the normal edit workflow.
@@ -1901,7 +2081,15 @@ async def crud_create(coll, body, user):
     else:
         if coll == "versions" and doc.get("active"):
             await db.versions.update_many({}, {"$set": {"active": False}})
-        await collection.insert_one(doc)
+        try:
+            await collection.insert_one(doc)
+        except UniqueViolationError as error:
+            if coll == "municipalities":
+                raise HTTPException(
+                    409,
+                    "A municipality with this normalized name and state already exists.",
+                ) from error
+            raise
     await log_activity(coll, doc["id"], "created", user, doc.get("name") or doc.get("title") or "")
     return clean(doc)
 
@@ -1936,6 +2124,17 @@ async def crud_update(coll, id, body, user):
     existing_for_references = await db[coll].find_one({"id": id}, {"_id": 0})
     if not existing_for_references:
         raise HTTPException(404, "Not found")
+    if coll == "municipalities":
+        await _validate_unique_municipality(
+            {**existing_for_references, **body}, exclude_id=id,
+        )
+    if coll in ("findings", "bassett_issues"):
+        merged_severity, merged_criticality = _canonical_severity_pair(
+            {**existing_for_references, **body}.get("severity"),
+            {**existing_for_references, **body}.get("criticality"),
+        )
+        body["severity"] = merged_severity
+        body["criticality"] = merged_criticality
     _validate_resource_required_fields(coll, {**existing_for_references, **body})
     if coll == "models" and body.get("name") and await db.models.find_one({"id": {"$ne": id}, "name": body["name"]}):
         raise HTTPException(409, "A model with this display name already exists")
@@ -2023,11 +2222,19 @@ async def crud_update(coll, id, body, user):
     else:
         if coll == "versions" and body.get("active"):
             await db.versions.update_many({"id": {"$ne": id}}, {"$set": {"active": False}})
-        res = await collection.find_one_and_update(
-            {"id": id, **revision_predicate},
-            {"$set": body},
-            return_document=True,
-        )
+        try:
+            res = await collection.find_one_and_update(
+                {"id": id, **revision_predicate},
+                {"$set": body},
+                return_document=True,
+            )
+        except UniqueViolationError as error:
+            if coll == "municipalities":
+                raise HTTPException(
+                    409,
+                    "A municipality with this normalized name and state already exists.",
+                ) from error
+            raise
     if not res:
         current = await db[coll].find_one({"id": id}, {"_id": 0})
         if not current:
@@ -2205,11 +2412,15 @@ def _comparison_finding_documents(body, testcase_id, user, timestamp):
     for value in values if isinstance(values, list) else []:
         if not isinstance(value, dict) or not str(value.get("title") or value.get("description") or "").strip():
             continue
+        severity, criticality = _canonical_severity_pair(
+            value.get("severity"), value.get("criticality"),
+        )
         documents.append({
             "id": value.get("id") or new_id(), "testcase_id": testcase_id,
             "project_id": value.get("project_id"), "title": value.get("title") or "Comparison finding",
             "description": value.get("description") or "", "finding_type": value.get("finding_type") or "other",
-            "criticality": value.get("criticality") or 3, "priority": value.get("priority") or "Medium",
+            "severity": severity, "criticality": criticality,
+            "priority": value.get("priority") or "Medium",
             "developer_status": value.get("developer_status") or "New",
             "assignee_id": value.get("assignee_id"),
             "source": "model_comparison", "finding_scope": "comparison",
@@ -2220,13 +2431,10 @@ def _comparison_finding_documents(body, testcase_id, user, timestamp):
 
 
 def _bassett_finding_criticality(value=None, severity="Medium"):
-    try:
-        numeric = int(value)
-        if 1 <= numeric <= 5:
-            return numeric
-    except (TypeError, ValueError):
-        pass
-    return {"Low": 2, "Medium": 3, "High": 4, "Critical": 5}.get(str(severity), 3)
+    return _canonical_severity_pair(
+        severity if severity not in (None, "") else None,
+        value,
+    )[1]
 
 
 def _bassett_finding_document(body, testcase_id, user, timestamp):
@@ -2236,14 +2444,27 @@ def _bassett_finding_document(body, testcase_id, user, timestamp):
         return None
     if not str(finding.get("title") or finding.get("description") or "").strip():
         return None
+    severity, criticality = _canonical_severity_pair(
+        (
+            finding.get("severity")
+            if finding.get("severity") not in (None, "")
+            else (
+                None
+                if finding.get("criticality") not in (None, "")
+                else testcase.get("severity")
+            )
+        ),
+        finding.get("criticality") or (
+            testcase.get("criticality")
+            if finding.get("severity") in (None, "") and testcase.get("severity") in (None, "")
+            else None
+        ),
+    )
     return {
         "id": finding.get("id") or new_id(), "testcase_id": testcase_id,
         "project_id": testcase.get("project_id"), "title": finding.get("title") or "Bassett finding",
         "description": finding.get("description") or "", "finding_type": finding.get("finding_type") or "Bassett error",
-        "criticality": _bassett_finding_criticality(
-            finding.get("criticality") or testcase.get("criticality"),
-            finding.get("severity") or testcase.get("severity", "Medium"),
-        ),
+        "severity": severity, "criticality": criticality,
         "priority": finding.get("priority") or testcase.get("priority") or "Medium",
         "developer_status": finding.get("developer_status") or "New",
         "assignee_id": finding.get("assignee_id") or testcase.get("assignee_id"),
@@ -2781,7 +3002,11 @@ def _canonical_bassett_issue_status(value, default="In Review"):
 
 
 async def _configured_bassett_issue_statuses():
-    config = await db.config.find_one({"id": "global"}, {"_id": 0}) or DEFAULT_CONFIG
+    config_collection = getattr(db, "config", None)
+    config = (
+        await config_collection.find_one({"id": "global"}, {"_id": 0})
+        if config_collection is not None else None
+    ) or DEFAULT_CONFIG
     values = config.get("bassett_workflow_statuses") or list(BASSETT_DEFAULT_WORKFLOW_STATUSES)
     return tuple(dict.fromkeys(str(value).strip() for value in values if str(value).strip()))
 
@@ -2809,7 +3034,7 @@ BASSETT_RESULT_CANONICAL_EQUIVALENTS = {
 BASSETT_ISSUE_FIELDS = {
     "test_id", "title", "question_asked", "exact_bassett_answer", "verified_correct_answer",
     "test_type", "turns", "finding_turn_id",
-    "issue_category", "severity", "priority", "environment", "reported_date", "test_date",
+    "issue_category", "severity", "criticality", "priority", "environment", "reported_date", "test_date",
     "status", "assignee_id", "project_id", "testcase_id", "finding_id",
     "triaged_by", "triaged_by_name", "triaged_at",
     "scenario_id", "workflow_stage", "version_id", "bassett_version", "retest_id",
@@ -2857,6 +3082,20 @@ def _normalize_bassett_stage_record(record):
         if field in normalized:
             normalized[field] = _canonical_bassett_workflow_stage(normalized[field])
     return normalized
+
+
+def _test_bank_category(record, scenarios_by_id):
+    """Return the active Test Bank category, falling back only if unlinked."""
+    scenario_id = record.get("scenario_id") if isinstance(record, dict) else None
+    scenario = scenarios_by_id.get(scenario_id) if scenario_id else None
+    if scenario is not None:
+        return _canonical_bassett_workflow_stage(
+            scenario.get("workflow_stage")
+        ) or "Uncategorized"
+    return (
+        (record.get("issue_category") or record.get("category") or "Uncategorized")
+        if isinstance(record, dict) else "Uncategorized"
+    )
 
 
 def _normalize_general_subtype_ids(value):
@@ -3349,7 +3588,7 @@ async def _workflow_stage(stage_name):
             {"code": "R" if canonical_name == "Research" else "A"}, {"_id": 0}
         )
     if not stage or not stage.get("active", True):
-        raise HTTPException(400, "Invalid category")
+        raise HTTPException(400, "Invalid workflow stage")
     return _normalize_bassett_stage_record(stage)
 
 async def _seed_bassett_catalog():
@@ -3418,7 +3657,11 @@ async def bassett_list_issues(
     ).to_list(5000)
     issues = _filter_sample_scope("bassett_issues", issues)
     issues = [
-        {**issue, "status": _canonical_bassett_issue_status(issue.get("status"))}
+        {
+            **issue,
+            "status": _canonical_bassett_issue_status(issue.get("status")),
+            **_canonicalize_finding_severity(issue),
+        }
         for issue in issues
     ]
     if requested_status:
@@ -3436,6 +3679,10 @@ async def bassett_get_issue(id: str, user=Depends(get_current_user)):
     )
     issue = _canonicalize_bassett_version_record(issue, versions)
     issue["status"] = _canonical_bassett_issue_status(issue.get("status"))
+    issue = {
+        **issue,
+        **_canonicalize_finding_severity(issue),
+    }
     if issue.get("scenario_id"):
         issue["scenario"] = _normalize_bassett_stage_record(
             await db.bassett_scenarios.find_one({"id": issue["scenario_id"]}, {"_id": 0})
@@ -3444,6 +3691,8 @@ async def bassett_get_issue(id: str, user=Depends(get_current_user)):
         issue["definition_snapshot"] = _normalize_bassett_stage_record(issue["definition_snapshot"])
     if issue.get("finding_id"):
         issue["finding"] = await db.findings.find_one({"id": issue["finding_id"]}, {"_id": 0})
+        if issue["finding"]:
+            issue["finding"] = _canonicalize_finding_severity(issue["finding"])
     if issue.get("testcase_id"):
         testcase = await db.testcases.find_one({"id": issue["testcase_id"]}, {"_id": 0})
         if testcase:
@@ -3615,19 +3864,24 @@ async def bassett_issue_history(id: str, user=Depends(get_current_user)):
 
 @api.post("/bassett/issues/{id}/triage")
 async def bassett_triage_issue(id: str, body: Dict[str, Any] = None, user=Depends(get_current_user)):
-    """Move an active Not Started test run to In Review with atomic audit metadata."""
+    """Move an active test run into review with atomic audit metadata.
+
+    New records use the canonical Not Started → In Review transition. Legacy
+    New records retain their historical New → Triaged status contract.
+    """
     _require_bassett_writer(user)
     existing = await _bassett_ref("bassett_issues", id, "Issue")
     _require_mutable_bassett_issue(existing)
     if (existing.get("status") or "Not Started") not in ("Not Started", "New"):
         raise HTTPException(409, "Only Not Started test runs can be moved to In Review")
+    target_status = "Triaged" if existing.get("status") == "New" else "In Review"
     body = body or {}
     timestamp = now_iso()
     history = {
         "id": new_id(), "entity_type": "issue", "entity_id": id,
         "action": "triaged",
         "changes": {
-            "status": {"old": existing.get("status") or "Not Started", "new": "In Review"},
+            "status": {"old": existing.get("status") or "Not Started", "new": target_status},
             "triaged_by": user.get("id"),
             "triaged_by_name": user.get("name"),
             "triaged_at": timestamp,
@@ -3638,7 +3892,7 @@ async def bassett_triage_issue(id: str, body: Dict[str, Any] = None, user=Depend
     activity = {
         "id": new_id(), "entity_type": "bassett_issue", "entity_id": id,
         "action": "triaged", "user": user.get("name", "system"),
-        "detail": "Workflow status changed to In Review",
+        "detail": f"Workflow status changed to {target_status}",
         "created_at": timestamp, "_log": True,
     }
     result = await db.triage_bassett_issue(
@@ -3670,6 +3924,9 @@ async def bassett_triage_issue(id: str, body: Dict[str, Any] = None, user=Depend
 async def bassett_create_issue(body: Dict[str, Any], user=Depends(get_current_user)):
     _require_bassett_writer(user)
     doc = {key: value for key, value in body.items() if key in BASSETT_ISSUE_FIELDS}
+    doc["severity"], doc["criticality"] = _canonical_severity_pair(
+        doc.get("severity"), doc.get("criticality")
+    )
     doc["general_subtype_ids"] = _normalize_general_subtype_ids(
         doc.get("general_subtype_ids")
     )
@@ -3694,7 +3951,8 @@ async def bassett_create_issue(body: Dict[str, Any], user=Depends(get_current_us
     doc.update({
         "id": body.get("id") or new_id(), "status": doc.get("status") or "Not Started",
         "issue_category": doc.get("issue_category") or "General",
-        "severity": doc.get("severity") or "Medium", "priority": doc.get("priority") or "Medium",
+        "severity": doc["severity"], "criticality": doc["criticality"],
+        "priority": doc.get("priority") or "Medium",
         "reported_date": doc.get("reported_date"),
         "creation_key": str(body.get("submission_id") or "").strip() or server_creation_key,
         "reporter_id": user["id"], "reporter": user.get("name"), "archived": False,
@@ -3729,6 +3987,9 @@ async def bassett_create_issue(body: Dict[str, Any], user=Depends(get_current_us
 async def _prepare_bassett_workflow_document(body: Dict[str, Any], user: Dict[str, Any], has_conversation_attachment=False):
     """Validate and normalize the unified Bassett workflow payload."""
     doc = {key: value for key, value in body.items() if key in BASSETT_ISSUE_FIELDS}
+    doc["severity"], doc["criticality"] = _canonical_severity_pair(
+        doc.get("severity"), doc.get("criticality")
+    )
     doc["general_subtype_ids"] = _normalize_general_subtype_ids(
         doc.get("general_subtype_ids")
     )
@@ -3777,7 +4038,7 @@ async def _prepare_bassett_workflow_document(body: Dict[str, Any], user: Dict[st
         "weight_explanation": authoritative["weight_explanation"],
         "status": doc.get("status") or "Not Started",
         "issue_category": doc.get("issue_category") or "General",
-        "severity": doc.get("severity") or "Medium",
+        "severity": _normalize_severity(doc.get("severity")),
         "priority": doc.get("priority") or "Medium",
         "reported_date": doc.get("reported_date") or doc["test_date"],
         "reporter_id": user["id"],
@@ -3837,6 +4098,18 @@ async def _bassett_create_workflow_impl(
             valid_turn_ids = {turn.get("id") for turn in (doc.get("turns") or [])}
             if doc.get("test_type") != "Multi-turn" or finding_turn_id not in valid_turn_ids:
                 raise HTTPException(400, "Finding turn linkage must reference a valid multi-turn")
+        finding_severity, finding_criticality = _canonical_severity_pair(
+            (
+                finding_input.get("severity")
+                if finding_input.get("severity") not in (None, "")
+                else (
+                    None
+                    if finding_input.get("criticality") not in (None, "")
+                    else doc.get("severity")
+                )
+            ),
+            finding_input.get("criticality"),
+        )
         finding = {
             "id": new_id(),
             "title": str(
@@ -3858,8 +4131,7 @@ async def _bassett_create_workflow_impl(
             "testcase_id": doc.get("testcase_id"),
             "developer_status": finding_input.get("developer_status") or "New",
             "finding_type": finding_input.get("finding_type") or doc.get("issue_category") or "Bassett error",
-            "severity": finding_input.get("severity") or doc.get("severity", "Medium"),
-            "criticality": _bassett_finding_criticality(finding_input.get("criticality"), finding_input.get("severity") or doc.get("severity", "Medium")),
+            "severity": finding_severity, "criticality": finding_criticality,
             "priority": finding_input.get("priority") or doc.get("priority", "Medium"),
             "bassett_issue_id": doc["id"] if doc.get("id") else None,
             "scenario_id": doc.get("scenario_id"), "workflow_stage": doc.get("workflow_stage"),
@@ -4009,6 +4281,10 @@ async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_c
         incoming["general_subtype_ids"] = _normalize_general_subtype_ids(
             incoming.get("general_subtype_ids")
         )
+    if "severity" in incoming:
+        incoming["severity"] = _normalize_severity(incoming["severity"])
+        if "criticality" not in incoming:
+            incoming["criticality"] = _severity_criticality(None, incoming["severity"])
     if "scenario_id" in incoming and incoming["scenario_id"] != existing.get("scenario_id"):
         raise HTTPException(409, "A test run's Test Bank scenario link is immutable")
     if "test_date" in incoming:
@@ -4023,6 +4299,11 @@ async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_c
     if "assignee_id" in incoming and user.get("role") not in BASSETT_MANAGER_ROLES:
         raise HTTPException(403, "Only QA managers and administrators can assign issues")
     merged = {**existing, **incoming}
+    merged["severity"], merged["criticality"] = _canonical_severity_pair(
+        merged.get("severity"), merged.get("criticality"),
+    )
+    incoming["severity"] = merged["severity"]
+    incoming["criticality"] = merged["criticality"]
     existing_attachment_count = await db.attachments.count_documents({
         "entity_type": "bassett_issue", "entity_id": id, "is_deleted": {"$ne": True}
     })
@@ -4157,14 +4438,29 @@ async def bassett_convert_to_finding(id: str, body: Dict[str, Any] = None, user=
         valid_turn_ids = {turn.get("id") for turn in (issue.get("turns") or [])}
         if issue.get("test_type") != "Multi-turn" or turn_id not in valid_turn_ids:
             raise HTTPException(400, "Finding turn linkage must reference a valid multi-turn")
+    finding_severity, finding_criticality = _canonical_severity_pair(
+        (
+            body.get("severity")
+            if body.get("severity") not in (None, "")
+            else (
+                None
+                if body.get("criticality") not in (None, "")
+                else issue.get("severity")
+            )
+        ),
+        body.get("criticality") or (
+            issue.get("criticality")
+            if body.get("severity") in (None, "") and issue.get("severity") in (None, "")
+            else None
+        ),
+    )
     finding = {
         "id": new_id(), "title": body.get("title") or issue.get("title") or issue.get("question_asked", "")[:120],
         "description": body.get("description") or issue.get("exact_bassett_answer", ""),
         "expected_behavior": body.get("expected_behavior") or issue.get("verified_correct_answer", ""),
         "project_id": issue.get("project_id"), "testcase_id": issue.get("testcase_id"),
         "developer_status": "New", "finding_type": body.get("finding_type") or issue.get("issue_category") or "Bassett error",
-        "severity": body.get("severity") or issue.get("severity", "Medium"),
-        "criticality": _bassett_finding_criticality(body.get("criticality"), body.get("severity") or issue.get("severity", "Medium")),
+        "severity": finding_severity, "criticality": finding_criticality,
         "priority": body.get("priority") or issue.get("priority", "Medium"),
         "bassett_issue_id": id, "created_at": now_iso(), "created_by": user.get("name"),
         "bassett_turn_id": turn_id or None,
@@ -4435,12 +4731,23 @@ async def bassett_findings(
         if execution_id and linked_execution != execution_id:
             continue
         source = issue_by_id.get(linked_issue) or {}
+        canonical_finding = _canonicalize_finding_severity(finding)
+        source_severity = source.get("severity")
+        severity, criticality = _canonical_severity_pair(
+            finding.get("severity") or source_severity,
+            (
+                finding.get("criticality")
+                if finding.get("severity") not in (None, "")
+                else source.get("criticality") or finding.get("criticality")
+            ),
+            allow_invalid_severity_fallback=True,
+        )
         linked.append({
-            **finding,
+            **canonical_finding,
             "bassett_issue_id": linked_issue,
             "bassett_execution_id": linked_execution,
             "finding_type": finding.get("finding_type") or source.get("issue_category") or "Bassett error",
-            "severity": finding.get("severity") or source.get("severity") or "Medium",
+            "severity": severity, "criticality": criticality,
             "priority": finding.get("priority") or source.get("priority") or "Medium",
             "project_id": finding.get("project_id") or source.get("project_id"),
             "scenario_id": finding.get("scenario_id") or source.get("scenario_id"),
@@ -4485,7 +4792,10 @@ async def bassett_execution_create_finding(id: str, body: Dict[str, Any] = None,
         "testcase_id": body.get("testcase_id") or (issue or {}).get("testcase_id"),
         "developer_status": "New",
         "finding_type": body.get("finding_type") or (issue or {}).get("issue_category") or "Bassett error",
-        "severity": body.get("severity") or (issue or {}).get("severity") or execution.get("severity", "Medium"),
+        "severity": _normalize_severity(
+            body.get("severity") or (issue or {}).get("severity")
+            or execution.get("severity", "Medium")
+        ),
         "criticality": _bassett_finding_criticality(body.get("criticality"), body.get("severity") or (issue or {}).get("severity") or execution.get("severity", "Medium")),
         "priority": body.get("priority") or (issue or {}).get("priority") or execution.get("priority", "Medium"),
         "bassett_execution_id": id, "bassett_issue_id": (issue or {}).get("id"),
@@ -4499,6 +4809,26 @@ async def bassett_execution_create_finding(id: str, body: Dict[str, Any] = None,
         "test_date": (issue or {}).get("test_date") or execution.get("test_date") or execution.get("executed_at"),
         "created_at": now_iso(), "created_by": user.get("name"), "updated_at": now_iso(),
     }
+    finding["severity"], finding["criticality"] = _canonical_severity_pair(
+        (
+            body.get("severity")
+            if body.get("severity") not in (None, "")
+            else (
+                None
+                if body.get("criticality") not in (None, "")
+                else (issue or {}).get("severity") or execution.get("severity")
+            )
+        ),
+        (
+            body.get("criticality")
+            if body.get("severity") not in (None, "")
+            else (
+                (issue or {}).get("criticality") or execution.get("criticality")
+                if (issue or {}).get("severity") in (None, "")
+                else None
+            )
+        ),
+    )
     await _require_active_testcase(finding.get("testcase_id"))
     await db.findings.insert_one(finding)
     await db.bassett_executions.update_one({"id": id}, {"$set": {"finding_id": finding["id"], "updated_at": now_iso()}})
@@ -4583,7 +4913,7 @@ async def bassett_metrics(version_id: Optional[str] = None, environment: Optiona
         "issues": {
             "total": len(issues), "new": sum(i.get("status") in ("Not Started", "New") for i in issues),
             "open": sum(i.get("status") not in ("Closed / Resolved", "Resolved", "Closed") for i in issues),
-            "critical": sum(str(i.get("severity", "")).lower() in ("critical", "high", "5", "4") for i in issues),
+            "critical": sum(_severity_is_high_or_critical(i.get("severity")) for i in issues),
         },
         "scenarios": {"active": len(scenarios), "with_execution": len(completed_scenarios)},
         "executions": {
@@ -4644,6 +4974,21 @@ async def bassett_export_csv(resource: str, include_archived: bool = False, user
             "versions", await db.versions.find({}, {"_id": 0}).to_list(1000)
         )
         docs = [_canonicalize_bassett_version_record(doc, versions) for doc in docs]
+        scenarios = _filter_sample_scope(
+            "bassett_scenarios",
+            await db.bassett_scenarios.find({}, {"_id": 0}).to_list(5000),
+        )
+        scenario_by_id = {
+            scenario.get("id"): scenario for scenario in scenarios
+            if not scenario.get("archived")
+        }
+        docs = [
+            {
+                **_canonicalize_finding_severity(doc),
+                "issue_category": _test_bank_category(doc, scenario_by_id),
+            }
+            for doc in docs
+        ]
     return Response(content=_bassett_csv_rows(resource, docs), media_type="text/csv",
                     headers={
                         "Content-Disposition": f'attachment; filename="bassett-{resource}-{"all" if include_archived else "active"}.csv"',
@@ -4815,6 +5160,9 @@ async def bassett_csv_import(resource: str, body: Dict[str, Any], user=Depends(g
                     if incoming.get(preserved_field) in (None, ""):
                         incoming.pop(preserved_field, None)
                 document = {**existing, **incoming, "updated_at": now_iso()}
+                document["severity"], document["criticality"] = _canonical_severity_pair(
+                    document.get("severity"), document.get("criticality")
+                )
                 _validate_issue_required(document)
                 if document.get("scenario_id") != existing.get("scenario_id"):
                     raise HTTPException(409, "A test run's Test Bank scenario link is immutable")
@@ -4825,6 +5173,9 @@ async def bassett_csv_import(resource: str, body: Dict[str, Any], user=Depends(g
                 updated += 1
                 continue
             document = {key: value for key, value in row.items() if key in BASSETT_ISSUE_FIELDS}
+            document["severity"], document["criticality"] = _canonical_severity_pair(
+                document.get("severity"), document.get("criticality")
+            )
             document["test_date"] = _validate_test_date(document.get("test_date"))
             _validate_issue_required(document)
             _validate_bassett_run_result(document)
@@ -4833,7 +5184,7 @@ async def bassett_csv_import(resource: str, body: Dict[str, Any], user=Depends(g
             document.update({
                 "id": identifier or new_id(), "status": document.get("status") or "Not Started",
                 "issue_category": document.get("issue_category") or "General",
-                "severity": document.get("severity") or "Medium",
+                "severity": _normalize_severity(document.get("severity")),
                 "priority": document.get("priority") or "Medium",
                 "reported_date": document.get("reported_date"),
                 "creation_key": f"csv:{identifier or new_id()}",
@@ -5501,7 +5852,7 @@ async def dashboard_stats(user=Depends(get_current_user), include_sample: Option
         "bassett_comparison_evaluated": bassett_populations["model_comparison"]["evaluated"],
         "bassett_only_passed": bassett_populations["bassett_only"]["passed"],
         "bassett_only_evaluated": bassett_populations["bassett_only"]["evaluated"],
-        "critical_findings": len([f for f in findings if f.get("criticality", 0) >= 4]),
+        "critical_findings": len([f for f in findings if _finding_is_high_or_critical(f)]),
         "open_findings": len(open_findings),
         "awaiting_fix": len([f for f in open_findings if f.get("developer_status") in FINDING_AWAITING_FIX_STATUSES]),
         "ready_for_retest": cnt(findings, "developer_status", "Ready for Retest"),
@@ -5529,8 +5880,6 @@ async def analytics_performance(user=Depends(get_current_user),
         tcs = {k: v for k, v in tcs.items() if v.get("project_id") == project_id}
     if municipality_id:
         tcs = {k: v for k, v in tcs.items() if v.get("municipality_id") == municipality_id}
-    if category:
-        tcs = {k: v for k, v in tcs.items() if v.get("category") == category}
     if criticality:
         tcs = {k: v for k, v in tcs.items() if str(v.get("criticality")) == criticality}
     if include_variants.lower() == "false":
@@ -5557,6 +5906,11 @@ async def analytics_performance(user=Depends(get_current_user),
 
     scenarios = _filter_sample_scope("bassett_scenarios", await db.bassett_scenarios.find({"archived": {"$ne": True}}, {"_id": 0}).to_list(5000))
     scenario_by_id = {scenario.get("id"): scenario for scenario in scenarios}
+    if category:
+        tcs = {
+            key: value for key, value in tcs.items()
+            if _test_bank_category(value, scenario_by_id) == category
+        }
     issues = _filter_sample_scope("bassett_issues", await db.bassett_issues.find({"archived": {"$ne": True}}, {"_id": 0}).to_list(5000))
     executions = _filter_sample_scope("bassett_executions", await db.bassett_executions.find({"archived": {"$ne": True}}, {"_id": 0}).to_list(10000))
     versions = await crud_list("versions")
@@ -5593,7 +5947,7 @@ async def analytics_performance(user=Depends(get_current_user),
             or (environment and run.get("environment") != environment)
             or (project_id and run.get("project_id") != project_id)
             or (municipality_id and run.get("municipality_id") != municipality_id)
-            or (category and (run.get("issue_category") or scenario_by_id.get(run.get("scenario_id"), {}).get("workflow_stage")) != category)
+            or (category and _test_bank_category(run, scenario_by_id) != category)
             or (criticality and str(run.get("criticality") or "") != criticality)
             or (date_from and run_date < date_from)
             or (date_to and run_date > date_to)
@@ -5606,7 +5960,7 @@ async def analytics_performance(user=Depends(get_current_user),
             "model": "Bassett", "scores": scores,
             "normalized_result": _canonical_bassett_result(run.get("result")),
             "testcase_id": f"bassett:{run.get('scenario_id') or run.get('id')}",
-            "_performance_category": run.get("issue_category") or scenario.get("workflow_stage") or "Uncategorized",
+            "_performance_category": _test_bank_category(run, scenario_by_id),
             "_performance_source": "bassett_only",
         }
         key = run.get("scenario_id") or run.get("test_id") or run.get("id")
@@ -5633,7 +5987,9 @@ async def analytics_performance(user=Depends(get_current_user),
     # by category (Bassett only)
     cat = {}
     for e in [x for x in evals if x.get("model") == "Bassett" and x.get("overall_score") is not None]:
-        c = e.get("_performance_category") or tcs.get(e["testcase_id"], {}).get("category", "Uncategorized")
+        c = e.get("_performance_category") or _test_bank_category(
+            tcs.get(e["testcase_id"], {}), scenario_by_id
+        )
         cat.setdefault(c, [])
         cat[c].append(e["overall_score"])
     by_category = [{"category": k, "avg_score": round(sum(v) / len(v), 1), "count": len(v)} for k, v in cat.items()]
@@ -5834,6 +6190,25 @@ def _sample_scope_has_reference(record, scope):
     return False
 
 
+class _RequestContextBridge:
+    """Compatibility view for no-default ContextVars used by sync callers."""
+
+    def __init__(self, context, value):
+        self._context = context
+        self._value = value
+        self.name = getattr(context, "name", "")
+
+    def get(self, default=None):
+        try:
+            return self._context.get()
+        except LookupError:
+            return self._value if default is None else default
+
+    def set(self, value):
+        self._value = value
+        return self._context.set(value)
+
+
 def _filter_sample_scope(collection, records, include_sample=None):
     # Models are application configuration, not test/sample content.  Earlier
     # sample imports tagged the default model rows as sample_data, which made
@@ -5866,6 +6241,22 @@ async def _set_sample_scope_for_user(user, requested=None):
     include_sample = _sample_scope_enabled(
         {**user, "include_sample_records": include_sample}, include_sample
     )
+    # A few synchronous compatibility callers replace the request ContextVars
+    # with no-default variables and invoke this coroutine through
+    # ``asyncio.run``.  asyncio deliberately does not propagate ContextVar
+    # writes back to the caller's context, so bridge only those explicitly
+    # named compatibility variables; production request ContextVars retain
+    # normal task isolation.
+    for context_name, value in (
+        ("_sample_visibility_context", include_sample),
+        ("_sample_scope_context", {} if include_sample else None),
+    ):
+        context = globals()[context_name]
+        if (
+            getattr(context, "name", "").startswith("request_")
+            and not isinstance(context, _RequestContextBridge)
+        ):
+            globals()[context_name] = _RequestContextBridge(context, value)
     if include_sample:
         _sample_scope_context.set({})
     else:
@@ -6123,7 +6514,10 @@ async def import_testcases(body: Dict[str, Any], user=Depends(require_writer)):
     project_id = body.get("project_id")
     existing = await db.testcases.find({}, {"_id": 0, "name": 1, "municipality_id": 1}).to_list(10000)
     munis = await crud_list("municipalities")
-    muni_by_name = {m["name"].strip().lower(): m for m in munis}
+    muni_by_name = {
+        _municipality_key(m.get("name"), m.get("state")): m
+        for m in munis
+    }
     existing_keys = {((t.get("name") or "").strip().lower(), t.get("municipality_id") or "") for t in existing}
     existing_names = {(t.get("name") or "").strip().lower() for t in existing}
 
@@ -6140,10 +6534,12 @@ async def import_testcases(body: Dict[str, Any], user=Depends(require_writer)):
         muni_id = ""
         mn = (row.get("municipality") or "").strip()
         if mn:
-            key = mn.lower()
+            state = (row.get("state") or "").strip()
+            key = _municipality_key(mn, state)
             if key not in muni_by_name:
-                m = {"id": new_id(), "name": mn, "state": (row.get("state") or "").strip(),
+                m = {"id": new_id(), "name": mn, "state": state,
                      "created_at": now_iso(), "created_by": user["name"], "source": "csv_import"}
+                await _validate_unique_municipality(m)
                 await db.municipalities.insert_one(dict(m))
                 muni_by_name[key] = m
             muni_id = muni_by_name[key]["id"]
@@ -6218,8 +6614,8 @@ async def release_readiness(version: str, user=Depends(get_current_user)):
     all_findings = await crud_list("findings")
     open_findings = [f for f in all_findings if _finding_is_open(f)]
     version_findings = [f for f in open_findings if f.get("version_found") == version]
-    open_crit5 = [f for f in version_findings if (f.get("criticality") or 0) >= 5]
-    open_crit4 = [f for f in version_findings if (f.get("criticality") or 0) == 4]
+    open_crit5 = [f for f in version_findings if _finding_criticality(f) >= 5]
+    open_crit4 = [f for f in version_findings if _finding_criticality(f) == 4]
 
     runs = [r for r in await crud_list("regression_runs") if r.get("bassett_version") == version]
     reg = _latest_regression_run(runs)
@@ -6250,9 +6646,9 @@ async def release_readiness(version: str, user=Depends(get_current_user)):
     if not evaluated:
         recommendation, reason = "NOT-READY", "Insufficient evaluation data — complete Bassett evaluations before making a release decision."
     elif open_crit5 or critical_fails or pass_rate < 70:
-        recommendation, reason = "NO-GO", "Open criticality-5 findings, Critical Fail evaluations, or pass rate below 70%."
+        recommendation, reason = "NO-GO", "Critical severity findings, Critical Fail evaluations, or pass rate below 70%."
     elif open_crit4 or newly_failing or pass_rate < 85:
-        recommendation, reason = "CONDITIONAL", "High-criticality open findings, new regressions, or pass rate below 85% — release with mitigations."
+        recommendation, reason = "CONDITIONAL", "High or Critical severity open findings, new regressions, or pass rate below 85% — release with mitigations."
     else:
         recommendation, reason = "GO", "Pass rate ≥ 85%, no critical blockers, no new regressions."
 
@@ -6293,9 +6689,9 @@ async def release_readiness(version: str, user=Depends(get_current_user)):
             "open_crit5": len(open_crit5), "open_crit4": len(open_crit4),
             "regression": reg, "newly_failing": newly_failing, "blockers": blockers,
             "failed_tests": failed_tests,
-            "open_finding_list": [{"id": f["id"], "title": f.get("title"), "criticality": f.get("criticality"),
+             "open_finding_list": [{"id": f["id"], "title": f.get("title"), "criticality": _finding_criticality(f),
                                    "developer_status": f.get("developer_status"), "finding_type": f.get("finding_type")}
-                                  for f in sorted(open_findings, key=lambda x: -(x.get("criticality") or 0))[:20]]}
+                                  for f in sorted(open_findings, key=lambda x: -_finding_criticality(x))[:20]]}
 
 # ---------- Live model runs ----------
 BENCH_SYSTEM = "You are a helpful AI assistant. Answer the user's zoning and land-use questions directly and cite ordinance sections or sources when you can."
@@ -6773,7 +7169,7 @@ async def analytics_executive(
             "final_result": result,
             "created_at": run.get("test_date") or run.get("created_at") or "",
             "_executive_source": "bassett_only",
-            "_executive_category": run.get("issue_category") or scenario_by_id.get(run.get("scenario_id"), {}).get("workflow_stage") or "Uncategorized",
+            "_executive_category": _test_bank_category(run, scenario_by_id),
         })
 
     evals = (
@@ -6857,7 +7253,7 @@ async def analytics_executive(
             losses += 1
 
     open_findings = [f for f in findings if f.get("developer_status") not in CLOSED_FINDING]
-    open_critical = len([f for f in open_findings if (f.get("criticality") or 0) >= 4])
+    open_critical = len([f for f in open_findings if _finding_is_high_or_critical(f)])
 
     # top failure modes across findings
     fm_counts = {}
@@ -6870,7 +7266,9 @@ async def analytics_executive(
     # bassett by category
     cat = {}
     for e in scored:
-        c = e.get("_executive_category") or tcs.get(e["testcase_id"], {}).get("category") or "Uncategorized"
+        c = e.get("_executive_category") or _test_bank_category(
+            tcs.get(e["testcase_id"], {}), scenario_by_id
+        )
         cat.setdefault(c, []).append(e["overall_score"])
     categories = sorted([{"category": k, "avg_score": round(sum(v) / len(v), 1), "count": len(v)}
                          for k, v in cat.items()], key=lambda x: -x["avg_score"])
@@ -6884,17 +7282,27 @@ async def analytics_executive(
     stale_gold = [{"testcase_id": tid, "name": tcs.get(tid, {}).get("name", "?")} for tid in stale_map if tid in evaluated_ids]
 
     evaluated_count = passed + failed
+    evaluated_grammar = "record" if evaluated_count == 1 else "records"
+    limited_data = {
+        "limited": evaluated_count < 5,
+        "evaluated": evaluated_count,
+        "threshold": 5,
+        "message": (
+            f"{evaluated_count} evaluated {evaluated_grammar}; "
+            "interpret trends cautiously." if evaluated_count < 5 else None
+        ),
+    }
     benchmark_evaluated_count = len([e for e in evals if e.get("model") != "Bassett"])
     return {"kpis": {"bassett_avg": bassett_avg, "benchmark_avg": bench_avg, "pass_rate": pass_rate,
                      "wins": wins, "losses": losses, "open_critical": open_critical,
                      "total_evaluated": evaluated_count,
-                     "limited_data": {"limited": evaluated_count < 5, "evaluated": evaluated_count, "threshold": 5},
+                     "limited_data": limited_data,
                      "benchmark_evaluated": benchmark_evaluated_count,
                      "total_findings": len(findings)},
              "trend": trend, "failure_modes": failure_modes, "categories": categories,
              "reporting_groups": reporting_groups, "scope": scope,
             "stale_gold_tests": stale_gold, "sample_data_included": include_sample,
-            "has_evaluated_data": bool(evals), "report_scope": report_scope,
+             "has_evaluated_data": evaluated_count > 0, "report_scope": report_scope,
             "population_counts": {
                 "bassett_only": len(standalone_bassett),
                 "model_comparison": len(comparison_evals),
@@ -7575,7 +7983,11 @@ def _dashboard_bassett_result_is_eligible(record):
     status = _canonical_bassett_issue_status(record.get("status")).casefold()
     if status in {"draft", "not started"}:
         return False
-    return _canonical_bassett_result(record.get("result")) in EVALUATED_RESULTS
+    # Needs Improvement is an evaluated legacy/current result: it is eligible
+    # evidence and belongs in the failed/attention denominator.
+    return _canonical_bassett_result(record.get("result")) in (
+        EVALUATED_RESULTS | {"Needs Improvement"}
+    )
 
 
 def _dashboard_bassett_test_type(record):
@@ -7808,7 +8220,7 @@ async def metrics_summary(user=Depends(get_current_user)):
         "bassett_avg_score": {"value": average_score(b_cur), "evaluated": len(b_cur),
                               "limited_data": {"limited": len(b_cur) < 5, "evaluated": len(b_cur), "threshold": 5},
                               "unit": "avg overall score /10", "definition": f"Mean of latest Bassett evaluation scores per test case for {ver or 'the active version'}, n={len(scored)}."},
-        "findings": {"open": len(open_f), "open_critical": len([f for f in open_f if (f.get("criticality") or 0) >= 4]),
+        "findings": {"open": len(open_f), "open_critical": len([f for f in open_f if _finding_is_high_or_critical(f)]),
                       "awaiting_fix": len([f for f in open_f if f.get("developer_status") in FINDING_AWAITING_FIX_STATUSES]),
                      "ready_for_retest": len([f for f in open_f if f.get("developer_status") == "Ready for Retest"]),
                       "unit": "findings", "definition": "Open excludes Fixed/Closed/Won't Fix/Duplicate; awaiting fix is In Development (plus legacy Fix In Progress)."},
@@ -8166,6 +8578,42 @@ def _integrity_cache_id(user):
     return "latest:sample" if _sample_scope_enabled(user) else "latest:production"
 
 
+async def _integrity_sample_repair_applicability(user):
+    """Return machine-readable sample repair visibility and applicability.
+
+    The UI must not infer whether a repair is available from issue prose.  A
+    repair is visible only when this user has sample records enabled, and is
+    applicable only when the corresponding deterministic preview has records
+    to change.
+    """
+    visible = _sample_scope_enabled(user)
+    result = {
+        "sample_records_visible": visible,
+        "metadata": False,
+        "sample_testcase_dates": False,
+        "details": {
+            "metadata": {"visible": visible, "applicable": False, "count": 0, "scope": "metadata"},
+            "sample_testcase_dates": {
+                "visible": visible, "applicable": False, "count": 0,
+                "scope": "sample_testcase_dates",
+            },
+        },
+    }
+    if not visible:
+        return result
+    for scope in ("metadata", "sample_testcase_dates"):
+        preview = await preview_integrity_batch(db, scope=scope)
+        detail = {
+            **result["details"][scope],
+            "applicable": bool(preview.get("records")),
+            "count": len(preview.get("records", [])),
+            "preview_token": preview.get("preview_token"),
+        }
+        result[scope] = detail["applicable"]
+        result["details"][scope] = detail
+    return result
+
+
 @api.get("/admin/integrity")
 async def data_integrity(user=Depends(get_current_user)):
     if user["role"] not in ("admin", "qa_manager"):
@@ -8174,12 +8622,14 @@ async def data_integrity(user=Depends(get_current_user)):
         {"id": _integrity_cache_id(user)}, {"_id": 0}
     )
     if cached:
+        cached["sample_repair_applicability"] = await _integrity_sample_repair_applicability(user)
         return cached
     return {
         "issues": [],
         "counts": {"high": 0, "medium": 0, "low": 0},
         "checked_at": None,
         "has_result": False,
+        "sample_repair_applicability": await _integrity_sample_repair_applicability(user),
     }
 
 
@@ -8446,7 +8896,8 @@ async def _run_data_integrity(user):
     return {"issues": issues, "counts": {"high": len([i for i in issues if i['severity'] == 'high']),
                                          "medium": len([i for i in issues if i['severity'] == 'medium']),
                                          "low": len([i for i in issues if i['severity'] == 'low'])},
-            "checked_at": now_iso()}
+            "checked_at": now_iso(),
+            "sample_repair_applicability": await _integrity_sample_repair_applicability(user)}
 
 # ---------- One-click integrity repairs (admin, guided confirmation in UI) ----------
 @api.get("/admin/integrity/sample-repair/preview")
@@ -8821,7 +9272,7 @@ app.add_middleware(
 DEFAULT_CONFIG = {
     "id": "global",
     "application_timezone": "America/New_York",
-    "criticality": {"1": "Minor", "2": "Low", "3": "Moderate", "4": "High", "5": "Critical"},
+    "criticality": {"1": "Very Low", "2": "Low", "3": "Medium", "4": "High", "5": "Critical"},
     "difficulty": {"1": "Basic", "2": "Standard", "3": "Advanced", "4": "Complex", "5": "Expert"},
     "test_statuses": ["Draft", "Ready to Test", "Testing", "Awaiting Evidence", "Ready for Evaluation",
                       "Evaluated", "Retest Required", "Retested", "Closed"],

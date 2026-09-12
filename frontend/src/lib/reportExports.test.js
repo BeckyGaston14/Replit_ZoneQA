@@ -43,6 +43,38 @@ test("report payloads contain distinct filtered record sets", () => {
   ]);
 });
 
+test("critical exports use canonical severity precedence for legacy and mismatched findings", () => {
+  const payload = buildReportPayload({
+    kind: "critical",
+    testcases: [
+      { id: "severity-low" },
+      { id: "severity-critical" },
+      { id: "legacy-critical" },
+      { id: "criticality-fallback" },
+      { id: "invalid-severity" },
+    ],
+    findings: [
+      { id: "severity-low-finding", testcase_id: "severity-low", severity: "Low", criticality: 5 },
+      { id: "severity-critical-finding", testcase_id: "severity-critical", severity: "Critical", criticality: 1 },
+      { id: "legacy-critical-finding", testcase_id: "legacy-critical", severity: "Critical Fail", criticality: 1 },
+      { id: "criticality-fallback-finding", testcase_id: "criticality-fallback", severity: "", criticality: 4 },
+      { id: "invalid-severity-finding", testcase_id: "invalid-severity", severity: "4.0", criticality: 5 },
+    ],
+    evaluations: [],
+  });
+
+  expect(ids(payload, "findings")).toEqual([
+    "severity-critical-finding",
+    "legacy-critical-finding",
+    "criticality-fallback-finding",
+  ]);
+  expect(ids(payload, "testcases")).toEqual([
+    "severity-critical",
+    "legacy-critical",
+    "criticality-fallback",
+  ]);
+});
+
 test("report payload preserves the JSON envelope and records counts", () => {
   const payload = buildReportPayload({
     kind: "critical",

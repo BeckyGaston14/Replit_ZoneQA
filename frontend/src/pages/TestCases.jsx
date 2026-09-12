@@ -37,6 +37,7 @@ import {
   TABLE_FRAME_CLASS, TABLE_HEAD_CLASS,
 } from "../lib/tableStyles";
 import { QueryState } from "../components/PageState";
+import { SEVERITY_LABELS } from "../lib/severity";
 import { ProjectScopeNav } from "../components/ProjectScopeNav";
 
 const MUNI_ADD = [{ key: "name", label: "Municipality" }, { key: "state", label: "State" }];
@@ -285,7 +286,7 @@ export default function TestCases() {
         </Select>
         <Select value={view.filters.criticality} onValueChange={(v) => setFilter("criticality", v)}>
           <SelectTrigger className="h-8 w-36 text-xs" data-testid="filter-criticality"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectItem value={ALL_TEST_CASES}>All criticality</SelectItem>{["1", "2", "3", "4", "5"].map((c) => <SelectItem key={c} value={c}>Criticality {c}</SelectItem>)}</SelectContent>
+          <SelectContent><SelectItem value={ALL_TEST_CASES}>All severity</SelectItem>{SEVERITY_LABELS.map((label, index) => <SelectItem key={label} value={String(index + 1)}>{label}</SelectItem>)}</SelectContent>
         </Select>
         <Select value={view.filters.project_id} onValueChange={(v) => setFilter("project_id", v)}>
           <SelectTrigger className="h-8 w-44 text-xs" data-testid="filter-project"><SelectValue /></SelectTrigger>

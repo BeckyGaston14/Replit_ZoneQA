@@ -15,16 +15,24 @@ import { MODEL_COLORS, MODEL_ORDER } from "../lib/modelColors";
 import { SafeResponsiveContainer } from "../components/SafeResponsiveContainer";
 
 export default function Dashboard() {
-  const stats = useQuery({ queryKey: ["stats"], queryFn: async () => (await api.get("/dashboard/stats")).data, retry: false });
-  const metrics = useQuery({ queryKey: ["metrics"], queryFn: async () => (await api.get("/metrics/summary")).data, retry: false });
+  // Dashboard cards are all read-only snapshots. A short shared cache window
+  // avoids refetching the same canonical responses when navigating between
+  // dashboard drill-downs and returning, while still keeping the page fresh.
+  const dashboardQueryOptions = { retry: false, staleTime: 60_000, gcTime: 5 * 60_000 };
+  const stats = useQuery({ ...dashboardQueryOptions, queryKey: ["stats"], queryFn: async () => (await api.get("/dashboard/stats")).data });
+  const metrics = useQuery({ ...dashboardQueryOptions, queryKey: ["metrics"], queryFn: async () => (await api.get("/metrics/summary")).data });
   const s = stats.data, m = metrics.data;
-  const perfQuery = useQuery({
-    queryKey: ["perf", m?.active_version],
-    enabled: Boolean(m?.active_version),
-    queryFn: async () => (await api.get("/analytics/performance", { params: { version: m.active_version || "" } })).data,
-    retry: false,
-  });
   const versionsQuery = useCollection("versions");
+  const activeVersionName = m?.active_version || versionsQuery.data?.find((version) => version.active)?.name || "";
+  const perfQuery = useQuery({
+    queryKey: ["perf", activeVersionName],
+    enabled: Boolean(activeVersionName),
+    // The versions reference query runs in parallel with stats and metrics.
+    // Performance therefore no longer waits for metrics to resolve merely to
+    // discover the active version.
+    queryFn: async () => (await api.get("/analytics/performance", { params: { version: activeVersionName } })).data,
+    ...dashboardQueryOptions,
+  });
 
   if (stats.isLoading || metrics.isLoading) return <div>
     <PageHeader title="QA Dashboard" subtitle="Loading the latest persisted QA metrics." />
@@ -58,7 +66,7 @@ export default function Dashboard() {
     { label: "Bassett Failed", value: comparison.failed, sub: `of ${comparison.evaluated} evaluated comparisons · ${versionLabel}`, title: comparison.definition, icon: XCircle, accent: "#dc2626", to: dashboardRecordPath("bassett-failed") },
     { label: "Bassett Avg Score", value: m.bassett_avg_score.value ?? "—", sub: `${m.bassett_avg_score.unit} · ${versionLabel}`, limitedData: m.bassett_avg_score.limited_data || m.bassett_avg_score.evaluated || comparison.evaluated, title: m.bassett_avg_score.definition, icon: ActIcon, accent: MODEL_COLORS.Bassett, to: dashboardRecordPath("bassett-score") },
     { label: "All Model Evaluations", value: ame.label, sub: "Bassett + ChatGPT + Claude mixed", title: ame.definition, icon: ClipboardCheck, accent: "#2f3f96", to: dashboardRecordPath("all-model-evaluations") },
-    { label: "Open Findings", value: fnd.open, sub: `${fnd.open_critical} critical (C4-C5)`, title: fnd.definition, icon: Flag, accent: "#f97316", to: dashboardRecordPath("open-findings") },
+     { label: "Open Findings", value: fnd.open, sub: `${fnd.open_critical} High or Critical severity`, title: fnd.definition, icon: Flag, accent: "#f97316", to: dashboardRecordPath("open-findings") },
     { label: "Awaiting Fix", value: fnd.awaiting_fix, sub: "open findings in dev", title: fnd.definition, icon: Wrench, accent: "#2f3f96", to: dashboardRecordPath("awaiting-fix") },
     { label: "Ready for Retest", value: fnd.ready_for_retest, sub: "findings awaiting retest", title: fnd.definition, icon: RefreshCw, accent: "#0ea5e9", to: dashboardRecordPath("ready-for-retest") },
     { label: "Active Projects", value: s.active_projects, sub: "testing projects", title: "Testing Projects whose status is Active.", icon: FolderKanban, accent: "#16215a", to: dashboardRecordPath("active-projects") },

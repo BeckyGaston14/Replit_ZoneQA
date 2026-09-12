@@ -79,6 +79,7 @@ export const MUNICIPALITY_SCHEMA = {
   singular: "Municipality",
   subtitle: "Reusable jurisdiction records — knowledge hub per municipality.",
   collection: "municipalities",
+  newLabel: "New Municipality",
   parentLifecycle: true,
   dateRanges: [{ start: "code_effective_date", end: "latest_amendment_date", startLabel: "Code Effective Date", endLabel: "Latest Known Amendment Date" }],
   columns: [

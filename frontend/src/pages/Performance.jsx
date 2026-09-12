@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { useCollection, useConfig, useSavedView } from "../lib/hooks";
-import { PageHeader, StatCard, WrapTick, SrTable, StatusBadge, SampleDataBanner, sampleScopeIncludesData, MethodologyDisclosure } from "../components/shared";
+import { PageHeader, StatCard, WrapTick, SrTable, StatusBadge, SampleDataBanner, sampleScopeIncludesData, MethodologyDisclosure, EmptyState } from "../components/shared";
 import { fmtScore } from "../lib/format";
 import { Trophy, TrendingDown, AlertOctagon, Target, FilterX } from "lucide-react";
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from "recharts";
@@ -16,6 +16,7 @@ import { EVALUATION_SCALE_LABEL, EVALUATION_SCORE_DOMAIN, EVALUATION_SCORE_TICKS
 import { MODEL_COLORS } from "../lib/modelColors";
 import { Button } from "../components/ui/button";
 import { REPORTING_GROUPS } from "../lib/scoringGroups";
+import { SEVERITY_LABELS } from "../lib/severity";
 import { QueryState } from "../components/PageState";
 
 const DIM_LABELS = { accuracy: "Accuracy", current_code: "Current Code", interpretation: "Interpretation", calculation: "Calculation", context: "Context", missing_info: "Missing Info", followup: "Follow-Up", citation_accuracy: "Citation", source_quality: "Source Quality", guidance: "Guidance", completeness: "Completeness", usefulness: "Usefulness" };
@@ -131,7 +132,7 @@ export default function Performance() {
         {sel("project_id", projects.map((p) => ({ value: p.id, label: p.name })), "All projects", "perf-filter-project")}
         {sel("municipality_id", munis.map((m) => ({ value: m.id, label: `${m.name}, ${m.state}` })), "All municipalities", "perf-filter-municipality")}
         {sel("category", flt.scope === "bassett" ? ["Research", "Analysis"] : config?.categories || [], "All categories", "perf-filter-category")}
-        {flt.scope !== "bassett" && sel("criticality", ["1", "2", "3", "4", "5"].map((c) => ({ value: c, label: `Criticality ${c}` })), "All criticality", "perf-filter-criticality")}
+        {flt.scope !== "bassett" && sel("criticality", SEVERITY_LABELS.map((label, index) => ({ value: String(index + 1), label })), "All severity", "perf-filter-criticality")}
         {flt.scope !== "bassett" && sel("include_variants", [{ value: "true", label: "Variants included" }, { value: "false", label: "Variants excluded" }], "Variants included (default)", "perf-filter-variants")}
         <input type="date" value={flt.date_from} onChange={(e) => setFilter("date_from", e.target.value)} className="h-8 max-w-full text-xs border rounded-lg px-2 bg-card" data-testid="perf-filter-from" aria-label="Evaluated from date" title="Evaluated from date" />
         <input type="date" value={flt.date_to} onChange={(e) => setFilter("date_to", e.target.value)} className="h-8 max-w-full text-xs border rounded-lg px-2 bg-card" data-testid="perf-filter-to" aria-label="Evaluated to date" title="Evaluated to date" />
@@ -142,9 +143,13 @@ export default function Performance() {
           </button>
         )}
       </div>
-      {(perf.model_summary || []).length === 0 && <div className="mb-4 rounded-xl border bg-card p-5 text-sm text-muted-foreground" data-testid="performance-empty">
-        {hasFilters ? "No qualifying evaluations match the selected scope and filters." : "No qualifying evaluations are available yet."}
-        {hasFilters && <Button size="sm" variant="outline" className="ml-3" onClick={clearFilters}>Clear filters</Button>}
+      {(perf.model_summary || []).length === 0 && <div className="mb-4" data-testid="performance-empty">
+        <EmptyState
+          title={hasFilters ? "No qualifying evaluations match these filters." : "No qualifying evaluations are available yet."}
+          description={hasFilters ? "Clear the filters to review the full performance scope." : "Complete an eligible evaluation to populate performance reporting."}
+          action={hasFilters ? <Button size="sm" variant="outline" onClick={clearFilters}>Clear filters</Button> : null}
+          testid="performance-empty-state"
+        />
       </div>}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">

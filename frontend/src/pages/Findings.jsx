@@ -17,6 +17,7 @@ import { Input } from "../components/ui/input";
 import { AlertTriangle, CheckCircle2, Columns3, Flag, RefreshCw, Search, ShieldAlert, X } from "lucide-react";
 import { toast } from "sonner";
 import { QueryState } from "../components/PageState";
+import { SEVERITY_LABELS } from "../lib/severity";
 import { ProjectScopeNav } from "../components/ProjectScopeNav";
 
 const ALL = "__all";
@@ -198,7 +199,7 @@ export default function Findings() {
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <StatCard label="Open Findings" value={openFindings} sub="excludes fixed and closed findings" icon={Flag} accent="#f97316" />
         <StatCard label="New Findings" value={newFindings} sub="newly recorded findings" icon={AlertTriangle} accent="#2563eb" />
-        <StatCard label="High severity findings" value={highSeverityFindings} sub="criticality 4–5" icon={ShieldAlert} accent="#dc2626" />
+        <StatCard label="High or Critical severity findings" value={highSeverityFindings} sub="Criticality 4–5" icon={ShieldAlert} accent="#dc2626" />
         <StatCard label="Total Findings" value={findings.length} sub="linked to model comparisons" icon={CheckCircle2} accent="#16a34a" />
       </div>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,420px)]">
@@ -220,10 +221,13 @@ export default function Findings() {
           <details className="mb-4 rounded-lg border bg-[var(--paper)] px-3 py-2">
             <summary className="cursor-pointer text-sm font-semibold text-[var(--navy)]">Additional filters</summary>
             <div className="mt-3 flex flex-wrap gap-2">
-              {[["status", config?.finding_statuses, "All workflow statuses"], ["criticality", ["1", "2", "3", "4", "5"], "All criticality"], ["retest", ["Pending", "In Progress", "Fixed", "Partially Fixed", "Not Fixed"], "All retest states"]].map(([key, opts, label]) => (
+              {[["status", config?.finding_statuses, "All workflow statuses"], ["criticality", SEVERITY_LABELS.map((label, index) => ({ value: String(index + 1), label })), "All severity"], ["retest", ["Pending", "In Progress", "Fixed", "Partially Fixed", "Not Fixed"], "All retest states"]].map(([key, opts, label]) => (
                 <select key={key} value={flt[key]} onChange={(event) => setFilter(key, event.target.value)} data-testid={`filter-${key}`} className="h-9 rounded-md border bg-background px-3 text-sm text-[var(--navy)]">
                   <option value={ALL}>{label}</option>
-                  {(opts || []).map((option) => <option key={option} value={option}>{key === "criticality" ? `Criticality ${option}` : option}</option>)}
+                  {(opts || []).map((option) => {
+                    const value = typeof option === "object" ? option.value : option;
+                    return <option key={value} value={value}>{typeof option === "object" ? option.label : option}</option>;
+                  })}
                 </select>
               ))}
             </div>
@@ -313,7 +317,7 @@ export default function Findings() {
       </div>
       <MethodologyDisclosure title="How Model Finding metrics are calculated" testid="model-findings-methodology">
         <p>Finding counts include only findings created from Model Comparison test cases in the current visibility scope.</p>
-        <p>Open Findings excludes Fixed, Closed, Won&apos;t Fix, and Duplicate statuses. New Findings includes records whose developer status is New. High severity findings includes criticality 4 and 5.</p>
+        <p>Open Findings excludes Fixed, Closed, Won&apos;t Fix, and Duplicate statuses. New Findings includes records whose developer status is New. High or Critical severity findings include criticality 4 and 5.</p>
         <p>Total Findings includes every visible Model Comparison finding, while the list below reflects the active search and filters. Archived records remain in history but are excluded from active summary populations.</p>
       </MethodologyDisclosure>
       </>}

@@ -234,12 +234,6 @@ export default function Executive() {
              </BarChart>
            </SafeResponsiveContainer>
          </div>}
-          {chartCategories.map((category) => (
-            <LimitedDataWarning
-              key={`${category.label || category.category}-limited`}
-              evaluated={category.evaluation_count ?? category.count}
-            />
-          ))}
          <SrTable caption="Bassett reporting-group performance. Scale: 0 to 10." columns={["Reporting group", "Average score out of 10", "Underlying dimensions"]} rows={chartCategories.map((c) => [(c.label || c.category), formatEvaluationScore(c.score ?? c.avg_score), (c.dimensions || c.underlyingDimensions || []).map((item) => item.label || item.key || item).join(", ")])} />
       </div>
        <MethodologyDisclosure title="How executive metrics are calculated" testid="executive-methodology">

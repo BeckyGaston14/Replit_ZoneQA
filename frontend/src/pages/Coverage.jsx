@@ -130,7 +130,7 @@ export default function Coverage() {
             {municipalities.length ? municipalities.map((m) => <GapRow key={m.id} label={m.name} sub={m.state} tests={m.tests} evaluated={m.evaluated} testid="coverage-muni-row" />) : <EmptyCoverage>No active Model Comparison test cases are linked to a municipality.</EmptyCoverage>}
           </div>
           <div className="bg-card border rounded-xl p-5" data-testid="coverage-criticality">
-            <h3 className="font-semibold font-display text-[var(--navy)] mb-2">Criticality Levels</h3>
+            <h3 className="font-semibold font-display text-[var(--navy)] mb-2">Severity Levels</h3>
             {criticality.map((c) => <GapRow key={c.level} label={`${c.level} — ${c.label}`} tests={c.tests} evaluated={c.evaluated} testid="coverage-crit-row" />)}
           </div>
         </div>

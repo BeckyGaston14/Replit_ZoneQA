@@ -650,8 +650,10 @@ def test_release_readiness_critical_findings_are_version_scoped(monkeypatch):
         "evaluations": [],
         "test_runs": [],
         "findings": [
-            {"id": "old-c5", "title": "Old blocker", "version_found": "v0", "criticality": 5, "developer_status": "Open"},
-            {"id": "new-c4", "title": "Current warning", "version_found": "v1", "criticality": 4, "developer_status": "Open"},
+            # Severity is authoritative when legacy numeric criticality
+            # disagrees: old-c5 is Low/2, while new-c4 is High/4.
+            {"id": "old-c5", "title": "Old blocker", "version_found": "v0", "severity": "Low", "criticality": 5, "developer_status": "Open"},
+            {"id": "new-c4", "title": "Current warning", "version_found": "v1", "severity": "High", "criticality": 1, "developer_status": "Open"},
         ],
         "regression_runs": [],
         "release_decisions": [],
@@ -668,9 +670,13 @@ def test_release_readiness_critical_findings_are_version_scoped(monkeypatch):
     # With no qualifying evaluations, insufficient data remains the governing
     # readiness state even when a version-scoped warning exists.
     assert current["recommendation"] == "NOT-READY"
+    assert current["open_crit5"] == 0
+    assert current["open_crit4"] == 1
     assert not any(blocker["label"] == "Old blocker" for blocker in current["blockers"])
     assert old["recommendation"] == "NOT-READY"
-    assert any(blocker["label"] == "Old blocker" for blocker in old["blockers"])
+    assert old["open_crit5"] == 0
+    assert old["open_crit4"] == 0
+    assert not any(blocker["label"] == "Old blocker" for blocker in old["blockers"])
 
 
 def test_coverage_counts_valid_bassett_only_evaluations(monkeypatch):

@@ -5,7 +5,7 @@ const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "bas
 export const DOMAIN_ORDERS = {
   complexity: ["Low", "Moderate", "Medium", "High", "Very High"],
   priority: ["P0", "P0 - Immediate", "Critical", "P1", "P1 - High", "High", "P2", "P2 - Medium", "Medium", "Low"],
-  severity: ["Critical", "High", "Medium", "Low", "Informational"],
+  severity: ["Critical", "High", "Medium", "Low", "Very Low"],
   criticality: [5, 4, 3, 2, 1, 0],
   role: ["admin", "qa_manager", "tester", "developer", "viewer"],
   active: [true, false],

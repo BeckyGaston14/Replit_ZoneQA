@@ -12,6 +12,7 @@ import { ScoreSelect } from "./ScoreSelect";
 import { CANONICAL_EVALUATION_RESULTS, isEvaluatedResult, normalizeEvaluationResult } from "../lib/evaluationResults";
 import { ConfirmActionDialog } from "./ConfirmActionDialog";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
+import { SEVERITY_LABELS, severityLabel, severityNumber } from "../lib/severity";
 
 export const BASSETT_RESULT_OPTIONS = [...CANONICAL_EVALUATION_RESULTS];
 export const COMPARISON_RESULT_OPTIONS = [...CANONICAL_EVALUATION_RESULTS];
@@ -665,7 +666,7 @@ export default function UnifiedTestEntryForm({
        {(isComparison || form.test_type !== "Multi-turn") && <Field label={isComparison ? "Bassett response" : "Exact Bassett answer"} required={isComparison || form.conversation_source !== "uploaded_conversation"} description={!isComparison && form.conversation_source === "uploaded_conversation" ? "Optional now; required before expanding to Model Comparison." : undefined} error={attemptedSections.has(2) && (isComparison || form.conversation_source !== "uploaded_conversation") && !String(responseFor("Bassett").response || "").trim() ? "Bassett response is required." : undefined}><Textarea rows={6} value={responseFor("Bassett").response || ""} disabled={lockedCommon} onChange={(e) => updateResponse("Bassett", "response", e.target.value)} /></Field>}
        {!isComparison && form.test_type === "Multi-turn" && <div className="sm:col-span-2 rounded-lg border bg-[var(--paper)] p-3 text-sm text-muted-foreground">Responses are captured within the ordered turns above. The overall verdict and evaluation below still apply to the complete conversation.</div>}
        <Field label="Test result"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={normalizeEvaluationResult(form.result)} onChange={(e) => update("result", e.target.value)}>{(isComparison ? COMPARISON_RESULT_OPTIONS : BASSETT_RESULT_OPTIONS).map((value) => <option key={value}>{value}</option>)}</select></Field>
-       <Field label="Severity"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.severity || form.criticality || "Medium"} onChange={(e) => update("severity", e.target.value)}>{["Critical", "High", "Medium", "Low", "1", "2", "3", "4", "5"].map((value) => <option key={value}>{value}</option>)}</select></Field>
+       <Field label="Severity"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={severityLabel(form.severity || form.criticality) || "Medium"} onChange={(e) => setForm((current) => ({ ...current, severity: e.target.value, criticality: severityNumber(e.target.value) }))}>{SEVERITY_LABELS.map((value) => <option key={value}>{value}</option>)}</select></Field>
       <Field label="Priority"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.priority || "Medium"} onChange={(e) => update("priority", e.target.value)}>{["Critical", "High", "Medium", "Low"].map((value) => <option key={value}>{value}</option>)}</select></Field>
       <Field label={isComparison ? "Comparison Category" : "Finding Category"}><Input value={form.issue_category || form.category || ""} onChange={(e) => update(isComparison ? "category" : "issue_category", e.target.value)} /></Field>
     </div></GuidedSection>

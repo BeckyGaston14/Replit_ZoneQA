@@ -2,13 +2,14 @@ const COMPARISON_MODELS = new Set(["Bassett", "ChatGPT", "Claude"]);
 import { calculateComparisonScore } from "./comparison";
 import { normalizeEvaluationResult } from "./evaluationResults";
 import { aggregateReportingGroups, calculateReportingGroups } from "./scoringGroups";
+import { isHighOrCriticalSeverity } from "./severity";
 
 const REPORT_SCOPES = {
   qa_summary: "All persisted QA records.",
   release: "Bassett evaluations, critical findings, and regression snapshots across recorded releases.",
   regression: "Historical regression snapshots and their included test results.",
   comparison: "Complete Bassett, ChatGPT, and Claude evaluations grouped by test case.",
-  critical: "Criticality 4–5 findings and the related QA records.",
+  critical: "High or Critical severity findings (Criticality 4–5) and the related QA records.",
   municipality: "Test cases with a municipality and their related QA records.",
 };
 
@@ -63,7 +64,7 @@ function canonicalSource(source) {
 }
 
 function buildReleaseRecords(source) {
-  const criticalFindings = source.findings.filter((finding) => Number(finding.criticality) >= 4);
+  const criticalFindings = source.findings.filter(isHighOrCriticalSeverity);
   const testcaseIds = new Set([
     ...source.evaluations
       .filter((evaluation) => evaluation.model === "Bassett")
@@ -144,7 +145,7 @@ function buildComparisonRecords(source) {
 }
 
 function buildCriticalRecords(source) {
-  const criticalFindings = source.findings.filter((finding) => Number(finding.criticality) >= 4);
+  const criticalFindings = source.findings.filter(isHighOrCriticalSeverity);
   const testcaseIds = new Set(criticalFindings.map((finding) => finding.testcase_id));
   const records = relatedRecords(source, testcaseIds);
   return { ...records, findings: criticalFindings };

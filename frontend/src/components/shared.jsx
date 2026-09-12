@@ -8,13 +8,15 @@ import { useSampleVisibility } from "../lib/hooks";
 import { Switch } from "./ui/switch";
 import { Info } from "lucide-react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
+import { severityLabel } from "../lib/severity";
 
 export function CritBadge({ value }) {
   if (!value) return <span className="text-muted-foreground text-xs">—</span>;
+  const label = severityLabel(value);
   return (
     <span data-testid={`crit-badge-${value}`} className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold text-white"
-      style={{ background: CRIT_COLORS[value] }} title={`Criticality ${value}`}>
-      C{value}
+      style={{ background: CRIT_COLORS[value] }} title={`${label} severity (criticality ${value})`}>
+      {label} <span className="sr-only">Criticality {value}</span>
     </span>
   );
 }
@@ -101,9 +103,23 @@ export function MethodologyDisclosure({ title = "How these metrics are calculate
 export function LimitedDataWarning({ evaluated, className = "" }) {
   const count = typeof evaluated === "object" ? evaluated?.evaluated : evaluated;
   if (count == null || Number.isNaN(Number(count)) || Number(count) >= 5) return null;
+  const amount = Number(count);
   return (
     <div role="status" data-testid="limited-data-warning" className={cn("mt-2 text-xs font-medium text-amber-700", className)}>
-      Limited data — {Number(count)} evaluated records
+      Limited data — {amount} evaluated record{amount === 1 ? "" : "s"}
+    </div>
+  );
+}
+
+// Keep empty states consistent without erasing useful, domain-specific
+// explanations.  Pages provide the missing thing and, when available, one
+// direct next action.
+export function EmptyState({ title, description, action, testid = "empty-state" }) {
+  return (
+    <div role="status" data-testid={testid} className="rounded-xl border border-dashed bg-card px-5 py-10 text-center">
+      <p className="font-semibold text-[var(--navy)]">{title}</p>
+      {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
+      {action && <div className="mt-4">{action}</div>}
     </div>
   );
 }

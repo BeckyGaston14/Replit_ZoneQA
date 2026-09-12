@@ -10,6 +10,7 @@ import copy
 import json
 import re
 import uuid
+import unicodedata
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, Iterable, List, Optional, Tuple
@@ -82,6 +83,60 @@ def _missing() -> object:
 
 
 _MISSING = object()
+
+
+def _migration_municipality_key(value: Any) -> str:
+    value = unicodedata.normalize("NFKC", str(value or ""))
+    return " ".join(value.strip().casefold().split())
+
+
+_MUNICIPALITY_RELATIONSHIP_FIELDS = frozenset({
+    "municipality_id", "municipality_ids",
+})
+
+
+def _migration_replace_known_municipality_paths(
+    collection: str, document: Dict[str, Any], loser_id: str, canonical_id: str,
+) -> Dict[str, Any]:
+    """Replace only documented municipality relationship paths in live data."""
+    updated = copy.deepcopy(document)
+    for field in _MUNICIPALITY_RELATIONSHIP_FIELDS:
+        value = updated.get(field)
+        if isinstance(value, list):
+            updated[field] = [
+                canonical_id if item == loser_id else item for item in value
+            ]
+        elif value == loser_id:
+            updated[field] = canonical_id
+    nested = updated.get("municipality")
+    if isinstance(nested, dict) and nested.get("id") == loser_id:
+        nested["id"] = canonical_id
+    if (
+        str(updated.get("entity_type") or "").casefold()
+        in {"municipality", "municipalities"}
+        and updated.get("entity_id") == loser_id
+    ):
+        updated["entity_id"] = canonical_id
+    return updated
+
+
+def _migration_known_municipality_linked(
+    collection: str, document: Dict[str, Any], identifier: str,
+) -> bool:
+    if any(
+        document.get(field) == identifier
+        or (isinstance(document.get(field), list) and identifier in document[field])
+        for field in _MUNICIPALITY_RELATIONSHIP_FIELDS
+    ):
+        return True
+    nested = document.get("municipality")
+    if isinstance(nested, dict) and nested.get("id") == identifier:
+        return True
+    return (
+        str(document.get("entity_type") or "").casefold()
+        in {"municipality", "municipalities"}
+        and document.get("entity_id") == identifier
+    )
 
 
 def _get_field(document: Dict[str, Any], field: str) -> Any:
@@ -525,6 +580,207 @@ class PostgresDatabase:
             await self.pool.close()
             self.pool = None
 
+    async def _consolidate_duplicate_municipalities(self, connection):
+        """Consolidate normalized duplicate municipalities without dropping history.
+
+        This runs inside migration 13's transaction.  Losers are archived (not
+        deleted), known typed/JSON relationship paths are reassigned, and
+        metadata conflicts are retained in a durable activity audit record.
+        This migration is intentionally scoped to the known Milwaukee pair;
+        it must never become a general duplicate merger.
+        """
+        rows = await connection.fetch('SELECT id, data FROM "municipalities" ORDER BY id')
+        municipalities = []
+        for row in rows:
+            document = copy.deepcopy(dict(row["data"]))
+            document.setdefault("id", row["id"])
+            if (
+                document.get("archived")
+                or document.get("deleted_at")
+                or document.get("status") == "Archived"
+            ):
+                continue
+            key = (
+                _migration_municipality_key(document.get("name")),
+                _migration_municipality_key(document.get("state")),
+            )
+            if key == ("city of milwaukee", "wisconsin"):
+                municipalities.append((key, document))
+        groups = {}
+        for key, document in municipalities:
+            groups.setdefault(key, []).append(document)
+        duplicate_groups = [group for group in groups.values() if len(group) > 1]
+        if not duplicate_groups:
+            return {"groups": [], "reassigned": 0}
+        if any(len(group) != 2 for group in duplicate_groups):
+            raise RuntimeError(
+                "Migration 13 expected exactly two active City of Milwaukee, Wisconsin records"
+            )
+
+        all_documents = {}
+        for collection in COLLECTIONS:
+            collection_rows = await connection.fetch(
+                f'SELECT id, data FROM "{_table(collection)}"'
+            )
+            all_documents[collection] = [
+                (str(row["id"]), copy.deepcopy(dict(row["data"])))
+                for row in collection_rows
+            ]
+
+        audit_groups = []
+        for group in duplicate_groups:
+            def completeness(document):
+                excluded = {
+                    "id", "name", "state", "created_at", "updated_at",
+                    "created_by", "updated_by", "archived", "archived_at",
+                    "archived_by", "archived_status",
+                }
+                return sum(
+                    1 for key, value in document.items()
+                    if key not in excluded
+                    and value not in (None, "", [], {})
+                )
+
+            def linked_count(document):
+                identifier = str(document.get("id"))
+                return sum(
+                    1
+                    for collection_name, collection_rows in all_documents.items()
+                    for row_id, value in collection_rows
+                    if collection_name not in {"municipalities", "bassett_history", "activities"}
+                    and _migration_known_municipality_linked(
+                        collection_name, value, identifier
+                    )
+                )
+
+            # Completeness and relationship count dominate. IDs are the
+            # deterministic "oldest ID" tie-break required by migration 13.
+            canonical = sorted(
+                group,
+                key=lambda document: (
+                    -completeness(document),
+                    -linked_count(document),
+                    str(document.get("id") or ""),
+                ),
+            )[0]
+            canonical_id = str(canonical["id"])
+            loser_ids = [
+                str(item["id"]) for item in group if str(item["id"]) != canonical_id
+            ]
+            conflicts = {}
+            merged = copy.deepcopy(canonical)
+            for loser in group:
+                loser_id = str(loser["id"])
+                if loser_id == canonical_id:
+                    continue
+                for key, value in loser.items():
+                    if key in {
+                        "id", "name", "state", "created_at", "created_by",
+                        "archived", "archived_at", "archived_by", "archived_status",
+                    }:
+                        continue
+                    if value in (None, "", [], {}):
+                        continue
+                    if merged.get(key) in (None, "", [], {}):
+                        merged[key] = copy.deepcopy(value)
+                    elif merged.get(key) != value:
+                        conflicts.setdefault(key, []).append({
+                            "canonical": copy.deepcopy(merged.get(key)),
+                            "duplicate": copy.deepcopy(value),
+                            "duplicate_id": loser_id,
+                        })
+            audit_groups.append({
+                "normalized_name": _migration_municipality_key(group[0].get("name")),
+                "normalized_state": _migration_municipality_key(group[0].get("state")),
+                "canonical_id": canonical_id,
+                "duplicate_ids": sorted(loser_ids),
+                "metadata_conflicts": conflicts,
+            })
+            for row_id, value in all_documents["municipalities"]:
+                if row_id == canonical_id:
+                    value.clear()
+                    value.update(merged)
+
+        mapping = {
+            loser_id: group["canonical_id"]
+            for group in audit_groups
+            for loser_id in group["duplicate_ids"]
+        }
+
+        # Repoint real PostgreSQL foreign keys first. This keeps the database
+        # valid while JSON relationship documents are updated below.
+        for collection, refs in REFERENCE_COLUMNS.items():
+            for field, target in refs.items():
+                if target == "municipalities":
+                    for loser_id, canonical_id in mapping.items():
+                        await connection.execute(
+                            f'UPDATE "{_table(collection)}" SET "{field}" = $1 '
+                            f'WHERE "{field}" = $2',
+                            canonical_id, loser_id,
+                        )
+
+        changed = 0
+        for collection, collection_rows in all_documents.items():
+            for row_id, document in collection_rows:
+                # Immutable history and existing activities/audit detail are
+                # never rewritten. The migration audit is a new activity.
+                if collection in {"bassett_history", "activities"}:
+                    continue
+                updated = copy.deepcopy(document)
+                for loser_id, canonical_id in mapping.items():
+                    updated = _migration_replace_known_municipality_paths(
+                        collection, updated, loser_id, canonical_id,
+                    )
+                if collection == "municipalities" and row_id in mapping:
+                    updated.update({
+                        "archived": True,
+                        "archived_at": "migration-13",
+                        "archived_by": "migration-13",
+                        "archived_status": document.get("status"),
+                        "municipality_merge_canonical_id": mapping[row_id],
+                    })
+                if updated == document:
+                    continue
+                assignments = ["data = $1"]
+                values = [updated, row_id]
+                parameter = 2
+                for field in REFERENCE_COLUMN_NAMES.get(collection, ()):
+                    parameter += 1
+                    assignments.append(f'"{field}" = ${parameter}')
+                    value = updated.get(field)
+                    values.append(None if value == "" else value)
+                await connection.execute(
+                    f'UPDATE "{_table(collection)}" SET {", ".join(assignments)} WHERE id = $2',
+                    *([updated] + values[1:]),
+                )
+                changed += 1
+
+        audit = {
+            "migration": 13,
+            "action": "municipality_duplicate_consolidation",
+            "groups": audit_groups,
+            "mapping": mapping,
+            "reassigned_documents": changed,
+            "history_preserved": True,
+            "existing_activities_preserved": True,
+        }
+        audit_id = f"migration-13:{uuid.uuid4()}"
+        await connection.execute(
+            'INSERT INTO "activities" (id, data) VALUES ($1, $2)',
+            audit_id,
+            {
+                "id": audit_id,
+                "entity_type": "municipalities",
+                "entity_id": audit_groups[0]["canonical_id"],
+                "action": "migration_13_duplicate_consolidation",
+                "detail": json.dumps(audit, default=str, sort_keys=True),
+                "created_at": datetime.utcnow().isoformat() + "+00:00",
+                "source": "schema_migration",
+                "_log": True,
+            },
+        )
+        return {"groups": audit_groups, "reassigned": changed}
+
     async def apply_migrations(self):
         if self.pool is None:
             raise RuntimeError("PostgreSQL database has not been connected")
@@ -849,6 +1105,16 @@ class PostgresDatabase:
                             "INSERT INTO schema_migrations (version) VALUES (12)"
                         )
                         current = 12
+                if current < 13:
+                    async with connection.transaction():
+                        # Deterministic, relationship-safe municipality
+                        # consolidation.  The transaction and migration audit
+                        # make retries idempotent and preserve history.
+                        await self._consolidate_duplicate_municipalities(connection)
+                        await connection.execute(
+                            "INSERT INTO schema_migrations (version) VALUES (13)"
+                        )
+                        current = 13
             finally:
                 # This is a session lock (rather than an xact lock), so it must
                 # be released even when a migration deliberately aborts.
@@ -1141,7 +1407,9 @@ class PostgresDatabase:
                 if target.get("status") not in ("Not Started", "New"):
                     return {"error": "not_new"}
                 target.update({
-                    "status": "In Review",
+                    # Preserve the legacy New → Triaged contract while
+                    # canonical records use Not Started → In Review.
+                    "status": "Triaged" if target.get("status") == "New" else "In Review",
                     "triaged_by": triaged_by,
                     "triaged_by_name": triaged_by_name,
                     "triaged_at": timestamp,

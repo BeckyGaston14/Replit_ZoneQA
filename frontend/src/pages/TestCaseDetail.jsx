@@ -35,6 +35,7 @@ import { formatTestDate, todayInTimeZone } from "../lib/testDates";
 import { MODEL_COLORS, MODEL_ORDER } from "../lib/modelColors";
 import { QueryState } from "../components/PageState";
 import { SCORE_RUBRIC, hasScoredDimension } from "../lib/scoreRubric";
+import { SEVERITY_LABELS } from "../lib/severity";
 import { ScoreSelect } from "../components/ScoreSelect";
 import UnifiedTestEntryForm, { createComparisonEditDraft } from "../components/UnifiedTestEntryForm";
 
@@ -947,7 +948,7 @@ function FindingModal({ open, setOpen, tc, project, config, onDone }) {
       <Field label="Title"><Input value={f.title} onChange={(e) => set("title", e.target.value)} data-testid="finding-title" /></Field>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Field label="Finding Type"><ListSelect options={config?.finding_types} value={f.finding_type} onChange={(v) => set("finding_type", v)} /></Field>
-        <Field label="Criticality"><ListSelect options={["1", "2", "3", "4", "5"]} value={String(f.criticality)} onChange={(v) => set("criticality", Number(v))} /></Field>
+        <Field label="Severity"><ListSelect options={SEVERITY_LABELS.map((label, index) => ({ value: String(index + 1), label }))} value={String(f.criticality)} onChange={(v) => set("criticality", Number(v))} /></Field>
         <Field label="Failure Mode"><ListSelect options={config?.failure_modes} value={(f.failure_modes || [])[0]} onChange={(v) => set("failure_modes", [v])} /></Field>
       </div>
       <Field label="Description"><Textarea rows={3} value={f.description} onChange={(e) => set("description", e.target.value)} /></Field>

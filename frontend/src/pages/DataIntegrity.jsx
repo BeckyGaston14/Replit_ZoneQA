@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { useSampleVisibility } from "../lib/hooks";
 import { PageHeader, StatCard, StatusBadge, HowCalculated } from "../components/shared";
 import { INTEGRITY_CHECK_STATUSES, INTEGRITY_SEVERITIES } from "../lib/statusMaps";
 import { Button } from "../components/ui/button";
@@ -13,6 +14,29 @@ import { SortableTableHeader } from "../components/SortableTableHeader";
 import { TableSortControls } from "../components/TableSortControls";
 import { nextSort, sortTableRows, usePersistentTableSort } from "../lib/tableSorting";
 import { TABLE_CLASS, TABLE_FRAME_CLASS, TABLE_HEAD_CLASS } from "../lib/tableStyles";
+
+export function sampleRepairAvailability(data) {
+  // `/admin/integrity` supplies this structured contract from the same
+  // authenticated sample-visibility scope as the cached result. Do not infer
+  // sample status from display names or problem text: production records may
+  // legitimately contain those words.
+  const visibility = data?.sample_visibility || data?.sample_scope;
+  const visible = visibility?.include_sample_records === true || data?.sample_data_included === true;
+  if (!visible) return { dates: false, metadata: false };
+  const scopes = data?.sample_repair_applicability
+    || visibility?.repair_applicability
+    || data?.sample_repairs
+    || {};
+  const availability = { dates: scopes.sample_testcase_dates === true, metadata: scopes.metadata === true };
+  for (const issue of data?.issues || []) {
+    const repair = issue.sample_repair || issue.repair_action?.sample_repair || issue.repair_action;
+    if (repair?.applicable !== true && repair?.sample_applicable !== true) continue;
+    const scope = repair.scope || repair.sample_scope || repair.repair_scope;
+    if (scope === "sample_testcase_dates") availability.dates = true;
+    if (scope === "metadata") availability.metadata = true;
+  }
+  return availability;
+}
 
 const INTEGRITY_COLUMNS = [
   { key: "severity", label: "Severity", type: "severity" },
@@ -129,6 +153,7 @@ function SampleRepairDialog({ state, onClose, onConfirm }) {
 
 export default function DataIntegrity() {
   const { user } = useAuth();
+  const { includeSampleRecords } = useSampleVisibility();
   const qc = useQueryClient();
   const [repairing, setRepairing] = useState(null);
   const [sampleRepair, setSampleRepair] = useState(null);
@@ -165,7 +190,7 @@ export default function DataIntegrity() {
       const { data } = await api.get("/admin/integrity/sample-repair/preview", { params: { scope } });
       setSampleRepair({ preview: data, scope });
     } catch (e) {
-      setSampleRepair({ error: e.response?.data?.detail || "Unable to load the SAMPLE repair preview." });
+      setSampleRepair({ error: e.response?.data?.detail || "Unable to load the SAMPLE repair preview.", scope });
     }
   };
 
@@ -189,6 +214,11 @@ export default function DataIntegrity() {
 
   if (!allowed) return <div className="bg-card border rounded-xl p-8 text-center text-muted-foreground" data-testid="integrity-forbidden">Data Integrity is restricted to Administrators and QA Managers.</div>;
 
+  const sampleRepairs = sampleRepairAvailability({
+    ...d,
+    sample_visibility: { include_sample_records: includeSampleRecords },
+  });
+
   return (
     <div>
          <PageHeader title="Data Integrity" subtitle="Automated validation of relational consistency, historical snapshots and metric reconciliation. Safe issues offer a one-click repair with guided confirmation — substantive QA judgments always stay manual.">
@@ -197,9 +227,9 @@ export default function DataIntegrity() {
               {running ? <Loader2 size={14} className="mr-1 animate-spin" /> : <ShieldCheck size={14} className="mr-1" />}
               {running ? "Running integrity checks…" : "Run integrity checks"}
             </Button>
-          {user.role === "admin" && <div className="flex flex-wrap gap-2">
-           <Button variant="outline" onClick={() => previewSampleRepair("sample_testcase_dates")} data-testid="sample-test-dates-preview-btn"><Wrench size={14} className="mr-1" /> Review SAMPLE Test Dates Only</Button>
-           <Button variant="outline" onClick={() => previewSampleRepair("metadata")} data-testid="sample-repair-preview-btn"><Wrench size={14} className="mr-1" /> Review SAMPLE metadata repair</Button>
+           {user.role === "admin" && (sampleRepairs.dates || sampleRepairs.metadata) && <div className="flex flex-wrap gap-2">
+            {sampleRepairs.dates && <Button variant="outline" onClick={() => previewSampleRepair("sample_testcase_dates")} data-testid="sample-test-dates-preview-btn"><Wrench size={14} className="mr-1" /> Review SAMPLE Test Dates Only</Button>}
+            {sampleRepairs.metadata && <Button variant="outline" onClick={() => previewSampleRepair("metadata")} data-testid="sample-repair-preview-btn"><Wrench size={14} className="mr-1" /> Review SAMPLE metadata repair</Button>}
          </div>}
           </div>
        </PageHeader>
@@ -227,9 +257,9 @@ export default function DataIntegrity() {
        {d?.has_result && (
         <>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <StatCard label="High Severity" value={d.counts.high} accent="#dc2626" icon={ShieldAlert} testid="integrity-high" />
+         <StatCard label="High Severity" value={d.counts.high} accent="#dc2626" icon={ShieldAlert} testid="integrity-high" />
         <StatCard label="Medium Severity" value={d.counts.medium} accent="#f59e0b" icon={AlertTriangle} testid="integrity-medium" />
-        <StatCard label="Low / Informational" value={d.counts.low} accent="#0ea5e9" icon={Info} testid="integrity-low" />
+         <StatCard label="Low / Informational" value={d.counts.low} accent="#0ea5e9" icon={Info} testid="integrity-low" />
         <StatCard label="Checks Status" value={<StatusBadge value={d.issues.length === 0 ? "clean" : "attention"} definitions={INTEGRITY_CHECK_STATUSES} />} sub={d.issues.length === 0 ? "No inconsistencies detected" : `${d.issues.length} issue${d.issues.length === 1 ? "" : "s"} require review`} icon={ShieldCheck} />
       </div>
 

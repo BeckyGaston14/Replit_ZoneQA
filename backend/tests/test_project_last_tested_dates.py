@@ -87,7 +87,7 @@ def test_explicit_evaluation_date_contributes_to_project_recency():
     assert result["p1"] == "2026-08-26"
 
 
-def test_standalone_completed_bassett_run_contributes_to_project_recency():
+def test_standalone_legacy_in_progress_bassett_run_is_canonical_review_evidence():
     result = derive(
         bassett_runs=[
             {"id": "b1", "project_id": "p1", "status": "Triaged", "result": "Pass",
@@ -96,17 +96,23 @@ def test_standalone_completed_bassett_run_contributes_to_project_recency():
              "bassett_version": "Bassett v9.26", "test_date": "2026-09-02"},
         ],
     )
-    assert result["p1"] == "2026-07-28"
+    assert result["p1"] == "2026-09-02"
 
 
-def test_in_progress_bassett_result_is_not_a_completed_project_test():
+def test_not_started_bassett_results_are_not_completed_project_tests():
     result = derive(
         bassett_runs=[
-            {"id": "b1", "project_id": "p1", "status": "In Progress", "result": "Pass",
+            {"id": "b1", "project_id": "p1", "status": "Not Started", "result": "Pass",
              "bassett_version": "Bassett v9.26", "test_date": "2026-09-02"},
         ],
     )
     assert result["p1"] is None
+    assert derive(
+        bassett_runs=[{
+            "id": "b2", "project_id": "p1", "status": "New", "result": "Pass",
+            "bassett_version": "Bassett v9.26", "test_date": "2026-09-03",
+        }],
+    )["p1"] is None
 
 
 def test_project_completion_reaches_full_completion_at_ten_cases():

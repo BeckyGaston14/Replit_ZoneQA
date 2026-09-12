@@ -18,13 +18,7 @@ const metrics = {
 };
 
 jest.mock("@tanstack/react-query", () => ({
-  useQuery: ({ queryKey }) => {
-    const data = queryKey[0] === "stats" ? { active_projects: 1, demo_approved: 1 }
-      : queryKey[0] === "metrics" ? metrics
-        : queryKey[0] === "perf" ? { scope: "Bassett version: Bassett v2", model_summary: [{ model: "Bassett", avg_score: 7.5 }, { model: "ChatGPT", avg_score: 6.5 }] }
-          : [];
-    return { data, isLoading: false, isError: false, refetch: jest.fn() };
-  },
+  useQuery: jest.fn(),
 }));
 
 jest.mock("../lib/api", () => ({ api: { get: jest.fn() } }));
@@ -39,6 +33,22 @@ jest.mock("recharts", () => ({
   ResponsiveContainer: ({ children }) => <div>{children}</div>, BarChart: ({ children }) => <div>{children}</div>,
   Bar: ({ children }) => <div>{children}</div>, Cell: () => null, XAxis: () => null, YAxis: () => null, CartesianGrid: () => null, Tooltip: () => null,
 }));
+
+const defaultUseQuery = ({ queryKey }) => {
+  const data = queryKey[0] === "stats" ? { active_projects: 1, demo_approved: 1 }
+    : queryKey[0] === "metrics" ? metrics
+      : queryKey[0] === "perf" ? { scope: "Bassett version: Bassett v2", model_summary: [{ model: "Bassett", avg_score: 7.5 }, { model: "ChatGPT", avg_score: 6.5 }] }
+        : [];
+  return { data, isLoading: false, isError: false, refetch: jest.fn() };
+};
+
+const { useQuery } = require("@tanstack/react-query");
+
+beforeEach(() => {
+  // resetMocks clears implementations as well as call history in the Jest
+  // config, so reinstall the baseline for every test before any overrides.
+  useQuery.mockImplementation(defaultUseQuery);
+});
 
 test("Dashboard cards are keyboard-accessible links to exact metric record sets", () => {
   const container = document.createElement("div");
@@ -120,5 +130,31 @@ test("Average Score chart gives each visible model its own legend entry", () => 
   expect(container.textContent).toContain("Scale: 0–10");
 
   act(() => root.unmount());
+  container.remove();
+});
+
+test("starts performance query from the parallel active-version reference, not metrics resolution", () => {
+  const original = useQuery.getMockImplementation();
+  useQuery.mockImplementation(({ queryKey }) => {
+    if (queryKey[0] === "stats") return { data: { active_projects: 0, demo_approved: 0 }, isLoading: false, isError: false, refetch: jest.fn() };
+    if (queryKey[0] === "metrics") return { data: undefined, isLoading: true, isError: false, refetch: jest.fn() };
+    if (queryKey[0] === "versions") return { data: [{ id: "v1", name: "Bassett v2", active: true }], isLoading: false, isError: false, refetch: jest.fn() };
+    return { data: { model_summary: [] }, isLoading: false, isError: false, refetch: jest.fn() };
+  });
+
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  act(() => root.render(<Dashboard />));
+
+  const perfCall = useQuery.mock.calls.find(([options]) => options.queryKey?.[0] === "perf");
+  expect(useQuery.mock.calls.filter(([options]) => options.queryKey?.[0] === "perf")).toHaveLength(1);
+  expect(perfCall?.[0]).toEqual(expect.objectContaining({
+    queryKey: ["perf", "Bassett v2"],
+    enabled: true,
+  }));
+  expect(container.querySelector('[aria-label="Loading dashboard sections"]')).not.toBeNull();
+
+  act(() => root.unmount());
+  useQuery.mockImplementation(original);
   container.remove();
 });
