@@ -268,6 +268,9 @@ function EvaluationGrid({ model, scores, dimensions, onChange, locked }) {
 
 function GuidedSection({ index, title, active, status, onActivate, children, comparisonOnly = false }) {
   const panelId = `guided-section-${index}`;
+  const requirement = index < 3 ? "Required" : "Optional";
+  const progress = status === "Optional" ? "Not started" : status;
+  const statusLabel = progress === requirement ? requirement : `${progress} · ${requirement}`;
   return <details
     open={active}
     className={`rounded-xl border p-3 sm:p-4 ${active ? "border-[var(--orange)]" : ""}`}
@@ -281,7 +284,7 @@ function GuidedSection({ index, title, active, status, onActivate, children, com
     >
       <span className="flex min-w-0 items-center justify-between gap-2">
         <span className="min-w-0">{title}</span>
-         <span className={`shrink-0 text-right text-xs font-medium ${status === "Needs attention" ? "text-red-700" : "text-muted-foreground"}`}>{status === "Optional" ? "Not started" : status} · {index < 3 ? "Required" : "Optional"}</span>
+         <span className={`shrink-0 text-right text-xs font-medium ${status === "Needs attention" ? "text-red-700" : "text-muted-foreground"}`}>{statusLabel}</span>
       </span>
       {comparisonOnly && <span className="mt-1 block text-[11px] font-normal text-muted-foreground">Comparison only</span>}
     </summary>

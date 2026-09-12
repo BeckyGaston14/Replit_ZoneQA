@@ -77,6 +77,21 @@ test("Bassett and comparison modes share the core section order while benchmarks
   act(() => comparison.root.unmount());
 });
 
+test("create forms show each section requirement state only once", () => {
+  const bassett = renderForm("bassett");
+  const comparison = renderForm("comparison");
+
+  for (const view of [bassett, comparison]) {
+    expect(view.container.textContent).not.toContain("Required · Required");
+    expect(view.container.textContent).not.toContain("Optional · Optional");
+    expect(view.container.querySelector('[data-guided-section="0"]').textContent).toContain("Required");
+    expect(view.container.querySelector('[data-guided-section="3"]').textContent).toContain("Optional");
+  }
+
+  act(() => bassett.root.unmount());
+  act(() => comparison.root.unmount());
+});
+
 test("General behaviors are optional subtypes and show their scoring guidance", () => {
   const subtype = {
     id: "G-01", stable_id: "G-01",
