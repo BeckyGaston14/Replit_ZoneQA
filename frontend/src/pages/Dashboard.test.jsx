@@ -77,6 +77,7 @@ test("Dashboard starts with metric groups and does not render the redundant work
   expect(container.textContent).toContain("Model Comparison — Bassett Pass Rate");
   expect(container.textContent).toContain("Bassett-Only Pass Rate");
   expect(container.textContent).toContain("N/A");
+  expect(container.textContent).toContain("Limited data — 2 evaluated records");
 
   act(() => root.unmount());
 });

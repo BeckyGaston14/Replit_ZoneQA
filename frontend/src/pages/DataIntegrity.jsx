@@ -132,6 +132,7 @@ export default function DataIntegrity() {
   const qc = useQueryClient();
   const [repairing, setRepairing] = useState(null);
   const [sampleRepair, setSampleRepair] = useState(null);
+  const [running, setRunning] = useState(false);
   const defaultSort = { key: "severity", direction: "asc" };
   const [sort, setSort] = usePersistentTableSort("data-integrity", INTEGRITY_COLUMNS, defaultSort);
   const allowed = user && ["admin", "qa_manager"].includes(user.role);
@@ -139,7 +140,24 @@ export default function DataIntegrity() {
     queryKey: ["integrity"],
     queryFn: async () => (await api.get("/admin/integrity")).data,
     enabled: allowed,
+    staleTime: Infinity,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
+
+  const runIntegrityChecks = async () => {
+    if (running) return;
+    setRunning(true);
+    try {
+      const { data } = await api.post("/admin/integrity/run");
+      qc.setQueryData(["integrity"], data);
+      toast.success("Integrity checks completed.");
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Integrity checks failed");
+    } finally {
+      setRunning(false);
+    }
+  };
 
   const previewSampleRepair = async (scope = "metadata") => {
     setSampleRepair({ loading: true, scope });
@@ -173,11 +191,17 @@ export default function DataIntegrity() {
 
   return (
     <div>
-       <PageHeader title="Data Integrity" subtitle="Automated validation of relational consistency, historical snapshots and metric reconciliation. Safe issues offer a one-click repair with guided confirmation — substantive QA judgments always stay manual.">
-         {user.role === "admin" && <div className="flex flex-wrap gap-2">
+         <PageHeader title="Data Integrity" subtitle="Automated validation of relational consistency, historical snapshots and metric reconciliation. Safe issues offer a one-click repair with guided confirmation — substantive QA judgments always stay manual.">
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={runIntegrityChecks} disabled={running} data-testid="run-integrity-btn" className="bg-[var(--navy)] hover:bg-[#232f73]">
+              {running ? <Loader2 size={14} className="mr-1 animate-spin" /> : <ShieldCheck size={14} className="mr-1" />}
+              {running ? "Running integrity checks…" : "Run integrity checks"}
+            </Button>
+          {user.role === "admin" && <div className="flex flex-wrap gap-2">
            <Button variant="outline" onClick={() => previewSampleRepair("sample_testcase_dates")} data-testid="sample-test-dates-preview-btn"><Wrench size={14} className="mr-1" /> Review SAMPLE Test Dates Only</Button>
            <Button variant="outline" onClick={() => previewSampleRepair("metadata")} data-testid="sample-repair-preview-btn"><Wrench size={14} className="mr-1" /> Review SAMPLE metadata repair</Button>
          </div>}
+          </div>
        </PageHeader>
        <HowCalculated
          definition="Data Integrity counts are the number of currently detected consistency issues by severity."
@@ -188,9 +212,19 @@ export default function DataIntegrity() {
          }}
          className="mb-5"
        />
-      {isLoading && <div className="text-muted-foreground" role="status">Running integrity validation…</div>}
+       {isLoading && <div className="text-muted-foreground" role="status">Loading the latest integrity result…</div>}
       {isError && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">Failed to run integrity checks: {error?.response?.data?.detail || "Request failed."} <Button size="sm" variant="outline" className="ml-2" onClick={() => refetch()}>Retry</Button></div>}
-      {d && (
+       {running && <div className="mb-4 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900" role="status" aria-live="polite" data-testid="integrity-progress">
+         <div className="flex items-center gap-2 font-semibold"><Loader2 size={15} className="animate-spin" /> Running integrity checks…</div>
+         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-sky-100"><div className="h-full w-1/3 animate-pulse rounded-full bg-sky-600" /></div>
+         <p className="mt-2 text-xs">This can take a moment. The Run button is disabled until the result is cached.</p>
+       </div>}
+       {d && !d.has_result && !running && (
+         <div className="rounded-xl border border-sky-200 bg-sky-50 p-5 text-sm text-sky-900" role="status" data-testid="integrity-no-result">
+           No integrity result has been cached yet. Run the checks when you are ready; visiting this page never starts validation automatically.
+         </div>
+       )}
+       {d?.has_result && (
         <>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <StatCard label="High Severity" value={d.counts.high} accent="#dc2626" icon={ShieldAlert} testid="integrity-high" />
@@ -233,7 +267,7 @@ export default function DataIntegrity() {
           </table>
         </div></>
       )}
-      <p className="text-xs text-muted-foreground mt-3">Last checked: {new Date(d.checked_at).toLocaleString()}</p>
+       <p className="text-xs text-muted-foreground mt-3">Last checked: {new Date(d.checked_at).toLocaleString()}</p>
 
       {repairing && <RepairDialog issue={repairing} onClose={() => setRepairing(null)} onDone={() => qc.invalidateQueries({ queryKey: ["integrity"] })} />}
       {sampleRepair && <SampleRepairDialog state={sampleRepair} onClose={() => setSampleRepair(null)} onConfirm={confirmSampleRepair} />}

@@ -25,6 +25,7 @@ jest.mock("../components/shared", () => ({
   SrTable: () => null,
   SampleDataBanner: () => null,
   sampleScopeIncludesData: () => false,
+  LimitedDataWarning: () => null,
 }));
 
 function renderPage(Component) {

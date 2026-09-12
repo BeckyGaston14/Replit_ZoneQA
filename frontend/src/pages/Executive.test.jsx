@@ -26,6 +26,9 @@ jest.mock("../components/shared", () => ({
   SrTable: () => null,
   SampleDataBanner: ({ show }) => show ? <aside data-testid="sample-data-banner">Demonstration data</aside> : null,
   sampleScopeIncludesData: ({ records = [] }) => records.some((record) => record?.sample_data_included === true),
+  LimitedDataWarning: ({ evaluated }) => evaluated != null && Number(typeof evaluated === "object" ? evaluated.evaluated : evaluated) < 5
+    ? <div data-testid="limited-data-warning">Limited data — {typeof evaluated === "object" ? evaluated.evaluated : evaluated} evaluated records</div>
+    : null,
   HowCalculated: () => null,
   MethodologyDisclosure: ({ title, children }) => <details><summary>{title}</summary>{children}</details>,
 }));
@@ -180,6 +183,17 @@ test("offers Bassett-only, Model Comparison, and combined executive scopes", () 
     selector.dispatchEvent(new Event("change", { bubbles: true }));
   });
   expect(useQuery).toHaveBeenLastCalledWith(expect.objectContaining({ queryKey: ["executive", "bassett"] }));
+  view.unmount();
+});
+
+test("shows a consistent limited-data warning for a small evaluated population", () => {
+  useQuery.mockReturnValue({
+    isLoading: false,
+    isError: false,
+    data: { ...data, kpis: { ...data.kpis, total_evaluated: 3, limited_data: { limited: true, evaluated: 3, threshold: 5 } } },
+  });
+  const view = renderPage();
+  expect(view.container.textContent).toContain("Limited data — 3 evaluated records");
   view.unmount();
 });
 

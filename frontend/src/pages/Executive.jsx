@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
-import { PageHeader, StatCard, WrapTick, SrTable, SampleDataBanner, sampleScopeIncludesData, MethodologyDisclosure } from "../components/shared";
+import { PageHeader, StatCard, WrapTick, SrTable, SampleDataBanner, sampleScopeIncludesData, MethodologyDisclosure, LimitedDataWarning } from "../components/shared";
 import { fmtPct, fmtPts, fmtScore, plural } from "../lib/format";
 import { Button } from "../components/ui/button";
 import { Target, Percent, Trophy, AlertTriangle, TrendingUp, FileDown, Loader2 } from "lucide-react";
@@ -146,6 +146,8 @@ export default function Executive() {
         </Button>
       </PageHeader>
       <SampleDataBanner show={sampleDataShown} />
+      <LimitedDataWarning evaluated={k.limited_data || k.total_evaluated} className="mb-4" />
+      {includesComparison && <LimitedDataWarning evaluated={k.benchmark_evaluated} className="mb-4" />}
       {exportError && (
         <div role="alert" data-testid="pdf-export-error" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           {exportError}
@@ -232,6 +234,12 @@ export default function Executive() {
              </BarChart>
            </SafeResponsiveContainer>
          </div>}
+          {chartCategories.map((category) => (
+            <LimitedDataWarning
+              key={`${category.label || category.category}-limited`}
+              evaluated={category.evaluation_count ?? category.count}
+            />
+          ))}
          <SrTable caption="Bassett reporting-group performance. Scale: 0 to 10." columns={["Reporting group", "Average score out of 10", "Underlying dimensions"]} rows={chartCategories.map((c) => [(c.label || c.category), formatEvaluationScore(c.score ?? c.avg_score), (c.dimensions || c.underlyingDimensions || []).map((item) => item.label || item.key || item).join(", ")])} />
       </div>
        <MethodologyDisclosure title="How executive metrics are calculated" testid="executive-methodology">

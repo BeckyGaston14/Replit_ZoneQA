@@ -98,7 +98,17 @@ export function MethodologyDisclosure({ title = "How these metrics are calculate
   );
 }
 
-export function StatCard({ label, value, accent, icon: Icon, sub, testid, onClick, title, to, calculation, showCalculation = false, showInfo = true }) {
+export function LimitedDataWarning({ evaluated, className = "" }) {
+  const count = typeof evaluated === "object" ? evaluated?.evaluated : evaluated;
+  if (count == null || Number.isNaN(Number(count)) || Number(count) >= 5) return null;
+  return (
+    <div role="status" data-testid="limited-data-warning" className={cn("mt-2 text-xs font-medium text-amber-700", className)}>
+      Limited data — {Number(count)} evaluated records
+    </div>
+  );
+}
+
+export function StatCard({ label, value, accent, icon: Icon, sub, limitedData, testid, onClick, title, to, calculation, showCalculation = false, showInfo = true }) {
   const descriptionId = testid ? `${testid}-description` : undefined;
   const content = (
     <>
@@ -107,6 +117,7 @@ export function StatCard({ label, value, accent, icon: Icon, sub, testid, onClic
           <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
           <div className="mt-2 text-3xl font-bold font-display" style={{ color: accent || "var(--navy)" }}>{value}</div>
           {sub && <div className="mt-1 text-xs text-muted-foreground">{sub}</div>}
+          <LimitedDataWarning evaluated={limitedData} />
         </div>
         {Icon && <div className="rounded-lg p-2" style={{ background: (accent || "#16215a") + "18" }}><Icon size={18} style={{ color: accent || "#16215a" }} /></div>}
       </div>

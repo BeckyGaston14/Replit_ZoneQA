@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { Link } from "react-router-dom";
-import { StatCard, PageHeader, Section, SrTable, SampleDataBanner, sampleScopeIncludesData, MethodologyDisclosure } from "../components/shared";
+import { StatCard, PageHeader, Section, SrTable, SampleDataBanner, sampleScopeIncludesData, MethodologyDisclosure, LimitedDataWarning } from "../components/shared";
 import { useCollection } from "../lib/hooks";
 import { Button } from "../components/ui/button";
 import {
@@ -53,10 +53,10 @@ export default function Dashboard() {
     records: [m, s, perfQuery.data],
   });
   const cards = [
-    { label: "Model Comparison — Bassett Pass Rate", value: comparison.pass_rate != null ? `${comparison.pass_rate}%` : "N/A", sub: `${comparison.label} · ${versionLabel}`, title: comparison.definition, icon: CheckCircle2, accent: "#16a34a", to: dashboardRecordPath("model-comparison-pass-rate") },
-    { label: "Bassett-Only Pass Rate", value: bassettOnly.pass_rate != null ? `${bassettOnly.pass_rate}%` : "N/A", sub: `${bassettOnly.label} · ${versionLabel}`, title: bassettOnly.definition, icon: CheckCircle2, accent: "#0f766e", to: dashboardRecordPath("bassett-only-pass-rate") },
+    { label: "Model Comparison — Bassett Pass Rate", value: comparison.pass_rate != null ? `${comparison.pass_rate}%` : "N/A", sub: `${comparison.label} · ${versionLabel}`, limitedData: comparison.limited_data || comparison.evaluated, title: comparison.definition, icon: CheckCircle2, accent: "#16a34a", to: dashboardRecordPath("model-comparison-pass-rate") },
+    { label: "Bassett-Only Pass Rate", value: bassettOnly.pass_rate != null ? `${bassettOnly.pass_rate}%` : "N/A", sub: `${bassettOnly.label} · ${versionLabel}`, limitedData: bassettOnly.limited_data || bassettOnly.evaluated, title: bassettOnly.definition, icon: CheckCircle2, accent: "#0f766e", to: dashboardRecordPath("bassett-only-pass-rate") },
     { label: "Bassett Failed", value: comparison.failed, sub: `of ${comparison.evaluated} evaluated comparisons · ${versionLabel}`, title: comparison.definition, icon: XCircle, accent: "#dc2626", to: dashboardRecordPath("bassett-failed") },
-    { label: "Bassett Avg Score", value: m.bassett_avg_score.value ?? "—", sub: `${m.bassett_avg_score.unit} · ${versionLabel}`, title: m.bassett_avg_score.definition, icon: ActIcon, accent: MODEL_COLORS.Bassett, to: dashboardRecordPath("bassett-score") },
+    { label: "Bassett Avg Score", value: m.bassett_avg_score.value ?? "—", sub: `${m.bassett_avg_score.unit} · ${versionLabel}`, limitedData: m.bassett_avg_score.limited_data || m.bassett_avg_score.evaluated || comparison.evaluated, title: m.bassett_avg_score.definition, icon: ActIcon, accent: MODEL_COLORS.Bassett, to: dashboardRecordPath("bassett-score") },
     { label: "All Model Evaluations", value: ame.label, sub: "Bassett + ChatGPT + Claude mixed", title: ame.definition, icon: ClipboardCheck, accent: "#2f3f96", to: dashboardRecordPath("all-model-evaluations") },
     { label: "Open Findings", value: fnd.open, sub: `${fnd.open_critical} critical (C4-C5)`, title: fnd.definition, icon: Flag, accent: "#f97316", to: dashboardRecordPath("open-findings") },
     { label: "Awaiting Fix", value: fnd.awaiting_fix, sub: "open findings in dev", title: fnd.definition, icon: Wrench, accent: "#2f3f96", to: dashboardRecordPath("awaiting-fix") },
@@ -72,7 +72,7 @@ export default function Dashboard() {
   ];
 
   const modelData = (perfQuery.data?.model_summary || [])
-    .map((row) => ({ name: row.model, score: evaluationScoreOrNull(row.avg_score) }))
+    .map((row) => ({ name: row.model, score: evaluationScoreOrNull(row.avg_score), evaluated: row.score_count ?? row.evaluated }))
     .filter((row) => row.score !== null);
   return (
     <div>
@@ -127,6 +127,7 @@ export default function Dashboard() {
                 <span key={model} className="flex items-center gap-2"><i className="h-3 w-3 rounded" style={{ background: MODEL_COLORS[model] }} />{model}</span>
               ))}
             </div>
+             {modelData.map((row) => <LimitedDataWarning key={`${row.name}-limited`} evaluated={row.evaluated} />)}
           </Section>
         </div>
       </div>
