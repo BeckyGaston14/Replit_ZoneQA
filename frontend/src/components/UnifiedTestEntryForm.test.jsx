@@ -5,6 +5,7 @@ import UnifiedTestEntryForm, {
   bassettVersionRequirementMessage,
   createComparisonEditDraft,
   createComparisonTestDraft,
+  serializeBassettTestRunDraft,
 } from "./UnifiedTestEntryForm";
 import { toast } from "sonner";
 
@@ -346,6 +347,64 @@ test("multi-turn mode replaces single-prompt fields with an ordered turn builder
   act(() => view.root.unmount());
 });
 
+test("uploaded multi-turn turns keep stable IDs and support optional scenario, result, and notes", () => {
+  const analysisScenario = { ...scenario, id: "scenario-2", stable_id: "A-01", workflow_stage: "Analysis", test_scenario: "Analyze zoning" };
+  const view = renderForm("bassett", {
+    conversation_source: "uploaded_conversation",
+    test_type: "Multi-turn",
+    attachment_count: 1,
+    turns: [
+      { id: "turn-1", order: 1, prompt: "First prompt", response: "First response", citations: [], evaluator_notes: "" },
+      { id: "turn-2", order: 2, prompt: "Second prompt", response: "Second response", citations: [], evaluator_notes: "" },
+    ],
+  }, { scenarios: [scenario, analysisScenario] });
+  const turnScenario = view.container.querySelector('[aria-label="Turn 1 Test Bank scenario"]');
+  expect(turnScenario).not.toBeNull();
+  expect(turnScenario.required).toBe(false);
+  act(() => {
+    turnScenario.value = "scenario-2";
+    turnScenario.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  const turnResult = view.container.querySelector('[aria-label="Turn 1 result"]');
+  act(() => {
+    turnResult.value = "Pass with Minor Issues";
+    turnResult.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  const notes = [...view.container.querySelectorAll("label")].find((node) => node.textContent.startsWith("Turn notes"));
+  act(() => {
+    const input = notes.querySelector("textarea");
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set.call(
+      input, "Review the ordinance citation.",
+    );
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  expect(view.latest().scenario_id).toBe("scenario-1");
+  expect(view.latest().turns[0]).toEqual(expect.objectContaining({
+    id: "turn-1", scenario_id: "scenario-2", result: "Pass with Minor Issues",
+    notes: "Review the ordinance citation.", evaluator_notes: "Review the ordinance citation.",
+  }));
+  const moveUp = view.container.querySelector('[aria-label="Move turn 2 up"]');
+  act(() => moveUp.click());
+  expect(view.latest().turns.map((turn) => turn.id)).toEqual(["turn-2", "turn-1"]);
+  expect(view.latest().turns.map((turn) => turn.order)).toEqual([1, 2]);
+  act(() => view.root.unmount());
+});
+
+test("draft serialization preserves turn metadata and one parent attachment marker", () => {
+  const saved = serializeBassettTestRunDraft({
+    conversation_source: "uploaded_conversation",
+    test_type: "Multi-turn",
+    attachment_count: 1,
+    attachments: [new File(["conversation"], "conversation.txt")],
+    turns: [{ id: "turn-1", order: 1, prompt: "Prompt", response: "Response", scenario_id: "scenario-1", result: "Pass", notes: "Note" }],
+  });
+  expect(saved.attachments).toEqual([]);
+  expect(saved.attachment_count).toBe(1);
+  expect(saved.turns).toEqual([expect.objectContaining({
+    id: "turn-1", scenario_id: "scenario-1", result: "Pass", notes: "Note",
+  })]);
+});
+
 test("uploaded Bassett conversations require a file while prompt and response become optional", () => {
   const onSubmit = jest.fn();
   const view = renderForm("bassett", {
@@ -367,6 +426,7 @@ test("uploaded Bassett conversations require a file while prompt and response be
     exact_bassett_answer: "",
     verified_correct_answer: "",
     attachment_count: 1,
+    result: "Not Evaluated",
   }, { onSubmit });
   expect(uploaded.container.querySelector('[data-testid="bassett-conversation-upload"]').required).toBe(false);
   act(() => uploaded.container.querySelector('[data-testid="submit"]').click());

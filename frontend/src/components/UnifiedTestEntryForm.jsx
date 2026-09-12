@@ -15,6 +15,7 @@ import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 
 export const BASSETT_RESULT_OPTIONS = [...CANONICAL_EVALUATION_RESULTS];
 export const COMPARISON_RESULT_OPTIONS = [...CANONICAL_EVALUATION_RESULTS];
+export const TURN_RESULT_OPTIONS = [...CANONICAL_EVALUATION_RESULTS];
 export const COMPARISON_CLASSIFICATIONS = ["Bassett win", "ChatGPT win", "Claude win", "Tie", "Shared failure", "Incomplete"];
 export const DEFAULT_DIMENSIONS = [
   ["accuracy", "Accuracy", 3, "Did the answer get the facts right?"], ["current_code", "Current Code Identification", 2, "Did it identify the correct current code or regulation?"],
@@ -39,6 +40,37 @@ export const emptyBassettTestRun = {
 export function createBassettTestRunDraft(overrides = {}, timeZone, now = new Date()) {
   const submissionId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   return { ...emptyBassettTestRun, test_date: todayInTimeZone(timeZone, now), submission_id: submissionId, ...overrides };
+}
+
+/**
+ * Keep local drafts JSON-safe without dropping the structured conversation.
+ * Files cannot be restored from localStorage, but an uploaded conversation is
+ * still represented as one parent attachment so recovery does not turn each
+ * turn into a separate upload.
+ */
+export function serializeBassettTestRunDraft(form = {}) {
+  const turns = Array.isArray(form.turns)
+    ? form.turns.map((turn, index) => ({
+      ...turn,
+      id: turn.id || turn.turn_id || `turn-${index + 1}`,
+      order: Number(turn.order || index + 1),
+      result: turn.result ?? turn.turn_result ?? "",
+      notes: turn.notes ?? turn.evaluator_notes ?? "",
+      evaluator_notes: turn.evaluator_notes ?? turn.notes ?? "",
+    }))
+    : form.turns;
+  // A File object cannot be restored from localStorage. Only preserve the
+  // marker when the server already reports an authoritative parent file.
+  const hasParentAttachment = form.conversation_source === "uploaded_conversation"
+    && Boolean(form.attachment_count);
+  return {
+    ...form,
+    turns,
+    // The uploaded conversation is the parent record's one authoritative
+    // attachment. Keep its presence in the draft, never one copy per turn.
+    ...(hasParentAttachment ? { attachment_count: 1 } : {}),
+    attachments: [],
+  };
 }
 
 export function bassettVersionRequirementMessage(form) {
@@ -329,13 +361,53 @@ function ReviewSummary({ mode, progress, sectionStatus, sectionIssue, activateSe
 
 function newTurn(order) {
   const id = globalThis.crypto?.randomUUID?.() || `turn-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  return { id, order, prompt: "", response: "", citations: [], evaluator_notes: "" };
+  return {
+    id, order, prompt: "", response: "", citations: [], scenario_id: "",
+    result: "", notes: "", evaluator_notes: "",
+  };
 }
 
-function TurnBuilder({ turns = [], onChange, disabled = false, findingTurnId, onFindingTurnChange }) {
+export function TurnScenarioSelector({ turn, turnNumber, scenarios = [], onChange, disabled = false }) {
+  const selectedScenario = scenarios.find((scenario) => scenario.id === turn.scenario_id);
+  const category = turn.scenario_workflow_stage || selectedScenario?.workflow_stage || "";
+  const categories = [...new Set(scenarios.map((scenario) => scenario.workflow_stage).filter(Boolean))].sort();
+  const shown = scenarios.filter((scenario) => !category || scenario.workflow_stage === category);
+  return <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <Field label="Test Bank category (optional)">
+      <select
+        aria-label={`Turn ${turnNumber} Test Bank category`}
+        className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+        value={category}
+        disabled={disabled}
+        onChange={(event) => onChange({ scenario_id: "", scenario_workflow_stage: event.target.value })}
+      >
+        <option value="">No turn scenario</option>
+        {categories.map((item) => <option key={item} value={item}>{item}</option>)}
+      </select>
+    </Field>
+    <Field label="Test Bank scenario (optional)">
+      <select
+        aria-label={`Turn ${turnNumber} Test Bank scenario`}
+        className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+        value={turn.scenario_id || ""}
+        disabled={disabled}
+        onChange={(event) => {
+          const selected = scenarios.find((scenario) => scenario.id === event.target.value);
+          onChange({ scenario_id: event.target.value, scenario_workflow_stage: selected?.workflow_stage || category });
+        }}
+      >
+        <option value="">No turn scenario</option>
+        {shown.map((scenario) => <option key={scenario.id} value={scenario.id}>{scenario.stable_id} · {scenario.test_scenario} · {scenario.priority}</option>)}
+      </select>
+    </Field>
+  </div>;
+}
+
+function TurnBuilder({ turns = [], scenarios = [], uploadedConversation = false, onChange, disabled = false, findingTurnId, onFindingTurnChange }) {
   const [removing, setRemoving] = useState(null);
   const ordered = [...turns].sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
   const update = (id, key, value) => onChange(ordered.map((turn) => turn.id === id ? { ...turn, [key]: value } : turn));
+  const updateScenario = (id, value) => onChange(ordered.map((turn) => turn.id === id ? { ...turn, ...value } : turn));
   const move = (index, direction) => {
     const next = [...ordered];
     const target = index + direction;
@@ -352,7 +424,7 @@ function TurnBuilder({ turns = [], onChange, disabled = false, findingTurnId, on
   return <div className="sm:col-span-2 space-y-3" data-testid="multi-turn-builder">
     <div className="rounded-lg border border-[var(--orange)] bg-orange-50 p-3 text-sm">
       <div className="font-semibold text-[var(--navy)]">Multi-turn conversation</div>
-      <p className="mt-1 text-xs text-muted-foreground">Enter each prompt and Bassett response in order. Citations and evaluator notes stay attached to that turn.</p>
+       <p className="mt-1 text-xs text-muted-foreground">Enter each prompt and Bassett response in order. Citations, scenario evaluations, and notes stay attached to that turn.</p>
     </div>
     {ordered.map((turn, index) => <div key={turn.id} className="rounded-xl border p-3 space-y-3" data-testid={`turn-${index + 1}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -363,11 +435,13 @@ function TurnBuilder({ turns = [], onChange, disabled = false, findingTurnId, on
           <Button type="button" size="sm" variant="ghost" aria-label={`Remove turn ${index + 1}`} disabled={disabled} onClick={() => setRemoving(turn.id)}><Trash2 size={14} /></Button>
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-3">
+       <div className="grid grid-cols-1 gap-3">
         <Field label="Prompt" required><Textarea rows={3} value={turn.prompt || ""} disabled={disabled} onChange={(e) => update(turn.id, "prompt", e.target.value)} /></Field>
         <Field label="Bassett response" required><Textarea rows={5} value={turn.response || ""} disabled={disabled} onChange={(e) => update(turn.id, "response", e.target.value)} /></Field>
+         {uploadedConversation && <TurnScenarioSelector turn={turn} turnNumber={index + 1} scenarios={scenarios} disabled={disabled} onChange={(value) => updateScenario(turn.id, value)} />}
+         {uploadedConversation && <Field label="Turn result (optional)"><select aria-label={`Turn ${index + 1} result`} className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={turn.result ?? turn.turn_result ?? ""} disabled={disabled} onChange={(e) => update(turn.id, "result", e.target.value)}><option value="">Not evaluated</option>{TURN_RESULT_OPTIONS.map((value) => <option key={value}>{value}</option>)}</select></Field>}
         <Field label="Citations / source references" description="One URL, citation, or source reference per line."><Textarea rows={2} value={(turn.citations || []).join("\n")} disabled={disabled} onChange={(e) => update(turn.id, "citations", e.target.value.split("\n").map((item) => item.trim()).filter(Boolean))} /></Field>
-        <Field label="Evaluator notes"><Textarea rows={2} value={turn.evaluator_notes || ""} disabled={disabled} onChange={(e) => update(turn.id, "evaluator_notes", e.target.value)} /></Field>
+         <Field label={uploadedConversation ? "Turn notes (optional)" : "Evaluator notes"}><Textarea rows={2} value={turn.notes ?? turn.evaluator_notes ?? ""} disabled={disabled} onChange={(e) => onChange(ordered.map((item) => item.id === turn.id ? { ...item, notes: e.target.value, evaluator_notes: e.target.value } : item))} /></Field>
       </div>
       {onFindingTurnChange && <label className="flex items-center gap-2 text-xs"><input type="radio" name="finding-turn" checked={findingTurnId === turn.id} disabled={disabled} onChange={() => onFindingTurnChange(turn.id)} /> Link the new finding to this turn</label>}
     </div>)}
@@ -406,9 +480,23 @@ export default function UnifiedTestEntryForm({
     setForm((current) => current.version_id || current.bassett_version ? current : ({ ...current, version_id: activeVersion.id, bassett_version: activeVersion.name }));
   }, [form.id, selectedVersionId, setForm, versions]);
   useEffect(() => {
+    if (isComparison || form.test_type !== "Multi-turn" || !Array.isArray(form.turns)) return;
+    if (!form.turns.some((turn) => !turn.id)) return;
+    setForm((current) => {
+      if (!Array.isArray(current.turns) || !current.turns.some((turn) => !turn.id)) return current;
+      return {
+        ...current,
+        turns: current.turns.map((turn, index) => ({
+          ...turn,
+          id: turn.id || turn.turn_id || `turn-${index + 1}`,
+        })),
+      };
+    });
+  }, [form.test_type, form.turns, isComparison, setForm]);
+  useEffect(() => {
     if (form.id) return undefined;
     const timeout = globalThis.setTimeout?.(() => {
-      try { localStorage.setItem(DRAFT_KEYS[mode], JSON.stringify({ ...form, attachments: [] })); } catch { /* local draft storage is best effort */ }
+      try { localStorage.setItem(DRAFT_KEYS[mode], JSON.stringify(serializeBassettTestRunDraft(form))); } catch { /* local draft storage is best effort */ }
     }, 500);
     return () => globalThis.clearTimeout?.(timeout);
   }, [form, mode]);
@@ -443,7 +531,7 @@ export default function UnifiedTestEntryForm({
   const evaluationFor = (model) => form.evaluations?.[model] || { scores: model === "Bassett" ? form.evaluation_scores : {} };
   const saveDraft = () => {
     try {
-      localStorage.setItem(DRAFT_KEYS[mode], JSON.stringify({ ...form, attachments: [] }));
+      localStorage.setItem(DRAFT_KEYS[mode], JSON.stringify(serializeBassettTestRunDraft(form)));
       toast.success("Draft saved on this device"); onSaveDraft?.();
     } catch { toast.error("Draft could not be saved on this device"); }
   };
@@ -549,8 +637,8 @@ export default function UnifiedTestEntryForm({
       <Field label="Project"><QuickAdd label="Project" value={form.project_id} items={projects} onChange={(value) => update("project_id", value)} fields={[{ key: "name", label: "Project name" }]} disabled={lockedCommon} /></Field>
       <Field label="Municipality"><QuickAdd label="Municipality" value={form.municipality_id} items={municipalities} onChange={setMunicipality} fields={[{ key: "name", label: "Municipality name" }, { key: "state", label: "State" }]} disabled={lockedCommon} /></Field>
       <Field label="Property / address"><QuickAdd label="Property" value={form.property_id} items={filteredProperties} defaults={{ municipality_id: form.municipality_id }} onChange={(value) => update("property_id", value)} fields={[{ key: "name", label: "Property name" }, { key: "address", label: "Address" }]} disabled={lockedCommon} /></Field>
-        {!isComparison && form.conversation_source === "uploaded_conversation" && <div className="sm:col-span-2 rounded-lg border border-[var(--orange)] bg-orange-50 p-3"><Field label="Bassett conversation file" required description={(form.attachment_count || form.attachments?.length) ? `${form.attachment_count || form.attachments?.length} conversation file(s) available` : "Upload the exported Bassett conversation. PDF, email, document, spreadsheet, text, and image formats are supported."}><Input data-testid="bassett-conversation-upload" type="file" required={!Boolean(form.attachment_count || form.attachments?.length)} multiple accept=".pdf,.doc,.docx,.odt,.xls,.xlsx,.ods,.ppt,.pptx,.txt,.csv,.tsv,.md,.rtf,.html,.htm,.xml,.json,.eml,.msg,.png,.jpg,.jpeg,.gif,.webp,.tif,.tiff,.bmp" onChange={(e) => update("attachments", Array.from(e.target.files || []))} /></Field></div>}
-        {(!isComparison && form.test_type === "Multi-turn") ? <details className="sm:col-span-2" open={form.conversation_source !== "uploaded_conversation"}><summary className="cursor-pointer font-semibold text-[var(--navy)]">{form.conversation_source === "uploaded_conversation" ? "Add or review structured transcript (required before Model Comparison)" : "Structured conversation"}</summary><div className="mt-3"><TurnBuilder turns={form.turns} disabled={lockedCommon} onChange={(turns) => setForm((current) => ({ ...current, turns, question_asked: turns[0]?.prompt || "", exact_bassett_answer: turns[0]?.response || "", transcript_status: turns.length ? "confirmed" : current.transcript_status }))} findingTurnId={form.finding_turn_id || ""} onFindingTurnChange={(value) => update("finding_turn_id", value)} /></div></details> : <><Field label={isComparison ? "Prompt / question" : "Question asked"} required={isComparison || form.conversation_source !== "uploaded_conversation"} description={!isComparison && form.conversation_source === "uploaded_conversation" ? "Optional now; required before expanding to Model Comparison." : undefined} error={attemptedSections.has(1) && (isComparison || form.conversation_source !== "uploaded_conversation") && !String(form.question_asked || form.prompts?.[0]?.text || "").trim() ? "Prompt or question is required." : undefined}><Textarea rows={3} value={form.question_asked || form.prompts?.[0]?.text || ""} disabled={lockedCommon} onChange={(e) => updatePrompt(e.target.value)} /></Field>
+         {!isComparison && form.conversation_source === "uploaded_conversation" && <div className="sm:col-span-2 rounded-lg border border-[var(--orange)] bg-orange-50 p-3"><Field label="Bassett conversation file" required description={(form.attachment_count || form.attachments?.length) ? "One authoritative conversation file is attached to this parent test run." : "Upload one exported Bassett conversation. PDF, email, document, spreadsheet, text, and image formats are supported."}><Input data-testid="bassett-conversation-upload" type="file" required={!Boolean(form.attachment_count || form.attachments?.length)} accept=".pdf,.doc,.docx,.odt,.xls,.xlsx,.ods,.ppt,.pptx,.txt,.csv,.tsv,.md,.rtf,.html,.htm,.xml,.json,.eml,.msg,.png,.jpg,.jpeg,.gif,.webp,.tif,.tiff,.bmp" onChange={(e) => update("attachments", Array.from(e.target.files || []).slice(0, 1))} /></Field></div>}
+         {(!isComparison && form.test_type === "Multi-turn") ? <details className="sm:col-span-2" open={form.conversation_source !== "uploaded_conversation"}><summary className="cursor-pointer font-semibold text-[var(--navy)]">{form.conversation_source === "uploaded_conversation" ? "Add or review structured transcript (required before Model Comparison)" : "Structured conversation"}</summary><div className="mt-3"><TurnBuilder turns={form.turns} scenarios={scenarios} uploadedConversation={form.conversation_source === "uploaded_conversation"} disabled={lockedCommon} onChange={(turns) => setForm((current) => ({ ...current, turns, question_asked: turns[0]?.prompt || "", exact_bassett_answer: turns[0]?.response || "", transcript_status: turns.length ? "confirmed" : current.transcript_status }))} findingTurnId={form.finding_turn_id || ""} onFindingTurnChange={(value) => update("finding_turn_id", value)} /></div></details> : <><Field label={isComparison ? "Prompt / question" : "Question asked"} required={isComparison || form.conversation_source !== "uploaded_conversation"} description={!isComparison && form.conversation_source === "uploaded_conversation" ? "Optional now; required before expanding to Model Comparison." : undefined} error={attemptedSections.has(1) && (isComparison || form.conversation_source !== "uploaded_conversation") && !String(form.question_asked || form.prompts?.[0]?.text || "").trim() ? "Prompt or question is required." : undefined}><Textarea rows={3} value={form.question_asked || form.prompts?.[0]?.text || ""} disabled={lockedCommon} onChange={(e) => updatePrompt(e.target.value)} /></Field>
         <div className="sm:col-span-2"><Field label={isComparison ? "Verified answer / Gold Standard" : "Verified correct answer"} required error={attemptedSections.has(1) && !String(form.verified_correct_answer || form.gold_standard_answer || "").trim() ? "Verified answer is required." : undefined}><Textarea rows={4} value={form.verified_correct_answer || form.gold_standard_answer || ""} disabled={lockedCommon} onChange={(e) => setForm((current) => ({ ...current, verified_correct_answer: e.target.value, gold_standard_answer: e.target.value }))} /></Field></div></>}
     </div></GuidedSection>
 
