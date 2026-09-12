@@ -55,9 +55,10 @@ test.each([320, 375])("long attachment names wrap and icon actions stay named an
 test("successful upload refreshes the list and authorized download opens the blob", async () => {
   const { api } = require("../lib/api");
   api.post.mockResolvedValueOnce({ data: { id: "new-attachment" } });
-  api.get.mockResolvedValueOnce({ data: new Blob(["evidence"], { type: "text/plain" }) });
+  api.get.mockResolvedValueOnce({ data: new Blob(["evidence"], { type: "text/plain" }), headers: { "content-disposition": 'attachment; filename="evidence.txt"' } });
   global.URL.createObjectURL = jest.fn(() => "blob:evidence");
   global.URL.revokeObjectURL = jest.fn();
+  const anchorClick = jest.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
   mockQueryState = { data: [], isError: false, isLoading: false };
   const view = render();
   const input = view.container.querySelector('[data-testid="attach-file-input"]');
@@ -79,7 +80,33 @@ test("successful upload refreshes the list and authorized download opens the blo
   });
   expect(api.get).toHaveBeenCalledWith("/attachments/a3/download", { responseType: "blob" });
   expect(global.URL.createObjectURL).toHaveBeenCalled();
+  expect(anchorClick).toHaveBeenCalled();
+  expect(anchorClick.mock.instances[0].download).toBe("evidence.txt");
+  anchorClick.mockRestore();
   act(() => reopened.root.unmount());
+});
+
+test.each([
+  [404, null, "Attachment not found or its content is no longer available."],
+  [403, null, "You do not have permission to download this attachment."],
+  [503, null, "Attachment storage is unavailable. Please retry later."],
+])("download failures show a clear toast for HTTP %i", async (status, detail, expected) => {
+  const { api } = require("../lib/api");
+  const body = detail ? { detail } : {};
+  api.get.mockRejectedValueOnce({
+    response: {
+      status,
+      data: new Blob([JSON.stringify(body)], { type: "application/json" }),
+    },
+  });
+  mockQueryState = { data: [{ id: "a4", original_filename: "evidence.pdf", content_type: "application/pdf", size: 8, uploaded_by: "Tester" }], isError: false, isLoading: false };
+  const view = render();
+  await act(async () => {
+    view.container.querySelector('[data-testid="attachment-download"]').click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  expect(require("sonner").toast.error).toHaveBeenCalledWith(expected);
+  act(() => view.root.unmount());
 });
 
 test("failed upload is announced without hiding the saved record", async () => {

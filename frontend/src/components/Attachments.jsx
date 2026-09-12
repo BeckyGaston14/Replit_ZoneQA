@@ -9,6 +9,35 @@ import { ConfirmActionDialog } from "./ConfirmActionDialog";
 const fmtSize = (b) => (b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
 const isImage = (ct) => (ct || "").startsWith("image/");
 
+async function downloadErrorMessage(error) {
+  const status = error?.response?.status;
+  let detail = error?.response?.data?.detail;
+  // Axios keeps an error response as a Blob when the successful response is
+  // requested as a Blob too. Decode the API envelope before falling back to a
+  // status-specific message, otherwise a 404/403 is reported as a generic
+  // download failure.
+  if (!detail && typeof error?.response?.data?.text === "function") {
+    try {
+      const body = JSON.parse(await error.response.data.text());
+      detail = body?.detail;
+    } catch (_) {
+      // The storage proxy may return an empty/non-JSON body.
+    }
+  }
+  if (detail) return formatApiErrorDetail(detail);
+  if (status === 403) return "You do not have permission to download this attachment.";
+  if (status === 404) return "Attachment not found or its content is no longer available.";
+  if (status === 503) return "Attachment storage is unavailable. Please retry later.";
+  if (status === 401) return "Your session has expired. Sign in again to download this attachment.";
+  return "Download failed. Please retry.";
+}
+
+function responseFilename(response, fallback) {
+  const disposition = response?.headers?.["content-disposition"] || response?.headers?.["Content-Disposition"];
+  const match = disposition?.match(/filename="([^"]+)"/i);
+  return match?.[1] || fallback || "attachment";
+}
+
 function AttachmentImage({ file }) {
   const [imageUrl, setImageUrl] = useState(null);
   const [failed, setFailed] = useState(false);
@@ -91,17 +120,18 @@ export function Attachments({ entityType, entityId, canWrite, compact = false })
   };
   const download = async (f) => {
     try {
-      const { data } = await api.get(`/attachments/${f.id}/download`, { responseType: "blob" });
+      const response = await api.get(`/attachments/${f.id}/download`, { responseType: "blob" });
+      const { data } = response;
       const objectUrl = URL.createObjectURL(data);
       const link = document.createElement("a");
       link.href = objectUrl;
-      link.download = f.original_filename || "attachment";
+      link.download = responseFilename(response, f.original_filename);
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
     } catch (err) {
-      toast.error(formatApiErrorDetail(err.response?.data?.detail) || "Download failed");
+      toast.error(await downloadErrorMessage(err));
     }
   };
 

@@ -27,7 +27,7 @@ import { focusFormError, validateFormFields } from "../lib/formValidation";
 import { QueryState } from "./PageState";
 
 // schema field: {key,label,type,options,collection,labelFn,addFields,render,col}
-export default function ResourceList({ title, subtitle, collection, columns, fields, initial = {}, rowLink, rowAction, attachable, singular, dataEndpoint, dateFilterColumn, exportFilename, parentLifecycle = false, dateRanges = [], filterFields = [], renderCreateExtras, onCreateSuccess, onNewOpen }) {
+export default function ResourceList({ title, subtitle, collection, columns, fields, initial = {}, rowLink, rowAction, attachable, singular, dataEndpoint, dateFilterColumn, exportFilename, exportLabel = "Export", newLabel = "New", parentLifecycle = false, dateRanges = [], filterFields = [], renderCreateExtras, onCreateSuccess, onNewOpen }) {
   const lifecycleEndpoint = `/resources/${collection}`;
   const listEndpoint = dataEndpoint || `/${collection}`;
   const defaultView = {
@@ -301,11 +301,11 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
   return (
     <div>
       <PageHeader title={title} subtitle={subtitle}>
-        {exportFilename && <Button variant="outline" onClick={() => downloadCsv(exportFilename, tableRowsToCsv(sortedData, sortColumns))} aria-label={`Export filtered ${title} as CSV`}><FileOutput size={15} className="mr-1" /> Export</Button>}
+        {exportFilename && <Button variant="outline" onClick={() => downloadCsv(exportFilename, tableRowsToCsv(sortedData, sortColumns))} aria-label={`Export filtered ${title} as CSV`}><FileOutput size={15} className="mr-1" /> {exportLabel}</Button>}
         {parentLifecycle && <Button variant="outline" onClick={() => setSavedFilter("archived", showArchived ? "active" : "archived")} aria-pressed={showArchived}>
           {showArchived ? "Active records" : "Archived records"}
         </Button>}
-        {user?.role !== "viewer" && <Button data-testid={`add-${collection}-btn`} onClick={openNew} className="bg-[var(--orange)] hover:bg-[var(--orange-600)]"><Plus size={16} className="mr-1" /> New</Button>}
+        {user?.role !== "viewer" && <Button data-testid={`add-${collection}-btn`} onClick={openNew} className="bg-[var(--orange)] hover:bg-[var(--orange-600)]"><Plus size={16} className="mr-1" /> {newLabel}</Button>}
       </PageHeader>
       {viewError && <div role="alert" className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">{viewError} <button type="button" className="ml-2 font-semibold underline" onClick={retryView}>Retry saved view</button></div>}
       {dateFilterError && <div role="alert" className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{dateFilterError}</div>}

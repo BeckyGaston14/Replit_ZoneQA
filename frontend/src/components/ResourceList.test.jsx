@@ -184,6 +184,17 @@ test("project descriptions appear beneath the project name", async () => {
   act(() => root.unmount());
 });
 
+test("testing projects use the standard CSV export and named create controls", async () => {
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  await act(async () => root.render(<ResourceList {...PROJECT_SCHEMA} />));
+  const headerButtons = [...container.querySelectorAll("header button")];
+  expect(headerButtons.map((button) => button.textContent.trim())).toEqual(["Export CSV", "Archived records", "New Testing Project"]);
+  expect(headerButtons[0].querySelector("svg")).not.toBeNull();
+  expect(headerButtons[2].querySelector("svg")).not.toBeNull();
+  act(() => root.unmount());
+});
+
 test("project rows can expose a direct linked-record action", async () => {
   const onClick = jest.fn();
   const container = document.createElement("div");

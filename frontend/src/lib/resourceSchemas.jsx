@@ -22,6 +22,8 @@ export const PROJECT_SCHEMA = {
   dataEndpoint: "/list/projects-enriched",
   dateFilterColumn: "last_tested_date",
   exportFilename: "zoneqa-projects.csv",
+  exportLabel: "Export CSV",
+  newLabel: "New Testing Project",
   attachable: "project",
   parentLifecycle: true,
   dateRanges: [{ start: "start_date", end: "target_date", startLabel: "Start Date", endLabel: "Target Completion" }],
