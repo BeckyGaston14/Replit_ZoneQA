@@ -3,7 +3,11 @@ import re
 
 import pytest
 
-from postgres_store import COLLECTIONS, PostgresDatabase
+from postgres_store import (
+    COLLECTIONS,
+    PostgresDatabase,
+    _migration_replace_known_property_paths,
+)
 
 
 class MigrationConnection:
@@ -46,6 +50,22 @@ class MigrationConnection:
 
 def _records(connection, collection):
     return {row["id"]: row["data"] for row in connection.tables[collection]}
+
+
+def test_property_migration_replaces_only_documented_reference_paths():
+    document = {
+        "property_id": "loser",
+        "nested": {"value": "loser", "property_id": "loser"},
+        "entity_type": "property",
+        "entity_id": "loser",
+        "linked_entity_type": "properties",
+        "linked_entity_id": "loser",
+    }
+    updated = _migration_replace_known_property_paths("activities", document, "loser", "canonical")
+    assert updated["property_id"] == "canonical"
+    assert updated["entity_id"] == "canonical"
+    assert updated["linked_entity_id"] == "canonical"
+    assert updated["nested"] == {"value": "loser", "property_id": "loser"}
 
 
 @pytest.mark.asyncio
@@ -149,3 +169,98 @@ async def test_migration_13_uses_oldest_id_only_after_completeness_and_links_tie
     result = await database._consolidate_duplicate_municipalities(connection)
 
     assert result["groups"][0]["canonical_id"] == "a-older"
+
+
+@pytest.mark.asyncio
+async def test_migration_14_merges_only_approved_property_pair_and_preserves_history():
+    canonical = "c90c0ba2-122f-4969-99ea-db71a2ead130"
+    loser = "7225e02b-0bd6-4e0b-ad28-11b63b3c7380"
+    connection = MigrationConnection({
+        "properties": [
+            {"id": canonical, "data": {
+                "id": canonical, "name": "6442 N 76th St", "address": "6442 N 76th St",
+                "municipality_id": "49abba9d-4647-4aad-b970-ec851417c779", "city": "Milwaukee", "state": "Wisconsin",
+                "zip": "53223", "created_at": "2026-09-11T21:03:04Z",
+            }},
+            {"id": loser, "data": {
+                "id": loser, "name": "6442 N 76th St", "address": "6442 North 76th Street",
+                "municipality_id": "49abba9d-4647-4aad-b970-ec851417c779", "city": "Milwaukee", "state": "Wisconsin",
+                "zip": "53223", "created_at": "2026-09-11T21:46:06Z",
+            }},
+        ],
+        "bassett_issues": [{"id": "issue", "data": {"id": "issue", "property_id": loser}}],
+        "attachments": [{"id": "attachment", "data": {
+            "id": "attachment", "entity_type": "property", "entity_id": loser,
+        }}],
+        "bassett_history": [{"id": "history", "data": {"id": "history", "entity_id": loser}}],
+        "activities": [{"id": "activity", "data": {"id": "activity", "entity_id": loser}}],
+    })
+    database = PostgresDatabase.__new__(PostgresDatabase)
+
+    result = await database._consolidate_known_duplicate_properties(connection)
+
+    assert result["canonical_id"] == canonical
+    assert _records(connection, "properties")[loser]["archived"] is True
+    assert _records(connection, "bassett_issues")["issue"]["property_id"] == canonical
+    assert _records(connection, "attachments")["attachment"]["entity_id"] == canonical
+    assert _records(connection, "bassett_history")["history"]["entity_id"] == canonical
+    assert _records(connection, "activities")["activity"]["entity_id"] == canonical
+    assert len(connection.tables["activities"]) == 2
+
+    second = await database._consolidate_known_duplicate_properties(connection)
+    assert second == {"merged": False, "reassigned": 0}
+
+
+@pytest.mark.asyncio
+async def test_migration_14_stops_before_changes_for_extra_live_identity_candidate():
+    canonical = "c90c0ba2-122f-4969-99ea-db71a2ead130"
+    loser = "7225e02b-0bd6-4e0b-ad28-11b63b3c7380"
+    third = "third-live-property"
+    properties = [
+        {"id": canonical, "data": {
+            "id": canonical, "address": "6442 N 76th St", "municipality_id": "49abba9d-4647-4aad-b970-ec851417c779",
+            "city": "Milwaukee", "state": "Wisconsin", "zip": "53223",
+            "created_at": "2026-09-11T21:03:04Z",
+        }},
+        {"id": loser, "data": {
+            "id": loser, "address": "6442 North 76th Street", "municipality_id": "49abba9d-4647-4aad-b970-ec851417c779",
+            "city": "Milwaukee", "state": "Wisconsin", "zip": "53223",
+            "created_at": "2026-09-11T21:46:06Z",
+        }},
+        {"id": third, "data": {
+            "id": third, "address": "6442 North 76th St.", "municipality_id": "49abba9d-4647-4aad-b970-ec851417c779",
+            "city": "Milwaukee", "state": "Wisconsin", "zip": "53223",
+            "created_at": "2026-09-11T22:00:00Z",
+        }},
+    ]
+    connection = MigrationConnection({"properties": properties})
+    database = PostgresDatabase.__new__(PostgresDatabase)
+
+    with pytest.raises(RuntimeError, match="unexpected third duplicate"):
+        await database._consolidate_known_duplicate_properties(connection)
+
+    assert all(record["data"].get("archived") is not True for record in properties)
+
+
+@pytest.mark.asyncio
+async def test_migration_14_stops_on_material_pair_conflict():
+    pair = [
+        {"id": "c90c0ba2-122f-4969-99ea-db71a2ead130", "data": {
+            "id": "c90c0ba2-122f-4969-99ea-db71a2ead130", "address": "6442 N 76th St",
+            "municipality_id": "49abba9d-4647-4aad-b970-ec851417c779",
+            "city": "Milwaukee", "state": "WI", "zip": "53223",
+            "notes": "canonical material value", "created_at": "2026-01-01",
+        }},
+        {"id": "7225e02b-0bd6-4e0b-ad28-11b63b3c7380", "data": {
+            "id": "7225e02b-0bd6-4e0b-ad28-11b63b3c7380", "address": "6442 North 76th Street",
+            "municipality_id": "49abba9d-4647-4aad-b970-ec851417c779",
+            "city": "Milwaukee", "state": "Wisconsin", "zip": "53223",
+            "notes": "conflicting material value", "created_at": "2026-01-02",
+        }},
+    ]
+    connection = MigrationConnection({"properties": pair})
+    database = PostgresDatabase.__new__(PostgresDatabase)
+
+    with pytest.raises(RuntimeError, match="conflicting material field notes"):
+        await database._consolidate_known_duplicate_properties(connection)
+    assert all(record["data"].get("archived") is not True for record in pair)

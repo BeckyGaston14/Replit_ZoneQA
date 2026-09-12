@@ -75,6 +75,79 @@ test("critical exports use canonical severity precedence for legacy and mismatch
   ]);
 });
 
+test("release export preserves readiness population metadata and standalone rows", () => {
+  const payload = buildReportPayload({
+    kind: "release",
+    testcases: [{ id: "comparison-case" }],
+    findings: [],
+    evaluations: [{
+      id: "bassett-comparison",
+      testcase_id: "comparison-case",
+      model: "Bassett",
+      final_result: "Pass",
+      overall_score: 9,
+    }],
+    bassettOnlyEvaluations: [{ id: "standalone", result: "Pass", score: 9 }],
+    releaseEvidence: { evaluated: 2, minimum: 50, sufficient: false, label: "2 of 50 qualifying tests completed" },
+    releaseReadiness: { version: "v1", scope: "both", evaluated: 2, evidence_status: { evaluated: 2, minimum: 50 } },
+    insufficientEvidence: true,
+  });
+  expect(payload.release_readiness.scope).toBe("both");
+  expect(payload.release_evidence.evaluated).toBe(2);
+  expect(payload.bassett_only_evaluations).toHaveLength(1);
+  expect(payload.evaluations).toHaveLength(1);
+});
+
+test.each(["bassett", "comparison", "both"])(
+  "release export detail population matches readiness evidence for %s",
+  (selectedScope) => {
+    [0, 1, 49, 50, 51].forEach((evaluated) => {
+      const standaloneCount = selectedScope === "comparison"
+        ? 0
+        : selectedScope === "bassett" ? evaluated : Math.floor(evaluated / 2);
+      const comparisonCount = evaluated - standaloneCount;
+      const testcases = Array.from({ length: comparisonCount }, (_, index) => ({
+        id: `comparison-${index}`,
+      }));
+      const evaluations = testcases.map((testcase, index) => ({
+        id: `comparison-evaluation-${index}`,
+        testcase_id: testcase.id,
+        model: "Bassett",
+        final_result: "Pass",
+        overall_score: 9,
+      }));
+      const standalone = Array.from({ length: standaloneCount }, (_, index) => ({
+        id: `standalone-${index}`,
+        result: "Pass",
+        score: 9,
+      }));
+  const payload = buildReportPayload({
+    kind: "release",
+    testcases,
+    findings: [],
+    evaluations,
+    bassettOnlyEvaluations: standalone,
+    releaseEvidence: {
+      evaluated, minimum: 50, sufficient: evaluated >= 50,
+      label: `${evaluated} of 50 qualifying tests completed`,
+    },
+    releaseReadiness: { version: "v-selected", scope: selectedScope, evaluated },
+    insufficientEvidence: evaluated < 50,
+  });
+      expect(payload.release_readiness?.scope).toBe(selectedScope);
+      expect(payload.release_readiness?.evaluated).toBe(evaluated);
+      expect(payload.release_evidence.evaluated).toBe(evaluated);
+      expect(
+        payload.evaluations.length + (payload.bassett_only_evaluations || []).length,
+      ).toBe(evaluated);
+      expect(payload.insufficient_evidence).toBe(evaluated < 50);
+      if (selectedScope === "comparison") {
+        expect(payload).not.toHaveProperty("bassett_only_evaluations");
+      }
+    });
+  },
+);
+
 test("report payload preserves the JSON envelope and records counts", () => {
   const payload = buildReportPayload({
     kind: "critical",

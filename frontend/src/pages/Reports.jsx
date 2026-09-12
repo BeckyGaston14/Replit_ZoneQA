@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { PageHeader, MethodologyDisclosure } from "../components/shared";
 import { Button } from "../components/ui/button";
@@ -32,14 +32,34 @@ const LIVE_REPORTS = [
 export default function Reports() {
   const { data: config } = useConfig();
   const [importOpen, setImportOpen] = useState(false);
+  const [versions, setVersions] = useState([]);
+  const [version, setVersion] = useState("");
+  const [scope, setScope] = useState("both");
+  useEffect(() => {
+    const request = api.get("/versions");
+    if (!request?.then) return;
+    request.then(({ data }) => {
+      const rows = Array.isArray(data) ? data : data?.items || [];
+      setVersions(rows);
+      setVersion((current) => current || rows.find((item) => item.active)?.name || rows[0]?.name || "");
+    }).catch(() => {});
+  }, []);
   const exportData = async (kind) => {
     try {
       const needsRegressionRuns = ["release", "regression"].includes(kind);
       const needsTestRuns = kind === "comparison";
-      const { data } = await api.get(`/reports/data?kind=${encodeURIComponent(kind)}`);
+      const selected = kind === "release"
+        ? `&version=${encodeURIComponent(version)}&scope=${encodeURIComponent(scope)}`
+        : "";
+      const { data } = await api.get(`/reports/data?kind=${encodeURIComponent(kind)}${selected}`);
       const payload = buildReportPayload({
         kind,
         stats: data.stats,
+        releaseEvidence: data.release_evidence,
+        minimumQualifyingTests: data.minimum_qualifying_tests,
+        insufficientEvidence: data.insufficient_evidence,
+        releaseReadiness: data.release_readiness,
+        bassettOnlyEvaluations: data.bassett_only_evaluations,
         testcases: data.testcases,
         findings: data.findings,
         evaluations: data.evaluations,
@@ -79,6 +99,20 @@ export default function Reports() {
         <Button variant="outline" className="w-full sm:w-auto" onClick={() => setImportOpen(true)}><FileText size={15} className="mr-1" /> Import CSV</Button>
         <Button variant="outline" className="w-full sm:w-auto" onClick={exportCSV}><FileDown size={15} className="mr-1" /> Export CSV</Button>
       </PageHeader>
+      <div className="flex flex-wrap items-end gap-3 mb-5">
+        <label className="text-sm font-medium">Readiness version
+          <select className="block mt-1 h-9 rounded-md border bg-background px-2" value={version} onChange={(event) => setVersion(event.target.value)}>
+            {versions.map((item) => <option key={item.name} value={item.name}>{item.name}</option>)}
+          </select>
+        </label>
+        <label className="text-sm font-medium">Readiness scope
+          <select className="block mt-1 h-9 rounded-md border bg-background px-2" value={scope} onChange={(event) => setScope(event.target.value)}>
+            <option value="both">Both populations</option>
+            <option value="bassett">Bassett-only</option>
+            <option value="comparison">Model Comparison</option>
+          </select>
+        </label>
+      </div>
       {importOpen && <ImportCsvModal open={importOpen} onOpenChange={setImportOpen} />}
 
       <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted-foreground">Data exports</h2>

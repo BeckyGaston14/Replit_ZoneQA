@@ -16,6 +16,7 @@ from datetime import datetime
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import asyncpg
+from property_identity import canonical_property_identity, normalize_state, normalize_text, property_duplicate_key
 
 
 class BassettScenarioUnavailableError(Exception):
@@ -94,6 +95,10 @@ _MUNICIPALITY_RELATIONSHIP_FIELDS = frozenset({
     "municipality_id", "municipality_ids",
 })
 
+_PROPERTY_RELATIONSHIP_FIELDS = frozenset({
+    "property_id", "property_ids",
+})
+
 
 def _migration_replace_known_municipality_paths(
     collection: str, document: Dict[str, Any], loser_id: str, canonical_id: str,
@@ -136,6 +141,58 @@ def _migration_known_municipality_linked(
         str(document.get("entity_type") or "").casefold()
         in {"municipality", "municipalities"}
         and document.get("entity_id") == identifier
+    )
+
+
+def _migration_replace_known_property_paths(
+    collection: str, document: Dict[str, Any], loser_id: str, canonical_id: str,
+) -> Dict[str, Any]:
+    """Replace documented property links, leaving immutable audit history alone."""
+    updated = copy.deepcopy(document)
+    for field in ("property_id", "property_ids"):
+        value = updated.get(field)
+        if isinstance(value, list):
+            updated[field] = [canonical_id if item == loser_id else item for item in value]
+        elif value == loser_id:
+            updated[field] = canonical_id
+    nested = updated.get("property")
+    if isinstance(nested, dict) and nested.get("id") == loser_id:
+        nested["id"] = canonical_id
+    if (
+        str(updated.get("entity_type") or "").casefold() in {"property", "properties"}
+        and updated.get("entity_id") == loser_id
+    ):
+        updated["entity_id"] = canonical_id
+    if collection in {"activities", "bassett_history"} and updated.get("entity_id") == loser_id:
+        updated["entity_id"] = canonical_id
+    if (
+        str(updated.get("linked_entity_type") or "").casefold() in {"property", "properties"}
+        and updated.get("linked_entity_id") == loser_id
+    ):
+        updated["linked_entity_id"] = canonical_id
+    return updated
+
+
+def _migration_known_property_linked(
+    collection: str, document: Dict[str, Any], identifier: str,
+) -> bool:
+    def is_ref(value):
+        return value == identifier or (isinstance(value, list) and identifier in value)
+    if is_ref(document.get("property_id")) or is_ref(document.get("property_ids")):
+        return True
+    nested = document.get("property")
+    if isinstance(nested, dict) and nested.get("id") == identifier:
+        return True
+    if (
+        str(document.get("entity_type") or "").casefold() in {"property", "properties"}
+        and document.get("entity_id") == identifier
+    ):
+        return True
+    if collection in {"activities", "bassett_history"} and document.get("entity_id") == identifier:
+        return True
+    return (
+        str(document.get("linked_entity_type") or "").casefold() in {"property", "properties"}
+        and document.get("linked_entity_id") == identifier
     )
 
 
@@ -781,6 +838,286 @@ class PostgresDatabase:
         )
         return {"groups": audit_groups, "reassigned": changed}
 
+    async def _consolidate_known_duplicate_properties(self, connection):
+        """Merge only the approved 6442 N 76th St Milwaukee property pair.
+
+        This deliberately does not become a general-purpose deduplicator.  Any
+        unexpected third candidate or conflicting identity aborts the
+        transaction before a row is changed. Existing history and activities
+        remain intact while their documented property references move to the
+        older canonical record.
+        """
+        pair_ids = {
+            "c90c0ba2-122f-4969-99ea-db71a2ead130",
+            "7225e02b-0bd6-4e0b-ad28-11b63b3c7380",
+        }
+        expected_identity = (
+            "49abba9d 4647 4aad b970 ec851417c779",
+            "6442 n 76th st", "milwaukee", "wi", "53223",
+        )
+        municipality = {
+            "id": "49abba9d-4647-4aad-b970-ec851417c779",
+            "name": "City of Milwaukee",
+            "state": "Wisconsin",
+        }
+
+        lock_tables = ", ".join(f'"{_table(collection)}"' for collection in COLLECTIONS)
+        await connection.execute(
+            f"LOCK TABLE {lock_tables} IN SHARE ROW EXCLUSIVE MODE"
+        )
+        rows = await connection.fetch('SELECT id, data FROM "properties" FOR UPDATE')
+        documents = {}
+        for row in rows:
+            document = copy.deepcopy(dict(row["data"]))
+            document.setdefault("id", str(row["id"]))
+            documents[str(row["id"])] = document
+        present = [documents[item] for item in pair_ids if item in documents]
+        if not present:
+            return {"merged": False, "reassigned": 0}
+        if len(present) != 2:
+            raise RuntimeError("Migration 14 expected exactly the two approved 6442 N 76th St property records")
+        if any(
+            record.get("archived") or record.get("deleted_at")
+            or record.get("status") == "Archived"
+            for record in present
+        ):
+            return {"merged": False, "reassigned": 0}
+        identities = {
+            canonical_property_identity(record, municipality)[1] for record in present
+        }
+        if identities != {expected_identity}:
+            raise RuntimeError(
+                "Migration 14 stopped: approved IDs do not have the exact expected normalized identity"
+            )
+        material_excluded = {
+            "id", "created_at", "updated_at", "created_by", "updated_by",
+            "archived", "archived_at", "archived_by", "archived_status",
+            "deleted_at", "property_duplicate_key", "property_merge_canonical_id",
+        }
+        left, right = present
+        for field in set(left) | set(right):
+            if field in material_excluded or field in {"address", "street_address", "city", "state", "zip", "zipcode", "postal_code", "municipality_id", "municipality_name", "municipality"}:
+                continue
+            if left.get(field) not in (None, "", [], {}) and right.get(field) not in (None, "", [], {}) and left.get(field) != right.get(field):
+                raise RuntimeError(f"Migration 14 stopped: conflicting material field {field}")
+
+        all_documents = {}
+        for collection in COLLECTIONS:
+            typed_columns = ", ".join(f'"{field}"' for field in REFERENCE_COLUMN_NAMES.get(collection, ()))
+            projection = "id, data" + (f", {typed_columns}" if typed_columns else "")
+            collection_rows = await connection.fetch(
+                f'SELECT {projection} FROM "{_table(collection)}" FOR UPDATE'
+            )
+            all_documents[collection] = []
+            for row in collection_rows:
+                row_values = dict(row)
+                document = copy.deepcopy(dict(row_values["data"]))
+                for field in REFERENCE_COLUMN_NAMES.get(collection, ()):
+                    if field in row_values and row_values[field] is not None:
+                        document[field] = row_values[field]
+                all_documents[collection].append((str(row["id"]), document))
+
+        # The approved pair is the only candidate allowed for this identity.
+        candidates = [
+            value for row_id, value in all_documents["properties"]
+            if not value.get("archived") and not value.get("deleted_at")
+            and canonical_property_identity(value, municipality)[1] == expected_identity
+        ]
+        if {str(value.get("id")) for value in candidates} != pair_ids:
+            raise RuntimeError("Migration 14 stopped: unexpected third duplicate property candidate")
+
+        canonical_id = "c90c0ba2-122f-4969-99ea-db71a2ead130"
+        loser_id = "7225e02b-0bd6-4e0b-ad28-11b63b3c7380"
+        canonical = documents[canonical_id]
+        mapping = {loser_id: canonical_id}
+
+        # Check and repoint all known live references inside this transaction.
+        changed = 0
+        for collection, collection_rows in all_documents.items():
+            for row_id, document in collection_rows:
+                if collection == "properties":
+                    continue
+                updated = _migration_replace_known_property_paths(
+                    collection, document, loser_id, canonical_id,
+                )
+                if updated == document:
+                    continue
+                assignments = ["data = $1"]
+                values = [updated, row_id]
+                parameter = 2
+                for field in REFERENCE_COLUMN_NAMES.get(collection, ()):
+                    parameter += 1
+                    assignments.append(f'"{field}" = ${parameter}')
+                    value = updated.get(field)
+                    values.append(None if value == "" else value)
+                await connection.execute(
+                    f'UPDATE "{_table(collection)}" SET {", ".join(assignments)} WHERE id = $2',
+                    *([updated] + values[1:]),
+                )
+                changed += 1
+
+        # Never remove a loser while any live known inbound reference remains.
+        for collection, collection_rows in all_documents.items():
+            if collection == "properties":
+                continue
+            if any(
+                _migration_known_property_linked(
+                    collection,
+                    _migration_replace_known_property_paths(
+                        collection, value, loser_id, canonical_id,
+                    ),
+                    loser_id,
+                )
+                for _row_id, value in collection_rows
+            ):
+                raise RuntimeError("Migration 14 stopped: losing property still has live inbound references")
+
+        # Prove the losing ID has no live inbound reference before changing
+        # either property row. This is intentionally a persisted reread.
+        for collection in COLLECTIONS:
+            typed_columns = ", ".join(f'"{field}"' for field in REFERENCE_COLUMN_NAMES.get(collection, ()))
+            projection = "id, data" + (f", {typed_columns}" if typed_columns else "")
+            persisted = await connection.fetch(
+                f'SELECT {projection} FROM "{_table(collection)}"'
+            )
+            for row in persisted:
+                if str(row["id"]) == loser_id:
+                    continue
+                row_values = dict(row)
+                document = dict(row_values["data"])
+                for field in REFERENCE_COLUMN_NAMES.get(collection, ()):
+                    if field in row_values and row_values[field] is not None:
+                        document[field] = row_values[field]
+                if _migration_known_property_linked(collection, document, loser_id):
+                    raise RuntimeError("Migration 14 stopped: persisted loser property reference remains")
+
+        merged = copy.deepcopy(canonical)
+        merged.update({
+            "archived": False,
+            "property_merge_canonical_id": canonical_id,
+            "property_duplicate_key": property_duplicate_key(canonical, municipality),
+            "property_identity_enforced": True,
+        })
+        loser = documents[loser_id]
+        for key, value in loser.items():
+            if key not in {"id", "created_at", "created_by"} and value not in (None, "", [], {}):
+                if merged.get(key) in (None, "", [], {}):
+                    merged[key] = copy.deepcopy(value)
+        await connection.execute(
+            'UPDATE "properties" SET data = $1 WHERE id = $2', merged, canonical_id
+        )
+        archived = copy.deepcopy(loser)
+        archived.update({
+            "archived": True,
+            "archived_at": "migration-14",
+            "archived_by": "migration-14",
+            "archived_status": loser.get("status"),
+            "property_merge_canonical_id": canonical_id,
+        })
+        await connection.execute(
+            'UPDATE "properties" SET data = $1 WHERE id = $2', archived, loser_id
+        )
+        audit = {
+            "migration": 14,
+            "action": "approved_property_duplicate_consolidation",
+            "canonical_id": canonical_id,
+            "loser_id": loser_id,
+            "identity": canonical_property_identity(canonical, municipality)[1],
+            "reassigned_documents": changed,
+            "history_preserved": True,
+            "existing_activities_preserved": True,
+        }
+        await connection.execute(
+            'INSERT INTO "activities" (id, data) VALUES ($1, $2)',
+            f"migration-14:{canonical_id}",
+            {
+                "id": f"migration-14:{canonical_id}",
+                "entity_type": "properties",
+                "entity_id": canonical_id,
+                "action": "migration_14_property_duplicate_consolidation",
+                "detail": json.dumps(audit, default=str, sort_keys=True),
+                "created_at": datetime.utcnow().isoformat() + "+00:00",
+                "source": "schema_migration",
+                "_log": True,
+            },
+        )
+        # Verify persisted JSON and typed columns, not only the in-memory
+        # snapshot used to issue updates, before archiving the loser.
+        for collection in COLLECTIONS:
+            typed_columns = ", ".join(f'"{field}"' for field in REFERENCE_COLUMN_NAMES.get(collection, ()))
+            projection = "id, data" + (f", {typed_columns}" if typed_columns else "")
+            persisted = await connection.fetch(
+                f'SELECT {projection} FROM "{_table(collection)}"'
+            )
+            for row in persisted:
+                if str(row["id"]) == loser_id:
+                    continue
+                row_values = dict(row)
+                document = dict(row_values["data"])
+                for field in REFERENCE_COLUMN_NAMES.get(collection, ()):
+                    if field in row_values and row_values[field] is not None:
+                        document[field] = row_values[field]
+                if _migration_known_property_linked(collection, document, loser_id):
+                    raise RuntimeError("Migration 14 stopped: persisted loser property reference remains")
+        return {"merged": True, "canonical_id": canonical_id, "loser_id": loser_id, "reassigned": changed}
+
+    async def _backfill_property_duplicate_keys(self, connection):
+        """Backfill canonical keys without aborting on unrelated legacy duplicates."""
+        municipality_rows = await connection.fetch(
+            'SELECT id, data FROM "municipalities" FOR UPDATE'
+        )
+        municipalities = {}
+        for row in municipality_rows:
+            municipality = dict(row["data"])
+            municipality.setdefault("id", str(row["id"]))
+            municipalities[str(row["id"])] = municipality
+        municipalities_by_name = {
+            (
+                normalize_text(item.get("name")),
+                normalize_state(item.get("state")),
+            ): item
+            for item in municipalities.values()
+        }
+        property_rows = await connection.fetch(
+            'SELECT id, data FROM "properties" FOR UPDATE'
+        )
+        active = []
+        for row in property_rows:
+            document = copy.deepcopy(dict(row["data"]))
+            document.setdefault("id", str(row["id"]))
+            municipality = municipalities.get(str(document.get("municipality_id")))
+            if municipality is None:
+                municipality_name = document.get("municipality_name") or document.get("municipality")
+                if isinstance(municipality_name, dict):
+                    municipality_name = municipality_name.get("name")
+                municipality = municipalities_by_name.get((
+                    normalize_text(municipality_name),
+                    normalize_state(document.get("state") or document.get("municipality_state")),
+                ))
+            key = property_duplicate_key(document, municipality)
+            if (
+                not document.get("archived") and not document.get("deleted_at")
+                and document.get("address") and (document.get("municipality_id") or document.get("municipality_name"))
+                and key
+            ):
+                active.append((str(row["id"]), document, key))
+        groups = {}
+        for row_id, document, key in active:
+            groups.setdefault(key, []).append((row_id, document))
+        for key, candidates in groups.items():
+            candidates.sort(key=lambda item: (str(item[1].get("created_at") or "9999"), item[0]))
+            enforced_id = candidates[0][0]
+            for row_id, document in candidates:
+                document["property_duplicate_key"] = key
+                # Keep one legacy row authoritative if old data already
+                # contains a duplicate; future writes still collide with it.
+                document["property_identity_enforced"] = row_id == enforced_id
+                await connection.execute(
+                    'UPDATE "properties" SET data = $1 WHERE id = $2',
+                    document, row_id,
+                )
+        return {"active": len(active), "conflicting_keys": sum(len(v) > 1 for v in groups.values())}
+
     async def apply_migrations(self):
         if self.pool is None:
             raise RuntimeError("PostgreSQL database has not been connected")
@@ -1115,6 +1452,24 @@ class PostgresDatabase:
                             "INSERT INTO schema_migrations (version) VALUES (13)"
                         )
                         current = 13
+                if current < 14:
+                    async with connection.transaction():
+                        # This migration is intentionally narrower than the
+                        # general duplicate detector: only the approved
+                        # production pair may be consolidated.
+                        await self._backfill_property_duplicate_keys(connection)
+                        await self._consolidate_known_duplicate_properties(connection)
+                        await connection.execute(
+                            'CREATE UNIQUE INDEX IF NOT EXISTS properties_duplicate_key_unique '
+                            'ON "properties" ((data->>\'property_duplicate_key\')) '
+                            'WHERE data->>\'property_duplicate_key\' IS NOT NULL '
+                            "AND (data->>'archived' IS NULL OR data->>'archived' = 'false') "
+                            "AND (data->>'property_identity_enforced' = 'true')"
+                        )
+                        await connection.execute(
+                            "INSERT INTO schema_migrations (version) VALUES (14)"
+                        )
+                        current = 14
             finally:
                 # This is a session lock (rather than an xact lock), so it must
                 # be released even when a migration deliberately aborts.
@@ -1127,6 +1482,25 @@ class PostgresDatabase:
             raise RuntimeError("PostgreSQL database has not been connected")
         connection = connection or self.pool
         document = copy.deepcopy(document)
+        if collection == "properties":
+            if not document.get("municipality_id") and (
+                document.get("municipality_name") or document.get("municipality")
+            ) and hasattr(connection, "fetch"):
+                municipality_name = normalize_text(
+                    document.get("municipality_name") or document.get("municipality")
+                )
+                municipality_state = normalize_state(document.get("state") or document.get("municipality_state"))
+                for row in await connection.fetch('SELECT data FROM "municipalities"'):
+                    candidate = dict(row["data"])
+                    if (
+                        normalize_text(candidate.get("name")) == municipality_name
+                        and normalize_state(candidate.get("state")) == municipality_state
+                    ):
+                        document["municipality_id"] = candidate.get("id")
+                        document.setdefault("municipality_name", candidate.get("name"))
+                        break
+            document["property_duplicate_key"] = property_duplicate_key(document)
+            document["property_identity_enforced"] = True
         identifier = str(document["id"])
         refs = REFERENCE_COLUMNS.get(collection, {})
         fields = ["id", "data"]
@@ -1150,6 +1524,25 @@ class PostgresDatabase:
             raise RuntimeError("PostgreSQL database has not been connected")
         connection = connection or self.pool
         document = copy.deepcopy(document)
+        if collection == "properties":
+            if not document.get("municipality_id") and (
+                document.get("municipality_name") or document.get("municipality")
+            ) and hasattr(connection, "fetch"):
+                municipality_name = normalize_text(
+                    document.get("municipality_name") or document.get("municipality")
+                )
+                municipality_state = normalize_state(document.get("state") or document.get("municipality_state"))
+                for row in await connection.fetch('SELECT data FROM "municipalities"'):
+                    candidate = dict(row["data"])
+                    if (
+                        normalize_text(candidate.get("name")) == municipality_name
+                        and normalize_state(candidate.get("state")) == municipality_state
+                    ):
+                        document["municipality_id"] = candidate.get("id")
+                        document.setdefault("municipality_name", candidate.get("name"))
+                        break
+            document["property_duplicate_key"] = property_duplicate_key(document)
+            document["property_identity_enforced"] = True
         identifier = str(document["id"])
         refs = REFERENCE_COLUMNS.get(collection, {})
         assignments = ['data = $1']
@@ -1194,6 +1587,19 @@ class PostgresDatabase:
                         await self._replace(collection, document, connection)
                     else:
                         await self._insert(collection, document, connection)
+
+    async def insert_property_atomic(self, document: Dict[str, Any]):
+        """Insert one property in a transaction protected by the unique index.
+
+        The application preflight is useful for actionable guidance, while the
+        database constraint is authoritative for concurrent requests and
+        retries.  A failed transaction leaves no partial property row.
+        """
+        if self.pool is None:
+            raise RuntimeError("PostgreSQL database has not been connected")
+        async with self.pool.acquire() as connection:
+            async with connection.transaction():
+                await self._insert("properties", document, connection)
 
     async def create_bassett_scenario(self, document: Dict[str, Any], stage_code: str) -> Dict[str, Any]:
         """Atomically allocate a permanently increasing public stage sequence."""

@@ -8,6 +8,7 @@ import UnifiedTestEntryForm, {
   serializeBassettTestRunDraft,
 } from "./UnifiedTestEntryForm";
 import { toast } from "sonner";
+import { api } from "../lib/api";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -75,6 +76,25 @@ test("Bassett and comparison modes share the core section order while benchmarks
   expect(comparison.container.querySelector('textarea[placeholder="Never mixed into Bassett-only findings."]')).not.toBeNull();
   act(() => bassett.root.unmount());
   act(() => comparison.root.unmount());
+});
+
+test.each(["bassett", "comparison"])("reselecting an existing property keeps ID-only relationship in %s flow", (mode) => {
+  const property = { id: "property-stable", name: "6442 N 76th St", address: "6442 N 76th St", municipality_id: "muni-1" };
+  const view = renderForm(mode, { municipality_id: "muni-1" }, {
+    municipalities: [{ id: "muni-1", name: "Milwaukee", state: "WI" }],
+    properties: [property],
+  });
+  const select = view.container.querySelector('select[aria-label="Property"]');
+  expect(select).not.toBeNull();
+  for (let i = 0; i < 3; i += 1) {
+    act(() => {
+      select.value = property.id;
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  }
+  expect(view.latest().property_id).toBe(property.id);
+  expect(api.post).not.toHaveBeenCalled();
+  act(() => view.root.unmount());
 });
 
 test("create forms show each section requirement state only once", () => {

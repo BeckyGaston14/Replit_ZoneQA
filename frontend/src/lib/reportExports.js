@@ -69,6 +69,7 @@ function buildReleaseRecords(source) {
     ...source.evaluations
       .filter((evaluation) => evaluation.model === "Bassett")
       .map((evaluation) => evaluation.testcase_id),
+    ...(source.bassett_only_evaluations || []).map((evaluation) => evaluation.testcase_id),
     ...criticalFindings.map((finding) => finding.testcase_id),
     ...testcaseIdsFromRegressionRuns(source.regression_runs),
   ]);
@@ -77,6 +78,9 @@ function buildReleaseRecords(source) {
     ...records,
     findings: criticalFindings,
     evaluations: records.evaluations.filter((evaluation) => evaluation.model === "Bassett"),
+    ...(source.bassett_only_evaluations
+      ? { bassett_only_evaluations: source.bassett_only_evaluations }
+      : {}),
     ...(source.regression_runs === undefined ? {} : { regression_runs: source.regression_runs }),
   };
 }
@@ -170,7 +174,7 @@ const BUILDERS = {
   municipality: buildMunicipalityRecords,
 };
 
-export function buildReportPayload({ kind, stats, testcases = [], findings = [], evaluations = [], regressionRuns, testRuns, evaluationDimensions, generated = new Date().toISOString() }) {
+export function buildReportPayload({ kind, stats, releaseEvidence, minimumQualifyingTests, insufficientEvidence, releaseReadiness, bassettOnlyEvaluations = [], testcases = [], findings = [], evaluations = [], regressionRuns, testRuns, evaluationDimensions, generated = new Date().toISOString() }) {
   const scoredEvaluations = evaluationDimensions ? evaluations.map((evaluation) => {
     const calculation = calculateComparisonScore(evaluation, evaluationDimensions);
     return {
@@ -194,6 +198,7 @@ export function buildReportPayload({ kind, stats, testcases = [], findings = [],
     testcases,
     findings,
     evaluations: scoredEvaluations,
+    ...(bassettOnlyEvaluations.length ? { bassett_only_evaluations: bassettOnlyEvaluations } : {}),
     ...(regressionRuns === undefined ? {} : { regression_runs: regressionRuns }),
     ...(testRuns === undefined ? {} : { test_runs: testRuns }),
   });
@@ -215,6 +220,10 @@ export function buildReportPayload({ kind, stats, testcases = [], findings = [],
       normalization: "none",
     },
     stats,
+    release_evidence: releaseEvidence,
+    minimum_qualifying_tests: minimumQualifyingTests,
+    insufficient_evidence: insufficientEvidence ?? !releaseEvidence?.sufficient,
+    ...(releaseReadiness ? { release_readiness: releaseReadiness } : {}),
     ...records,
     evaluations: detailedEvaluations,
     reporting_groups: reportingGroups,

@@ -238,7 +238,18 @@ function QuickAdd({ label, value, items, onChange, fields, defaults = {}, disabl
       const { data } = await api.post(`/${collection}`, { ...defaults, ...draft });
       setOptions((current) => [...current.filter((item) => item.id !== data.id), data]);
       onChange(data.id); setDraft({}); setOpen(false); toast.success(`${label} added`);
-    } catch { toast.error(`Unable to add ${label.toLowerCase()}`); }
+    } catch (error) {
+      const detail = error.response?.data?.detail;
+      if (label === "Property" && detail?.code === "duplicate_property") {
+        toast.error(`${detail.message || "A matching property already exists."} ${detail.guidance || "Select the existing property record."}`);
+        if (detail.existing_id) {
+          const existing = options.find((item) => item.id === detail.existing_id);
+          if (existing) onChange(existing.id);
+        }
+      } else {
+        toast.error(typeof detail === "string" ? detail : `Unable to add ${label.toLowerCase()}`);
+      }
+    }
   };
   return <div className="space-y-2">
     <div className="flex flex-wrap gap-2">

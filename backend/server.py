@@ -47,6 +47,8 @@ from integrity_repairs import (
     repair_integrity_batch,
     validate_integrity_repair_scope,
 )
+from release_policy import MIN_QUALIFYING_TESTS, apply_evidence_gate, evidence_status
+from property_identity import canonical_property_identity, normalize_state, property_duplicate_key
 
 APP_ENV = os.environ.get("APP_ENV", "development").strip().lower()
 if APP_ENV not in {"development", "test", "production"}:
@@ -239,6 +241,17 @@ def _finding_criticality(finding):
         return SEVERITY_CRITICALITY["Medium"]
 
 
+def _finding_scope(finding):
+    """Classify persisted findings without inferring comparison from absence."""
+    explicit = str(finding.get("finding_scope") or "").casefold()
+    source = str(finding.get("source") or finding.get("origin") or "").casefold()
+    if explicit in {"comparison", "model_comparison"} or "comparison" in source:
+        return "comparison"
+    if explicit in {"bassett", "bassett_only"} or "bassett" in source:
+        return "bassett"
+    return None
+
+
 def _canonicalize_finding_severity(document):
     """Return a read-safe finding with matching severity and criticality."""
     normalized = dict(document)
@@ -258,6 +271,80 @@ def _normalize_municipality_part(value):
 
 def _municipality_key(name, state):
     return (_normalize_municipality_part(name), _normalize_municipality_part(state))
+
+
+async def _normalize_property_identity(document):
+    """Fill jurisdiction identity from the selected municipality for imports/UI."""
+    normalized = dict(document)
+    municipality_id = normalized.get("municipality_id")
+    municipality = None
+    if municipality_id:
+        municipality = await db.municipalities.find_one({"id": str(municipality_id)}, {"_id": 0})
+    else:
+        requested_name = normalized.get("municipality_name") or normalized.get("municipality")
+        requested_state = normalized.get("state") or normalized.get("municipality_state")
+        if requested_name:
+            municipalities = await db.municipalities.find({}, {"_id": 0}).to_list(10000)
+            municipality = next(
+                (
+                    row for row in municipalities
+                    if _normalize_municipality_part(row.get("name")) == _normalize_municipality_part(requested_name)
+                    and (
+                        not requested_state
+                        or normalize_state(row.get("state"))
+                        == normalize_state(requested_state)
+                    )
+                ),
+                None,
+            )
+            if municipality:
+                municipality_id = municipality.get("id")
+    fields, identity = canonical_property_identity(normalized, municipality)
+    for key, value in fields.items():
+        if value not in (None, ""):
+            normalized.setdefault(key, value)
+    normalized["property_duplicate_key"] = "|".join(identity)
+    return normalized
+
+
+async def _validate_unique_property(document, *, exclude_id=None):
+    """Preflight duplicate detection; the database unique index closes races."""
+    candidate = await _normalize_property_identity(document)
+    key = candidate["property_duplicate_key"]
+    if not key or not candidate.get("address") or not candidate.get("municipality_id"):
+        return candidate
+    duplicate = await db.properties.find_one(
+        {
+            "property_duplicate_key": key,
+            "archived": {"$ne": True},
+            "deleted_at": {"$in": [None, ""]},
+        },
+        {"_id": 0},
+    )
+    if duplicate and duplicate.get("id") == exclude_id:
+        duplicate = None
+    records = [] if duplicate else await db.properties.find({}, {"_id": 0}).to_list(10000)
+    for record in records:
+        if (
+            record.get("id") == exclude_id
+            or record.get("archived") or record.get("deleted_at")
+        ):
+            continue
+        existing = await _normalize_property_identity(record)
+        if existing.get("property_duplicate_key") == key:
+            duplicate = record
+            break
+    if duplicate:
+        raise HTTPException(
+            409,
+            detail={
+                "code": "duplicate_property",
+                "message": "A property with this normalized municipality, address, city, state, and ZIP already exists. Select the existing property ID; records are not silently merged.",
+                "existing_id": duplicate.get("id"),
+                "guidance": "Use the existing property record or choose a different address. Contact an administrator if these records represent distinct parcels.",
+            },
+        )
+    return candidate
 
 
 async def _validate_unique_municipality(document, *, exclude_id=None):
@@ -2002,6 +2089,8 @@ async def crud_create(coll, body, user):
     doc = dict(body)
     if coll == "municipalities":
         await _validate_unique_municipality(doc)
+    if coll == "properties":
+        doc = await _normalize_property_identity(doc)
     if coll in ("findings", "bassett_issues") and (
         "severity" in doc or "criticality" in doc
     ):
@@ -2050,6 +2139,8 @@ async def crud_create(coll, body, user):
         if doc.get("final_result") == doc["system_recommended"]:
             doc["override_reason"] = ""
     await _validate_relationships(coll, doc)
+    if coll == "properties":
+        doc = await _validate_unique_property(doc)
     if coll == "test_runs":
         doc["test_date"] = _validate_test_date(doc.get("test_date"))
     if coll == "findings":
@@ -2086,12 +2177,24 @@ async def crud_create(coll, body, user):
         if coll == "versions" and doc.get("active"):
             await db.versions.update_many({}, {"$set": {"active": False}})
         try:
-            await collection.insert_one(doc)
+            if coll == "properties" and hasattr(db, "insert_property_atomic"):
+                await db.insert_property_atomic(doc)
+            else:
+                await collection.insert_one(doc)
         except UniqueViolationError as error:
             if coll == "municipalities":
                 raise HTTPException(
                     409,
                     "A municipality with this normalized name and state already exists.",
+                ) from error
+            if coll == "properties":
+                raise HTTPException(
+                    409,
+                    detail={
+                        "code": "duplicate_property",
+                        "message": "A matching property was created concurrently. Select the existing property ID; records are not silently merged.",
+                        "guidance": "Reload the property list and use the existing record.",
+                    },
                 ) from error
             raise
     await log_activity(coll, doc["id"], "created", user, doc.get("name") or doc.get("title") or "")
@@ -2130,6 +2233,10 @@ async def crud_update(coll, id, body, user):
         raise HTTPException(404, "Not found")
     if coll == "municipalities":
         await _validate_unique_municipality(
+            {**existing_for_references, **body}, exclude_id=id,
+        )
+    if coll == "properties":
+        body = await _validate_unique_property(
             {**existing_for_references, **body}, exclude_id=id,
         )
     if coll in ("findings", "bassett_issues"):
@@ -2207,6 +2314,8 @@ async def crud_update(coll, id, body, user):
         body["prompts"] = merged["prompts"]
     else:
         await _validate_relationships(coll, {**(linked or {}), **body})
+    if coll == "properties":
+        body = await _normalize_property_identity({**existing_for_references, **body})
     body["updated_at"] = now_iso()
     body["revision"] = int(existing_for_references.get("revision", 1)) + 1
     # The revision predicate is checked while PostgreSQL holds a row lock.
@@ -4993,10 +5102,21 @@ async def bassett_export_csv(resource: str, include_archived: bool = False, user
             }
             for doc in docs
         ]
+    qualifying_export_count = (
+        sum(
+            _canonical_bassett_result(doc.get("result")) in EVALUATED_RESULTS
+            for doc in docs
+        )
+        if resource == "issues" else 0
+    )
+    export_evidence = evidence_status(qualifying_export_count)
     return Response(content=_bassett_csv_rows(resource, docs), media_type="text/csv",
                     headers={
                         "Content-Disposition": f'attachment; filename="bassett-{resource}-{"all" if include_archived else "active"}.csv"',
                         "X-Export-Scope": "all" if include_archived else "active",
+                        "X-Minimum-Qualifying-Tests": str(MIN_QUALIFYING_TESTS),
+                        "X-Qualifying-Evidence": str(export_evidence["evaluated"]),
+                        "X-Insufficient-Evidence": str(not export_evidence["sufficient"]).lower(),
                     })
 
 async def _bassett_import_preview(resource, rows):
@@ -5845,6 +5965,7 @@ async def dashboard_stats(user=Depends(get_current_user), include_sample: Option
     )
 
     open_findings = [f for f in findings if _finding_is_open(f)]
+    dashboard_evidence = evidence_status(bassett_populations["bassett_only"]["evaluated"])
     return {
         "active_projects": cnt(projects, "status", "Active"),
         "tests_ready_review": cnt(tcs, "status", "Ready for Evaluation"),
@@ -5866,6 +5987,9 @@ async def dashboard_stats(user=Depends(get_current_user), include_sample: Option
         "total_tests": len(tcs),
         "total_findings": len(findings),
         "project_last_tested_dates": project_last_tested_dates,
+        "release_evidence": dashboard_evidence,
+        "minimum_qualifying_tests": MIN_QUALIFYING_TESTS,
+        "insufficient_evidence": not dashboard_evidence["sufficient"],
     }
 
 @api.get("/analytics/performance")
@@ -6038,13 +6162,18 @@ async def analytics_performance(user=Depends(get_current_user),
         if bs < 5 and all(o < 5 for o in others):
             shared_fail += 1
 
+    report_evidence = evidence_status(
+        result_summary([e for e in evals if e.get("model") == "Bassett"])["evaluated"]
+    )
     return {"model_summary": model_summary, "by_category": by_category, "dimension_averages": dim_avg,
             "reporting_groups": reporting_groups,
             "wins": wins, "losses": losses, "shared_failures": shared_fail, "scope": scope_text,
             "report_scope": report_scope, "population_counts": {
                 "bassett_only": len(standalone_evals),
-                "model_comparison": len([e for e in comparison_evals if e.get("model") == "Bassett"]),
-            }}
+            "model_comparison": len([e for e in comparison_evals if e.get("model") == "Bassett"]),
+        }, "release_evidence": report_evidence,
+        "minimum_qualifying_tests": MIN_QUALIFYING_TESTS,
+        "insufficient_evidence": not report_evidence["sufficient"]}
 
 @api.get("/comparison/{testcase_id}")
 async def comparison(testcase_id: str, user=Depends(get_current_user)):
@@ -6271,7 +6400,7 @@ async def _set_sample_scope_for_user(user, requested=None):
     return include_sample
 
 
-async def _canonical_report_data(kind, include_sample=False):
+async def _canonical_report_data(kind, include_sample=False, version="", scope="both"):
     """Return the current, link-valid records that may populate an export.
 
     Exports must not reconstruct this population in the browser: doing so used
@@ -6283,6 +6412,9 @@ async def _canonical_report_data(kind, include_sample=False):
 
     versions = await crud_list("versions")
     sample_versions = _sample_version_names(versions)
+    selected_release_version = version or next(
+        (item.get("name") for item in versions if item.get("active")), ""
+    )
     testcases = [
         testcase for testcase in await crud_list("testcases")
         if not testcase.get("archived") and testcase.get("status") != "Archived"
@@ -6305,6 +6437,10 @@ async def _canonical_report_data(kind, include_sample=False):
         evaluation for evaluation in await crud_list("evaluations")
         if not evaluation.get("archived") and not evaluation.get("superseded")
         and evaluation.get("testcase_id") in testcase_ids
+        and (
+            kind != "release"
+            or evaluation.get("bassett_version") == selected_release_version
+        )
     ]
     raw_evaluations = _exclude_sample_scope(raw_evaluations, versions, include_sample)
     # A linked run must be a completed, non-partial run.  Unlinked legacy
@@ -6323,11 +6459,61 @@ async def _canonical_report_data(kind, include_sample=False):
     evaluations = latest_evaluations(
         evaluations, lambda evaluation: (evaluation["testcase_id"], evaluation.get("model"))
     )
+    release_population_ids = None
+    release_comparison_ids = set()
+    release_bassett_ids = set()
+    if kind == "release":
+        selected_version = selected_release_version
+        population_view = await _dashboard_bassett_populations(
+            testcases, raw_evaluations, selected_version,
+            comparison_view=await _evaluation_read_model(
+                raw_evaluations, valid_testcase_ids=testcase_ids, version=selected_version,
+            ),
+        )
+        comparison_records = population_view["model_comparison"]["records"]
+        bassett_records = population_view["bassett_only"]["records"]
+        release_bassett_records = bassett_records
+        release_comparison_ids = {
+            item.get("testcase_id") for item in comparison_records if item.get("testcase_id")
+        }
+        release_bassett_ids = {
+            item.get("testcase_id") for item in bassett_records if item.get("testcase_id")
+        }
+        release_population_ids = (
+            release_bassett_ids if scope == "bassett"
+            else release_comparison_ids if scope == "comparison"
+            else release_bassett_ids | release_comparison_ids
+        )
+        evaluations = [
+            item for item in evaluations
+            if item.get("testcase_id") in release_population_ids
+            and (
+                scope != "bassett" and item.get("model") == "Bassett"
+            )
+        ]
+        testcases = [item for item in testcases if item.get("id") in release_population_ids]
 
     findings = [
         finding for finding in await crud_list("findings")
         if not finding.get("archived") and finding.get("status") != "Archived"
-        and finding.get("testcase_id") in testcase_ids
+        and (kind == "release" or finding.get("testcase_id") in testcase_ids)
+        and (include_sample or not _is_sample_record(finding))
+        and (
+            release_population_ids is None
+            or (
+                (
+                    _finding_scope(finding) in ({scope} if scope != "both" else {"bassett", "comparison"})
+                    and (
+                        not finding.get("testcase_id")
+                        or finding.get("testcase_id") in release_population_ids
+                    )
+                )
+                or (
+                    _finding_scope(finding) is None
+                    and finding.get("testcase_id") in release_population_ids
+                )
+            )
+        )
     ]
     runs = []
     for run in await crud_list("regression_runs"):
@@ -6345,32 +6531,48 @@ async def _canonical_report_data(kind, include_sample=False):
         declared_ids = {identifier for identifier in run.get("testcase_ids", []) if identifier in testcase_ids}
         if not result_ids and not declared_ids:
             continue
+        if kind == "release" and version and run.get("bassett_version") != version:
+            continue
+        if kind == "release" and release_population_ids is not None:
+            run_population_ids = result_ids | declared_ids
+            if not run_population_ids.intersection(release_population_ids):
+                continue
         # Do not expose orphan members through an otherwise valid run.
         clean_run = dict(run)
+        run_allowed_ids = (
+            release_population_ids
+            if kind == "release" and release_population_ids is not None
+            else testcase_ids
+        )
         if "results" in clean_run:
             clean_run["results"] = [
-                result for result in clean_run["results"] if result.get("testcase_id") in testcase_ids
+                result for result in clean_run["results"] if result.get("testcase_id") in run_allowed_ids
             ]
         if "testcase_ids" in clean_run:
             clean_run["testcase_ids"] = [
-                identifier for identifier in clean_run["testcase_ids"] if identifier in testcase_ids
+                identifier for identifier in clean_run["testcase_ids"] if identifier in run_allowed_ids
             ]
         runs.append(clean_run)
 
     if kind != "regression":
         # A release report is current state, not a regression-history export.
-        active = next(
-            (
-                version for version in versions
-                if version.get("active") and (include_sample or not _is_sample_record(version))
-            ),
-            None,
-        )
+        if kind == "release" and version:
+            active = next((item for item in versions if item.get("name") == version), None)
+        else:
+            active = next(
+                (
+                    item for item in versions
+                    if item.get("active") and (include_sample or not _is_sample_record(item))
+                ),
+                None,
+            )
         latest = _latest_regression_run(
             [run for run in runs if not active or run.get("bassett_version") == active.get("name")]
         )
         runs = [latest] if latest else []
 
+    if kind == "release":
+        linked_run_ids = {item.get("run_id") for item in evaluations if item.get("run_id")}
     test_runs = [
         run for run in await db.test_runs.find(
             {"id": {"$in": list(linked_run_ids)}}, {"_id": 0}
@@ -6378,18 +6580,57 @@ async def _canonical_report_data(kind, include_sample=False):
     ] if linked_run_ids else []
     return {
         "testcases": testcases, "findings": findings, "evaluations": evaluations,
+        **({"bassett_only_evaluations": release_bassett_records}
+           if kind == "release" and scope != "comparison" else {}),
         "regression_runs": runs, "test_runs": test_runs,
     }
 
 
 @api.get("/reports/data")
-async def report_data(kind: str = "qa_summary", include_sample: Optional[bool] = None, user=Depends(get_current_user)):
+async def report_data(
+    kind: str = "qa_summary",
+    include_sample: Optional[bool] = None,
+    version: str = "",
+    scope: str = "both",
+    user=Depends(get_current_user),
+):
     """Canonical source records for a JSON report export."""
     include_sample = _sample_scope_enabled(user, include_sample)
-    records = await _canonical_report_data(kind, include_sample=include_sample)
+    if kind == "release" and scope not in {"bassett", "comparison", "both"}:
+        raise HTTPException(400, "scope must be bassett, comparison, or both")
+    records = await _canonical_report_data(
+        kind, include_sample=include_sample, version=version, scope=scope,
+    )
+    release_readiness_metadata = None
+    if kind == "release":
+        if scope not in {"bassett", "comparison", "both"}:
+            raise HTTPException(400, "scope must be bassett, comparison, or both")
+        active_version = next(
+            (item for item in await crud_list("versions") if item.get("active")),
+            None,
+        )
+        selected_version = version or (active_version or {}).get("name", "")
+        if selected_version:
+            release_readiness_metadata = await release_readiness(
+                version=selected_version, user=user, scope=scope,
+            )
+    bassett_export_evaluations = [
+        evaluation for evaluation in records["evaluations"]
+        if evaluation.get("model") == "Bassett"
+    ]
+    export_evidence = (
+        release_readiness_metadata.get("evidence_status")
+        if release_readiness_metadata
+        else evidence_status(result_summary(bassett_export_evaluations)["evaluated"])
+    )
     return {
         **records,
         "stats": await dashboard_stats(user, include_sample=include_sample),
+        "release_evidence": export_evidence,
+        "minimum_qualifying_tests": MIN_QUALIFYING_TESTS,
+        "insufficient_evidence": not export_evidence["sufficient"],
+        "report_scope": scope,
+        **({"release_readiness": release_readiness_metadata} if release_readiness_metadata else {}),
         "sample_data_included": include_sample,
     }
 
@@ -6578,7 +6819,9 @@ async def import_testcases(body: Dict[str, Any], user=Depends(require_writer)):
 
 # ---------- Release Readiness ----------
 @api.get("/release-readiness")
-async def release_readiness(version: str, user=Depends(get_current_user)):
+async def release_readiness(version: str, user=Depends(get_current_user), scope: str = "both"):
+    if scope not in {"bassett", "comparison", "both"}:
+        raise HTTPException(400, "scope must be bassett, comparison, or both")
     raw_evaluations = await crud_list("evaluations")
     testcase_rows = await crud_list("testcases")
     tcs = {t["id"]: t for t in testcase_rows}
@@ -6606,7 +6849,17 @@ async def release_readiness(version: str, user=Depends(get_current_user)):
         })
     # Expanded/linked Bassett-only lineages are removed by the shared helper,
     # so a result can influence readiness only once.
-    evals = [*comparison_evals, *bassett_only_evals]
+    evals = (
+        bassett_only_evals if scope == "bassett"
+        else comparison_evals if scope == "comparison"
+        else [*comparison_evals, *bassett_only_evals]
+    )
+    comparison_testcase_ids = {
+        evaluation.get("testcase_id") for evaluation in comparison_evals if evaluation.get("testcase_id")
+    }
+    bassett_testcase_ids = {
+        evaluation.get("testcase_id") for evaluation in bassett_only_evals if evaluation.get("testcase_id")
+    }
     evaluation_summary = result_summary(evals)
     passed = evaluation_summary["passed_records"]
     failed = evaluation_summary["failed_records"]
@@ -6616,14 +6869,88 @@ async def release_readiness(version: str, user=Depends(get_current_user)):
     avg_score = average_score(evals)
 
     all_findings = await crud_list("findings")
-    open_findings = [f for f in all_findings if _finding_is_open(f)]
-    version_findings = [f for f in open_findings if f.get("version_found") == version]
+    scoped_testcase_ids = {evaluation.get("testcase_id") for evaluation in evals if evaluation.get("testcase_id")}
+    def finding_in_scope(finding):
+        finding_scope = _finding_scope(finding)
+        testcase_id = finding.get("testcase_id")
+        if scope == "both":
+            return finding_scope in {"bassett", "comparison"} or testcase_id in (
+                comparison_testcase_ids | bassett_testcase_ids
+            ) or (finding_scope is None and not testcase_id)
+        if finding_scope == scope:
+            return True
+        if finding_scope is None and testcase_id:
+            return testcase_id in (
+                bassett_testcase_ids if scope == "bassett" else comparison_testcase_ids
+            )
+        return False
+    open_findings = [
+        f for f in all_findings
+        if _finding_is_open(f) and finding_in_scope(f)
+    ]
+    version_findings = [
+        f for f in open_findings
+        if f.get("version_found") == version
+        and finding_in_scope(f)
+    ]
     open_crit5 = [f for f in version_findings if _finding_criticality(f) >= 5]
     open_crit4 = [f for f in version_findings if _finding_criticality(f) == 4]
 
-    runs = [r for r in await crud_list("regression_runs") if r.get("bassett_version") == version]
+    def regression_run_scope(run):
+        run_ids = {
+            result.get("testcase_id") for result in run.get("results", [])
+            if result.get("testcase_id")
+        } | {identifier for identifier in run.get("testcase_ids", []) if identifier}
+        in_bassett = bool(run_ids) and run_ids.issubset(bassett_testcase_ids)
+        in_comparison = bool(run_ids) and run_ids.issubset(comparison_testcase_ids)
+        if not run_ids:
+            return None
+        if in_bassett and not in_comparison:
+            return "bassett"
+        if in_comparison and not in_bassett:
+            return "comparison"
+        return "both"
+
+    runs = [
+        r for r in await crud_list("regression_runs")
+        if r.get("bassett_version") == version
+        and (
+            regression_run_scope(r) in (
+                {"bassett", "comparison", "both"} if scope == "both" else {scope, "both"}
+            )
+        )
+    ]
     reg = _latest_regression_run(runs)
-    newly_failing = (reg.get("newly_failing") or 0) if reg else 0
+    if reg:
+        selected_ids = (
+            comparison_testcase_ids if scope == "comparison"
+            else bassett_testcase_ids if scope == "bassett"
+            else comparison_testcase_ids | bassett_testcase_ids
+        )
+        selected_results = [
+            result for result in reg.get("results", [])
+            if result.get("testcase_id") in selected_ids
+        ]
+        reg = dict(reg)
+        if "results" in reg:
+            reg["results"] = selected_results
+        if "testcase_ids" in reg:
+            reg["testcase_ids"] = [
+                identifier for identifier in reg["testcase_ids"] if identifier in selected_ids
+            ]
+        if selected_results:
+            newly_failing = sum(
+                1 for result in selected_results
+                if result.get("delta") == "regressed"
+                or result.get("newly_failing") is True
+            )
+            reg["newly_failing"] = newly_failing
+        else:
+            newly_failing = (reg.get("newly_failing") or 0) if (
+                regression_run_scope(reg) != "both"
+            ) else 0
+    else:
+        newly_failing = 0
 
     blockers = []
     if not evaluated:
@@ -6647,14 +6974,20 @@ async def release_readiness(version: str, user=Depends(get_current_user)):
     stale_gold_tests = [{"testcase_id": tid, "name": tcs.get(tid, {}).get("name", "?"), "stale_evidence": stale_map[tid]}
                         for tid in stale_map if tid in {e.get("testcase_id") for e in evals if e.get("testcase_id") in tcs}]
 
-    if not evaluated:
-        recommendation, reason = "NOT-READY", "Insufficient evaluation data — complete Bassett evaluations before making a release decision."
+    evidence = evidence_status(evaluated)
+    if not evidence["sufficient"]:
+        recommendation, reason = (
+            "INSUFFICIENT-EVIDENCE",
+            f"Insufficient Evidence — {evaluated} qualifying tests are available; "
+            f"release readiness requires at least {MIN_QUALIFYING_TESTS}.",
+        )
     elif open_crit5 or critical_fails or pass_rate < 70:
         recommendation, reason = "NO-GO", "Critical severity findings, Critical Fail evaluations, or pass rate below 70%."
     elif open_crit4 or newly_failing or pass_rate < 85:
         recommendation, reason = "CONDITIONAL", "High or Critical severity open findings, new regressions, or pass rate below 85% — release with mitigations."
     else:
         recommendation, reason = "GO", "Pass rate ≥ 85%, no critical blockers, no new regressions."
+    recommendation = apply_evidence_gate(evaluated, recommendation)
 
     failed_tests = [{"testcase_id": e.get("testcase_id"), "name": tcs.get(e.get("testcase_id"), {}).get("name") or e.get("_release_label") or "Bassett-only test run",
                      "result": e.get("normalized_result"), "raw_result": e.get("final_result"),
@@ -6662,7 +6995,9 @@ async def release_readiness(version: str, user=Depends(get_current_user)):
                      "criticality": tcs.get(e.get("testcase_id"), {}).get("criticality") or e.get("criticality"),
                      "source": e.get("_release_source", "model_comparison")}
                     for e in failed]
-    decision = await db.release_decisions.find_one({"version": version}, {"_id": 0})
+    decision = await db.release_decisions.find_one(
+        {"version": version, "scope": scope}, {"_id": 0}
+    )
     if decision:
         snap = decision.get("snapshot") or {}
         if not snap:
@@ -6672,6 +7007,8 @@ async def release_readiness(version: str, user=Depends(get_current_user)):
             snap_labels = sorted(b.get("label", "") for b in snap.get("blockers", []))
             cur_labels = sorted(b.get("label", "") for b in blockers)
             changed = []
+            if snap.get("scope") != scope:
+                changed.append(f"scope {snap.get('scope')} → {scope}")
             if snap_labels != cur_labels:
                 changed.append(f"blockers changed ({len(snap_labels)} at decision → {len(cur_labels)} now)")
             if snap.get("pass_rate") != pass_rate:
@@ -6682,10 +7019,19 @@ async def release_readiness(version: str, user=Depends(get_current_user)):
                 changed.append(f"system recommendation {snap.get('system_recommendation')} → {recommendation}")
             decision["state_changed"] = bool(changed)
             decision["state_changed_detail"] = "; ".join(changed)
-    return {"version": version, "recommendation": recommendation, "reason": reason,
+        if not evidence["sufficient"]:
+            decision = {
+                **decision,
+                "historical_decision": decision.get("decision"),
+                "decision": "INSUFFICIENT-EVIDENCE",
+            }
+    return {"version": version, "scope": scope, "recommendation": recommendation, "reason": reason,
             "decision": decision,
             "stale_gold_tests": stale_gold_tests,
             "pass_rate": pass_rate, "avg_score": avg_score, "evaluated": evaluated,
+            "minimum_qualifying_tests": MIN_QUALIFYING_TESTS,
+            "insufficient_evidence": not evidence["sufficient"],
+            "evidence_status": evidence,
             "comparison_evaluated": len(comparison_evals),
             "bassett_only_evaluated": len(bassett_only_evals),
             "passed": len(passed), "failed": len(failed), "critical_fail_evals": len(critical_fails),
@@ -7296,6 +7642,7 @@ async def analytics_executive(
             "interpret trends cautiously." if evaluated_count < 5 else None
         ),
     }
+    report_evidence = evidence_status(evaluated_count)
     benchmark_evaluated_count = len([e for e in evals if e.get("model") != "Bassett"])
     return {"kpis": {"bassett_avg": bassett_avg, "benchmark_avg": bench_avg, "pass_rate": pass_rate,
                      "wins": wins, "losses": losses, "open_critical": open_critical,
@@ -7307,6 +7654,9 @@ async def analytics_executive(
              "reporting_groups": reporting_groups, "scope": scope,
             "stale_gold_tests": stale_gold, "sample_data_included": include_sample,
              "has_evaluated_data": evaluated_count > 0, "report_scope": report_scope,
+             "release_evidence": report_evidence,
+             "minimum_qualifying_tests": MIN_QUALIFYING_TESTS,
+             "insufficient_evidence": not report_evidence["sufficient"],
             "population_counts": {
                 "bassett_only": len(standalone_bassett),
                 "model_comparison": len(comparison_evals),
@@ -7461,13 +7811,17 @@ async def analytics_coverage(user=Depends(get_current_user), scope: str = "both"
     selected_total = bassett_summary["total_tests"] if scope == "bassett" else comparison_summary["total_tests"] if scope == "comparison" else bassett_summary["total_tests"] + comparison_summary["total_tests"]
     selected_evaluated = bassett_summary["evaluated_tests"] if scope == "bassett" else comparison_summary["evaluated_tests"] if scope == "comparison" else bassett_summary["evaluated_tests"] + comparison_summary["evaluated_tests"]
     selected_gaps = bassett_summary["gap_count"] if scope == "bassett" else comparison_summary["gap_count"] if scope == "comparison" else bassett_summary["gap_count"] + comparison_summary["gap_count"]
+    coverage_evidence = evidence_status(selected_evaluated)
     return {"municipalities": municipalities, "categories": categories, "criticality": criticality,
             "workflow_stages": workflow_stages, "complexities": complexities, "priorities": priorities,
             "report_scope": scope, "population_counts": {"bassett_only": bassett_summary, "model_comparison": comparison_summary},
             "summary": {"total_tests": selected_total, "evaluated_tests": selected_evaluated,
                         "munis_covered": len(munis) - len(muni_gaps), "munis_total": len(munis),
                         "categories_covered": len(categories) - len(cat_gaps), "categories_total": len(categories),
-                        "crit_covered": 5 - len(crit_gaps), "gap_count": selected_gaps}}
+                        "crit_covered": 5 - len(crit_gaps), "gap_count": selected_gaps},
+            "release_evidence": coverage_evidence,
+            "minimum_qualifying_tests": MIN_QUALIFYING_TESTS,
+            "insufficient_evidence": not coverage_evidence["sufficient"]}
 
 # ---------- Competitive Insights ----------
 @api.get("/analytics/competitive")
@@ -8186,10 +8540,14 @@ async def metrics_summary(user=Depends(get_current_user)):
     def pack(subset, unit, definition):
         summary = result_summary(subset)
         evaluated = summary["evaluated"]
+        release_evidence = evidence_status(evaluated)
         return {
             "unit": unit, "passed": summary["passed"], "failed": summary["failed"],
             "evaluated": evaluated, "pass_rate": summary["pass_rate"],
             "limited_data": {"limited": evaluated < 5, "evaluated": evaluated, "threshold": 5},
+            "release_evidence": release_evidence,
+            "minimum_qualifying_tests": MIN_QUALIFYING_TESTS,
+            "insufficient_evidence": not release_evidence["sufficient"],
             "label": f"{summary['passed']} of {evaluated} passed",
             "definition": definition,
         }
@@ -8538,15 +8896,21 @@ async def readiness_decision(body: Dict[str, Any], user=Depends(get_current_user
     if user["role"] not in ("admin", "qa_manager"):
         raise HTTPException(403, "Only Admin or QA Manager can record a release decision")
     version = body.get("version")
+    scope = body.get("scope", "both")
     decision = body.get("decision")
     if decision not in ("GO", "CONDITIONAL", "NO-GO"):
         raise HTTPException(400, "decision must be GO, CONDITIONAL or NO-GO")
     # Server-side override detection: never trust the client's flag
-    rr = await release_readiness(version=version, user=user)
+    rr = await release_readiness(version=version, scope=scope, user=user)
+    if decision == "GO" and rr.get("insufficient_evidence"):
+        raise HTTPException(
+            409,
+            f"Cannot record GO with insufficient evidence. At least {MIN_QUALIFYING_TESTS} qualifying tests are required.",
+        )
     is_override = decision != rr["recommendation"]
     # Immutable decision-time snapshot — captured server-side from the live readiness computation
     snapshot = {
-        "version": version, "environment": body.get("environment", "Production"),
+        "version": version, "scope": scope, "environment": body.get("environment", "Production"),
         "decision_date": now_iso(), "system_recommendation": rr["recommendation"],
         "recommendation_reason": rr["reason"],
         "pass_rate": rr["pass_rate"], "evaluated": rr["evaluated"], "passed": rr["passed"],
@@ -8557,7 +8921,7 @@ async def readiness_decision(body: Dict[str, Any], user=Depends(get_current_user
         "blockers": [{"type": b["type"], "label": b["label"], "detail": b["detail"],
                       "link_id": b.get("link_id", ""), "link_type": b.get("link_type", "")} for b in rr["blockers"]],
     }
-    doc = {"version": version, "decision": decision, "notes": body.get("notes", ""),
+    doc = {"version": version, "scope": scope, "decision": decision, "notes": body.get("notes", ""),
            "override": is_override, "risk_accepted": bool(body.get("risk_accepted")),
            "system_recommendation_at_decision": rr["recommendation"],
            "follow_up": body.get("follow_up", ""),
@@ -8566,11 +8930,15 @@ async def readiness_decision(body: Dict[str, Any], user=Depends(get_current_user
            "decided_by": user["name"], "decided_at": now_iso()}
     if is_override and (len(doc["notes"].strip()) < 20 or not doc["risk_accepted"]):
         raise HTTPException(400, "Overriding the system recommendation requires a structured rationale (≥20 chars) and explicit risk acceptance.")
-    prev = await db.release_decisions.find_one({"version": version}, {"_id": 0})
+    prev = await db.release_decisions.find_one(
+        {"version": version, "scope": scope}, {"_id": 0}
+    )
     if prev:
         history = prev.get("decision_history", []) + [{k: prev.get(k) for k in ("decision", "notes", "decided_by", "decided_at")}]
         doc["decision_history"] = history
-    await db.release_decisions.update_one({"version": version}, {"$set": doc}, upsert=True)
+    await db.release_decisions.update_one(
+        {"version": version, "scope": scope}, {"$set": doc}, upsert=True
+    )
     await log_activity("release", version, f"release decision · {decision}", user, body.get("notes", ""))
     return doc
 
@@ -8675,6 +9043,57 @@ async def _run_data_integrity(user):
     decisions = await db.release_decisions.find({}, {"_id": 0}).to_list(100)
     versions = await crud_list("versions")
     scenarios = await crud_list("bassett_scenarios", include_archived=True)
+
+    # Semantic duplicate detection deliberately runs over active records and
+    # uses the same normalized identity as property creation.  Keep every
+    # candidate visible: a duplicate is a review finding, never an implicit
+    # merge or a "clean" result.
+    property_groups = {}
+    municipality_by_identity = {
+        (
+            _normalize_municipality_part(municipality.get("name")),
+            normalize_state(municipality.get("state")),
+        ): municipality
+        for municipality in munis.values()
+    }
+    for property_id, property_record in props.items():
+        if property_record.get("archived") or property_record.get("deleted_at"):
+            continue
+        municipality = munis.get(property_record.get("municipality_id"))
+        if municipality is None:
+            legacy_municipality = property_record.get("municipality")
+            if isinstance(legacy_municipality, dict):
+                municipality = legacy_municipality
+            else:
+                municipality = municipality_by_identity.get((
+                    _normalize_municipality_part(property_record.get("municipality_name")),
+                    normalize_state(property_record.get("state") or property_record.get("municipality_state")),
+                ), {})
+        identity_record = {
+            **property_record,
+            "municipality_name": property_record.get("municipality_name") or municipality.get("name"),
+            "municipality_state": property_record.get("municipality_state") or municipality.get("state"),
+        }
+        property_groups.setdefault(
+            property_duplicate_key(identity_record, municipality),
+            [],
+        ).append(property_record)
+    for duplicate_key, candidates in property_groups.items():
+        if not duplicate_key or len(candidates) < 2:
+            continue
+        candidate_ids = sorted(record["id"] for record in candidates)
+        for property_record in candidates:
+            add(
+                "property", property_record["id"],
+                property_record.get("name") or property_record.get("address") or property_record["id"],
+                f"Semantic duplicate property candidate; matches {len(candidates) - 1} other active record(s)",
+                "high",
+                "Review the candidate records and explicitly archive or correct the duplicate; no records are merged automatically.",
+                "/properties",
+                {"key": "property_duplicate_review", "label": "Review duplicate candidates", "destructive": False,
+                 "params": {"candidate_ids": candidate_ids},
+                 "effect": "Opens the property list for manual review. No record is merged or deleted."},
+            )
 
     b_evals_by_tc = {}
     for e in sorted([x for x in evals if x.get("model") == "Bassett"], key=lambda x: x.get("created_at", "")):

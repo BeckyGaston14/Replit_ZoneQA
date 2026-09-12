@@ -16,7 +16,7 @@ import { ConfirmActionDialog } from "../components/ConfirmActionDialog";
 import { QueryState } from "../components/PageState";
 import { fmtPct, fmtScore } from "../lib/format";
 
-function DecisionPanel({ version, recommendation, blockers = [], onSaved, openSignal }) {
+function DecisionPanel({ version, scope, recommendation, blockers = [], onSaved, openSignal }) {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [notes, setNotes] = useState("");
@@ -39,7 +39,7 @@ function DecisionPanel({ version, recommendation, blockers = [], onSaved, openSi
     }
     setSaving(true);
     try {
-      await api.post("/release-readiness/decision", { version, decision, notes, risk_accepted: riskAccepted, follow_up: followUp });
+      await api.post("/release-readiness/decision", { version, scope, decision, notes, risk_accepted: riskAccepted, follow_up: followUp });
       toast.success(`Final decision recorded: ${decision}${isOverride ? " (override — blocker snapshot stored)" : ""}`);
       setOpen(false); setNotes(""); setRiskAccepted(false); setFollowUp(""); setConfirmingDecision(null); onSaved();
     } catch (e) { toast.error(e.response?.data?.detail || "Failed to record decision"); }
@@ -58,10 +58,10 @@ function DecisionPanel({ version, recommendation, blockers = [], onSaved, openSi
             I accept responsibility for releasing against the listed blockers (required for overrides)
           </label>
           <div className="flex gap-1.5">
-            {["GO", "CONDITIONAL", "NO-GO"].map((decision) => {
+            {(recommendation === "INSUFFICIENT-EVIDENCE" ? ["CONDITIONAL", "NO-GO"] : ["GO", "CONDITIONAL", "NO-GO"]).map((decision) => {
               const definition = statusDefinition(decision, RELEASE_DECISIONS);
               const DecisionIcon = definition.icon;
-              return <Button key={decision} size="sm" disabled={saving} className="flex-1" style={{ background: definition.color, color: readableTextColor(definition.color) }} title={definition.description} aria-label={`${definition.label}. ${definition.description}`} onClick={() => record(decision)} data-testid={decision === "GO" ? "decision-go" : decision === "CONDITIONAL" ? "decision-cond" : "decision-no-go"}><DecisionIcon size={13} aria-hidden="true" />{saving ? "Saving…" : definition.label}</Button>;
+              return <Button key={decision} size="sm" disabled={saving} className="flex-1" style={{ background: definition.color, color: readableTextColor(definition.color) }} title={definition.description} aria-label={definition.description} onClick={() => record(decision)} data-testid={decision === "GO" ? "decision-go" : decision === "CONDITIONAL" ? "decision-cond" : "decision-no-go"}><DecisionIcon size={13} aria-hidden="true" />{saving ? "Saving…" : definition.label}</Button>;
             })}
           </div>
           <button className="text-xs text-muted-foreground hover:underline" onClick={() => setOpen(false)}>Cancel</button>
@@ -90,6 +90,7 @@ export default function ReleaseReadiness() {
   const { data: versions = [], isLoading: versionsLoading, isError: versionsError, refetch: refetchVersions } = versionsQuery;
   const [sp, setSp] = useSearchParams();
   const [version, setVersion] = useState(sp.get("version") || "");
+  const [scope, setScope] = useState(["bassett", "comparison", "both"].includes(sp.get("scope")) ? sp.get("scope") : "both");
   const [reevalSignal, setReevalSignal] = useState(0);
   const qcRef = useQueryClient();
 
@@ -114,10 +115,16 @@ export default function ReleaseReadiness() {
     params.set("version", next);
     setSp(params);
   };
+  const chooseScope = (next) => {
+    setScope(next);
+    const params = new URLSearchParams(sp);
+    if (next === "both") params.delete("scope"); else params.set("scope", next);
+    setSp(params);
+  };
 
   const { data: r, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["readiness", version],
-    queryFn: async () => (await api.get(`/release-readiness?version=${encodeURIComponent(version)}`)).data,
+    queryKey: ["readiness", version, scope],
+    queryFn: async () => (await api.get(`/release-readiness?version=${encodeURIComponent(version)}&scope=${scope}`)).data,
     enabled: !!version,
   });
 
@@ -129,6 +136,11 @@ export default function ReleaseReadiness() {
         <div className="w-56">
           <ListSelect options={versions.map((v) => v.name)} value={version} onChange={chooseVersion} placeholder="Bassett version" testid="readiness-version-select" />
         </div>
+        <select aria-label="Release readiness scope" value={scope} onChange={(event) => chooseScope(event.target.value)} data-testid="readiness-scope-select" className="h-9 rounded-md border bg-background px-3 text-sm">
+          <option value="both">Both populations</option>
+          <option value="bassett">Bassett-only</option>
+          <option value="comparison">Model Comparison</option>
+        </select>
       </PageHeader>
       <SampleDataBanner show={sampleScopeIncludesData({ versions, selectedVersion: version, records: [r] })} />
 
@@ -142,7 +154,9 @@ export default function ReleaseReadiness() {
           {r.decision && (() => {
             const dec = r.decision, snap = dec.snapshot || {};
             const isOverride = dec.override;
-            const decisionStatus = isOverride && dec.decision === "GO" ? "GO WITH RISK ACCEPTANCE" : dec.decision;
+            const decisionStatus = r.insufficient_evidence
+              ? "INSUFFICIENT-EVIDENCE"
+              : isOverride && dec.decision === "GO" ? "GO WITH RISK ACCEPTANCE" : dec.decision;
             const decisionDefinition = statusDefinition(decisionStatus, RELEASE_DECISIONS);
             return (
               <div className="rounded-xl border-2 p-4 mb-4 bg-card" style={{ borderColor: decisionDefinition.color }} data-testid="reviewer-decision-banner">
@@ -184,11 +198,11 @@ export default function ReleaseReadiness() {
               <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">System Recommendation — final decision belongs to an authorized reviewer</div>
               <div className="mt-1" data-testid="readiness-recommendation"><StatusBadge value={r.recommendation} definitions={RELEASE_DECISIONS} /></div>
               <div className="text-sm mt-2 text-[var(--navy)]">{r.reason}</div>
-               <div className="text-xs mt-1 text-muted-foreground">{r.version} · {r.evaluated} qualifying Bassett tests ({r.comparison_evaluated || 0} Model Comparison · {r.bassett_only_evaluated || 0} Bassett-only; Pass includes "Pass with Minor Issues")</div>
+               <div className="text-xs mt-1 text-muted-foreground">{r.version} · {r.scope} · {r.evaluated} of {r.minimum_qualifying_tests} qualifying tests completed ({r.comparison_evaluated || 0} Model Comparison · {r.bassett_only_evaluated || 0} Bassett-only; Pass includes "Pass with Minor Issues")</div>
             </div>
-            <DecisionPanel version={version} recommendation={r.recommendation} blockers={r.blockers} openSignal={reevalSignal} onSaved={() => qcRef.invalidateQueries({ queryKey: ["readiness", version] })} />
+            <DecisionPanel version={version} scope={scope} recommendation={r.recommendation} blockers={r.blockers} openSignal={reevalSignal} onSaved={() => qcRef.invalidateQueries({ queryKey: ["readiness", version, scope] })} />
           </div>
-          {r.evaluated === 0 && <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">No qualifying completed Bassett-only or Model Comparison evaluations exist for this version. Complete and score a test before using this readiness recommendation for a release decision.</div>}
+           {r.insufficient_evidence && <div className="mb-4 rounded-xl border border-slate-300 bg-slate-50 p-4 text-sm text-slate-800" data-testid="insufficient-evidence-guidance">Insufficient Evidence: {r.evaluated} of {r.minimum_qualifying_tests} qualifying tests completed. Blockers are shown for investigation and do not change this neutral status.</div>}
 
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
              <StatCard label="Pass Rate" value={fmtPct(r.pass_rate)} accent={r.pass_rate != null && r.pass_rate >= 85 ? "#16a34a" : r.pass_rate != null && r.pass_rate >= 70 ? "#f59e0b" : "#dc2626"} icon={Percent} testid="stat-pass-rate" />

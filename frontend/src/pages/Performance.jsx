@@ -121,6 +121,7 @@ export default function Performance() {
       {failed && <QueryState query={failed} resource="performance data" testId="performance" />}
       {loading && !failed && <QueryState query={{ isLoading: true }} resource="performance data" testId="performance" />}
       {!loading && !failed && perf && <>
+      {perf.insufficient_evidence && <div className="mb-4 rounded-xl border border-slate-300 bg-slate-50 p-4 text-sm text-slate-800" data-testid="performance-insufficient-evidence">Insufficient Evidence: this {perf.report_scope || "selected"} report has {perf.release_evidence?.evaluated || 0} of {perf.minimum_qualifying_tests} qualifying tests completed. Findings and metrics remain visible for investigation.</div>}
       <div className="flex items-center gap-2 mb-4 flex-wrap" data-testid="perf-filter-bar">
         <select value={flt.scope} onChange={(event) => setPerformanceScope(event.target.value)} aria-label="Performance scope" data-testid="perf-filter-scope" className="h-8 text-xs border rounded-lg px-2 bg-card text-[var(--navy)] max-w-[170px]">
           <option value="bassett">Bassett Only</option>

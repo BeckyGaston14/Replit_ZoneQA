@@ -168,6 +168,18 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
        },
       onError: (error) => {
          submitInFlight.current = false;
+        const detail = error?.response?.data?.detail;
+        if (collection === "properties" && detail?.code === "duplicate_property") {
+          const guidance = detail.guidance || "Select the existing property record; records are not silently merged.";
+          const message = `${detail.message || "A matching property already exists."} ${guidance}`;
+          setServerError(message);
+          toast.error(message);
+          if (detail.existing_id) {
+            const existing = data.find((item) => item.id === detail.existing_id);
+            if (existing) setConflictRecord(existing);
+          }
+          return;
+        }
         if (error?.response?.status === 409) {
           toast.error("This record changed elsewhere. Reload it and review your entries before reapplying them.");
           Promise.resolve(api.get(listEndpoint)).then(({ data: latest } = {}) => {

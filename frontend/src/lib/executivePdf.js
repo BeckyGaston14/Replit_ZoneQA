@@ -286,6 +286,9 @@ export function renderExecutivePdf({ doc, data, chartImages = {}, generated = ne
   const failureModes = data?.failure_modes || [];
   const includesComparison = data?.report_scope !== "bassett";
   const takeaways = [
+    data?.insufficient_evidence
+      ? `Insufficient Evidence: ${safeText(data?.release_evidence?.evaluated, "0")} of ${safeText(data?.minimum_qualifying_tests, "unavailable")} qualifying tests completed. This report is informational and emits no Go recommendation.`
+      : null,
     !includesComparison ? null : number(kpis.bassett_avg) !== null && number(kpis.benchmark_avg) !== null
       ? `Bassett ${number(kpis.bassett_avg) >= number(kpis.benchmark_avg) ? "outscores" : "trails"} benchmark models by ${Math.abs(number(kpis.bassett_avg) - number(kpis.benchmark_avg)).toFixed(1)} points on average (${fmtScore(kpis.bassett_avg)} vs ${fmtScore(kpis.benchmark_avg)} / 10).`
       : "Competitive score comparison is unavailable until both sides have scored tests in the same scope.",
@@ -317,7 +320,12 @@ export function renderExecutivePdf({ doc, data, chartImages = {}, generated = ne
     return A4_PAGE.top;
   };
   drawHeader(doc, generated);
-  let y = drawSectionTitle(doc, "Executive Summary", A4_PAGE.top, data?.scope || "Scope unavailable");
+  let y = drawSectionTitle(
+    doc,
+    "Executive Summary",
+    A4_PAGE.top,
+    `${data?.scope || "Scope unavailable"} · qualifying evidence ${safeText(data?.release_evidence?.evaluated, "0")}/${safeText(data?.minimum_qualifying_tests, "unavailable")}`,
+  );
   y += 2;
   y = drawKpiCards(doc, kpis, y, boxes, data?.report_scope, data?.population_counts) + 7;
   y = drawTakeaways(doc, takeaways, y, boxes) + SECTION_GAP;

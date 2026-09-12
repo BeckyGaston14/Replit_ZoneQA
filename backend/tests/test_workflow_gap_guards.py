@@ -667,16 +667,187 @@ def test_release_readiness_critical_findings_are_version_scoped(monkeypatch):
     monkeypatch.setattr(server, "compute_stale_gold_map", lambda: asyncio.sleep(0, result={}))
     current = asyncio.run(server.release_readiness("v1", {"id": "viewer", "role": "viewer"}))
     old = asyncio.run(server.release_readiness("v0", {"id": "viewer", "role": "viewer"}))
-    # With no qualifying evaluations, insufficient data remains the governing
-    # readiness state even when a version-scoped warning exists.
-    assert current["recommendation"] == "NOT-READY"
+    # Below the centralized evidence threshold, the neutral state governs even
+    # when a version-scoped warning exists.
+    assert current["recommendation"] == "INSUFFICIENT-EVIDENCE"
     assert current["open_crit5"] == 0
     assert current["open_crit4"] == 1
     assert not any(blocker["label"] == "Old blocker" for blocker in current["blockers"])
-    assert old["recommendation"] == "NOT-READY"
+    assert old["recommendation"] == "INSUFFICIENT-EVIDENCE"
     assert old["open_crit5"] == 0
     assert old["open_crit4"] == 0
     assert not any(blocker["label"] == "Old blocker" for blocker in old["blockers"])
+
+
+def test_integrity_detects_name_only_and_id_linked_equivalent_properties(monkeypatch):
+    rows = {
+        "testcases": [], "evaluations": [], "responses": [], "findings": [],
+        "retests": [], "goldstandards": [], "projects": [], "evidence": [],
+        "regression_runs": [], "versions": [], "bassett_scenarios": [],
+        "municipalities": [{
+            "id": "muni-1", "name": "Milwaukee", "state": "Wisconsin",
+        }],
+        "properties": [
+            {
+                "id": "property-id", "address": "6442 N 76th St", "city": "Milwaukee",
+                "state": "WI", "zip": "53223", "municipality_id": "muni-1",
+            },
+            {
+                "id": "property-name", "address": "6442 North 76th Street",
+                "city": "Milwaukee", "state": "Wisconsin", "zip": "53223",
+                "municipality_name": "Milwaukee",
+            },
+        ],
+    }
+    monkeypatch.setattr(server, "db", Db(rows))
+
+    async def fake_crud_list(collection, query=None, **_kwargs):
+        return [dict(row) for row in rows.get(collection, [])]
+
+    monkeypatch.setattr(server, "crud_list", fake_crud_list)
+    result = asyncio.run(server._run_data_integrity({"id": "admin", "role": "admin"}))
+    duplicate_issues = [
+        issue for issue in result["issues"]
+        if issue["entity_type"] == "property" and "duplicate" in issue["problem"].casefold()
+    ]
+    assert {issue["entity_id"] for issue in duplicate_issues} == {"property-id", "property-name"}
+
+
+def test_release_readiness_scopes_regression_blockers_to_population(monkeypatch):
+    rows = {
+        "testcases": [{"id": "comparison-tc"}, {"id": "bassett-tc"}],
+        "evaluations": [], "findings": [], "release_decisions": [],
+        "regression_runs": [
+            {"id": "comparison-run", "bassett_version": "v1", "created_at": "2026-01-02",
+             "testcase_ids": ["comparison-tc"], "newly_failing": 1},
+            {"id": "bassett-run", "bassett_version": "v1", "created_at": "2026-01-01",
+             "testcase_ids": ["bassett-tc"], "newly_failing": 2},
+        ],
+    }
+    monkeypatch.setattr(server, "db", Db(rows))
+
+    async def fake_crud_list(collection, query=None, **_kwargs):
+        return [dict(row) for row in rows.get(collection, [])]
+
+    async def fake_read_model(*_args, **_kwargs):
+        return {"bassett": [], "comparison": []}
+
+    async def fake_populations(*_args, **_kwargs):
+        return {
+            "model_comparison": {"records": [{
+                "id": "comparison-eval", "testcase_id": "comparison-tc",
+                "normalized_result": "Pass", "final_result": "Pass",
+                "overall_score": 90, "model": "ChatGPT",
+            }]},
+            "bassett_only": {"records": [{
+                "id": "bassett-eval", "testcase_id": "bassett-tc",
+                "result": "Pass", "scores": {}, "model": "Bassett",
+            }]},
+        }
+
+    monkeypatch.setattr(server, "crud_list", fake_crud_list)
+    monkeypatch.setattr(server, "_evaluation_read_model", fake_read_model)
+    monkeypatch.setattr(server, "_dashboard_bassett_populations", fake_populations)
+    comparison = asyncio.run(server.release_readiness(
+        "v1", {"id": "viewer", "role": "viewer"}, scope="comparison",
+    ))
+    bassett = asyncio.run(server.release_readiness(
+        "v1", {"id": "viewer", "role": "viewer"}, scope="bassett",
+    ))
+    assert comparison["newly_failing"] == 1
+    assert bassett["newly_failing"] == 2
+
+
+def test_release_readiness_mixed_regression_recomputes_selected_failures(monkeypatch):
+    rows = {
+        "testcases": [{"id": "comparison-tc"}, {"id": "bassett-tc"}],
+        "evaluations": [], "findings": [], "release_decisions": [],
+        "regression_runs": [{
+            "id": "mixed-run", "bassett_version": "v1", "created_at": "2026-01-03",
+            "testcase_ids": ["comparison-tc", "bassett-tc"], "newly_failing": 2,
+            "results": [
+                {"testcase_id": "comparison-tc", "delta": "regressed"},
+                {"testcase_id": "bassett-tc", "delta": "still_pass"},
+            ],
+        }],
+    }
+    monkeypatch.setattr(server, "db", Db(rows))
+
+    async def fake_crud_list(collection, query=None, **_kwargs):
+        return [dict(row) for row in rows.get(collection, [])]
+
+    async def fake_read_model(*_args, **_kwargs):
+        return {"bassett": [], "comparison": []}
+
+    async def fake_populations(*_args, **_kwargs):
+        return {
+            "model_comparison": {"records": [{
+                "id": "comparison-eval", "testcase_id": "comparison-tc",
+                "normalized_result": "Pass", "final_result": "Pass",
+                "overall_score": 90, "model": "ChatGPT",
+            }]},
+            "bassett_only": {"records": [{
+                "id": "bassett-eval", "testcase_id": "bassett-tc",
+                "result": "Pass", "scores": {}, "model": "Bassett",
+            }]},
+        }
+
+    monkeypatch.setattr(server, "crud_list", fake_crud_list)
+    monkeypatch.setattr(server, "_evaluation_read_model", fake_read_model)
+    monkeypatch.setattr(server, "_dashboard_bassett_populations", fake_populations)
+    comparison = asyncio.run(server.release_readiness(
+        "v1", {"id": "viewer", "role": "viewer"}, scope="comparison",
+    ))
+    bassett = asyncio.run(server.release_readiness(
+        "v1", {"id": "viewer", "role": "viewer"}, scope="bassett",
+    ))
+    assert comparison["newly_failing"] == 1
+    assert bassett["newly_failing"] == 0
+
+
+@pytest.mark.parametrize("count", [0, 1, 49, 50, 51, 100])
+def test_release_readiness_scoped_evidence_boundaries_and_critical_blocker(monkeypatch, count):
+    testcase_rows = [{"id": f"tc-{index}"} for index in range(count)]
+    records = [
+        {
+            "id": f"evaluation-{index}", "testcase_id": f"tc-{index}",
+            "normalized_result": "Pass", "final_result": "Pass",
+            "overall_score": 90, "model": "ChatGPT",
+        }
+        for index in range(count)
+    ]
+    rows = {
+        "testcases": testcase_rows, "evaluations": [], "findings": [{
+            "id": "critical", "testcase_id": "tc-0" if count else None,
+            "version_found": "v1", "severity": "Critical",
+            "developer_status": "Open", "finding_scope": "comparison",
+        }] if count else [], "regression_runs": [], "release_decisions": [],
+    }
+    monkeypatch.setattr(server, "db", Db(rows))
+
+    async def fake_crud_list(collection, query=None, **_kwargs):
+        return [dict(row) for row in rows.get(collection, [])]
+
+    async def fake_read_model(*_args, **_kwargs):
+        return {"bassett": [], "comparison": records}
+
+    async def fake_populations(*_args, **_kwargs):
+        return {
+            "model_comparison": {"records": records},
+            "bassett_only": {"records": []},
+        }
+
+    monkeypatch.setattr(server, "crud_list", fake_crud_list)
+    monkeypatch.setattr(server, "_evaluation_read_model", fake_read_model)
+    monkeypatch.setattr(server, "_dashboard_bassett_populations", fake_populations)
+    result = asyncio.run(server.release_readiness(
+        "v1", {"id": "viewer", "role": "viewer"}, scope="comparison",
+    ))
+    assert result["evaluated"] == count
+    assert result["open_crit5"] == (1 if count else 0)
+    assert result["recommendation"] == (
+        "NO-GO" if count >= 50 and count else "INSUFFICIENT-EVIDENCE"
+    )
 
 
 def test_coverage_counts_valid_bassett_only_evaluations(monkeypatch):
@@ -1175,3 +1346,41 @@ def test_canonical_reports_exclude_sample_records_and_versions_by_default(monkey
         "production-eval", "sample-linked-eval", "sample-version-eval",
     }
     assert {row["id"] for row in included["regression_runs"]} == {"production-run", "sample-run"}
+
+
+def test_release_report_selected_version_does_not_leak_newer_testcase_evaluation(monkeypatch):
+    rows = {
+        "versions": [{"id": "v1", "name": "v1"}, {"id": "v2", "name": "v2"}],
+        "testcases": [{"id": "tc", "name": "Canonical case"}],
+        "evaluations": [
+            {"id": "v1-bassett", "testcase_id": "tc", "model": "Bassett", "bassett_version": "v1",
+             "final_result": "Pass", "overall_score": 9},
+            {"id": "v2-bassett", "testcase_id": "tc", "model": "Bassett", "bassett_version": "v2",
+             "final_result": "Fail", "overall_score": 3},
+        ],
+        "findings": [], "regression_runs": [], "test_runs": [],
+        "projects": [], "municipalities": [],
+    }
+    monkeypatch.setattr(server, "db", Db(rows))
+
+    async def fake_crud_list(collection, query=None, **_kwargs):
+        return [dict(row) for row in rows.get(collection, [])]
+
+    async def fake_authoritative(records):
+        return [dict(record) for record in records]
+
+    async def fake_population(*_args, **_kwargs):
+        return {
+            "model_comparison": {"records": [rows["evaluations"][0]]},
+            "bassett_only": {"records": []},
+        }
+
+    monkeypatch.setattr(server, "crud_list", fake_crud_list)
+    monkeypatch.setattr(server, "_authoritative_evaluation_read_model", fake_authoritative)
+    monkeypatch.setattr(server, "_dashboard_bassett_populations", fake_population)
+    monkeypatch.setattr(server, "compute_stale_gold_map", lambda: asyncio.sleep(0, result={}))
+    result = asyncio.run(server._canonical_report_data(
+        "release", version="v1", scope="comparison",
+    ))
+    assert [row["id"] for row in result["evaluations"]] == ["v1-bassett"]
+    assert "bassett_only_evaluations" not in result

@@ -82,6 +82,7 @@ export default function Coverage() {
         {[["bassett", "Bassett Only"], ["comparison", "Model Comparison"], ["both", "Both"]].map(([value, label]) => <button key={value} type="button" aria-pressed={scope === value} onClick={() => setScope(value)} className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${scope === value ? "bg-[var(--navy)] text-white" : "text-[var(--navy)] hover:bg-[var(--paper)]"}`}>{label}</button>)}
       </div>
       <SampleDataBanner show={sampleScopeIncludesData({ records: [d] })} />
+      {d.insufficient_evidence && <div className="mb-4 rounded-xl border border-slate-300 bg-slate-50 p-4 text-sm text-slate-800" data-testid="coverage-insufficient-evidence">Insufficient Evidence: this {scope} scope has {d.release_evidence?.evaluated || 0} of {d.minimum_qualifying_tests} qualifying tests completed; release conclusions remain neutral.</div>}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 mb-4">
         <StatCard label="Scenarios Needing Evaluation" value={remaining} sub="active definitions without a qualifying evaluation" accent={remaining ? "#b45309" : "#16a34a"} icon={AlertTriangle} />
         <StatCard label="Evaluated" value={`${evaluated} of ${total}`} sub="active definitions" accent="#16215a" icon={FlaskConical} />
