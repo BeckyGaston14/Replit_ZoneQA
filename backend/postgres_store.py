@@ -32,7 +32,7 @@ COLLECTIONS = (
     "versions", "comments", "annotations", "claims", "calendar_events",
     "test_runs", "activities", "config", "attachments", "release_decisions",
     "saved_views", "bassett_issues", "bassett_scenarios", "bassett_executions",
-    "bassett_history", "bassett_workflow_stages",
+    "bassett_history", "bassett_workflow_stages", "integrity_checks",
 )
 
 # These are intentionally fixed identifiers, never derived from request data.
@@ -817,6 +817,16 @@ class PostgresDatabase:
                             "INSERT INTO schema_migrations (version) VALUES (10)"
                         )
                         current = 10
+                if current < 11:
+                    async with connection.transaction():
+                        await connection.execute(
+                            'CREATE TABLE IF NOT EXISTS "integrity_checks" '
+                            '(id text PRIMARY KEY, data jsonb NOT NULL)'
+                        )
+                        await connection.execute(
+                            "INSERT INTO schema_migrations (version) VALUES (11)"
+                        )
+                        current = 11
             finally:
                 # This is a session lock (rather than an xact lock), so it must
                 # be released even when a migration deliberately aborts.

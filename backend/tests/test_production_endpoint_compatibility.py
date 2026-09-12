@@ -104,6 +104,8 @@ def test_summary_projects_and_integrity_accept_sparse_imported_records(monkeypat
     assert enriched_response.status_code == 200
     assert integrity_response.status_code == 200
     assert summary_response.json()["bassett_current"]["passed"] == 1
+    assert integrity_response.json()["has_result"] is False
+    assert integrity_response.json()["checked_at"] is None
     enriched = enriched_response.json()
     owners = {project["id"]: project["owner"] for project in enriched}
     assert owners["project-1"] == "Imported Owner"

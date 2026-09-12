@@ -252,6 +252,7 @@ def test_sequential_stale_bassett_edits_are_rejected(monkeypatch, kind):
             "id": "record-1", "stable_id": "R-1", "workflow_stage": "Research",
             "report_type": "Property", "test_scenario": "Scenario", "complexity": "Medium",
             "why_it_matters": "Why", "what_bassett_should_do": "Do", "success_criteria": "Pass",
+                "priority": "P1 - High",
             "revision": 1, "updated_at": "stamp",
         }
         update = server.bassett_update_scenario
@@ -723,6 +724,59 @@ def test_performance_and_coverage_scope_include_standalone_bassett_runs(monkeypa
     assert coverage["population_counts"]["bassett_only"]["total_tests"] == 1
     assert coverage["population_counts"]["bassett_only"]["evaluated_tests"] == 1
     assert coverage["summary"]["total_tests"] == 1
+
+
+def test_coverage_counts_latest_parent_or_turn_evaluation_once_per_scenario(monkeypatch):
+    rows = {
+        "testcases": [], "evaluations": [], "test_runs": [], "municipalities": [],
+        "versions": [{"id": "v1", "name": "Bassett v1", "active": True}],
+        "config": [{"id": "global", "categories": [], "criticality": {}}],
+        "bassett_scenarios": [
+            {"id": "scenario-1", "workflow_stage": "Research", "complexity": "High", "priority": "P1 - High"},
+            {"id": "scenario-2", "workflow_stage": "Analysis", "complexity": "Very High", "priority": "P2 - Medium"},
+            {"id": "scenario-3", "workflow_stage": "Analysis", "complexity": "Moderate", "priority": "P2 - Medium"},
+        ],
+        "bassett_issues": [{
+            "id": "run-1", "scenario_id": "scenario-1", "test_type": "Multi-turn",
+            "status": "Triaged", "result": "Pass", "bassett_version": "Bassett v1",
+            "test_date": "2026-09-01",
+            "turns": [
+                {"id": "turn-1", "order": 1, "scenario_id": "scenario-1", "result": "Fail"},
+                {"id": "turn-2", "order": 2, "scenario_id": "scenario-2", "result": "Pass"},
+                {"id": "turn-3", "order": 3, "scenario_id": "scenario-3", "result": "Not Evaluated"},
+            ],
+        }],
+        "bassett_executions": [],
+    }
+    monkeypatch.setattr(server, "db", Db(rows))
+
+    async def fake_crud_list(collection, query=None):
+        return [dict(row) for row in rows.get(collection, [])]
+
+    monkeypatch.setattr(server, "crud_list", fake_crud_list)
+    coverage = asyncio.run(server.analytics_coverage(
+        {"id": "viewer", "role": "viewer"}, scope="bassett"
+    ))
+
+    assert coverage["population_counts"]["bassett_only"]["evaluated_tests"] == 2
+    assert coverage["summary"]["evaluated_tests"] == 2
+
+
+def test_a17_definition_is_complete_without_removed_report_type():
+    scenario = {
+        "id": "scenario-a17",
+        "stable_id": "A-17",
+        "workflow_stage": "Analysis",
+        "test_scenario": "Review variances, CUPs, SUPs, entitlements and zoning history",
+        "complexity": "Very High",
+        "why_it_matters": "Property-specific approvals may create rights or restrictions.",
+        "what_bassett_should_do": "Summarize approvals and explain their relevance.",
+        "success_criteria": "Documents are accurately characterized; missing approvals are not assumed.",
+        "priority": "P2 - Medium",
+    }
+
+    assert server._missing_bassett_definition_fields(scenario) == []
+    assert "report_type" not in server.BASSETT_DEFINITION_SNAPSHOT_FIELDS
 
 
 def test_shared_bassett_eligibility_excludes_in_progress_scored_results():

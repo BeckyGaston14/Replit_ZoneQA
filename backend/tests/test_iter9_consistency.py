@@ -154,9 +154,13 @@ class TestActivityHygiene:
 
 class TestIntegrityEndpoint:
     def test_admin_gets_structured_report(self, auth_client, base_url):
+        run = auth_client.post(f"{base_url}/api/admin/integrity/run")
+        assert run.status_code == 200
         r = auth_client.get(f"{base_url}/api/admin/integrity")
         assert r.status_code == 200
         d = r.json()
+        assert d["has_result"] is True
+        assert d["checked_at"]
         assert set(d["counts"]) == {"high", "medium", "low"}
         for i in d["issues"]:
             assert set(i) >= {"entity_type", "entity_id", "name", "problem", "severity", "repair", "link"}
@@ -166,3 +170,4 @@ class TestIntegrityEndpoint:
 
     def test_viewer_forbidden(self, viewer_client, base_url):
         assert viewer_client.get(f"{base_url}/api/admin/integrity").status_code == 403
+        assert viewer_client.post(f"{base_url}/api/admin/integrity/run").status_code == 403

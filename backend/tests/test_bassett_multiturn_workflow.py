@@ -94,6 +94,13 @@ class _Database:
                 "complexity": "Medium", "why_it_matters": "Accuracy",
                 "what_bassett_should_do": "Answer carefully", "success_criteria": "Correct answer",
                 "priority": "P1 - High", "archived": False,
+            }, {
+                "id": "scenario-2", "stable_id": "A-17", "workflow_stage": "Analysis",
+                "test_scenario": "Turn-level evaluation", "complexity": "Very High",
+                "why_it_matters": "Each turn can exercise a different scenario.",
+                "what_bassett_should_do": "Evaluate the selected turn independently.",
+                "success_criteria": "The turn retains its scenario and result.",
+                "priority": "P2 - Medium", "archived": False,
             }],
             "versions": [{"id": "version-1", "name": "Bassett v9.26", "active": True}],
             "config": [{"id": "global", "eval_dimensions": []}],
@@ -137,7 +144,11 @@ def test_three_turn_workflow_create_reopen_reorder_and_link_finding(monkeypatch)
     server.app.dependency_overrides[server.get_current_user] = lambda: actor
     client = TestClient(server.app)
     turns = [
-        {"id": "turn-1", "order": 1, "prompt": "First", "response": "Answer one"},
+        {
+            "id": "turn-1", "order": 1, "prompt": "First", "response": "Answer one",
+            "scenario_id": "scenario-2", "result": "Pass",
+            "notes": "Independent turn evaluation",
+        },
         {"id": "turn-2", "order": 2, "prompt": "Second", "response": "Answer two"},
         {"id": "turn-3", "order": 3, "prompt": "Third", "response": "Answer three"},
     ]
@@ -179,6 +190,9 @@ def test_three_turn_workflow_create_reopen_reorder_and_link_finding(monkeypatch)
         reopened = client.get(f"/api/bassett/issues/{issue_id}")
         assert reopened.status_code == 200
         assert [turn["id"] for turn in reopened.json()["turns"]] == ["turn-1", "turn-2", "turn-3"]
+        assert reopened.json()["turns"][0]["scenario_id"] == "scenario-2"
+        assert reopened.json()["turns"][0]["result"] == "Pass"
+        assert reopened.json()["turns"][0]["notes"] == "Independent turn evaluation"
         assert reopened.json()["finding"]["id"] == finding_id
 
         listed = client.get("/api/attachments", params={
@@ -191,6 +205,7 @@ def test_three_turn_workflow_create_reopen_reorder_and_link_finding(monkeypatch)
         assert downloaded.status_code == 200
         assert downloaded.content == b"evidence"
         assert downloaded.headers["content-disposition"].startswith("attachment;")
+        assert 'filename="evidence.txt"' in downloaded.headers["content-disposition"]
 
         linked_findings = client.get("/api/bassett/findings")
         assert linked_findings.status_code == 200
@@ -204,6 +219,9 @@ def test_three_turn_workflow_create_reopen_reorder_and_link_finding(monkeypatch)
         })
         assert edited.status_code == 200, edited.text
         assert [turn["prompt"] for turn in edited.json()["turns"]] == ["Second", "First", "Third"]
+        evaluated_turn = next(turn for turn in edited.json()["turns"] if turn["id"] == "turn-1")
+        assert evaluated_turn["scenario_id"] == "scenario-2"
+        assert evaluated_turn["result"] == "Pass"
 
         linked = client.post(f"/api/bassett/issues/{issue_id}/link-finding", json={
             "finding_id": finding_id, "turn_id": "turn-2",

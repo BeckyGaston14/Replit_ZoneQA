@@ -5,6 +5,8 @@ R = "/api/admin/integrity/repair"
 
 
 def find_issue(auth_client, base_url, key, entity_id):
+    run = auth_client.post(f"{base_url}/api/admin/integrity/run")
+    assert run.status_code == 200
     d = auth_client.get(f"{base_url}/api/admin/integrity").json()
     return next((i for i in d["issues"] if i.get("repair_action") and i["repair_action"]["key"] == key and i["entity_id"] == entity_id), None)
 
@@ -104,6 +106,7 @@ class TestRepairGuards:
         assert r.status_code == 403
 
     def test_manual_only_issues_have_no_action(self, auth_client, base_url):
+        assert auth_client.post(f"{base_url}/api/admin/integrity/run").status_code == 200
         d = auth_client.get(f"{base_url}/api/admin/integrity").json()
         for i in d["issues"]:
             if i["entity_type"] == "goldstandard" or i["entity_type"] == "regression_run":

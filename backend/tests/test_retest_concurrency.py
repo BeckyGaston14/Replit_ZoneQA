@@ -350,11 +350,14 @@ def test_uploaded_bassett_workflow_can_create_versionless_not_evaluated_run(
             "email": "uploaded-create@example.test", "role": "tester", "active": True,
         }
         definition = {
-            "id": "uploaded-create-scenario", "stable_id": "R-20",
-            "workflow_stage": "Research", "report_type": "Property",
-            "test_scenario": "Uploaded conversation", "complexity": "Medium",
-            "why_it_matters": "Accuracy", "what_bassett_should_do": "Review the source",
-            "success_criteria": "Preserve the uploaded conversation", "priority": "P1 - High",
+            "id": "uploaded-create-scenario", "stable_id": "A-17",
+            "workflow_stage": "Analysis",
+            "test_scenario": "Review variances, CUPs, SUPs, entitlements and zoning history",
+            "complexity": "Very High",
+            "why_it_matters": "Property-specific approvals may create rights or restrictions.",
+            "what_bassett_should_do": "Summarize approvals and explain their relevance.",
+            "success_criteria": "Documents are accurately characterized; missing approvals are not assumed.",
+            "priority": "P2 - Medium",
             "archived": False,
         }
         body = {

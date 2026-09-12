@@ -86,6 +86,7 @@ _validate_session_secret_configuration(
 
 db = PostgresDatabase(os.environ["DATABASE_URL"])
 email_sender = build_email_sender()
+_integrity_run_lock = asyncio.Lock()
 
 SESSION_COOKIE = "zq_session"
 CSRF_COOKIE = "zq_csrf"
@@ -223,7 +224,7 @@ def _project_completion(project, testcases, bassett_runs=None):
         source = "Manual override"
     else:
         percent = automatic_percent
-        source = "Linked tests"
+        source = "Linked active test cases"
 
     return {
         "completion": percent,
@@ -2815,7 +2816,7 @@ BASSETT_SCENARIO_FIELDS = {
     "tags", "project_id", "testcase_id", "version_id", "bassett_version",
 }
 BASSETT_DEFINITION_SNAPSHOT_FIELDS = (
-    "stable_id", "workflow_stage", "report_type", "test_scenario", "complexity",
+    "stable_id", "workflow_stage", "test_scenario", "complexity",
     "why_it_matters", "what_bassett_should_do", "success_criteria", "priority",
 )
 BASSETT_COMPLEXITY_ORDER = ("low", "moderate", "medium", "high", "very high")
@@ -3109,19 +3110,41 @@ def _normalize_bassett_turns(doc):
             citations = []
         if not isinstance(citations, list):
             raise HTTPException(400, f"Turn {index} citations must be a list")
-        normalized.append({
+        scenario_id = str(raw.get("scenario_id") or "").strip()
+        turn_result = str(raw.get("result") or "").strip()
+        if turn_result and turn_result not in BASSETT_CANONICAL_RESULTS:
+            raise HTTPException(400, f"Turn {index} has an invalid evaluation result")
+        turn = {
             "id": turn_id,
             "order": order,
             "prompt": prompt,
             "response": response,
             "citations": [str(item).strip() for item in citations if str(item).strip()],
             "evaluator_notes": str(raw.get("evaluator_notes") or "").strip(),
-        })
+            "notes": str(raw.get("notes") or raw.get("evaluator_notes") or "").strip(),
+        }
+        if scenario_id:
+            turn["scenario_id"] = scenario_id
+        if turn_result:
+            turn["result"] = turn_result
+        normalized.append(turn)
     normalized.sort(key=lambda turn: (turn["order"], turn["id"]))
     doc["turns"] = normalized
     # Compatibility mirrors; the UI still presents turns as the source of truth.
     doc["question_asked"] = normalized[0]["prompt"]
     doc["exact_bassett_answer"] = normalized[0]["response"]
+
+
+async def _validate_bassett_turn_refs(doc):
+    for index, turn in enumerate(doc.get("turns") or [], start=1):
+        scenario_id = turn.get("scenario_id")
+        if scenario_id:
+            await _bassett_ref(
+                "bassett_scenarios",
+                scenario_id,
+                f"Turn {index} Bassett scenario",
+                allow_archived=False,
+            )
 
 def _bassett_has_structured_transcript(doc):
     if doc.get("test_type") == "Multi-turn":
@@ -3229,10 +3252,15 @@ def _validate_bassett_run_result(doc, allow_legacy=False):
         if score < 0 or score > 100:
             raise HTTPException(400, "Score must be between 0 and 100")
     doc["result"], doc["score"] = result, score
+def _missing_bassett_definition_fields(doc):
+    return [
+        field for field in BASSETT_DEFINITION_SNAPSHOT_FIELDS
+        if not str(doc.get(field) or "").strip()
+    ]
+
+
 def _validate_scenario_required(doc):
-    required = ("workflow_stage", "test_scenario", "complexity",
-                "why_it_matters", "what_bassett_should_do", "success_criteria")
-    missing = [field for field in required if not str(doc.get(field) or "").strip()]
+    missing = _missing_bassett_definition_fields(doc)
     if missing:
         raise HTTPException(400, f"Required scenario fields are missing: {', '.join(missing)}")
 
@@ -3633,6 +3661,7 @@ async def bassett_create_issue(body: Dict[str, Any], user=Depends(get_current_us
     await _validate_configured_environment(doc)
     await _validate_bassett_issue_status(doc.get("status"))
     await _validate_bassett_refs(doc, require_scenario=True)
+    await _validate_bassett_turn_refs(doc)
     scenario = await db.bassett_scenarios.find_one({"id": doc["scenario_id"]}, {"_id": 0})
     _validate_scenario_required(scenario)
     creation_payload = "|".join(str(doc.get(key) or "").strip() for key in (
@@ -3692,6 +3721,7 @@ async def _prepare_bassett_workflow_document(body: Dict[str, Any], user: Dict[st
     _validate_bassett_run_result(doc)
     await _validate_bassett_issue_status(doc.get("status"))
     project, testcase = await _validate_bassett_refs(doc, require_scenario=True)
+    await _validate_bassett_turn_refs(doc)
     scenario = await db.bassett_scenarios.find_one({"id": doc["scenario_id"]}, {"_id": 0})
     if not scenario:
         raise HTTPException(400, "Bassett scenario does not exist")
@@ -4001,6 +4031,7 @@ async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_c
         incoming["triaged_by_name"] = user.get("name")
         incoming["triaged_at"] = now_iso()
     await _validate_bassett_refs(merged)
+    await _validate_bassett_turn_refs(merged)
     incoming["version_id"] = merged.get("version_id", "")
     incoming["bassett_version"] = merged.get("bassett_version", "")
     changed = {key: [existing.get(key), merged.get(key)] for key in incoming if existing.get(key) != merged.get(key)}
@@ -6826,9 +6857,14 @@ async def analytics_executive(
     evaluated_ids = {e["testcase_id"] for e in b}
     stale_gold = [{"testcase_id": tid, "name": tcs.get(tid, {}).get("name", "?")} for tid in stale_map if tid in evaluated_ids]
 
+    evaluated_count = passed + failed
+    benchmark_evaluated_count = len([e for e in evals if e.get("model") != "Bassett"])
     return {"kpis": {"bassett_avg": bassett_avg, "benchmark_avg": bench_avg, "pass_rate": pass_rate,
                      "wins": wins, "losses": losses, "open_critical": open_critical,
-                     "total_evaluated": passed + failed, "total_findings": len(findings)},
+                     "total_evaluated": evaluated_count,
+                     "limited_data": {"limited": evaluated_count < 5, "evaluated": evaluated_count, "threshold": 5},
+                     "benchmark_evaluated": benchmark_evaluated_count,
+                     "total_findings": len(findings)},
              "trend": trend, "failure_modes": failure_modes, "categories": categories,
              "reporting_groups": reporting_groups, "scope": scope,
             "stale_gold_tests": stale_gold, "sample_data_included": include_sample,
@@ -6839,6 +6875,45 @@ async def analytics_executive(
             }}
 
 # ---------- Test Coverage ----------
+def _bassett_scenario_evaluation_candidates(run, active_scenario_ids):
+    """Emit eligible parent and turn evaluations without duplicating a scenario."""
+    candidates = []
+    parent_scenario_id = run.get("scenario_id")
+    if (
+        parent_scenario_id in active_scenario_ids
+        and _dashboard_bassett_result_is_eligible(run)
+    ):
+        candidates.append({
+            **run,
+            "_coverage_order": (*_dashboard_bassett_order(run), 0, ""),
+        })
+    for index, turn in enumerate(run.get("turns") or [], start=1):
+        if not isinstance(turn, dict):
+            continue
+        scenario_id = turn.get("scenario_id")
+        if scenario_id not in active_scenario_ids:
+            continue
+        candidate = {
+            **run,
+            "scenario_id": scenario_id,
+            "result": turn.get("result"),
+            "_turn_id": turn.get("id"),
+        }
+        if not _dashboard_bassett_result_is_eligible(candidate):
+            continue
+        try:
+            turn_order = int(turn.get("order", index))
+        except (TypeError, ValueError):
+            turn_order = index
+        candidate["_coverage_order"] = (
+            *_dashboard_bassett_order(run),
+            turn_order,
+            str(turn.get("id") or ""),
+        )
+        candidates.append(candidate)
+    return candidates
+
+
 @api.get("/analytics/coverage")
 async def analytics_coverage(user=Depends(get_current_user), scope: str = "both"):
     if scope not in {"bassett", "comparison", "both"}:
@@ -6912,13 +6987,16 @@ async def analytics_coverage(user=Depends(get_current_user), scope: str = "both"
             or _dashboard_bassett_test_type(run) is None
             or _dashboard_bassett_is_retest(run)
             or not _bassett_version_is_required(run)
-            or not _dashboard_bassett_result_is_eligible(run)
         ):
             continue
-        key = run.get("scenario_id") or run.get("test_id") or run.get("id")
-        current = latest_standalone.get(key)
-        if current is None or _dashboard_bassett_order(run) > _dashboard_bassett_order(current):
-            latest_standalone[key] = run
+        for candidate in _bassett_scenario_evaluation_candidates(run, set(scenario_by_id)):
+            key = candidate["scenario_id"]
+            current = latest_standalone.get(key)
+            if (
+                current is None
+                or candidate["_coverage_order"] > current["_coverage_order"]
+            ):
+                latest_standalone[key] = candidate
     evaluated_scenarios = {run.get("scenario_id") for run in latest_standalone.values() if run.get("scenario_id")}
 
     def bassett_rows(field, expected, fallback="Unspecified"):
@@ -7242,8 +7320,12 @@ async def download_attachment(id: str, user=Depends(get_current_user)):
         raise HTTPException(404, "Attachment not found")
     if rec.get("storage_provider") != "replit":
         raise HTTPException(409, "Attachment has not been migrated to Replit App Storage")
+    storage_path = rec.get("storage_path")
+    if not storage_path:
+        logger.error("Attachment %s has no private storage path", id)
+        raise HTTPException(503, "Attachment storage path is unavailable")
     try:
-        content = await app_storage.download_bytes(rec["storage_path"])
+        content = await app_storage.download_bytes(storage_path)
     except ObjectNotFound:
         raise HTTPException(404, "Attachment content not found")
     except ObjectStorageUnavailable as exc:
@@ -7464,7 +7546,9 @@ def _canonical_retest_executions(retests, testcases):
 def _dashboard_bassett_result_is_eligible(record):
     # Workflow status and evaluation result are independent. An evaluated test
     # remains dashboard evidence while it moves through review or engineering.
-    if str(record.get("status") or "").strip().casefold() == "draft":
+    if str(record.get("status") or "").strip().casefold() in {
+        "draft", "not started", "in progress",
+    }:
         return False
     return _canonical_bassett_result(record.get("result")) in EVALUATED_RESULTS
 
@@ -7660,10 +7744,12 @@ async def metrics_summary(user=Depends(get_current_user)):
 
     def pack(subset, unit, definition):
         summary = result_summary(subset)
+        evaluated = summary["evaluated"]
         return {
             "unit": unit, "passed": summary["passed"], "failed": summary["failed"],
-            "evaluated": summary["evaluated"], "pass_rate": summary["pass_rate"],
-            "label": f"{summary['passed']} of {summary['evaluated']} passed",
+            "evaluated": evaluated, "pass_rate": summary["pass_rate"],
+            "limited_data": {"limited": evaluated < 5, "evaluated": evaluated, "threshold": 5},
+            "label": f"{summary['passed']} of {evaluated} passed",
             "definition": definition,
         }
 
@@ -7694,7 +7780,8 @@ async def metrics_summary(user=Depends(get_current_user)):
         },
         "all_model_evaluations": pack(m_all, "model evaluations (Bassett + ChatGPT + Claude)",
                                       "Latest evaluation per test case per model — mixes Bassett with benchmark models; do not read as Bassett quality."),
-        "bassett_avg_score": {"value": average_score(b_cur),
+        "bassett_avg_score": {"value": average_score(b_cur), "evaluated": len(b_cur),
+                              "limited_data": {"limited": len(b_cur) < 5, "evaluated": len(b_cur), "threshold": 5},
                               "unit": "avg overall score /10", "definition": f"Mean of latest Bassett evaluation scores per test case for {ver or 'the active version'}, n={len(scored)}."},
         "findings": {"open": len(open_f), "open_critical": len([f for f in open_f if (f.get("criticality") or 0) >= 4]),
                       "awaiting_fix": len([f for f in open_f if f.get("developer_status") in FINDING_AWAITING_FIX_STATUSES]),
@@ -8047,10 +8134,48 @@ async def readiness_decision(body: Dict[str, Any], user=Depends(get_current_user
     return doc
 
 # ---------- Data Integrity validation (admin) ----------
+def _integrity_cache_id(user):
+    # Integrity output follows the authenticated user's sample-record scope.
+    # Keep the two scopes separate so a cached report cannot cross user
+    # visibility boundaries.
+    return "latest:sample" if _sample_scope_enabled(user) else "latest:production"
+
+
 @api.get("/admin/integrity")
 async def data_integrity(user=Depends(get_current_user)):
     if user["role"] not in ("admin", "qa_manager"):
         raise HTTPException(403, "Admin or QA Manager only")
+    cached = await db.integrity_checks.find_one(
+        {"id": _integrity_cache_id(user)}, {"_id": 0}
+    )
+    if cached:
+        return cached
+    return {
+        "issues": [],
+        "counts": {"high": 0, "medium": 0, "low": 0},
+        "checked_at": None,
+        "has_result": False,
+    }
+
+
+@api.post("/admin/integrity/run")
+async def run_data_integrity(user=Depends(get_current_user)):
+    if user["role"] not in ("admin", "qa_manager"):
+        raise HTTPException(403, "Admin or QA Manager only")
+    if _integrity_run_lock.locked():
+        raise HTTPException(409, "Integrity checks are already running")
+    async with _integrity_run_lock:
+        result = await _run_data_integrity(user)
+        result["has_result"] = True
+        await db.integrity_checks.update_one(
+            {"id": _integrity_cache_id(user)},
+            {"$set": result},
+            upsert=True,
+        )
+        return result
+
+
+async def _run_data_integrity(user):
     issues = []
     def add(entity_type, entity_id, name, problem, severity, repair, link="", repair_action=None):
         issues.append({"entity_type": entity_type, "entity_id": entity_id, "name": name,
@@ -8070,6 +8195,7 @@ async def data_integrity(user=Depends(get_current_user)):
     runs = await crud_list("regression_runs")
     decisions = await db.release_decisions.find({}, {"_id": 0}).to_list(100)
     versions = await crud_list("versions")
+    scenarios = await crud_list("bassett_scenarios", include_archived=True)
 
     b_evals_by_tc = {}
     for e in sorted([x for x in evals if x.get("model") == "Bassett"], key=lambda x: x.get("created_at", "")):
@@ -8113,6 +8239,21 @@ async def data_integrity(user=Depends(get_current_user)):
             add("version", version["id"], version.get("name", "?"),
                 f"Bassett version is missing: {', '.join(missing_metadata)}", "low",
                 "Edit the version and select the missing administrative values", "/admin")
+
+    for scenario in scenarios:
+        if scenario.get("archived") or scenario.get("archived_at"):
+            continue
+        missing_fields = _missing_bassett_definition_fields(scenario)
+        if missing_fields:
+            add(
+                "bassett_scenario",
+                scenario.get("id"),
+                scenario.get("stable_id") or scenario.get("test_scenario") or "Unnamed scenario",
+                f"Active Test Bank scenario is missing: {', '.join(missing_fields)}",
+                "high",
+                "Complete the supported Test Bank definition fields; Report Type is not required",
+                "/bassett/test-bank",
+            )
 
     active_testcases = [tc for tc in tcs.values() if not tc.get("archived")]
     for project_id, project in projects.items():
