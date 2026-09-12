@@ -1,0 +1,60 @@
+Implement the approved final entry-form usability and wording standardization. Preserve all production data and all recent fixes. Do not publish; stop after implementation, tests, build, commit, and development runtime verification.
+
+1. Required/optional convention across all forms:
+- Every required field label displays only “Field Name *”.
+- Add one visible note near the top of each form: “* Required”.
+- Remove duplicate visible or accessible “(required)(Required)” output and ensure screen-reader accessible names do not repeat required wording.
+- Optional fields should use one consistent lowercase suffix “(optional)” only when useful in mixed required/optional sections; avoid duplicate Optional text where the section itself already communicates optionality.
+- Preserve native required/aria-required validation.
+
+2. Make the shared Bassett core fields use identical wording and capitalization in Bassett-only and Model Comparison entry forms:
+- Test Name
+- Prompt / Question
+- Verified Answer / Gold Standard
+- Bassett Response
+- Test Result
+- Severity
+- Priority
+- Finding Category (use this for the Bassett finding classification; keep comparison-only category fields explicitly comparison-specific if they have a genuinely different meaning)
+- Evidence / Source Links
+- Property / Address
+- Bassett Score Rationale
+- Owner / Assignee
+- Notes / Reproduction Steps
+- Documents / Images
+Do not change stored field keys or calculations—labels/helper text only unless validation changes are explicitly requested below.
+
+3. Rename the Test Bank Add Scenario field “General test case” to “General Test Subtype” everywhere it appears in forms, details, filters, imports/exports, help text, and accessibility labels. These remain subtypes, never a separate testing type. Use “Test Scenario” consistently in table headers and field labels.
+
+4. Align record/action language:
+- Bassett page action: “New Bassett Test Run”; modal heading “New Bassett Test Run”; final submit “Create Test Run”.
+- Model Comparison page action: “New Model Comparison Test Case”; modal heading “New Model Comparison Test Case”; final submit “Create Test Case”.
+- Properties: “New Property”.
+- Ordinance Evidence: “New Ordinance Evidence”.
+- Ordinance Evidence empty state: “No ordinance evidence records have been created yet.” and action “Create an ordinance evidence record.”
+- Keep “New Testing Project” and “New Municipality”.
+- Use title case consistently for actionable buttons.
+
+5. Calendar validation:
+- Event Title and Date are required in UI and backend/API validation.
+- Event Type and Notes remain optional.
+- Empty Schedule must be disabled or submission must show clear inline errors without creating a record.
+- Existing events remain valid; do not rewrite them.
+- Add regression tests for blank, title-only, date-only, valid, and cancel flows.
+
+6. Add User form:
+- Name and Email are required and visibly marked with the shared required convention.
+- Rename “Active now” to “Activate User Immediately”.
+- Use “Create User” title case.
+- Keep Role required if the backend requires it; otherwise provide an explicit default and state it clearly.
+- Keep “Send welcome email with secure setup link” wording and behavior.
+
+7. Ordinance Evidence verification fields:
+- On create, show Verified By and Verified Date as read-only informational values or clear automatic placeholders: “Automatically set when first saved.”
+- Do not present them as ordinary editable optional fields during creation.
+- On edit, allow manual updates as currently intended.
+- Preserve the existing automatic signed-in user and current-date behavior.
+
+8. Review all major create/edit forms (projects, Test Bank, Bassett runs, Model Comparison, municipalities, properties, ordinance evidence, calendar, users, models, Bassett versions and lookups) for capitalization and Save/Cancel/Create consistency. Use Save for simple resource creation only where a resource-specific Create label would not materially improve clarity; use Save Changes for edits. Do not redesign or change stored schema unnecessarily.
+
+Add focused frontend and backend tests for wording/accessibility/validation, run the full relevant suites and production build, and report files changed and results.
