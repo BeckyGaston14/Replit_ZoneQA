@@ -1,0 +1,11 @@
+Correct the four production QA gaps below in one focused batch. Preserve all existing production records and do not modify or delete user data.
+
+1. In the Bassett multi-turn structured conversation editor, every turn must visibly include optional selectors for Test Bank Scenario and Test Result, plus Evaluator Notes. The scenario selector must use active Test Bank scenarios. Test Result must use the same valid result options as the parent run. Persist scenario_id, result, notes, and stable turn ID through saving, editing, and reordering. Coverage must count the latest eligible qualifying parent-or-turn evidence once per scenario.
+
+2. Diagnose and fix attachment download in the published UI. Clicking the download icon for a stored attachment must produce an authenticated browser download with the original filename. It must not silently do nothing. Show a clear toast for 401, 403, 404, storage unavailable, or network failure. Add a frontend test that confirms the actual click path calls the authenticated download flow.
+
+3. Migrate legacy Bassett workflow status values without losing records: New -> Not Started; In Progress -> In Review. Also add read-time normalization/fallback so remaining legacy values cannot exclude otherwise eligible historical records or display invalid dropdown values. Do not overwrite audit history.
+
+4. Fix Bassett-only dashboard eligibility so the passing 404 Southwestern Boulevard run appears for Bassett v9.26 when it otherwise meets the documented rules. Diagnose the exact exclusion and correct it consistently in the dashboard, executive metrics, drill-down, coverage, and release-readiness queries. Do not weaken eligibility rules for archived, retest, comparison-linked, unfinished, or Not Evaluated records.
+
+Run focused backend and frontend tests, production build, and seed validation. Report the exact cause of each issue, files changed, tests run, and whether any migration is required. Do not publish; stop after implementation and verification.
