@@ -16,6 +16,19 @@ import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 export const BASSETT_RESULT_OPTIONS = [...CANONICAL_EVALUATION_RESULTS];
 export const COMPARISON_RESULT_OPTIONS = [...CANONICAL_EVALUATION_RESULTS];
 export const TURN_RESULT_OPTIONS = [...CANONICAL_EVALUATION_RESULTS];
+export const BASSETT_LEGACY_STATUS_EQUIVALENTS = {
+  New: "Not Started",
+  Triaged: "In Review",
+  "In Progress": "In Review",
+  Blocked: "Engineering",
+  Resolved: "Closed / Resolved",
+  Closed: "Closed / Resolved",
+};
+export const normalizeBassettWorkflowStatus = (value) => (
+  BASSETT_LEGACY_STATUS_EQUIVALENTS[String(value || "").trim()]
+  || String(value || "").trim()
+  || "Not Started"
+);
 export const COMPARISON_CLASSIFICATIONS = ["Bassett win", "ChatGPT win", "Claude win", "Tie", "Shared failure", "Incomplete"];
 export const DEFAULT_DIMENSIONS = [
   ["accuracy", "Accuracy", 3, "Did the answer get the facts right?"], ["current_code", "Current Code Identification", 2, "Did it identify the correct current code or regulation?"],
@@ -39,7 +52,13 @@ export const emptyBassettTestRun = {
 
 export function createBassettTestRunDraft(overrides = {}, timeZone, now = new Date()) {
   const submissionId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  return { ...emptyBassettTestRun, test_date: todayInTimeZone(timeZone, now), submission_id: submissionId, ...overrides };
+  return {
+    ...emptyBassettTestRun,
+    test_date: todayInTimeZone(timeZone, now),
+    submission_id: submissionId,
+    ...overrides,
+    status: normalizeBassettWorkflowStatus(overrides.status),
+  };
 }
 
 /**
@@ -438,10 +457,10 @@ function TurnBuilder({ turns = [], scenarios = [], uploadedConversation = false,
        <div className="grid grid-cols-1 gap-3">
         <Field label="Prompt" required><Textarea rows={3} value={turn.prompt || ""} disabled={disabled} onChange={(e) => update(turn.id, "prompt", e.target.value)} /></Field>
         <Field label="Bassett response" required><Textarea rows={5} value={turn.response || ""} disabled={disabled} onChange={(e) => update(turn.id, "response", e.target.value)} /></Field>
-         {uploadedConversation && <TurnScenarioSelector turn={turn} turnNumber={index + 1} scenarios={scenarios} disabled={disabled} onChange={(value) => updateScenario(turn.id, value)} />}
-         {uploadedConversation && <Field label="Turn result (optional)"><select aria-label={`Turn ${index + 1} result`} className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={turn.result ?? turn.turn_result ?? ""} disabled={disabled} onChange={(e) => update(turn.id, "result", e.target.value)}><option value="">Not evaluated</option>{TURN_RESULT_OPTIONS.map((value) => <option key={value}>{value}</option>)}</select></Field>}
+         <TurnScenarioSelector turn={turn} turnNumber={index + 1} scenarios={scenarios} disabled={disabled} onChange={(value) => updateScenario(turn.id, value)} />
+         <Field label="Test Result (optional)"><select aria-label={`Turn ${index + 1} result`} className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={turn.result ?? turn.turn_result ?? ""} disabled={disabled} onChange={(e) => update(turn.id, "result", e.target.value)}><option value="">Not evaluated</option>{TURN_RESULT_OPTIONS.map((value) => <option key={value}>{value}</option>)}</select></Field>
         <Field label="Citations / source references" description="One URL, citation, or source reference per line."><Textarea rows={2} value={(turn.citations || []).join("\n")} disabled={disabled} onChange={(e) => update(turn.id, "citations", e.target.value.split("\n").map((item) => item.trim()).filter(Boolean))} /></Field>
-         <Field label={uploadedConversation ? "Turn notes (optional)" : "Evaluator notes"}><Textarea rows={2} value={turn.notes ?? turn.evaluator_notes ?? ""} disabled={disabled} onChange={(e) => onChange(ordered.map((item) => item.id === turn.id ? { ...item, notes: e.target.value, evaluator_notes: e.target.value } : item))} /></Field>
+         <Field label="Evaluator Notes (optional)"><Textarea rows={2} value={turn.notes ?? turn.evaluator_notes ?? ""} disabled={disabled} onChange={(e) => onChange(ordered.map((item) => item.id === turn.id ? { ...item, notes: e.target.value, evaluator_notes: e.target.value } : item))} /></Field>
       </div>
       {onFindingTurnChange && <label className="flex items-center gap-2 text-xs"><input type="radio" name="finding-turn" checked={findingTurnId === turn.id} disabled={disabled} onChange={() => onFindingTurnChange(turn.id)} /> Link the new finding to this turn</label>}
     </div>)}
@@ -630,7 +649,7 @@ export default function UnifiedTestEntryForm({
        {!isComparison && <div className="sm:col-span-2"><Field label="How are you recording this Bassett interaction?" required description="The original upload remains the authoritative conversation record."><div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Bassett conversation source">
          {[['structured_text', 'Enter conversation in ZoneQA', 'Enter a single prompt or an ordered multi-turn conversation.'], ['uploaded_conversation', 'Use an uploaded Bassett conversation', 'Attach the exported conversation now; transcript entry is optional until comparison.']].map(([value, label, description]) => <label key={value} className={`cursor-pointer rounded-lg border p-3 ${(form.conversation_source || 'structured_text') === value ? 'border-[var(--orange)] bg-orange-50' : 'bg-background'}`}><span className="flex items-start gap-2"><input type="radio" name="conversation-source" value={value} checked={(form.conversation_source || 'structured_text') === value} disabled={lockedCommon} onChange={() => setForm((current) => ({ ...current, conversation_source: value, transcript_status: value === 'structured_text' ? 'not_needed' : (bassettTranscriptReady(current) ? 'confirmed' : 'needs_review') }))} /><span><span className="block font-semibold text-[var(--navy)]">{label}</span><span className="mt-1 block text-xs text-muted-foreground">{description}</span></span></span></label>)}
        </div></Field></div>}
-       {!isComparison && <Field label="Workflow status"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.status || "Not Started"} disabled={lockedCommon || !form.id} onChange={(e) => update("status", e.target.value)}>{[...new Set([...(config.bassett_workflow_statuses || ["Not Started", "In Review", "Engineering", "Closed / Resolved", "Ready for Retesting"]), form.status].filter(Boolean))].map((value) => <option key={value}>{value}</option>)}</select>{!form.id && <p className="mt-1 text-xs text-muted-foreground">New tests begin as Not Started. Update the status after reviewing the saved test.</p>}</Field>}
+       {!isComparison && <Field label="Workflow status"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={normalizeBassettWorkflowStatus(form.status)} disabled={lockedCommon || !form.id} onChange={(e) => update("status", e.target.value)}>{[...new Set(config.bassett_workflow_statuses || ["Not Started", "In Review", "Engineering", "Closed / Resolved", "Ready for Retesting"])].map((value) => <option key={value}>{value}</option>)}</select>{!form.id && <p className="mt-1 text-xs text-muted-foreground">New tests begin as Not Started. Update the status after reviewing the saved test.</p>}</Field>}
     </div></GuidedSection>
 
      <GuidedSection index={1} title="2. Linked Records & Prompt" active={activeSection === 1} status={sectionStatus(1)} onActivate={activateSection}><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -29,6 +29,7 @@ async function downloadErrorMessage(error) {
   if (status === 404) return "Attachment not found or its content is no longer available.";
   if (status === 503) return "Attachment storage is unavailable. Please retry later.";
   if (status === 401) return "Your session has expired. Sign in again to download this attachment.";
+  if (!error?.response) return "Unable to reach attachment storage. Check your connection and retry.";
   return "Download failed. Please retry.";
 }
 

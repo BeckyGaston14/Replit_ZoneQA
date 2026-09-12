@@ -2765,6 +2765,19 @@ BASSETT_DEFAULT_WORKFLOW_STATUSES = (
 # became configurable can still be opened and updated.
 BASSETT_LEGACY_ISSUE_STATUSES = ("New", "Triaged", "In Progress", "Blocked", "Resolved", "Closed")
 BASSETT_ISSUE_STATUSES = (*BASSETT_DEFAULT_WORKFLOW_STATUSES, *BASSETT_LEGACY_ISSUE_STATUSES, "Archived")
+BASSETT_LEGACY_STATUS_EQUIVALENTS = {
+    "New": "Not Started",
+    "Triaged": "In Review",
+    "In Progress": "In Review",
+    "Blocked": "Engineering",
+    "Resolved": "Closed / Resolved",
+    "Closed": "Closed / Resolved",
+}
+
+
+def _canonical_bassett_issue_status(value, default="In Review"):
+    normalized = str(value or "").strip()
+    return BASSETT_LEGACY_STATUS_EQUIVALENTS.get(normalized, normalized or default)
 
 
 async def _configured_bassett_issue_statuses():
@@ -3389,8 +3402,7 @@ async def bassett_list_issues(
     user=Depends(get_current_user),
 ):
     query = {} if include_archived else {"archived": {"$ne": True}}
-    if status and status != "all":
-        query["status"] = status
+    requested_status = _canonical_bassett_issue_status(status) if status and status != "all" else None
     if severity and severity != "all":
         query["severity"] = severity
     if scenario_id:
@@ -3405,6 +3417,12 @@ async def bassett_list_issues(
         [("test_date", -1), ("created_at", -1)]
     ).to_list(5000)
     issues = _filter_sample_scope("bassett_issues", issues)
+    issues = [
+        {**issue, "status": _canonical_bassett_issue_status(issue.get("status"))}
+        for issue in issues
+    ]
+    if requested_status:
+        issues = [issue for issue in issues if issue.get("status") == requested_status]
     versions = _filter_sample_scope(
         "versions", await db.versions.find({}, {"_id": 0}).to_list(1000)
     )
@@ -3417,6 +3435,7 @@ async def bassett_get_issue(id: str, user=Depends(get_current_user)):
         "versions", await db.versions.find({}, {"_id": 0}).to_list(1000)
     )
     issue = _canonicalize_bassett_version_record(issue, versions)
+    issue["status"] = _canonical_bassett_issue_status(issue.get("status"))
     if issue.get("scenario_id"):
         issue["scenario"] = _normalize_bassett_stage_record(
             await db.bassett_scenarios.find_one({"id": issue["scenario_id"]}, {"_id": 0})
@@ -3655,6 +3674,9 @@ async def bassett_create_issue(body: Dict[str, Any], user=Depends(get_current_us
         doc.get("general_subtype_ids")
     )
     doc["test_date"] = _validate_test_date(doc.get("test_date"))
+    doc["status"] = _canonical_bassett_issue_status(
+        doc.get("status"), default="Not Started"
+    )
     _validate_issue_required(doc)
     _validate_bassett_run_result(doc)
     _validate_bassett_version_requirement(doc)
@@ -3711,6 +3733,9 @@ async def _prepare_bassett_workflow_document(body: Dict[str, Any], user: Dict[st
         doc.get("general_subtype_ids")
     )
     doc.setdefault("test_type", "Single Prompt")
+    doc["status"] = _canonical_bassett_issue_status(
+        doc.get("status"), default="Not Started"
+    )
     _normalize_bassett_turns(doc)
     doc["test_date"] = _validate_test_date(doc.get("test_date"))
     if doc.get("retest_date"):
@@ -3989,6 +4014,7 @@ async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_c
     if "test_date" in incoming:
         incoming["test_date"] = _validate_test_date(incoming.get("test_date"))
     if "status" in incoming:
+        incoming["status"] = _canonical_bassett_issue_status(incoming["status"])
         await _validate_bassett_issue_status(incoming["status"])
     # Triage metadata is server-owned; workflow status may be edited by
     # authorized writers, but audit identity and timestamp cannot be spoofed.
@@ -7546,9 +7572,8 @@ def _canonical_retest_executions(retests, testcases):
 def _dashboard_bassett_result_is_eligible(record):
     # Workflow status and evaluation result are independent. An evaluated test
     # remains dashboard evidence while it moves through review or engineering.
-    if str(record.get("status") or "").strip().casefold() in {
-        "draft", "not started", "in progress",
-    }:
+    status = _canonical_bassett_issue_status(record.get("status")).casefold()
+    if status in {"draft", "not started"}:
         return False
     return _canonical_bassett_result(record.get("result")) in EVALUATED_RESULTS
 

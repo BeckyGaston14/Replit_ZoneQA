@@ -779,11 +779,19 @@ def test_a17_definition_is_complete_without_removed_report_type():
     assert "report_type" not in server.BASSETT_DEFINITION_SNAPSHOT_FIELDS
 
 
-def test_shared_bassett_eligibility_excludes_in_progress_scored_results():
+def test_shared_bassett_eligibility_normalizes_legacy_workflow_statuses():
     run = {"id": "run-1", "scenario_id": "scenario-1", "status": "In Progress",
            "result": "Pass", "bassett_version": "Bassett v9.26"}
-    assert server._eligible_completed_bassett_runs([run], [], active_scenario_ids={"scenario-1"}) == []
-    assert server._dashboard_bassett_result_is_eligible(run) is False
+    eligible = server._eligible_completed_bassett_runs(
+        [run], [], active_scenario_ids={"scenario-1"}
+    )
+    assert len(eligible) == 1
+    assert server._canonical_bassett_issue_status("In Progress") == "In Review"
+    assert server._canonical_bassett_issue_status("New") == "Not Started"
+    assert server._eligible_completed_bassett_runs(
+        [{**run, "status": "New"}], [], active_scenario_ids={"scenario-1"}
+    ) == []
+    assert server._dashboard_bassett_result_is_eligible(run) is True
 
 
 def test_bassett_environment_must_come_from_administration_lookup(monkeypatch):

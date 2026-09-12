@@ -827,6 +827,28 @@ class PostgresDatabase:
                             "INSERT INTO schema_migrations (version) VALUES (11)"
                         )
                         current = 11
+                if current < 12:
+                    async with connection.transaction():
+                        # Normalize only the current workflow status. Immutable
+                        # bassett_history entries remain unchanged.
+                        await connection.execute("""
+                            UPDATE "bassett_issues"
+                            SET data = jsonb_set(
+                                data,
+                                '{status}',
+                                to_jsonb(
+                                    CASE data->>'status'
+                                        WHEN 'New' THEN 'Not Started'
+                                        WHEN 'In Progress' THEN 'In Review'
+                                    END
+                                )
+                            )
+                            WHERE data->>'status' IN ('New', 'In Progress')
+                        """)
+                        await connection.execute(
+                            "INSERT INTO schema_migrations (version) VALUES (12)"
+                        )
+                        current = 12
             finally:
                 # This is a session lock (rather than an xact lock), so it must
                 # be released even when a migration deliberately aborts.

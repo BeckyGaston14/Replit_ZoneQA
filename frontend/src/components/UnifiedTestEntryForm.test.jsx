@@ -340,6 +340,9 @@ test("multi-turn mode replaces single-prompt fields with an ordered turn builder
   expect(view.container.textContent).toContain("First prompt");
   expect(view.container.textContent).toContain("Second prompt");
   expect(view.container.textContent).not.toContain("Exact Bassett answer");
+  expect(view.container.querySelector('[aria-label="Turn 1 Test Bank scenario"]')).not.toBeNull();
+  expect(view.container.querySelector('[aria-label="Turn 1 result"]')).not.toBeNull();
+  expect(view.container.textContent).toContain("Evaluator Notes (optional)");
   const moveUp = view.container.querySelector('[aria-label="Move turn 2 up"]');
   act(() => moveUp.click());
   expect(view.latest().turns.map((turn) => turn.prompt)).toEqual(["Second prompt", "First prompt"]);
@@ -370,7 +373,7 @@ test("uploaded multi-turn turns keep stable IDs and support optional scenario, r
     turnResult.value = "Pass with Minor Issues";
     turnResult.dispatchEvent(new Event("change", { bubbles: true }));
   });
-  const notes = [...view.container.querySelectorAll("label")].find((node) => node.textContent.startsWith("Turn notes"));
+  const notes = [...view.container.querySelectorAll("label")].find((node) => node.textContent.startsWith("Evaluator Notes"));
   act(() => {
     const input = notes.querySelector("textarea");
     Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set.call(

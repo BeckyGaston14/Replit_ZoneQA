@@ -87,6 +87,7 @@ test("successful upload refreshes the list and authorized download opens the blo
 });
 
 test.each([
+  [401, null, "Your session has expired. Sign in again to download this attachment."],
   [404, null, "Attachment not found or its content is no longer available."],
   [403, null, "You do not have permission to download this attachment."],
   [503, null, "Attachment storage is unavailable. Please retry later."],
@@ -106,6 +107,21 @@ test.each([
     await new Promise((resolve) => setTimeout(resolve, 0));
   });
   expect(require("sonner").toast.error).toHaveBeenCalledWith(expected);
+  act(() => view.root.unmount());
+});
+
+test("network download failures show a connection-specific toast", async () => {
+  const { api } = require("../lib/api");
+  api.get.mockRejectedValueOnce(new Error("Network Error"));
+  mockQueryState = { data: [{ id: "a5", original_filename: "evidence.pdf", content_type: "application/pdf", size: 8, uploaded_by: "Tester" }], isError: false, isLoading: false };
+  const view = render();
+  await act(async () => {
+    view.container.querySelector('[data-testid="attachment-download"]').click();
+    await Promise.resolve();
+  });
+  expect(require("sonner").toast.error).toHaveBeenCalledWith(
+    "Unable to reach attachment storage. Check your connection and retry.",
+  );
   act(() => view.root.unmount());
 });
 
