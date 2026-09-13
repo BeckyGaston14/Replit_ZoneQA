@@ -96,6 +96,65 @@ function DecisionPanel({ version, scope, recommendation, blockers = [], insuffic
   );
 }
 
+function ReleaseReadinessLoadingSkeleton() {
+  return (
+    <div role="status" aria-live="polite" data-testid="readiness-loading-skeleton" className="space-y-6">
+      <span className="sr-only">Loading release readiness…</span>
+
+      <div className="rounded-xl border-2 bg-card p-4 sm:p-6" aria-hidden="true">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+          <div className="h-11 w-11 shrink-0 animate-pulse rounded-full bg-muted" />
+          <div className="min-w-0 flex-1 space-y-3">
+            <div className="h-2.5 w-64 max-w-full animate-pulse rounded bg-muted" />
+            <div className="h-7 w-40 animate-pulse rounded bg-muted" />
+            <div className="h-4 w-full animate-pulse rounded bg-muted" />
+            <div className="h-3 w-3/4 max-w-full animate-pulse rounded bg-muted" />
+          </div>
+          <div className="h-9 w-full animate-pulse rounded-md bg-muted sm:w-36" />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-7" aria-hidden="true">
+        {[0, 1, 2, 3, 4, 5, 6].map((item) => (
+          <div key={item} className="rounded-xl border bg-card p-4">
+            <div className="h-3 w-20 animate-pulse rounded bg-muted" />
+            <div className="mt-3 h-7 w-16 animate-pulse rounded bg-muted" />
+            {item === 3 && <div className="mt-2 h-3 w-full animate-pulse rounded bg-muted" />}
+          </div>
+        ))}
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2" aria-hidden="true">
+        <div className="rounded-xl border bg-card p-5">
+          <div className="mb-4 h-5 w-44 animate-pulse rounded bg-muted" />
+          <div className="space-y-2">
+            {[0, 1, 2].map((item) => (
+              <div key={item} className="rounded-lg border p-3">
+                <div className="h-2.5 w-16 animate-pulse rounded bg-muted" />
+                <div className="mt-2 h-4 w-3/4 animate-pulse rounded bg-muted" />
+                <div className="mt-2 h-3 w-full animate-pulse rounded bg-muted" />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {[0, 1, 2].map((item) => (
+            <div key={item} className="rounded-xl border bg-card p-5">
+              <div className="mb-4 h-5 w-48 max-w-full animate-pulse rounded bg-muted" />
+              <div className="space-y-2">
+                <div className="h-4 w-full animate-pulse rounded bg-muted" />
+                <div className="h-4 w-5/6 animate-pulse rounded bg-muted" />
+                <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ReleaseReadiness() {
   const versionsQuery = useCollection("versions");
   const { data: versions = [], isLoading: versionsLoading, isError: versionsError, refetch: refetchVersions } = versionsQuery;
@@ -158,7 +217,7 @@ export default function ReleaseReadiness() {
        {versionsError && <QueryState query={versionsQuery} resource="Bassett versions" onRetry={refetchVersions} testId="readiness-versions" />}
        {versionsLoading && <QueryState query={versionsQuery} resource="Bassett versions" testId="readiness-versions" />}
       {!versionsLoading && !versionsError && versions.length === 0 && <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">No Bassett versions are available. Create a version before reviewing release readiness.</div>}
-       {!!version && isLoading && <QueryState query={{ isLoading: true }} resource="release readiness" testId="readiness" />}
+        {!!version && isLoading && <ReleaseReadinessLoadingSkeleton />}
        {isError && <QueryState query={{ isError, error, refetch }} resource="release readiness" onRetry={refetch} testId="readiness" />}
       {r && style && (
         <>
@@ -215,11 +274,13 @@ export default function ReleaseReadiness() {
           </div>
            {r.insufficient_evidence && <div className="mb-4 rounded-xl border border-slate-300 bg-slate-50 p-4 text-sm text-slate-800" data-testid="insufficient-evidence-guidance">Insufficient Evidence: {r.evaluated} of {r.minimum_qualifying_tests} qualifying tests completed. Blockers are shown for investigation and do not change this neutral status.</div>}
 
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+           <div className="grid grid-cols-2 md:grid-cols-7 gap-3 mb-6">
              <StatCard label="Pass Rate" value={fmtPct(r.pass_rate)} accent={r.pass_rate != null && r.pass_rate >= 85 ? "#16a34a" : r.pass_rate != null && r.pass_rate >= 70 ? "#f59e0b" : "#dc2626"} icon={Percent} testid="stat-pass-rate" />
              <StatCard label="Avg Score" value={fmtScore(r.avg_score)} accent="#2f3f96" icon={Gauge} />
             <StatCard label="Failed Tests" value={r.failed} accent="#dc2626" icon={FlaskConical} />
-            <StatCard label="Open Findings" value={r.open_findings} sub={`High or Critical findings (High: ${r.open_crit4} · Critical: ${r.open_crit5})`} accent="#f47b20" icon={Flag} />
+             <StatCard label="Open Findings · selected version" value={r.open_findings_version} sub={`High + Critical total: ${(r.open_high ?? r.open_crit4 ?? 0) + (r.open_critical ?? r.open_crit5 ?? 0)}`} accent="#f47b20" icon={Flag} />
+             <StatCard label="Open High Findings" value={r.open_high ?? r.open_crit4} sub="High severity" accent="#ea580c" icon={Flag} />
+             <StatCard label="Open Critical Findings" value={r.open_critical ?? r.open_crit5} sub="Critical severity" accent="#dc2626" icon={Flag} />
             <StatCard label="New Regressions" value={r.newly_failing} accent={r.newly_failing ? "#dc2626" : "#16a34a"} icon={TrendingDown} />
           </div>
 
@@ -309,7 +370,7 @@ export default function ReleaseReadiness() {
           <MethodologyDisclosure title="How release readiness metrics are calculated" testid="release-readiness-methodology">
             <p>Release readiness is evaluated for the selected Bassett version and combines two non-overlapping populations: the latest complete Bassett evaluation per Model Comparison Test Case, plus the latest eligible standalone Bassett Test Run per Test Bank definition.</p>
             <p>Bassett-only drafts, retests, archived records, unevaluated runs, unsupported test types, and runs linked to or expanded into Model Comparison are excluded. This prevents the same testing lineage from being counted twice.</p>
-            <p>Open findings, criticality, regression results, failed tests, and stale Gold Standard evidence contribute to blockers and the system recommendation. Missing and N/A values remain unavailable rather than zero.</p>
+             <p>Open findings for the selected version and scope, separate High and Critical counts, regression results, failed tests, and stale Gold Standard evidence contribute to blockers and the system recommendation. The selected-version Open Findings card includes all severities and also labels the High + Critical total; missing and N/A values remain unavailable rather than zero.</p>
           </MethodologyDisclosure>
         </>
       )}

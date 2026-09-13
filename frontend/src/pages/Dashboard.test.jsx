@@ -12,7 +12,7 @@ const metrics = {
   active_version: "Bassett v2", bassett_current: { pass_rate: 50, passed: 1, failed: 1, evaluated: 2, label: "1 / 2 passed", definition: "Current definition" },
   bassett_avg_score: { value: 7.5, unit: "avg overall score /10", definition: "Score definition" },
   all_model_evaluations: { label: "3 / 4 evaluated", definition: "Evaluation definition" },
-  findings: { open: 2, open_critical: 1, awaiting_fix: 1, ready_for_retest: 1, definition: "Finding definition" },
+  findings: { open: 2, open_critical: 2, open_high: 1, open_critical_count: 1, awaiting_fix: 1, ready_for_retest: 1, definition: "Finding definition" },
   regression_current: { passed: 2, failed: 1, execution_date: "2026-08-31", test_date: "2026-08-30", definition: "Regression definition" },
   test_cases: { total: 3, definition: "Test definition" }, retests: { total: 2, completed: 1, definition: "Retest definition" },
 };
@@ -61,7 +61,7 @@ test("Dashboard cards are keyboard-accessible links to exact metric record sets"
   const root = createRoot(container);
   act(() => root.render(<Dashboard />));
   const cards = [...container.querySelectorAll('a[data-testid^="stat-"]')];
-  expect(cards).toHaveLength(10);
+  expect(cards).toHaveLength(12);
   expect(container.querySelectorAll('[data-testid="dashboard-metric-group"]')).toHaveLength(3);
   expect(cards.map((card) => card.getAttribute("href"))).toContain("/dashboard/records/model-comparison-pass-rate");
   expect(cards.map((card) => card.getAttribute("href"))).toContain("/dashboard/records/bassett-only-pass-rate");
@@ -83,7 +83,7 @@ test("Dashboard starts with metric groups and does not render the redundant work
   expect(container.querySelector('[data-testid="workspace-path"]')).toBeNull();
   expect(container.querySelector("h1").textContent).toBe("QA Dashboard");
   expect(container.querySelectorAll('[data-testid="dashboard-metric-group"]')).toHaveLength(3);
-  expect(container.querySelectorAll('a[data-testid^="stat-"]')).toHaveLength(10);
+  expect(container.querySelectorAll('a[data-testid^="stat-"]')).toHaveLength(12);
   expect(container.textContent).toContain("Bassett Quality");
   expect(container.textContent).toContain("Finding Workflow");
   expect(container.textContent).not.toContain("Release Confidence");
@@ -92,6 +92,8 @@ test("Dashboard starts with metric groups and does not render the redundant work
   expect(container.textContent).toContain("Program Operations");
   expect(container.textContent).toContain("Model Comparison — Bassett Pass Rate");
   expect(container.textContent).toContain("Bassett-Only Pass Rate");
+  expect(container.textContent).toContain("Open High Findings");
+  expect(container.textContent).toContain("Open Critical Findings");
   expect(container.textContent).toContain("N/A");
   expect(container.textContent).toContain("Limited data — 2 evaluated records");
 

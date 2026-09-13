@@ -95,6 +95,8 @@ export default function Executive() {
   const weakestScore = weakest ? evaluationScoreOrNull(weakest.score ?? weakest.avg_score) : null;
   const bassettAverage = evaluationScoreOrNull(k.bassett_avg);
   const benchmarkAverage = evaluationScoreOrNull(k.benchmark_avg);
+  const openHigh = k.open_high ?? "—";
+  const openCritical = k.open_critical_count ?? "—";
   const includesComparison = d.report_scope !== "bassett";
   const edge = bassettAverage !== null && benchmarkAverage !== null
     ? Math.round((bassettAverage - benchmarkAverage) * 10) / 10
@@ -119,10 +121,10 @@ export default function Executive() {
       : strongest && weakest && strongestScore === weakestScore
         ? `All available reporting groups are tied at ${fmtScore(strongestScore)}/10.`
       : null,
-    k.open_critical > 0
-      ? `${plural(k.open_critical, "open High or Critical finding")} require${k.open_critical === 1 ? "s" : ""} resolution before the next release.`
+     k.open_critical > 0
+       ? `Open findings include ${openHigh} High and ${openCritical} Critical (${k.open_critical} High + Critical total) requiring resolution before the next release.`
       : k.total_evaluated > 0
-        ? "No open High or Critical findings are recorded in the current evaluated scope."
+        ? "No open High findings or open Critical findings are recorded in the current evaluated scope."
         : "Quality risk cannot be assessed until evaluated tests and findings are recorded.",
     (d.stale_gold_tests || []).length > 0
       ? `Reverification required: ${plural(d.stale_gold_tests.length, "evaluated test relies", "evaluated tests rely")} on a Gold Standard whose supporting evidence is stale (${d.stale_gold_tests.map((t) => t.name).slice(0, 3).join("; ")}).`
@@ -165,11 +167,13 @@ export default function Executive() {
         </div>
       )}
 
-      <div className={`grid grid-cols-2 ${includesComparison ? "md:grid-cols-5" : "md:grid-cols-3"} gap-3 mb-6`}>
+       <div className={`grid grid-cols-2 ${includesComparison ? "md:grid-cols-7" : "md:grid-cols-5"} gap-3 mb-6`}>
         <StatCard label="Bassett Overall Score" value={fmtScore(k.bassett_avg)} sub={includesComparison ? `benchmarks avg ${fmtScore(k.benchmark_avg)}` : `${d.population_counts?.bassett_only || 0} Bassett-only results`} accent={MODEL_COLORS.Bassett} icon={Target} testid="exec-bassett-avg" />
         <StatCard label="Pass Rate" value={fmtPct(k.pass_rate)} sub={`${k.total_evaluated} evaluated`} accent={k.pass_rate != null && k.pass_rate >= 85 ? "#16a34a" : "#f59e0b"} icon={Percent} />
         {includesComparison && <StatCard label="Bassett Wins" value={k.wins} sub={`${k.losses} losses`} accent="#16a34a" icon={Trophy} />}
-         <StatCard label="Open High or Critical Findings" value={k.open_critical} sub="High or Critical severity findings" accent={k.open_critical ? "#dc2626" : "#16a34a"} icon={AlertTriangle} />
+         <StatCard label="Open High + Critical Findings Total" value={k.open_critical} sub="High + Critical severity total" accent={k.open_critical ? "#dc2626" : "#16a34a"} icon={AlertTriangle} />
+         <StatCard label="Open High Findings" value={openHigh} sub="High severity" accent="#ea580c" icon={AlertTriangle} />
+         <StatCard label="Open Critical Findings" value={openCritical} sub="Critical severity" accent="#dc2626" icon={AlertTriangle} />
         {includesComparison && <StatCard label="Competitive Edge" value={edge === null ? "—" : edge >= 0 ? `+${edge}` : edge} sub="pts vs benchmarks" accent={edge === null ? "#64748b" : edge >= 0 ? "#16a34a" : "#dc2626"} icon={TrendingUp} />}
       </div>
 
@@ -238,7 +242,7 @@ export default function Executive() {
          <SrTable caption="Bassett reporting-group performance. Scale: 0 to 10." columns={["Reporting group", "Average score out of 10", "Underlying dimensions"]} rows={chartCategories.map((c) => [(c.label || c.category), formatEvaluationScore(c.score ?? c.avg_score), (c.dimensions || c.underlyingDimensions || []).map((item) => item.label || item.key || item).join(", ")])} />
       </div>
        <MethodologyDisclosure title="How executive metrics are calculated" testid="executive-methodology">
-         <p>Executive KPIs and charts summarize persisted QA evaluations, findings, and model comparisons for the displayed scope: {d.scope || "current reporting scope"}.</p>
+          <p>Executive KPIs and charts summarize persisted QA evaluations, separate High and Critical findings, and model comparisons for the displayed scope: {d.scope || "current reporting scope"}.</p>
          <p>Pass rate is passing evaluated tests divided by evaluated tests; scores are arithmetic means of available 0–10 scores; competitive edge is Bassett average minus benchmark average.</p>
          <p>Sample data follows the authenticated user's Show sample records preference. Missing scores are unavailable, not zero; stale Gold Standards are surfaced for reverification.</p>
        </MethodologyDisclosure>

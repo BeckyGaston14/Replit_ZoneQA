@@ -241,6 +241,27 @@ def _finding_criticality(finding):
         return SEVERITY_CRITICALITY["Medium"]
 
 
+def _finding_severity_counts(findings):
+    """Return additive canonical High/Critical counts for a finding population.
+
+    Existing combined counters remain owned by their callers for API
+    compatibility.  This helper only supplies the separate labels used by
+    user-facing summaries.
+    """
+    counts = {"high": 0, "critical": 0}
+    for finding in findings:
+        try:
+            severity, _ = _canonical_severity_pair(
+                finding.get("severity"), finding.get("criticality"),
+                allow_invalid_severity_fallback=True,
+            )
+        except (HTTPException, TypeError, ValueError):
+            continue
+        if severity in ("High", "Critical"):
+            counts[severity.lower()] += 1
+    return counts
+
+
 def _finding_scope(finding):
     """Classify persisted findings without inferring comparison from absence."""
     explicit = str(finding.get("finding_scope") or "").casefold()
@@ -5002,7 +5023,7 @@ async def bassett_metrics(version_id: Optional[str] = None, environment: Optiona
         (next((s.get("workflow_stage") for s in scenarios if s["id"] == e.get("scenario_id")), "Unclassified"))
         for e in attention_runs if _canonical_bassett_result(e.get("result")) in (*FAIL_SET, "Needs Improvement")
     )
-    all_findings = await db.findings.find({}, {"_id": 0, "id": 1, "bassett_issue_id": 1, "bassett_execution_id": 1}).to_list(5000)
+    all_findings = await db.findings.find({}, {"_id": 0}).to_list(5000)
     issue_finding_ids = {
         issue.get("finding_id") for issue in issues if issue.get("finding_id")
     }
@@ -5014,6 +5035,10 @@ async def bassett_metrics(version_id: Optional[str] = None, environment: Optiona
         if finding.get("bassett_issue_id") or finding.get("bassett_execution_id")
         or finding.get("id") in issue_finding_ids or finding.get("id") in execution_finding_ids
     ]
+    actual_findings = [_canonicalize_finding_severity(finding) for finding in actual_findings]
+    open_actual_findings = [finding for finding in actual_findings if _finding_is_open(finding)]
+    actual_finding_severity = _finding_severity_counts(actual_findings)
+    issue_severity = _finding_severity_counts(issues)
     covered_scenarios = {
         e.get("scenario_id") for e in completed
         if e.get("scenario_id") in active_scenario_ids
@@ -5026,7 +5051,20 @@ async def bassett_metrics(version_id: Optional[str] = None, environment: Optiona
         "issues": {
             "total": len(issues), "new": sum(i.get("status") in ("Not Started", "New") for i in issues),
             "open": sum(i.get("status") not in ("Closed / Resolved", "Resolved", "Closed") for i in issues),
-            "critical": sum(_severity_is_high_or_critical(i.get("severity")) for i in issues),
+            # Keep `critical` as the historical High + Critical roll-up.
+            "critical": issue_severity["high"] + issue_severity["critical"],
+            "high": issue_severity["high"],
+            "critical_count": issue_severity["critical"],
+        },
+        "findings": {
+            "total": len(actual_findings),
+            "open": len(open_actual_findings),
+            "new": sum(finding.get("developer_status") == "New" for finding in actual_findings),
+            # Keep `critical` as the historical High + Critical roll-up.
+            "critical": actual_finding_severity["high"] + actual_finding_severity["critical"],
+            "high": actual_finding_severity["high"],
+            "critical_count": actual_finding_severity["critical"],
+            "definition": "Bassett-linked findings; open excludes Fixed, Closed, Won't Fix, and Duplicate.",
         },
         "scenarios": {"active": len(scenarios), "with_execution": len(completed_scenarios)},
         "executions": {
@@ -5965,6 +6003,7 @@ async def dashboard_stats(user=Depends(get_current_user), include_sample: Option
     )
 
     open_findings = [f for f in findings if _finding_is_open(f)]
+    open_finding_severity = _finding_severity_counts(open_findings)
     dashboard_evidence = evidence_status(bassett_populations["bassett_only"]["evaluated"])
     return {
         "active_projects": cnt(projects, "status", "Active"),
@@ -5979,6 +6018,8 @@ async def dashboard_stats(user=Depends(get_current_user), include_sample: Option
         "bassett_only_evaluated": bassett_populations["bassett_only"]["evaluated"],
         "critical_findings": len([f for f in findings if _finding_is_high_or_critical(f)]),
         "open_findings": len(open_findings),
+        "open_findings_high": open_finding_severity["high"],
+        "open_findings_critical": open_finding_severity["critical"],
         "awaiting_fix": len([f for f in open_findings if f.get("developer_status") in FINDING_AWAITING_FIX_STATUSES]),
         "ready_for_retest": cnt(findings, "developer_status", "Ready for Retest"),
         "regression_failures": latest_regression.get("failed", 0) if latest_regression else 0,
@@ -6502,6 +6543,8 @@ async def _canonical_report_data(kind, include_sample=False, version="", scope="
     findings = [
         finding for finding in await crud_list("findings")
         if not finding.get("archived") and finding.get("status") != "Archived"
+        and (kind != "release" or _finding_is_open(finding))
+        and (kind != "release" or finding.get("version_found") == selected_release_version)
         and (kind == "release" or finding.get("testcase_id") in testcase_ids)
         and (include_sample or not _is_sample_record(finding))
         and (
@@ -6991,7 +7034,7 @@ async def release_readiness(version: str, user=Depends(get_current_user), scope:
     elif open_crit5 or critical_fails or pass_rate < 70:
         recommendation, reason = "NO-GO", "Critical severity findings, Critical Fail evaluations, or pass rate below 70%."
     elif open_crit4 or newly_failing or pass_rate < 85:
-        recommendation, reason = "CONDITIONAL", "High or Critical severity open findings, new regressions, or pass rate below 85% — release with mitigations."
+        recommendation, reason = "CONDITIONAL", "High severity open findings, new regressions, or pass rate below 85% — release with mitigations."
     else:
         recommendation, reason = "GO", "Pass rate ≥ 85%, no critical blockers, no new regressions."
     recommendation = apply_evidence_gate(evaluated, recommendation)
@@ -7044,11 +7087,12 @@ async def release_readiness(version: str, user=Depends(get_current_user), scope:
             "passed": len(passed), "failed": len(failed), "critical_fail_evals": len(critical_fails),
             "open_findings": len(open_findings), "open_findings_version": len(version_findings),
             "open_crit5": len(open_crit5), "open_crit4": len(open_crit4),
+            "open_high": len(open_crit4), "open_critical": len(open_crit5),
             "regression": reg, "newly_failing": newly_failing, "blockers": blockers,
             "failed_tests": failed_tests,
              "open_finding_list": [{"id": f["id"], "title": f.get("title"), "criticality": _finding_criticality(f),
                                    "developer_status": f.get("developer_status"), "finding_type": f.get("finding_type")}
-                                  for f in sorted(open_findings, key=lambda x: -_finding_criticality(x))[:20]]}
+                                   for f in sorted(version_findings, key=lambda x: -_finding_criticality(x))[:20]]}
 
 # ---------- Live model runs ----------
 BENCH_SYSTEM = "You are a helpful AI assistant. Answer the user's zoning and land-use questions directly and cite ordinance sections or sources when you can."
@@ -7611,6 +7655,7 @@ async def analytics_executive(
 
     open_findings = [f for f in findings if f.get("developer_status") not in CLOSED_FINDING]
     open_critical = len([f for f in open_findings if _finding_is_high_or_critical(f)])
+    open_finding_severity = _finding_severity_counts(open_findings)
 
     # top failure modes across findings
     fm_counts = {}
@@ -7653,6 +7698,8 @@ async def analytics_executive(
     benchmark_evaluated_count = len([e for e in evals if e.get("model") != "Bassett"])
     return {"kpis": {"bassett_avg": bassett_avg, "benchmark_avg": bench_avg, "pass_rate": pass_rate,
                      "wins": wins, "losses": losses, "open_critical": open_critical,
+                     "open_high": open_finding_severity["high"],
+                     "open_critical_count": open_finding_severity["critical"],
                      "total_evaluated": evaluated_count,
                      "limited_data": limited_data,
                      "benchmark_evaluated": benchmark_evaluated_count,
@@ -8568,6 +8615,7 @@ async def metrics_summary(user=Depends(get_current_user)):
 
     scored = [e for e in b_cur if e.get("overall_score") is not None]
     open_f = [f for f in findings if _finding_is_open(f)]
+    open_finding_severity = _finding_severity_counts(open_f)
     reg = _latest_regression_run(runs, ver)
 
     return {
@@ -8590,9 +8638,11 @@ async def metrics_summary(user=Depends(get_current_user)):
                               "limited_data": {"limited": len(b_cur) < 5, "evaluated": len(b_cur), "threshold": 5},
                               "unit": "avg overall score /10", "definition": f"Mean of latest Bassett evaluation scores per test case for {ver or 'the active version'}, n={len(scored)}."},
         "findings": {"open": len(open_f), "open_critical": len([f for f in open_f if _finding_is_high_or_critical(f)]),
+                      "open_high": open_finding_severity["high"],
+                      "open_critical_count": open_finding_severity["critical"],
                       "awaiting_fix": len([f for f in open_f if f.get("developer_status") in FINDING_AWAITING_FIX_STATUSES]),
                      "ready_for_retest": len([f for f in open_f if f.get("developer_status") == "Ready for Retest"]),
-                      "unit": "findings", "definition": "Open excludes Fixed/Closed/Won't Fix/Duplicate; awaiting fix is In Development (plus legacy Fix In Progress)."},
+                      "unit": "findings", "definition": "Open excludes Fixed/Closed/Won't Fix/Duplicate; High and Critical are counted separately; awaiting fix is In Development (plus legacy Fix In Progress)."},
         "retests": {"total": len(retests), "completed": len([r for r in retests if r.get("status") == "Completed"]),
                     "in_progress": len([r for r in retests if r.get("status") == "In Progress"]),
                     "unit": "retest executions",
@@ -8660,6 +8710,12 @@ async def dashboard_metric_records(metric: str, user=Depends(get_current_user)):
         "all-model-evaluations": ("All model evaluations", [e for e in all_models if e.get("normalized_result") in EVALUATED_RESULTS],
                                    "Latest pass/fail evaluation per active Test Case and model."),
         "open-findings": ("Open findings", open_findings, "Findings not in a closed terminal status."),
+        "open-high-findings": ("Open High findings",
+                               [f for f in open_findings if _finding_severity_counts([f])["high"]],
+                               "Open findings labeled High."),
+        "open-critical-findings": ("Open Critical findings",
+                                   [f for f in open_findings if _finding_severity_counts([f])["critical"]],
+                                   "Open findings labeled Critical."),
         "awaiting-fix": ("Awaiting fix", [f for f in open_findings if f.get("developer_status") in FINDING_AWAITING_FIX_STATUSES],
                           "Open Findings in In Development or the legacy Fix In Progress status."),
         "ready-for-retest": ("Ready for retest", [f for f in open_findings if f.get("developer_status") == "Ready for Retest"],
@@ -8705,10 +8761,14 @@ async def dashboard_metric_records(metric: str, user=Depends(get_current_user)):
                 "value": record.get("overall_score"), "date": record.get("_dashboard_date") or (record.get("created_at") or "")[:10],
                 "secondary": f"{record.get('bassett_version') or version} · Model Comparison", "to": f"/testcases/{record.get('testcase_id')}",
             }
-        if metric in ("open-findings", "awaiting-fix", "ready-for-retest"):
+        if metric in ("open-findings", "open-high-findings", "open-critical-findings", "awaiting-fix", "ready-for-retest"):
+            severity, _ = _canonical_severity_pair(
+                record.get("severity"), record.get("criticality"),
+                allow_invalid_severity_fallback=True,
+            )
             return {
                 "id": record["id"], "name": record.get("title", "Finding"), "type": "Finding",
-                "status": record.get("developer_status"), "value": record.get("criticality"),
+                "status": record.get("developer_status"), "value": severity,
                 "date": (record.get("created_at") or "")[:10], "secondary": (testcase or {}).get("name"),
                 "to": f"/findings?id={record['id']}",
             }
@@ -8923,6 +8983,8 @@ async def readiness_decision(body: Dict[str, Any], user=Depends(get_current_user
         "pass_rate": rr["pass_rate"], "evaluated": rr["evaluated"], "passed": rr["passed"],
         "failed": rr["failed"], "avg_score": rr["avg_score"],
         "open_findings": rr["open_findings"], "open_crit5": rr["open_crit5"], "open_crit4": rr["open_crit4"],
+        "open_high": rr.get("open_high", rr["open_crit4"]),
+        "open_critical": rr.get("open_critical", rr["open_crit5"]),
         "critical_fail_evals": rr["critical_fail_evals"], "newly_failing_regressions": rr["newly_failing"],
         "blocker_count": len(rr["blockers"]),
         "blockers": [{"type": b["type"], "label": b["label"], "detail": b["detail"],
@@ -9485,6 +9547,8 @@ async def integrity_repair(body: Dict[str, Any], user=Depends(get_current_user))
                     "pass_rate": rr["pass_rate"], "evaluated": rr["evaluated"], "passed": rr["passed"],
                     "failed": rr["failed"], "avg_score": rr["avg_score"], "open_findings": rr["open_findings"],
                     "open_crit5": rr["open_crit5"], "open_crit4": rr["open_crit4"],
+                    "open_high": rr.get("open_high", rr["open_crit4"]),
+                    "open_critical": rr.get("open_critical", rr["open_crit5"]),
                     "critical_fail_evals": rr["critical_fail_evals"], "newly_failing_regressions": rr["newly_failing"],
                     "blocker_count": len(rr["blockers"]), "blockers": rr["blockers"],
                     "backfilled": True, "backfilled_at": now_iso(), "backfilled_by": user["name"]}

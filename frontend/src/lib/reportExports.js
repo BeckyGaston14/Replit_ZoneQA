@@ -2,14 +2,14 @@ const COMPARISON_MODELS = new Set(["Bassett", "ChatGPT", "Claude"]);
 import { calculateComparisonScore } from "./comparison";
 import { normalizeEvaluationResult } from "./evaluationResults";
 import { aggregateReportingGroups, calculateReportingGroups } from "./scoringGroups";
-import { isHighOrCriticalSeverity } from "./severity";
+import { findingSeverityLabel, isHighOrCriticalSeverity } from "./severity";
 
 const REPORT_SCOPES = {
   qa_summary: "All persisted QA records.",
-  release: "Bassett evaluations, High or Critical severity findings, and regression snapshots across recorded releases.",
+  release: "Bassett evaluations, separate High and Critical severity findings, and regression snapshots across recorded releases.",
   regression: "Historical regression snapshots and their included test results.",
   comparison: "Complete Bassett, ChatGPT, and Claude evaluations grouped by test case.",
-  critical: "High or Critical severity findings and the related QA records.",
+  critical: "Separate High and Critical severity findings and the related QA records.",
   municipality: "Test cases with a municipality and their related QA records.",
 };
 
@@ -160,6 +160,17 @@ function buildMunicipalityRecords(source) {
   return relatedRecords(source, testcaseIds);
 }
 
+function severitySummary(findings = []) {
+  const high = findings.filter((finding) => findingSeverityLabel(finding) === "High").length;
+  const critical = findings.filter((finding) => findingSeverityLabel(finding) === "Critical").length;
+  return {
+    high,
+    critical,
+    high_critical_total: high + critical,
+    labels: { high: "High", critical: "Critical", high_critical_total: "High + Critical total" },
+  };
+}
+
 const BUILDERS = {
   qa_summary: (source) => ({
     testcases: source.testcases,
@@ -227,6 +238,7 @@ export function buildReportPayload({ kind, stats, releaseEvidence, minimumQualif
     ...records,
     evaluations: detailedEvaluations,
     reporting_groups: reportingGroups,
+    severity_summary: severitySummary(records.findings || []),
     record_counts: Object.fromEntries(
       Object.entries(records)
         .filter(([, value]) => Array.isArray(value))

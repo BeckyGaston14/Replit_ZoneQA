@@ -23,6 +23,8 @@ function reportData(categoryCount = 6, longLabels = false) {
       wins: 7,
       losses: 3,
       open_critical: 2,
+      open_high: 1,
+      open_critical_count: 1,
     },
     failure_modes: [
       { mode: longLabels ? "Citation mismatch caused by an unusually long supporting source name that must wrap cleanly onto another line" : "Citation mismatch", count: 5 },
@@ -105,6 +107,10 @@ test("renders a multi-section report into bounded, non-overlapping A4 pages", ()
     expect(chartBox.y).toBeGreaterThanOrEqual(section.y + section.height);
   });
   expect(doc.internal.pages[1].join(" ")).toContain("Bassett Wins");
+  const kpiBoxes = result.boxes.filter((box) => box.name.startsWith("KPI "));
+  expect(kpiBoxes).toHaveLength(7);
+  expect(new Set(kpiBoxes.map((box) => box.y)).size).toBe(2);
+  expect(kpiBoxes.every((box) => box.width > 40)).toBe(true);
   if (process.env.WRITE_PDF_ARTIFACT === "1") {
     const outputDir = path.resolve(process.cwd(), "../.agents/outputs");
     fs.mkdirSync(outputDir, { recursive: true });

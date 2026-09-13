@@ -6,6 +6,7 @@ from server import (
     _canonicalize_finding_severity,
     _finding_criticality,
     _finding_is_high_or_critical,
+    _finding_severity_counts,
     _normalize_severity,
     _severity_criticality,
     _test_bank_category,
@@ -32,6 +33,15 @@ def test_mismatched_finding_pair_uses_severity_for_all_read_population_checks():
     assert _canonicalize_finding_severity(legacy_numeric)["severity"] == "Critical"
     assert _finding_criticality(legacy_numeric) == 5
     assert _finding_is_high_or_critical(legacy_numeric)
+
+
+def test_severity_summary_keeps_high_and_critical_counts_separate():
+    findings = [
+        {"severity": "High", "criticality": 5},
+        {"severity": "Critical", "criticality": 4},
+        {"criticality": 3},
+    ]
+    assert _finding_severity_counts(findings) == {"high": 1, "critical": 1}
 
 
 def test_active_test_bank_category_wins_over_obsolete_issue_category():

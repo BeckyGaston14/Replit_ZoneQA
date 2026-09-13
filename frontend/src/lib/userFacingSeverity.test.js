@@ -5,6 +5,8 @@ const USER_FACING_SOURCES = [
   path.resolve(__dirname, "../components/shared.jsx"),
   path.resolve(__dirname, "../pages/Executive.jsx"),
   path.resolve(__dirname, "../pages/Findings.jsx"),
+  path.resolve(__dirname, "../pages/BassettIssues.jsx"),
+  path.resolve(__dirname, "../pages/Dashboard.jsx"),
   path.resolve(__dirname, "../pages/ReleaseReadiness.jsx"),
   path.resolve(__dirname, "./executivePdf.js"),
   path.resolve(__dirname, "./reportExports.js"),
@@ -20,6 +22,16 @@ test("user-facing severity sources do not reintroduce numeric criticality wordin
   const violations = USER_FACING_SOURCES.flatMap((sourcePath) => {
     const source = fs.readFileSync(sourcePath, "utf8");
     return legacyNumericSeverity.test(source) ? [path.relative(process.cwd(), sourcePath)] : [];
+  });
+
+  expect(violations).toEqual([]);
+});
+
+test("user-facing severity summaries do not collapse High and Critical into one label", () => {
+  const collapsedSeverityLabel = /\bHigh\s+or\s+Critical\b/i;
+  const violations = USER_FACING_SOURCES.flatMap((sourcePath) => {
+    const source = fs.readFileSync(sourcePath, "utf8");
+    return collapsedSeverityLabel.test(source) ? [path.relative(process.cwd(), sourcePath)] : [];
   });
 
   expect(violations).toEqual([]);

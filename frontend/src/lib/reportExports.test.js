@@ -75,6 +75,29 @@ test("critical exports use canonical severity precedence for legacy and mismatch
   ]);
 });
 
+test("report payload exposes separate High and Critical severity totals", () => {
+  const payload = buildReportPayload({
+    kind: "qa_summary",
+    testcases: [
+      { id: "high-case" },
+      { id: "critical-case" },
+      { id: "medium-case" },
+    ],
+    findings: [
+      { id: "high", testcase_id: "high-case", severity: "High", criticality: 5 },
+      { id: "critical", testcase_id: "critical-case", severity: "Critical", criticality: 4 },
+      { id: "medium", testcase_id: "medium-case", severity: "Medium", criticality: 3 },
+    ],
+    evaluations: [],
+  });
+  expect(payload.severity_summary).toMatchObject({
+    high: 1,
+    critical: 1,
+    high_critical_total: 2,
+  });
+  expect(payload.severity_summary.labels.high_critical_total).toBe("High + Critical total");
+});
+
 test("release export preserves readiness population metadata and standalone rows", () => {
   const payload = buildReportPayload({
     kind: "release",
@@ -159,7 +182,7 @@ test("report payload preserves the JSON envelope and records counts", () => {
     generated: "2026-09-01T00:00:00.000Z",
     report: "critical",
     stats: { total_tests: 4 },
-    scope: expect.stringContaining("High or Critical"),
+    scope: expect.stringContaining("Separate High and Critical"),
     record_counts: { testcases: 1, findings: 1, evaluations: 0, regression_runs: 0 },
   }));
 });

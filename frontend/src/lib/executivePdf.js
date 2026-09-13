@@ -87,38 +87,45 @@ function drawSectionTitle(doc, title, y, subtitle) {
 function drawKpiCards(doc, kpis, y, boxes, reportScope = "both", populationCounts = {}) {
   const gap = 3;
   const height = 25;
+  const columns = 4;
   const includesComparison = reportScope !== "bassett";
   const cards = [
     ["Bassett Overall Score", fmtScore(kpis.bassett_avg), includesComparison ? `Benchmark avg ${fmtScore(kpis.benchmark_avg)}` : `${safeText(populationCounts.bassett_only, "0")} Bassett-only results`, MODEL_COLORS.Bassett],
     ["Pass Rate", fmtPct(kpis.pass_rate), `${safeText(kpis.total_evaluated, "0")} evaluated`, kpis.pass_rate != null && kpis.pass_rate >= 85 ? "#16A34A" : "#D97706"],
     ...(includesComparison ? [["Bassett Wins", safeText(kpis.wins, "0"), `${safeText(kpis.losses, "0")} losses`, "#16A34A"]] : []),
-    ["Open High or Critical Findings", safeText(kpis.open_critical, "0"), "High or Critical severity findings", kpis.open_critical ? COLORS.red : "#16A34A"],
+    ["High + Critical Total", safeText(kpis.open_critical, "0"), "Open findings", kpis.open_critical ? COLORS.red : "#16A34A"],
+    ["Open High Findings", safeText(kpis.open_high, "—"), "High severity", "#EA580C"],
+    ["Open Critical Findings", safeText(kpis.open_critical_count, "—"), "Critical severity", COLORS.red],
     ...(includesComparison ? [["Competitive Edge", number(kpis.bassett_avg) !== null && number(kpis.benchmark_avg) !== null
       ? `${number(kpis.bassett_avg) - number(kpis.benchmark_avg) >= 0 ? "+" : ""}${(number(kpis.bassett_avg) - number(kpis.benchmark_avg)).toFixed(1)}`
       : "—", "Points vs benchmarks", COLORS.navy]] : []),
   ];
-  const width = (A4_PAGE.contentWidth - gap * (cards.length - 1)) / cards.length;
+  const width = (A4_PAGE.contentWidth - gap * (columns - 1)) / columns;
   cards.forEach(([label, value, sub, accent], index) => {
-    const x = A4_PAGE.marginX + index * (width + gap);
+    const column = index % columns;
+    const row = Math.floor(index / columns);
+    const x = A4_PAGE.marginX + column * (width + gap);
+    const cardY = y + row * (height + gap);
     setColor(doc, "setFillColor", COLORS.white);
     setColor(doc, "setDrawColor", COLORS.line);
-    doc.roundedRect(x, y, width, height, 2, 2, "FD");
+    doc.roundedRect(x, cardY, width, height, 2, 2, "FD");
     setColor(doc, "setFillColor", accent);
-    doc.roundedRect(x, y, 1.8, height, 0.8, 0.8, "F");
+    doc.roundedRect(x, cardY, 1.8, height, 0.8, 0.8, "F");
     setColor(doc, "setTextColor", COLORS.muted);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(6.8);
-    doc.text(wrapped(doc, label, width - 5), x + 4.5, y + 5.2);
+    doc.text(wrapped(doc, label, width - 5), x + 4.5, cardY + 5.2);
     setColor(doc, "setTextColor", COLORS.navy);
     doc.setFontSize(11);
-    doc.text(value, x + 4.5, y + 12.5);
+    doc.text(value, x + 4.5, cardY + 12.5);
     setColor(doc, "setTextColor", COLORS.muted);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(6.5);
-    doc.text(wrapped(doc, sub, width - 5), x + 4.5, y + 18);
-    boxes.push({ page: doc.internal.getCurrentPageInfo().pageNumber, x, y, width, height, name: `KPI ${label}` });
+    doc.text(wrapped(doc, sub, width - 5), x + 4.5, cardY + 18);
+    boxes.push({ page: doc.internal.getCurrentPageInfo().pageNumber, x, y: cardY, width, height, name: `KPI ${label}` });
   });
-  return y + height;
+  const rows = Math.ceil(cards.length / columns);
+  return y + rows * height + (rows - 1) * gap;
 }
 
 function drawTakeaways(doc, takeaways, y, boxes) {
@@ -304,9 +311,9 @@ export function renderExecutivePdf({ doc, data, chartImages = {}, generated = ne
        ? `Strongest reporting group: ${categories[0].label || categories[0].category} (${fmtScore(categories[0].score ?? categories[0].avg_score)}/10). Weakest: ${categories[categories.length - 1].label || categories[categories.length - 1].category} (${fmtScore(categories[categories.length - 1].score ?? categories[categories.length - 1].avg_score)}/10).`
       : null,
     kpis.open_critical > 0
-      ? `${kpis.open_critical} open High or Critical finding${kpis.open_critical === 1 ? "" : "s"} require resolution before the next release.`
+      ? `Open findings include ${safeText(kpis.open_high, "—")} High and ${safeText(kpis.open_critical_count, "—")} Critical (${safeText(kpis.open_critical, "0")} High + Critical total) requiring resolution before the next release.`
       : kpis.total_evaluated > 0
-        ? "No open High or Critical findings are recorded in the current evaluated scope."
+        ? "No open High findings or open Critical findings are recorded in the current evaluated scope."
         : "Quality risk cannot be assessed until evaluated tests and findings are recorded.",
     (data?.stale_gold_tests || []).length
       ? `Reverification required for ${(data.stale_gold_tests || []).length} evaluated test${data.stale_gold_tests.length === 1 ? "" : "s"} with stale Gold Standard evidence.`

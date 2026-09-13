@@ -6,7 +6,7 @@ import { useCollection, useSampleVisibility } from "../lib/hooks";
 import { useAuth } from "../lib/auth";
 import { Button } from "../components/ui/button";
 import {
-  FolderKanban, CheckCircle2, XCircle, AlertTriangle, Flag, Wrench, RefreshCw, Star,
+  FolderKanban, CheckCircle2, XCircle, AlertTriangle, Flag, ShieldAlert, Wrench, RefreshCw, Star,
   ClipboardCheck, Activity as ActIcon,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from "recharts";
@@ -51,7 +51,7 @@ export default function Dashboard() {
     definition: "Eligible standalone Bassett-only Test Runs for the active version.",
   };
   const ame = m.all_model_evaluations || { label: "—", definition: "All model evaluation records." };
-  const fnd = m.findings || { open: "—", open_critical: "—", awaiting_fix: "—", ready_for_retest: "—", definition: "Finding workflow records." };
+  const fnd = m.findings || { open: "—", open_critical: "—", open_high: "—", open_critical_count: "—", awaiting_fix: "—", ready_for_retest: "—", definition: "Finding workflow records." };
   const avgScore = m.bassett_avg_score || { value: null, unit: "avg overall score /10", definition: "Average Bassett score for the active version." };
   const versionLabel = m.active_version || "No active version";
   const sampleDataShown = sampleScopeIncludesData({
@@ -65,7 +65,9 @@ export default function Dashboard() {
     { label: "Bassett Failed", value: comparison.failed, sub: `of ${comparison.evaluated} evaluated comparisons · ${versionLabel}`, title: comparison.definition, icon: XCircle, accent: "#dc2626", to: dashboardRecordPath("bassett-failed") },
      { label: "Bassett Avg Score", value: avgScore.value ?? "—", sub: `${avgScore.unit} · ${versionLabel}`, limitedData: avgScore.limited_data || avgScore.evaluated || comparison.evaluated, title: avgScore.definition, icon: ActIcon, accent: MODEL_COLORS.Bassett, to: dashboardRecordPath("bassett-score") },
     { label: "All Model Evaluations", value: ame.label, sub: "Bassett + ChatGPT + Claude mixed", title: ame.definition, icon: ClipboardCheck, accent: "#2f3f96", to: dashboardRecordPath("all-model-evaluations") },
-     { label: "Open Findings", value: fnd.open, sub: `${fnd.open_critical} High or Critical severity`, title: fnd.definition, icon: Flag, accent: "#f97316", to: dashboardRecordPath("open-findings") },
+     { label: "Open Findings (all severities)", value: fnd.open, sub: `High + Critical total: ${fnd.open_critical}`, title: fnd.definition, icon: Flag, accent: "#f97316", to: dashboardRecordPath("open-findings") },
+    { label: "Open High Findings", value: fnd.open_high, sub: "High severity", title: fnd.definition, icon: ShieldAlert, accent: "#ea580c", to: dashboardRecordPath("open-high-findings") },
+    { label: "Open Critical Findings", value: fnd.open_critical_count, sub: "Critical severity", title: fnd.definition, icon: ShieldAlert, accent: "#dc2626", to: dashboardRecordPath("open-critical-findings") },
     { label: "Awaiting Fix", value: fnd.awaiting_fix, sub: "open findings in dev", title: fnd.definition, icon: Wrench, accent: "#2f3f96", to: dashboardRecordPath("awaiting-fix") },
     { label: "Ready for Retest", value: fnd.ready_for_retest, sub: "findings awaiting retest", title: fnd.definition, icon: RefreshCw, accent: "#0ea5e9", to: dashboardRecordPath("ready-for-retest") },
     { label: "Active Projects", value: s.active_projects, sub: "testing projects", title: "Testing Projects whose status is Active.", icon: FolderKanban, accent: "#16215a", to: dashboardRecordPath("active-projects") },
@@ -74,8 +76,8 @@ export default function Dashboard() {
   const hasModelComparisonMetrics = Number(comparison.evaluated || 0) > 0;
   const groups = [
     { title: "Bassett Quality", description: hasModelComparisonMetrics ? "Current-version quality and model evaluation outcomes." : "Current-version Bassett-only quality.", cards: hasModelComparisonMetrics ? cards.slice(0, 5) : [cards[1]], showComparisonSetup: !hasModelComparisonMetrics, query: metrics, loadingTitle: "Loading quality metrics…" },
-    { title: "Finding Workflow", description: "Open issues moving from confirmation through retest.", cards: cards.slice(5, 8), query: metrics, loadingTitle: "Loading finding workflow…" },
-    { title: "Program Operations", description: "Active projects and approved demonstration assets.", cards: cards.slice(8, 10), query: stats, loadingTitle: "Loading program operations…" },
+    { title: "Finding Workflow", description: "Open issues moving from confirmation through retest.", cards: cards.slice(5, 10), query: metrics, loadingTitle: "Loading finding workflow…" },
+    { title: "Program Operations", description: "Active projects and approved demonstration assets.", cards: cards.slice(10, 12), query: stats, loadingTitle: "Loading program operations…" },
   ];
 
   const modelData = (perfQuery.data?.model_summary || [])

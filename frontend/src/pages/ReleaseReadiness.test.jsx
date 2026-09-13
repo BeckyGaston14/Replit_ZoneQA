@@ -53,6 +53,8 @@ const payload = (evaluated) => ({
   evaluated, minimum_qualifying_tests: 50, comparison_evaluated: evaluated,
   bassett_only_evaluated: 0, insufficient_evidence: evaluated < 50,
   blockers: [], pass_rate: 100, avg_score: 9, failed: 0, open_findings: 0,
+  open_findings_version: 0,
+  open_high: 0, open_critical: 0,
   open_crit5: 0, open_crit4: 0, newly_failing: 0, decision: null,
   failed_tests: [],
   open_finding_list: [],
@@ -111,6 +113,36 @@ test("sufficient evidence retains the clear-for-release blocker copy", () => {
 
   expect(container.textContent).toContain("No blockers — clear for release.");
   expect(container.textContent).not.toContain("additional qualifying tests are still required");
+  act(() => root.unmount());
+});
+
+test("readiness summary uses the selected-version open finding population", () => {
+  useQuery.mockImplementation(() => ({
+    data: { ...payload(50), open_findings: 9, open_findings_version: 3, open_high: 2, open_critical: 1 },
+    isLoading: false,
+    isError: false,
+    refetch: jest.fn(),
+  }));
+  const { container, root } = renderReadiness();
+
+  expect(container.textContent).toContain("Open Findings · selected version: 3");
+  expect(container.textContent).toContain("Open High Findings: 2");
+  expect(container.textContent).toContain("Open Critical Findings: 1");
+  act(() => root.unmount());
+});
+
+test("readiness loading uses an accessible responsive layout skeleton", () => {
+  useQuery.mockImplementation(() => ({ data: undefined, isLoading: true, isError: false, refetch: jest.fn() }));
+  const { container, root } = renderReadiness();
+
+  const skeleton = container.querySelector("[data-testid='readiness-loading-skeleton']");
+  expect(skeleton).not.toBeNull();
+  expect(skeleton.getAttribute("role")).toBe("status");
+  expect(skeleton.getAttribute("aria-live")).toBe("polite");
+  expect(skeleton.textContent).toContain("Loading release readiness…");
+  expect(skeleton.querySelector(".grid-cols-2.md\\:grid-cols-7")).not.toBeNull();
+  expect(skeleton.querySelector(".grid.lg\\:grid-cols-2")).not.toBeNull();
+  expect(container.querySelector("[data-testid='readiness-loading']")).toBeNull();
   act(() => root.unmount());
 });
 

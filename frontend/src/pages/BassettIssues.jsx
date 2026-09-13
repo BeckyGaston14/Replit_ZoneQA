@@ -322,15 +322,19 @@ export default function BassettIssues() {
       {showingFindings
         ? <FindingsCrossNavigation />
         : <Link to="/bassett/findings"><Button variant="outline">Bassett Findings</Button></Link>}
-      {showingFindings && <Link to="/bassett/issues"><Button variant="outline">Bassett Test Runs</Button></Link>}
+      {showingFindings && <Button asChild variant="outline"><Link to="/bassett/issues">Bassett Test Runs</Link></Button>}
       {!showingFindings && <Button variant="outline" aria-pressed={showArchived} onClick={() => setShowArchived((value) => !value)}>{showArchived ? "Active test runs" : "Archived test runs"}</Button>}
       {canWrite && !showingFindings && <Button onClick={() => setForm(createBassettTestRunDraft({}, config?.application_timezone))} className="bg-[var(--orange)] hover:bg-[var(--orange-600)]"><Plus size={15} /> New Bassett Test Run</Button>}
     </PageHeader>
     <ProjectScopeNav projects={projects} />
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3 mb-6">
        <StatCard label={showingFindings ? "Open Findings" : "Tests Needing Attention"} value={showingFindings ? (metrics?.findings?.open ?? 0) : (metrics?.test_runs?.attention ?? "—")} sub={showingFindings ? "excludes fixed and closed findings" : "Needs Improvement, Fail, Critical Fail, or Blocked"} icon={Flag} accent="#f97316" />
        <StatCard label={showingFindings ? "New Findings" : "Not Started Test Runs"} value={showingFindings ? (metrics?.findings?.new ?? 0) : (metrics?.issues?.new ?? "—")} sub={showingFindings ? "newly recorded findings" : "Workflow status is Not Started."} icon={AlertTriangle} accent="#2563eb" />
-       <StatCard label={showingFindings ? "High or Critical severity findings" : "High or Critical severity"} value={showingFindings ? (metrics?.findings?.critical ?? 0) : (metrics?.issues?.critical ?? "—")} sub="High or Critical severity" icon={ShieldAlert} accent="#dc2626" />
+       {showingFindings
+         ? <StatCard label="High + Critical findings total" value={metrics?.findings?.critical ?? 0} sub="High + Critical severity total" icon={ShieldAlert} accent="#b91c1c" />
+         : <StatCard label="High + Critical severity total" value={metrics?.issues?.critical ?? "—"} sub="High + Critical severity total" icon={ShieldAlert} accent="#b91c1c" />}
+       <StatCard label={showingFindings ? "High Findings" : "High Severity"} value={showingFindings ? (metrics?.findings?.high ?? 0) : (metrics?.issues?.high ?? "—")} sub="High severity" icon={ShieldAlert} accent="#ea580c" />
+       <StatCard label={showingFindings ? "Critical Findings" : "Critical Severity"} value={showingFindings ? (metrics?.findings?.critical_count ?? 0) : (metrics?.issues?.critical_count ?? "—")} sub="Critical severity" icon={ShieldAlert} accent="#dc2626" />
        <StatCard label={showingFindings ? "Total Findings" : "Scenario coverage"} value={showingFindings ? (metrics?.findings?.total ?? 0) : (metrics ? `${metrics.test_runs.test_bank_coverage.percent}%` : "—")} sub={showingFindings ? "linked to Bassett-only testing" : (metrics ? `${metrics.test_runs.test_bank_coverage.covered}/${metrics.test_runs.test_bank_coverage.total} active scenarios with a qualifying completed evaluation` : "Draft and Not Evaluated runs are excluded")} icon={CheckCircle2} accent="#16a34a" />
     </div>
     <div className={showingFindings ? "grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]" : ""}>
@@ -393,7 +397,7 @@ export default function BassettIssues() {
     </div>
      <MethodologyDisclosure title={showingFindings ? "How Bassett Finding metrics are calculated" : "How Bassett Test Run metrics are calculated"} testid="bassett-test-runs-methodology">
        {showingFindings ? (
-         <><p>Finding counts reflect Bassett-only findings in the current visibility scope; fixed and closed findings are excluded from the open count.</p><p>Project, version, severity, test result, category, test type, priority, environment, and test date come from the linked Bassett Test Run and Test Bank scenario when they are not stored directly on the finding.</p></>
+         <><p>Finding counts reflect Bassett-only findings in the current visibility scope; fixed and closed findings are excluded from the open count. High and Critical counts are separate; the High + Critical findings total is their additive roll-up.</p><p>Project, version, severity, test result, category, test type, priority, environment, and test date come from the linked Bassett Test Run and Test Bank scenario when they are not stored directly on the finding.</p></>
        ) : (
          <>
             <p>Tests Needing Attention includes Test result values of Needs Improvement, Fail, Critical Fail, or Blocked.</p>

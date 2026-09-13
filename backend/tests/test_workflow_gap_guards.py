@@ -670,8 +670,13 @@ def test_release_readiness_critical_findings_are_version_scoped(monkeypatch):
     # Below the centralized evidence threshold, the neutral state governs even
     # when a version-scoped warning exists.
     assert current["recommendation"] == "INSUFFICIENT-EVIDENCE"
+    assert current["open_findings"] == 2
+    assert current["open_findings_version"] == 1
     assert current["open_crit5"] == 0
     assert current["open_crit4"] == 1
+    assert current["open_high"] == 1
+    assert current["open_critical"] == 0
+    assert [finding["id"] for finding in current["open_finding_list"]] == ["new-c4"]
     assert not any(blocker["label"] == "Old blocker" for blocker in current["blockers"])
     assert old["recommendation"] == "INSUFFICIENT-EVIDENCE"
     assert old["open_crit5"] == 0
@@ -1404,7 +1409,16 @@ def test_release_report_selected_version_does_not_leak_newer_testcase_evaluation
             {"id": "v2-bassett", "testcase_id": "tc", "model": "Bassett", "bassett_version": "v2",
              "final_result": "Fail", "overall_score": 3},
         ],
-        "findings": [], "regression_runs": [], "test_runs": [],
+        "findings": [
+            {"id": "current-high", "testcase_id": "tc", "finding_scope": "comparison",
+             "version_found": "v1", "severity": "High", "developer_status": "Open"},
+            {"id": "current-critical", "testcase_id": "tc", "finding_scope": "comparison",
+             "version_found": "v1", "severity": "Critical", "developer_status": "New"},
+            {"id": "closed-current", "testcase_id": "tc", "finding_scope": "comparison",
+             "version_found": "v1", "severity": "Critical", "developer_status": "Closed"},
+            {"id": "old-critical", "testcase_id": "tc", "finding_scope": "comparison",
+             "version_found": "v0", "severity": "Critical", "developer_status": "Open"},
+        ], "regression_runs": [], "test_runs": [],
         "projects": [], "municipalities": [],
     }
     monkeypatch.setattr(server, "db", Db(rows))
@@ -1429,4 +1443,6 @@ def test_release_report_selected_version_does_not_leak_newer_testcase_evaluation
         "release", version="v1", scope="comparison",
     ))
     assert [row["id"] for row in result["evaluations"]] == ["v1-bassett"]
+    assert [row["id"] for row in result["findings"]] == ["current-high", "current-critical"]
+    assert server._finding_severity_counts(result["findings"]) == {"high": 1, "critical": 1}
     assert "bassett_only_evaluations" not in result

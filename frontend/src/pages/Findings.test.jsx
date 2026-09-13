@@ -93,7 +93,14 @@ beforeEach(() => {
 test("uses the explicit Model Comparison Findings title", () => {
   const view = renderFindings();
   expect(view.container.querySelector("h1").textContent).toBe("Model Comparison Findings");
-  expect(view.container.querySelector('[data-testid="findings-cross-navigation"]')).not.toBeNull();
+  const header = view.container.querySelector("header");
+  const navigation = header.querySelector('[data-testid="findings-cross-navigation"]');
+  const contextualShortcut = header.querySelector('a[href="/testcases"]');
+  expect(navigation).not.toBeNull();
+  expect(contextualShortcut).not.toBeNull();
+  expect(navigation.compareDocumentPosition(contextualShortcut) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(contextualShortcut.textContent).toBe("Model Comparison Test Cases");
+  expect(contextualShortcut.querySelector("button")).toBeNull();
   view.unmount();
 });
 

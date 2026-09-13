@@ -46,6 +46,8 @@ const data = {
     wins: 7,
     losses: 2,
     open_critical: 0,
+    open_high: 0,
+    open_critical_count: 0,
   },
   trend: [],
   failure_modes: [],
@@ -88,6 +90,8 @@ test("labels wins for Bassett and exposes generating and saving states", async (
   const button = view.container.querySelector('[data-testid="download-pdf-btn"]');
 
   expect(view.container.textContent).toContain("Bassett Wins");
+  expect(view.container.textContent).toContain("Open High Findings");
+  expect(view.container.textContent).toContain("Open Critical Findings");
   act(() => button.click());
   expect(button.textContent).toContain("Generating PDF");
   expect(button.disabled).toBe(true);

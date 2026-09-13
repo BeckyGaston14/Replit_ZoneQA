@@ -20,6 +20,7 @@ test("renders both findings destinations as consistently named semantic links", 
   const navigation = container.querySelector('[data-testid="findings-cross-navigation"]');
   const links = [...navigation.querySelectorAll("a")];
   expect(navigation.getAttribute("aria-label")).toBe("Findings navigation");
+  expect(navigation.className).toContain("flex-wrap");
   expect(links.map((link) => [link.textContent, link.getAttribute("href"), link.getAttribute("aria-label")])).toEqual([
     ["Bassett Findings", "/bassett/findings", "Bassett Findings"],
     ["Model Comparison Findings", "/findings", "Model Comparison Findings"],
