@@ -1,0 +1,13 @@
+Implement exactly these five targeted QA fixes in the current ZoneQA codebase. Do not redesign unrelated areas, alter production data, or publish.
+
+1. Loading performance: investigate why Dashboard and Testing Projects can remain in a blank/loading state for roughly 4–6 seconds. Improve perceived and actual loading safely. Keep report/readiness/mutable data fresh; do not reintroduce stale cross-user, cross-version, scope, or sample-visibility caching. Prefer parallel independent requests, useful skeletons/content shell, and eliminating duplicate requests. Add regression tests for safe behavior.
+
+2. Uploaded Bassett conversation labels: In New/Edit Bassett Test Run, when “Use an uploaded Bassett conversation” is selected, change the section label from “Linked Records & Prompt — Required” to “Linked Records & Conversation — Required”; explicitly show that transcript/prompt entry is optional because the upload is authoritative. When “Enter conversation in ZoneQA” is selected, retain the prompt/conversation-required wording. Ensure required-field summary and validation match each mode.
+
+3. Standardize severity language everywhere. Replace legacy user-facing “crit 4–5”, “Criticality 4–5”, or similar numeric criticality wording with “High or Critical findings” (or grammatically equivalent), including Executive Summary and Model Comparison Findings. Preserve stored values/data compatibility. Add a source-wide test/search assertion if practical.
+
+4. Global search: include Bassett Test Runs as a distinct result type. Searching “404 Southwestern” must surface both the matching property and the Bassett Test Run when both exist. Results must navigate to the correct test-run detail and obey authorization/sample visibility. Update the accessible search label to mention test runs. Add backend/frontend tests.
+
+5. Findings-page navigation consistency: standardize the Bassett Findings and Model Comparison Findings cross-navigation controls using the same component, visual placement, button/link behavior, and accessible naming. Keep the two datasets and findings separate. Do not change the substantive filters.
+
+First inspect current code and existing tests. Implement in small coherent changes. Run focused tests, full frontend tests, affected backend tests, production build, startup/health check, and an independent final diff review for security, stale-data risks, navigation, and regressions. Commit the verified changes and report the commit hash, but do not publish.
