@@ -68,7 +68,7 @@ jest.mock("./ui/dialog", () => ({
 jest.mock("sonner", () => ({ toast: { success: jest.fn(), error: jest.fn() } }));
 
 const ResourceList = require("./ResourceList").default;
-const { PROJECT_SCHEMA } = require("../lib/resourceSchemas");
+const { PROJECT_SCHEMA, createEvidenceSchema } = require("../lib/resourceSchemas");
 const { api: mockApi } = require("../lib/api");
 
 const click = (element) => act(() => element.dispatchEvent(new MouseEvent("click", { bubbles: true })));
@@ -192,6 +192,29 @@ test("testing projects use the standard CSV export and named create controls", a
   expect(headerButtons.map((button) => button.textContent.trim())).toEqual(["Export CSV", "Archived records", "New Testing Project"]);
   expect(headerButtons[0].querySelector("svg")).not.toBeNull();
   expect(headerButtons[2].querySelector("svg")).not.toBeNull();
+  act(() => root.unmount());
+});
+
+test("Ordinance Evidence empty state has one correct message and one clear action", async () => {
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  await act(async () => root.render(<ResourceList {...createEvidenceSchema()} />));
+  const emptyState = container.querySelector('[data-testid="evidence-empty-state"]');
+
+  expect(emptyState.textContent).toContain("No ordinance evidence records have been created yet.");
+  expect(emptyState.textContent).toContain("Create an ordinance evidence record.");
+  expect(emptyState.textContent).not.toContain("Create a Ordinance Evidence");
+  expect(emptyState.querySelectorAll("p")).toHaveLength(1);
+  act(() => root.unmount());
+});
+
+test("generic resource empty states choose the correct indefinite article", async () => {
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  await act(async () => root.render(<ResourceList title="Ordinances" singular="Ordinance" collection="evidence" columns={[{ key: "name", label: "Name" }]} fields={[]} />));
+
+  expect(container.textContent).toContain("Create an Ordinance to begin tracking this area.");
+  expect(container.textContent).not.toContain("Create a Ordinance");
   act(() => root.unmount());
 });
 

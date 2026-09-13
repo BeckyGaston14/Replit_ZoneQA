@@ -164,6 +164,7 @@ export function createEvidenceSchema(municipalities = [], users = [], currentUse
     singular: "Ordinance Evidence",
     newLabel: "New Ordinance Evidence",
     emptyStateTitle: "No ordinance evidence records have been created yet.",
+    emptyStateDescription: "",
     emptyActionLabel: "Create an ordinance evidence record.",
     subtitle: "Authoritative zoning sources & Gold Standard evidence base — full provenance per record.",
     collection: "evidence",

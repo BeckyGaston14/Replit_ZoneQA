@@ -122,14 +122,14 @@ class TestReleaseDecisionOverride:
 
     def test_short_rationale_rejected(self, auth_client):
         r = auth_client.post(f"{BASE}/api/release-readiness/decision", json={
-            "version": "Bassett v1.9", "decision": "GO", "notes": "short", "override": True, "risk_accepted": True
+            "version": "Bassett vTEST-decision", "decision": "CONDITIONAL", "notes": "short", "override": True, "risk_accepted": True
         })
         assert r.status_code == 400
         assert "rationale" in r.text.lower() or "≥20" in r.text or "20" in r.text
 
     def test_missing_risk_accepted_rejected(self, auth_client):
         r = auth_client.post(f"{BASE}/api/release-readiness/decision", json={
-            "version": "Bassett v1.9", "decision": "GO",
+            "version": "Bassett vTEST-decision", "decision": "CONDITIONAL",
             "notes": "This override rationale is definitely more than twenty characters long",
             "override": True
         })
@@ -138,7 +138,7 @@ class TestReleaseDecisionOverride:
     def test_valid_override_accepted(self, auth_client):
         # Uses a synthetic version so repeated test runs never overwrite the real v1.9 decision record.
         r = auth_client.post(f"{BASE}/api/release-readiness/decision", json={
-            "version": "Bassett vTEST-decision", "decision": "GO",
+            "version": "Bassett vTEST-decision", "decision": "CONDITIONAL",
             "notes": "TEST_iter7 override — proper rationale exceeding 20 chars, risk understood",
             "override": True, "risk_accepted": True
         })
@@ -154,7 +154,7 @@ class TestReleaseDecisionOverride:
         rr = r.json()
         d = rr.get("decision")
         assert d is not None, "Decision should be persisted"
-        assert d.get("decision") == "GO"
+        assert d.get("decision") == "CONDITIONAL"
         assert d.get("override") is True
         # The real v1.9 readiness still recommends NO-GO with a persisted decision
         v19 = auth_client.get(f"{BASE}/api/release-readiness?version=Bassett v1.9").json()

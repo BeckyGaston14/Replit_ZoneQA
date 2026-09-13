@@ -7,12 +7,12 @@ import App from "@/App";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // Reference data and analytical responses are explicitly invalidated
-      // after mutations. Reuse them while navigating instead of repeating the
-      // same expensive report requests on every return visit.
-      staleTime: 5 * 60_000,
-      gcTime: 30 * 60_000,
+      // Mutable records and analytical responses are stale immediately.
+      // Individual shared lookup hooks opt into bounded reuse.
+      staleTime: 0,
+      gcTime: 5 * 60_000,
       refetchOnWindowFocus: false,
+      refetchOnMount: true,
     },
   },
 });

@@ -91,7 +91,7 @@ export default function Performance() {
   const [sort, setSort] = usePersistentTableSort("performance-model-summary", MODEL_COLUMNS, defaultSort);
 
   const qs = Object.entries(flt).filter(([, v]) => v !== ALL && v !== "").map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&");
-  const perfQuery = useQuery({ queryKey: ["perf", qs], queryFn: async () => (await api.get(`/analytics/performance${qs ? `?${qs}` : ""}`)).data });
+  const perfQuery = useQuery({ queryKey: ["perf", qs], queryFn: async ({ signal } = {}) => (await api.get(`/analytics/performance${qs ? `?${qs}` : ""}`, { signal })).data });
   const perf = perfQuery.data;
   const supportingQueries = [configQuery, versionsQuery, projectsQuery, munisQuery];
   const failed = supportingQueries.find((query) => query.isError) || (perfQuery.isError ? perfQuery : null);

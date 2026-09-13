@@ -25,3 +25,8 @@ test("core selections and filters are URL- or server-backed for refresh and hist
 test.each(["CalendarPage", "Regression", "TestCases"])("%s hides primary write actions from viewers", (page) => {
   expect(source(page)).toMatch(/role !== "viewer"/);
 });
+
+test("Data Integrity results are stale immediately and refetch after repeat navigation", () => {
+  expect(source("DataIntegrity")).toMatch(/queryKey: \["integrity"\][\s\S]*staleTime: 0,[\s\S]*refetchOnMount: true/);
+  expect(source("DataIntegrity")).not.toMatch(/queryKey: \["integrity"\][\s\S]*staleTime: Infinity/);
+});

@@ -19,7 +19,7 @@ export default function Executive() {
   const [reportScope, setReportScope] = useState("both");
   const query = useQuery({
     queryKey: ["executive", reportScope],
-    queryFn: async () => (await api.get("/analytics/executive", { params: { report_scope: reportScope } })).data,
+    queryFn: async ({ signal } = {}) => (await api.get("/analytics/executive", { params: { report_scope: reportScope }, signal })).data,
   });
   const { data: d } = query;
   const trendChartRef = useRef(null);

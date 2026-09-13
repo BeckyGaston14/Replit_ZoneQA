@@ -59,7 +59,7 @@ export default function Comparison() {
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["cmp", visibleTcId],
     enabled: !!visibleTcId,
-    queryFn: async () => (await api.get(`/comparison/${visibleTcId}`)).data,
+    queryFn: async ({ signal } = {}) => (await api.get(`/comparison/${visibleTcId}`, { signal })).data,
   });
   const filteredTcs = useMemo(() => {
     const normalizedQuery = pickerQuery.trim().toLocaleLowerCase();

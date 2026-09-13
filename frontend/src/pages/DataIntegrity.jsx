@@ -163,10 +163,10 @@ export default function DataIntegrity() {
   const allowed = user && ["admin", "qa_manager"].includes(user.role);
   const { data: d, error, isLoading, isError, refetch } = useQuery({
     queryKey: ["integrity"],
-    queryFn: async () => (await api.get("/admin/integrity")).data,
+    queryFn: async ({ signal } = {}) => (await api.get("/admin/integrity", { signal })).data,
     enabled: allowed,
-    staleTime: Infinity,
-    refetchOnMount: false,
+    staleTime: 0,
+    refetchOnMount: true,
     refetchOnWindowFocus: false,
   });
 

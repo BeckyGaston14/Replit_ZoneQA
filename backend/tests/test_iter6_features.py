@@ -188,19 +188,19 @@ class TestReleaseDecision:
         # Synthetic version — never overwrites the real v1.9 decision record
         version = "Bassett vTEST-decision"
         r = requests.post(f"{BASE_URL}/api/release-readiness/decision",
-                          json={"version": version, "decision": "GO",
+                          json={"version": version, "decision": "CONDITIONAL",
                                 "notes": "TEST_iter6 decision — structured rationale exceeding twenty characters for override compliance",
                                 "risk_accepted": True},
                           headers=admin_headers, timeout=30)
         assert r.status_code == 200, r.text
         d = r.json()
-        assert d["decision"] == "GO"
+        assert d["decision"] == "CONDITIONAL"
         assert d["decided_by"]
         assert d["decided_at"]
         # verify displayed on GET /api/release-readiness
         rr = requests.get(f"{BASE_URL}/api/release-readiness", params={"version": version},
                           headers=admin_headers).json()
-        assert rr.get("decision", {}).get("decision") == "GO", rr.get("decision")
+        assert rr.get("decision", {}).get("decision") == "CONDITIONAL", rr.get("decision")
 
     def test_viewer_forbidden(self, viewer_headers):
         m = requests.get(f"{BASE_URL}/api/metrics/summary", headers=viewer_headers).json()

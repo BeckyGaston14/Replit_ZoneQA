@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, staleUpdateMessage, withExpectedVersion } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { PageHeader, StatusBadge, SampleRecordsControl } from "../components/shared";
@@ -16,6 +16,7 @@ import { SortableTableHeader } from "../components/SortableTableHeader";
 import { TableSortControls } from "../components/TableSortControls";
 import { nextSort, sortTableRows, usePersistentTableSort } from "../lib/tableSorting";
 import { ConfirmActionDialog } from "../components/ConfirmActionDialog";
+import { invalidateConfigQueries, invalidateVersionQueries } from "../lib/hooks";
 
 
 const LOOKUPS = [
@@ -44,6 +45,7 @@ const USER_COLUMNS = [
 export default function Admin() {
   const { user: me } = useAuth();
   const isAdmin = me?.role === "admin";
+  const queryClient = useQueryClient();
   const { data: config, refetch } = useQuery({ queryKey: ["config"], queryFn: async () => (await api.get("/config")).data, enabled: isAdmin });
   const { data: users = [], refetch: refetchUsers } = useQuery({ queryKey: ["users"], queryFn: async () => (await api.get("/users")).data, enabled: isAdmin });
   const { data: emailStatus, refetch: refetchEmailStatus } = useQuery({ queryKey: ["admin-email-status"], queryFn: async () => (await api.get("/admin/email/status")).data, enabled: isAdmin });
@@ -83,7 +85,11 @@ export default function Admin() {
   const [userSort, setUserSort] = usePersistentTableSort("admin-users", USER_COLUMNS, { key: "name", direction: "asc" });
   const welcomeEmailReady = emailStatus?.status === "connected" && emailStatus?.published_url_configured !== false;
 
-  const saveList = async (key, list) => { await api.put("/config", { [key]: list }); toast.success("Saved"); refetch(); };
+  const saveList = async (key, list) => {
+    await api.put("/config", { [key]: list });
+    toast.success("Saved");
+    await invalidateConfigQueries(queryClient);
+  };
   const addItem = (key) => { const v = (newItem[key] || "").trim(); if (!v) return; saveList(key, [...(config[key] || []), v]); setNewItem({ ...newItem, [key]: "" }); };
   const rmItem = (key, v) => saveList(key, config[key].filter((x) => x !== v));
 
@@ -232,10 +238,10 @@ export default function Admin() {
       else await api.put(`/versions/${version.id}`, withExpectedVersion(version, version));
       toast.success(isNew ? "Bassett version created" : "Bassett version updated");
       if (isNew) setNewVersion(emptyVersion); else setEditingVersion(null);
-      refetchVersions();
+      await invalidateVersionQueries(queryClient);
     } catch (e) {
       toast.error(staleUpdateMessage(e) || e.response?.data?.detail || "Failed to save Bassett version");
-      if (e.response?.status === 409) refetchVersions();
+      if (e.response?.status === 409) await invalidateVersionQueries(queryClient);
     }
   };
 
@@ -286,7 +292,7 @@ export default function Admin() {
   };
 
   const performDeleteVersion = async (v) => {
-    try { await api.delete(`/versions/${v.id}`); toast.success("Bassett version deleted"); refetchVersions(); }
+    try { await api.delete(`/versions/${v.id}`); toast.success("Bassett version deleted"); await invalidateVersionQueries(queryClient); }
     catch (e) { toast.error(e.response?.data?.detail || "Failed to delete Bassett version"); }
     finally { setConfirmingAction(null); }
   };
@@ -298,7 +304,8 @@ export default function Admin() {
       await api.put("/config/bassett-key", null, { headers: { "X-Bassett-API-Key": bassettKey.trim() } });
     }
     toast.success("Integration settings saved");
-    setInteg(null); refetch();
+    setInteg(null);
+    await invalidateConfigQueries(queryClient);
   };
 
   const loadSampleData = async () => {
@@ -375,7 +382,7 @@ export default function Admin() {
               <thead className="text-left text-xs uppercase text-muted-foreground"><tr>{DIMENSION_COLUMNS.map((column) => <SortableTableHeader key={column.key} column={column} sort={dimensionSort} onSort={(key) => setDimensionSort((current) => nextSort(current, key))} />)}</tr></thead>
               <tbody>{sortTableRows(config.eval_dimensions || [], DIMENSION_COLUMNS, dimensionSort, ["label"]).map((d) => (
                 <tr key={d.key} className="border-t"><td className="py-2">{d.label}</td><td className="text-muted-foreground">{d.key}</td>
-                  <td><Input type="number" className="h-8 w-20" value={d.weight} onChange={(e) => { const dims = [...config.eval_dimensions]; const index = dims.findIndex((item) => item.key === d.key); dims[index] = { ...d, weight: Number(e.target.value) }; api.put("/config", { eval_dimensions: dims }).then(() => refetch()); }} /></td></tr>
+                  <td><Input type="number" className="h-8 w-20" value={d.weight} onChange={(e) => { const dims = [...config.eval_dimensions]; const index = dims.findIndex((item) => item.key === d.key); dims[index] = { ...d, weight: Number(e.target.value) }; api.put("/config", { eval_dimensions: dims }).then(() => invalidateConfigQueries(queryClient)); }} /></td></tr>
               ))}</tbody>
             </table></div>
             <p className="text-xs text-muted-foreground mt-3">Weights feed the Weighted Reward Score; raw component scores are always preserved.</p>

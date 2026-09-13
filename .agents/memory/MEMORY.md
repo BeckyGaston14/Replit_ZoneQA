@@ -1,0 +1,5 @@
+- [Sample report scope](sample-report-scope.md) — default executive/export metrics exclude seeded data; opt-in inclusion is explicitly labeled.
+- [Jest path aliases](jest-path-alias.md) — shared UI imports may need relative paths for direct Jest compatibility.
+- [Test Bank definition contract](test-bank-definition-contract.md) — Report Type is intentionally excluded from scenario completeness and immutable snapshots.
+- [Release evidence scope](release-evidence-scope.md) — evidence gates and exported detail must use the same versioned Bassett/comparison population.
+- [Client query freshness](client-query-freshness.md) — bounded reuse is lookup-only; mutable, integrity, readiness, and report data refetch after navigation or invalidation.

@@ -16,7 +16,7 @@ import { ConfirmActionDialog } from "../components/ConfirmActionDialog";
 import { QueryState } from "../components/PageState";
 import { fmtPct, fmtScore } from "../lib/format";
 
-function DecisionPanel({ version, scope, recommendation, blockers = [], onSaved, openSignal }) {
+function DecisionPanel({ version, scope, recommendation, blockers = [], insufficientEvidence = false, minimumQualifyingTests, onSaved, openSignal }) {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [notes, setNotes] = useState("");
@@ -26,6 +26,14 @@ function DecisionPanel({ version, scope, recommendation, blockers = [], onSaved,
   const [confirmingDecision, setConfirmingDecision] = useState(null);
   useEffect(() => { if (openSignal) setOpen(true); }, [openSignal]);
   if (!user || !["admin", "qa_manager"].includes(user.role)) return null;
+  const acknowledgement = insufficientEvidence
+    ? blockers.length
+      ? `I acknowledge that fewer than ${minimumQualifyingTests} qualifying tests have been completed and that unresolved blockers remain, and accept responsibility for making a release decision with insufficient evidence.`
+      : `I acknowledge that fewer than ${minimumQualifyingTests} qualifying tests have been completed and accept responsibility for making a release decision with insufficient evidence.`
+    : blockers.length
+      ? "I accept responsibility for releasing against the listed blockers (required for overrides)"
+      : "I accept responsibility for overriding the system recommendation (required for overrides)";
+  const guidance = `An authorized Conditional Go is a documented manual override, not the system recommendation.${insufficientEvidence ? ` The system remains Insufficient Evidence until at least ${minimumQualifyingTests} qualifying tests have been completed.` : ""}`;
   const record = async (decision, overrideConfirmed = false) => {
     if (saving) return;
     const isOverride = decision !== recommendation && !(decision === "CONDITIONAL" && recommendation === "CONDITIONAL");
@@ -48,14 +56,17 @@ function DecisionPanel({ version, scope, recommendation, blockers = [], onSaved,
   return (
     <div className="shrink-0">
       {!open ? (
-        <Button size="sm" variant="outline" className="bg-white/70" onClick={() => setOpen(true)} data-testid="record-decision-btn">Record Final Decision</Button>
+        <div className="max-w-sm text-right">
+          <Button size="sm" variant="outline" className="bg-white/70" onClick={() => setOpen(true)} data-testid="record-decision-btn">Record Final Decision</Button>
+          <p className="mt-1 text-xs text-muted-foreground" data-testid="final-decision-guidance">{guidance}</p>
+        </div>
       ) : (
         <div className="bg-white border rounded-xl p-3 w-80 space-y-2 shadow-lg">
           <Textarea rows={2} placeholder="Structured rationale — why this decision is safe given the blockers…" value={notes} onChange={(e) => setNotes(e.target.value)} data-testid="decision-notes" />
           <Textarea rows={1} placeholder="Follow-up actions / conditions (optional)" value={followUp} onChange={(e) => setFollowUp(e.target.value)} data-testid="decision-followup" />
           <label className="flex items-start gap-2 text-xs cursor-pointer" data-testid="decision-risk-accept">
             <input type="checkbox" checked={riskAccepted} onChange={(e) => setRiskAccepted(e.target.checked)} className="mt-0.5" />
-            I accept responsibility for releasing against the listed blockers (required for overrides)
+            {acknowledgement}
           </label>
           <div className="flex gap-1.5">
             {(recommendation === "INSUFFICIENT-EVIDENCE" ? ["CONDITIONAL", "NO-GO"] : ["GO", "CONDITIONAL", "NO-GO"]).map((decision) => {
@@ -124,7 +135,7 @@ export default function ReleaseReadiness() {
 
   const { data: r, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["readiness", version, scope],
-    queryFn: async () => (await api.get(`/release-readiness?version=${encodeURIComponent(version)}&scope=${scope}`)).data,
+    queryFn: async ({ signal } = {}) => (await api.get(`/release-readiness?version=${encodeURIComponent(version)}&scope=${scope}`, { signal })).data,
     enabled: !!version,
   });
 
@@ -200,7 +211,7 @@ export default function ReleaseReadiness() {
               <div className="text-sm mt-2 text-[var(--navy)]">{r.reason}</div>
                <div className="text-xs mt-1 text-muted-foreground">{r.version} · {r.scope} · {r.evaluated} of {r.minimum_qualifying_tests} qualifying tests completed ({r.comparison_evaluated || 0} Model Comparison · {r.bassett_only_evaluated || 0} Bassett-only; Pass includes "Pass with Minor Issues")</div>
             </div>
-            <DecisionPanel version={version} scope={scope} recommendation={r.recommendation} blockers={r.blockers} openSignal={reevalSignal} onSaved={() => qcRef.invalidateQueries({ queryKey: ["readiness", version, scope] })} />
+            <DecisionPanel version={version} scope={scope} recommendation={r.recommendation} blockers={r.blockers} insufficientEvidence={r.insufficient_evidence} minimumQualifyingTests={r.minimum_qualifying_tests} openSignal={reevalSignal} onSaved={() => qcRef.invalidateQueries({ queryKey: ["readiness", version, scope] })} />
           </div>
            {r.insufficient_evidence && <div className="mb-4 rounded-xl border border-slate-300 bg-slate-50 p-4 text-sm text-slate-800" data-testid="insufficient-evidence-guidance">Insufficient Evidence: {r.evaluated} of {r.minimum_qualifying_tests} qualifying tests completed. Blockers are shown for investigation and do not change this neutral status.</div>}
 

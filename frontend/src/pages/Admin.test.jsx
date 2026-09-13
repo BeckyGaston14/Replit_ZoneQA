@@ -8,6 +8,7 @@ var mockApi;
 var mockEmailStatus;
 let mockUser = { id: "admin-1", role: "admin", name: "Admin User" };
 let mockModels = [];
+const mockInvalidateQueries = jest.fn();
 const users = [
   { id: "admin-1", name: "Admin User", email: "admin@example.com", role: "admin", active: true, revision: 1 },
   { id: "tester-1", name: "Tester User", email: "tester@example.com", role: "tester", active: true, revision: 1 },
@@ -78,6 +79,7 @@ jest.mock("../lib/tableSorting", () => ({
   usePersistentTableSort: (_key, _columns, fallback) => [fallback, jest.fn()],
 }));
 jest.mock("@tanstack/react-query", () => ({
+  useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries, removeQueries: jest.fn() }),
   useQuery: ({ queryKey }) => ({
     data: queryKey[0] === "users" ? users
       : queryKey[0] === "config" ? { environments: [], version_types: [], release_channels: [], integrations: {} }

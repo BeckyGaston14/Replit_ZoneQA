@@ -679,6 +679,52 @@ def test_release_readiness_critical_findings_are_version_scoped(monkeypatch):
     assert not any(blocker["label"] == "Old blocker" for blocker in old["blockers"])
 
 
+def test_release_decision_rejects_go_below_threshold_but_allows_acknowledged_conditional(monkeypatch):
+    readiness = {
+        "recommendation": "INSUFFICIENT-EVIDENCE",
+        "insufficient_evidence": True,
+        "reason": "Insufficient Evidence",
+        "pass_rate": None,
+        "evaluated": 0,
+        "passed": 0,
+        "failed": 0,
+        "avg_score": None,
+        "open_findings": 0,
+        "open_crit5": 0,
+        "open_crit4": 0,
+        "critical_fail_evals": 0,
+        "newly_failing": 0,
+        "blockers": [],
+    }
+    rows = {"release_decisions": []}
+    monkeypatch.setattr(server, "db", Db(rows))
+    monkeypatch.setattr(server, "release_readiness", lambda **_kwargs: asyncio.sleep(0, result=readiness))
+    monkeypatch.setattr(server, "log_activity", lambda *_args, **_kwargs: asyncio.sleep(0))
+    user = {"id": "admin", "name": "Admin", "role": "admin"}
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(server.readiness_decision({
+            "version": "v-empty",
+            "scope": "both",
+            "decision": "GO",
+            "notes": "A sufficiently detailed rationale for this decision",
+            "risk_accepted": True,
+        }, user))
+    assert exc.value.status_code == 409
+    assert "insufficient evidence" in exc.value.detail.lower()
+
+    decision = asyncio.run(server.readiness_decision({
+        "version": "v-empty",
+        "scope": "both",
+        "decision": "CONDITIONAL",
+        "notes": "A sufficiently detailed rationale for this manual override",
+        "risk_accepted": True,
+    }, user))
+    assert decision["decision"] == "CONDITIONAL"
+    assert decision["override"] is True
+    assert decision["risk_accepted"] is True
+
+
 def test_integrity_detects_name_only_and_id_linked_equivalent_properties(monkeypatch):
     rows = {
         "testcases": [], "evaluations": [], "responses": [], "findings": [],

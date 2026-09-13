@@ -11,13 +11,52 @@ const REFERENCE_QUERY_OPTIONS = {
   refetchOnMount: false,
 };
 
-function useAuthQueryOptions(defaultKey, options = {}) {
+const LIVE_QUERY_OPTIONS = {
+  staleTime: 0,
+  gcTime: 5 * 60_000,
+  refetchOnWindowFocus: false,
+  refetchOnMount: true,
+};
+
+const BOUNDED_REFERENCE_COLLECTIONS = new Set(["versions"]);
+
+function invalidateQueryGroup(queryClient, group) {
+  queryClient.removeQueries({
+    predicate: (cachedQuery) => cachedQuery.queryKey?.[0] === group
+      && cachedQuery.getObserversCount() === 0,
+  });
+  return queryClient.invalidateQueries({
+    predicate: (cachedQuery) => cachedQuery.queryKey?.[0] === group,
+    refetchType: "active",
+  });
+}
+
+export function invalidateVersionQueries(queryClient) {
+  return invalidateQueryGroup(queryClient, "versions");
+}
+
+export function invalidateConfigQueries(queryClient) {
+  return invalidateQueryGroup(queryClient, "config");
+}
+
+export async function invalidateForSampleVisibility(queryClient) {
+  queryClient.removeQueries({
+    predicate: (cachedQuery) => cachedQuery.queryKey?.[0] !== "sample-visibility"
+      && cachedQuery.getObserversCount() === 0,
+  });
+  await queryClient.invalidateQueries({
+    predicate: (cachedQuery) => cachedQuery.queryKey?.[0] !== "sample-visibility",
+    refetchType: "active",
+  });
+}
+
+function useAuthQueryOptions(defaultKey, options = {}, defaults = LIVE_QUERY_OPTIONS) {
   const auth = useAuth() || {};
   const userId = auth.user?.id || null;
   const authReady = auth.loading === false && Boolean(userId);
   const { queryKey = defaultKey, enabled = true, ...queryOptions } = options;
   return {
-    ...REFERENCE_QUERY_OPTIONS,
+    ...defaults,
     ...queryOptions,
     queryKey: [...queryKey, userId],
     enabled: authReady && enabled,
@@ -26,15 +65,15 @@ function useAuthQueryOptions(defaultKey, options = {}) {
 
 export function useCollection(name, opts = {}) {
   return useQuery({
-    queryFn: async () => (await api.get(`/${name}`)).data,
-    ...useAuthQueryOptions([name], opts),
+    queryFn: async ({ signal } = {}) => (await api.get(`/${name}`, { signal })).data,
+    ...useAuthQueryOptions([name], opts, BOUNDED_REFERENCE_COLLECTIONS.has(name) ? REFERENCE_QUERY_OPTIONS : LIVE_QUERY_OPTIONS),
   });
 }
 
 export function useConfig(opts = {}) {
   return useQuery({
-    queryFn: async () => (await api.get("/config")).data,
-    ...useAuthQueryOptions(["config"], opts),
+    queryFn: async ({ signal } = {}) => (await api.get("/config", { signal })).data,
+    ...useAuthQueryOptions(["config"], opts, REFERENCE_QUERY_OPTIONS),
   });
 }
 
@@ -45,7 +84,7 @@ export function useSampleVisibility() {
   const [optimisticValue, setOptimisticValue] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const query = useQuery({
-    queryFn: async () => (await api.get("/preferences/sample-visibility")).data,
+    queryFn: async ({ signal } = {}) => (await api.get("/preferences/sample-visibility", { signal })).data,
     ...useAuthQueryOptions(["sample-visibility"]),
   });
   useEffect(() => setOptimisticValue(null), [userId]);
@@ -63,14 +102,7 @@ export function useSampleVisibility() {
         // Inactive page queries are configured not to refetch on mount. Remove
         // them so a previously visited page cannot briefly restore records from
         // the old visibility scope, then refresh everything currently visible.
-        qc.removeQueries({
-          predicate: (cachedQuery) => cachedQuery.queryKey?.[0] !== "sample-visibility"
-            && cachedQuery.getObserversCount() === 0,
-        });
-        await qc.invalidateQueries({
-          predicate: (cachedQuery) => cachedQuery.queryKey?.[0] !== "sample-visibility",
-          refetchType: "active",
-        });
+        await invalidateForSampleVisibility(qc);
       }
     } catch (error) {
       setOptimisticValue(null);
@@ -89,22 +121,22 @@ export function useSampleVisibility() {
 
 export function useTestCases({ includeArchived = false, ...opts } = {}) {
   return useQuery({
-    queryFn: async () => (await api.get(`/list/testcases-enriched?include_archived=${includeArchived}`)).data,
+    queryFn: async ({ signal } = {}) => (await api.get(`/list/testcases-enriched?include_archived=${includeArchived}`, { signal })).data,
     ...useAuthQueryOptions(["tc-enriched", includeArchived ? "all" : "active"], opts),
   });
 }
 
 export function useTestBank({ includeArchived = false, ...opts } = {}) {
   return useQuery({
-    queryFn: async () => (await api.get(`/bassett/test-bank?include_archived=${includeArchived}`)).data,
+    queryFn: async ({ signal } = {}) => (await api.get(`/bassett/test-bank?include_archived=${includeArchived}`, { signal })).data,
     ...useAuthQueryOptions(["bassett-scenarios", includeArchived ? "including-archived" : "active"], opts),
   });
 }
 
 export function useGeneralSubtypes(opts = {}) {
   return useQuery({
-    queryFn: async () => (await api.get("/bassett/general-subtypes")).data,
-    ...useAuthQueryOptions(["bassett-general-subtypes"], opts),
+    queryFn: async ({ signal } = {}) => (await api.get("/bassett/general-subtypes", { signal })).data,
+    ...useAuthQueryOptions(["bassett-general-subtypes"], opts, REFERENCE_QUERY_OPTIONS),
   });
 }
 

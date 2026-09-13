@@ -75,9 +75,9 @@ beforeEach(() => {
   mockApi.get.mockResolvedValue({ data: mockCached });
 });
 
-test("uses the cached result on visit without running validation", () => {
+test("loads the latest stored result on visit without running validation", () => {
   const view = renderPage();
-  expect(mockApi.get).toHaveBeenCalledWith("/admin/integrity");
+  expect(mockApi.get).toHaveBeenCalledWith("/admin/integrity", { signal: undefined });
   expect(mockApi.post).not.toHaveBeenCalled();
   expect(view.container.textContent).toContain("Last checked:");
   expect(view.container.textContent).toContain("Run integrity checks");

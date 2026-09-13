@@ -37,6 +37,10 @@ function ResourceEmptyState({ title, description, action, testid }) {
   );
 }
 
+function indefiniteArticle(value = "") {
+  return /^[aeiou]/i.test(value.trim()) ? "an" : "a";
+}
+
 export default function ResourceList({ title, subtitle, collection, columns, fields, initial = {}, rowLink, rowAction, attachable, singular, dataEndpoint, dateFilterColumn, exportFilename, exportLabel = "Export", newLabel = "New", emptyStateTitle, emptyStateDescription, emptyActionLabel, parentLifecycle = false, dateRanges = [], filterFields = [], renderCreateExtras, onCreateSuccess, onNewOpen }) {
   const lifecycleEndpoint = `/resources/${collection}`;
   const listEndpoint = dataEndpoint || `/${collection}`;
@@ -64,10 +68,10 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
   const { state: view, updateState: updateView, error: viewError, retry: retryView } = savedView;
   const collectionQuery = useCollection(collection, parentLifecycle ? {
     queryKey: [`${collection}-including-archived`],
-    queryFn: async () => (await api.get(`${listEndpoint}${listEndpoint.includes("?") ? "&" : "?"}include_archived=true`)).data,
+    queryFn: async ({ signal } = {}) => (await api.get(`${listEndpoint}${listEndpoint.includes("?") ? "&" : "?"}include_archived=true`, { signal })).data,
   } : dataEndpoint ? {
     queryKey: [`${collection}-enriched`],
-    queryFn: async () => (await api.get(dataEndpoint)).data,
+    queryFn: async ({ signal } = {}) => (await api.get(dataEndpoint, { signal })).data,
   } : {});
   const { data = [], isLoading, isError, error, refetch } = collectionQuery;
   const { data: config } = useConfig();
@@ -366,7 +370,7 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
              {filteredData.length === 0 && <tr><td colSpan={columns.length + 1} className={TABLE_EMPTY_CELL_CLASS}>
                <ResourceEmptyState
                   title={data.length === 0 ? (emptyStateTitle || `No ${title.toLowerCase()} have been created yet.`) : "No records match the current filters."}
-                  description={data.length === 0 ? (emptyStateDescription || `Create a ${singular || title.replace(/s$/, "")} to begin tracking this area.`) : "Adjust or clear the current filters to see available records."}
+                   description={data.length === 0 ? (emptyStateDescription ?? `Create ${indefiniteArticle(singular || title.replace(/s$/, ""))} ${singular || title.replace(/s$/, "")} to begin tracking this area.`) : "Adjust or clear the current filters to see available records."}
                   action={hasFilters
                     ? <Button type="button" size="sm" variant="outline" onClick={clearFilters}>Clear filters</Button>
                     : canWrite && emptyActionLabel

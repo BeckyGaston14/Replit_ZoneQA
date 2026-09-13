@@ -15,12 +15,11 @@ import { MODEL_COLORS, MODEL_ORDER } from "../lib/modelColors";
 import { SafeResponsiveContainer } from "../components/SafeResponsiveContainer";
 
 export default function Dashboard() {
-  // Dashboard cards are all read-only snapshots. A short shared cache window
-  // avoids refetching the same canonical responses when navigating between
-  // dashboard drill-downs and returning, while still keeping the page fresh.
-  const dashboardQueryOptions = { retry: false, staleTime: 60_000, gcTime: 5 * 60_000 };
-  const stats = useQuery({ ...dashboardQueryOptions, queryKey: ["stats"], queryFn: async () => (await api.get("/dashboard/stats")).data });
-  const metrics = useQuery({ ...dashboardQueryOptions, queryKey: ["metrics"], queryFn: async () => (await api.get("/metrics/summary")).data });
+  // Dashboard metrics are mutable analytical snapshots. Keep identical
+  // in-flight requests deduplicated, but refetch them on repeat navigation.
+  const dashboardQueryOptions = { retry: false, staleTime: 0, gcTime: 5 * 60_000, refetchOnMount: true };
+  const stats = useQuery({ ...dashboardQueryOptions, queryKey: ["stats"], queryFn: async ({ signal } = {}) => (await api.get("/dashboard/stats", { signal })).data });
+  const metrics = useQuery({ ...dashboardQueryOptions, queryKey: ["metrics"], queryFn: async ({ signal } = {}) => (await api.get("/metrics/summary", { signal })).data });
   const s = stats.data, m = metrics.data;
   const versionsQuery = useCollection("versions");
   const activeVersionName = m?.active_version || versionsQuery.data?.find((version) => version.active)?.name || "";
@@ -30,7 +29,7 @@ export default function Dashboard() {
     // The versions reference query runs in parallel with stats and metrics.
     // Performance therefore no longer waits for metrics to resolve merely to
     // discover the active version.
-    queryFn: async () => (await api.get("/analytics/performance", { params: { version: activeVersionName } })).data,
+    queryFn: async ({ signal } = {}) => (await api.get("/analytics/performance", { params: { version: activeVersionName }, signal })).data,
     ...dashboardQueryOptions,
   });
 
