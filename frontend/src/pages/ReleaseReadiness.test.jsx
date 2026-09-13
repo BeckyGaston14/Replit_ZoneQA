@@ -43,7 +43,9 @@ jest.mock("sonner", () => ({ toast: { success: jest.fn(), error: jest.fn() } }))
 
 const payload = (evaluated) => ({
   version: "v1", scope: "both", recommendation: evaluated >= 50 ? "GO" : "INSUFFICIENT-EVIDENCE",
-  reason: evaluated >= 50 ? "Ready" : "Evidence is incomplete",
+  reason: evaluated >= 50
+    ? "Ready"
+    : `Insufficient Evidence — ${evaluated} qualifying ${evaluated === 1 ? "test is" : "tests are"} available; release readiness requires at least 50.`,
   evaluated, minimum_qualifying_tests: 50, comparison_evaluated: evaluated,
   bassett_only_evaluated: 0, insufficient_evidence: evaluated < 50,
   blockers: [], pass_rate: 100, avg_score: 9, failed: 0, open_findings: 0,
@@ -63,5 +65,31 @@ test.each([0, 1, 49, 50, 51])("GO control follows the evidence threshold at %i",
   } else {
     expect(container.querySelector("[data-testid='decision-go']")).toBeNull();
   }
+  act(() => root.unmount());
+});
+
+test.each([
+  [1, "1 qualifying test is available"],
+  [49, "49 qualifying tests are available"],
+])("insufficient evidence uses neutral blocker copy and correct grammar at %i", (evaluated, availabilityCopy) => {
+  mockReadinessPayload = payload(evaluated);
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  act(() => root.render(<ReleaseReadiness />));
+
+  expect(container.textContent).toContain(availabilityCopy);
+  expect(container.textContent).toContain("No blockers identified; additional qualifying tests are still required before a release recommendation can be made.");
+  expect(container.textContent).not.toContain("No blockers — clear for release.");
+  act(() => root.unmount());
+});
+
+test("sufficient evidence retains the clear-for-release blocker copy", () => {
+  mockReadinessPayload = payload(50);
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  act(() => root.render(<ReleaseReadiness />));
+
+  expect(container.textContent).toContain("No blockers — clear for release.");
+  expect(container.textContent).not.toContain("additional qualifying tests are still required");
   act(() => root.unmount());
 });

@@ -6976,9 +6976,10 @@ async def release_readiness(version: str, user=Depends(get_current_user), scope:
 
     evidence = evidence_status(evaluated)
     if not evidence["sufficient"]:
+        qualifying_noun = "qualifying test is" if evaluated == 1 else "qualifying tests are"
         recommendation, reason = (
             "INSUFFICIENT-EVIDENCE",
-            f"Insufficient Evidence — {evaluated} qualifying tests are available; "
+            f"Insufficient Evidence — {evaluated} {qualifying_noun} available; "
             f"release readiness requires at least {MIN_QUALIFYING_TESTS}.",
         )
     elif open_crit5 or critical_fails or pass_rate < 70:
