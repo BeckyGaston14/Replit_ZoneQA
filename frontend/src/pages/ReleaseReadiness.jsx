@@ -219,7 +219,7 @@ export default function ReleaseReadiness() {
              <StatCard label="Pass Rate" value={fmtPct(r.pass_rate)} accent={r.pass_rate != null && r.pass_rate >= 85 ? "#16a34a" : r.pass_rate != null && r.pass_rate >= 70 ? "#f59e0b" : "#dc2626"} icon={Percent} testid="stat-pass-rate" />
              <StatCard label="Avg Score" value={fmtScore(r.avg_score)} accent="#2f3f96" icon={Gauge} />
             <StatCard label="Failed Tests" value={r.failed} accent="#dc2626" icon={FlaskConical} />
-            <StatCard label="Open Findings" value={r.open_findings} sub={`${r.open_crit5} critical-5 · ${r.open_crit4} crit-4`} accent="#f47b20" icon={Flag} />
+            <StatCard label="Open Findings" value={r.open_findings} sub={`High or Critical findings (High: ${r.open_crit4} · Critical: ${r.open_crit5})`} accent="#f47b20" icon={Flag} />
             <StatCard label="New Regressions" value={r.newly_failing} accent={r.newly_failing ? "#dc2626" : "#16a34a"} icon={TrendingDown} />
           </div>
 

@@ -459,6 +459,11 @@ test("uploaded Bassett conversations require a file while prompt and response be
     verified_correct_answer: "",
   }, { onSubmit });
   expect(view.container.textContent).toContain("Use an uploaded Bassett conversation");
+  expect(view.container.textContent).toContain("2. Linked Records & Conversation");
+  expect(view.container.querySelector('[data-testid="workflow-review-summary"]').textContent).toContain("Linked records & conversation");
+  expect(view.container.querySelector('[data-testid="workflow-review-summary"]').textContent).toContain("3. Bassett test result (Optional)");
+  expect([...view.container.querySelectorAll("label")].find((node) => node.textContent.startsWith("Prompt / Question")).textContent).toContain("(optional)");
+  expect(view.container.textContent).toContain("The uploaded conversation is authoritative");
   expect(view.container.querySelector('[data-testid="bassett-conversation-upload"]')).not.toBeNull();
   expect(view.container.textContent).toContain("Optional now; required before expanding to Model Comparison.");
   act(() => view.container.querySelector('[data-testid="submit"]').click());

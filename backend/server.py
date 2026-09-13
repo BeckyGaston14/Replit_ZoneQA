@@ -6018,13 +6018,19 @@ async def analytics_performance(user=Depends(get_current_user),
         date_from=date_from or None, date_to=date_to or None,
     )
     comparison_evals = evaluation_view["all_models"]
+    try:
+        severity_filter_label = _normalize_severity(criticality) if criticality else None
+    except HTTPException:
+        # Preserve the existing filter response for malformed values while
+        # avoiding the legacy numeric criticality label in visible scope text.
+        severity_filter_label = criticality or None
     scope_parts = ["Latest non-retest evaluation for each test case" if scope == "comparison" else
                    {"bassett": "Bassett-only Test Runs · latest qualifying result per Test Bank definition", "both": "Bassett-only + Model Comparison · latest qualifying result per test definition/model"}[scope],
                    f"Bassett version: {version}" if version else "regardless of Bassett version",
                    f"environment: {environment}" if environment else None,
                    "variants excluded" if include_variants.lower() == "false" else "variants included",
                    f"category: {category}" if category else None,
-                   f"criticality: {criticality}" if criticality else None,
+                   f"severity: {severity_filter_label}" if severity_filter_label else None,
                    f"from {date_from}" if date_from else None, f"to {date_to}" if date_to else None,
                    "retests excluded", "Pass includes 'Pass with Minor Issues'"]
     scope_text = " · ".join([p for p in scope_parts if p])
@@ -6958,7 +6964,7 @@ async def release_readiness(version: str, user=Depends(get_current_user), scope:
                          "detail": f"Complete at least one qualifying Bassett-only or Model Comparison evaluation for {version} before making a release decision.",
                          "link_id": "", "link_type": ""})
     for f in open_crit5:
-        blockers.append({"type": "Critical Finding", "label": f.get("title", ""), "detail": f"Criticality 5 · {f.get('developer_status')}", "link_id": f["id"], "link_type": "finding"})
+        blockers.append({"type": "Critical Finding", "label": f.get("title", ""), "detail": f"Critical severity · {f.get('developer_status')}", "link_id": f["id"], "link_type": "finding"})
     for e in critical_fails:
         testcase_id = e.get("testcase_id")
         tc = tcs.get(testcase_id, {})
@@ -9555,11 +9561,20 @@ async def global_search(q: str = "", user=Depends(get_current_user)):
     munis = {m["id"]: m for m in await crud_list("municipalities")}
     projects = {p["id"]: p for p in await crud_list("projects")}
 
-    async def find(coll, fields, limit=5):
-        or_ = [{f: rx} for f in fields] + [{"id": q}]
-        return _filter_sample_scope(
-            coll, await db[coll].find({"$or": or_}, {"_id": 0}).to_list(limit)
-        )
+    async def find(coll, fields, limit=5, extra_or=None, candidate_limit=None):
+        or_ = [{f: rx} for f in fields] + [{"id": q}] + list(extra_or or [])
+        candidates = await db[coll].find({"$or": or_}, {"_id": 0}).to_list(candidate_limit or limit)
+        return _filter_sample_scope(coll, candidates)[:limit]
+
+    # Resolve all bounded matching property candidates before applying the
+    # five-item display limit. Otherwise hidden sample properties can crowd a
+    # visible property out of both the Properties group and linked-run search.
+    matching_properties = await find(
+        "properties", ["name", "address", "zone_code"],
+        limit=5000, candidate_limit=5000,
+    )
+    ps = matching_properties[:5]
+    properties = {p["id"]: p for p in matching_properties}
 
     groups = []
     tcs = await find("testcases", ["name", "description", "prompt", "category"])
@@ -9576,12 +9591,37 @@ async def global_search(q: str = "", user=Depends(get_current_user)):
             {"type": "Finding", "id": f["id"], "name": f.get("title", ""), "link": "/findings",
              "context": " · ".join(x for x in [f.get("finding_type"), (", ".join(f.get("failure_modes", [])) if isinstance(f.get("failure_modes"), list) else f.get("failure_modes"))] if x),
              "status": f.get("developer_status"), "criticality": f.get("criticality")} for f in fs]})
-    ps = await find("properties", ["name", "address", "zone_code"])
     if ps:
         groups.append({"label": "Properties", "items": [
             {"type": "Property", "id": p["id"], "name": p.get("name") or p.get("address", ""), "link": "/properties",
              "context": " · ".join(x for x in [p.get("address"), munis.get(p.get("municipality_id"), {}).get("name")] if x),
              "status": None, "criticality": None} for p in ps]})
+    run_property_ids = list(properties)
+    runs = await find(
+        "bassett_issues",
+        ["title", "name", "question_asked", "exact_bassett_answer", "verified_correct_answer", "notes", "evidence"],
+        extra_or=[{"property_id": {"$in": run_property_ids}}] if run_property_ids else None,
+        # Sample filtering is relationship-aware and happens after the
+        # database query. Fetch a larger window so hidden sample runs do not
+        # consume the visible result limit.
+        candidate_limit=5000,
+    )
+    if runs:
+        groups.append({"label": "Bassett Test Runs", "items": [
+            {
+                "type": "Bassett Test Run",
+                "id": run["id"],
+                "name": run.get("title") or run.get("name") or run.get("question_asked") or f"Bassett Test Run {run['id']}",
+                "link": f"/bassett/issues?open={run['id']}",
+                "context": " · ".join(x for x in [
+                    properties.get(run.get("property_id"), {}).get("address"),
+                    munis.get(run.get("municipality_id"), {}).get("name"),
+                    run.get("question_asked") if run.get("question_asked") != run.get("title") else None,
+                ] if x),
+                "status": run.get("status"),
+                "criticality": run.get("criticality", run.get("severity")),
+            } for run in runs
+        ]})
     ms = await find("municipalities", ["name", "state", "ordinance_source"])
     if ms:
         groups.append({"label": "Municipalities", "items": [

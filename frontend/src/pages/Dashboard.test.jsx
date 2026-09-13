@@ -19,9 +19,15 @@ const metrics = {
 
 jest.mock("@tanstack/react-query", () => ({
   useQuery: jest.fn(),
+  useQueryClient: () => ({
+    setQueryData: jest.fn(),
+    removeQueries: jest.fn(),
+    invalidateQueries: jest.fn(),
+  }),
 }));
 
 jest.mock("../lib/api", () => ({ api: { get: jest.fn() } }));
+jest.mock("../lib/auth", () => ({ useAuth: () => ({ loading: false, user: { id: "user-a" } }) }));
 jest.mock("../components/ui/button", () => ({
   Button: ({ children, asChild, ...props }) => asChild ? children : <button {...props}>{children}</button>,
 }));
@@ -148,10 +154,48 @@ test("starts performance query from the parallel active-version reference, not m
 
   const perfCall = useQuery.mock.calls.find(([options]) => options.queryKey?.[0] === "perf");
   expect(useQuery.mock.calls.filter(([options]) => options.queryKey?.[0] === "perf")).toHaveLength(1);
+  expect(useQuery.mock.calls.find(([options]) => options.queryKey?.[0] === "stats")?.[0]).toEqual(expect.objectContaining({
+    queryKey: ["stats", "user-a", "excluded"],
+    staleTime: 0,
+  }));
+  expect(useQuery.mock.calls.find(([options]) => options.queryKey?.[0] === "metrics")?.[0]).toEqual(expect.objectContaining({
+    queryKey: ["metrics", "user-a", "excluded"],
+    staleTime: 0,
+  }));
   expect(perfCall?.[0]).toEqual(expect.objectContaining({
-    queryKey: ["perf", "Bassett v2"],
+    queryKey: ["perf", "Bassett v2", "user-a", "excluded"],
     enabled: true,
   }));
+  expect(container.querySelector('[aria-label="Loading dashboard sections"]')).not.toBeNull();
+
+  act(() => root.unmount());
+  useQuery.mockImplementation(original);
+  container.remove();
+});
+
+test("dashboard renders available groups while a different mutable snapshot is still loading", () => {
+  const original = useQuery.getMockImplementation();
+  useQuery.mockImplementation(({ queryKey }) => {
+    if (queryKey[0] === "stats") return {
+      data: { active_projects: 3, demo_approved: 2 }, isLoading: false, isError: false, refetch: jest.fn(),
+    };
+    if (queryKey[0] === "metrics") return {
+      data: undefined, isLoading: true, isError: false, refetch: jest.fn(),
+    };
+    if (queryKey[0] === "versions") return {
+      data: [{ id: "v1", name: "Bassett v2", active: true }], isLoading: false, isError: false, refetch: jest.fn(),
+    };
+    return { data: { model_summary: [] }, isLoading: false, isError: false, refetch: jest.fn() };
+  });
+
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  act(() => root.render(<Dashboard />));
+
+  expect(container.querySelector("h1").textContent).toBe("QA Dashboard");
+  expect(container.querySelector('[data-testid="dashboard-metric-group"]').textContent).toContain("Loading quality metrics");
+  expect(container.textContent).toContain("Active Projects");
+  expect(container.textContent).toContain("Program Operations");
   expect(container.querySelector('[aria-label="Loading dashboard sections"]')).not.toBeNull();
 
   act(() => root.unmount());

@@ -24,6 +24,7 @@ import { FINDING_STATUSES, StatusBadge } from "../lib/statusMaps";
 import { normalizeEvaluationResult } from "../lib/evaluationResults";
 import { ConfirmActionDialog } from "../components/ConfirmActionDialog";
 import { ProjectScopeNav } from "../components/ProjectScopeNav";
+import { FindingsCrossNavigation } from "../components/FindingsCrossNavigation";
 import { loadBassettTestRunForEdit } from "../lib/bassettEditLoaders";
 import { SEVERITY_LABELS, severityLabel } from "../lib/severity";
 import {
@@ -318,8 +319,10 @@ export default function BassettIssues() {
     <PageHeader title={showingFindings ? "Bassett Findings" : "Bassett Test Runs"} subtitle={showingFindings ? "Findings created from Bassett testing. General Findings and model-comparison findings remain separate." : "Record a Bassett test result, evidence, and follow-up. Passing test runs are not findings."}>
       {canManage && !showingFindings && <Button variant="outline" onClick={() => setShowImport(true)}><FileInput size={15} /> Import CSV</Button>}
       {!showingFindings && <Button variant="outline" onClick={exportCsv}><FileOutput size={15} /> Export CSV</Button>}
-      <Link to={showingFindings ? "/bassett/issues" : "/bassett/issues?view=findings"}><Button variant="outline">{showingFindings ? "Bassett Test Runs" : "Bassett Findings"}</Button></Link>
-      {showingFindings && <Link to="/findings"><Button variant="outline">Model Comparison Findings</Button></Link>}
+      {showingFindings
+        ? <FindingsCrossNavigation />
+        : <Link to="/bassett/findings"><Button variant="outline">Bassett Findings</Button></Link>}
+      {showingFindings && <Link to="/bassett/issues"><Button variant="outline">Bassett Test Runs</Button></Link>}
       {!showingFindings && <Button variant="outline" aria-pressed={showArchived} onClick={() => setShowArchived((value) => !value)}>{showArchived ? "Active test runs" : "Archived test runs"}</Button>}
       {canWrite && !showingFindings && <Button onClick={() => setForm(createBassettTestRunDraft({}, config?.application_timezone))} className="bg-[var(--orange)] hover:bg-[var(--orange-600)]"><Plus size={15} /> New Bassett Test Run</Button>}
     </PageHeader>

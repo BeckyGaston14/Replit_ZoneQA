@@ -3,3 +3,4 @@
 - [Test Bank definition contract](test-bank-definition-contract.md) — Report Type is intentionally excluded from scenario completeness and immutable snapshots.
 - [Release evidence scope](release-evidence-scope.md) — evidence gates and exported detail must use the same versioned Bassett/comparison population.
 - [Client query freshness](client-query-freshness.md) — bounded reuse is lookup-only; mutable, integrity, readiness, and report data refetch after navigation or invalidation.
+- [Sample-filtered search limits](sample-filtered-search-limits.md) — filter relationship-aware sample records before display truncation, including records used to resolve linked results.

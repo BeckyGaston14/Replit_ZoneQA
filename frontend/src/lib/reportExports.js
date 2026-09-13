@@ -6,10 +6,10 @@ import { isHighOrCriticalSeverity } from "./severity";
 
 const REPORT_SCOPES = {
   qa_summary: "All persisted QA records.",
-  release: "Bassett evaluations, critical findings, and regression snapshots across recorded releases.",
+  release: "Bassett evaluations, High or Critical severity findings, and regression snapshots across recorded releases.",
   regression: "Historical regression snapshots and their included test results.",
   comparison: "Complete Bassett, ChatGPT, and Claude evaluations grouped by test case.",
-  critical: "High or Critical severity findings (Criticality 4–5) and the related QA records.",
+  critical: "High or Critical severity findings and the related QA records.",
   municipality: "Test cases with a municipality and their related QA records.",
 };
 

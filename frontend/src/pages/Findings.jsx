@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { QueryState } from "../components/PageState";
 import { SEVERITY_LABELS } from "../lib/severity";
 import { ProjectScopeNav } from "../components/ProjectScopeNav";
+import { FindingsCrossNavigation } from "../components/FindingsCrossNavigation";
 
 const ALL = "__all";
 const DEFAULT_FILTERS = { status: ALL, criticality: ALL, type: ALL, retest: ALL, version: ALL };
@@ -189,7 +190,7 @@ export default function Findings() {
     <div>
       <PageHeader title="Model Comparison Findings" subtitle="Findings from full Bassett vs. ChatGPT vs. Claude comparisons. Bassett-only findings remain separate.">
         <Button variant="outline" onClick={() => nav("/testcases")}>Model Comparison Test Cases</Button>
-        <Button variant="outline" onClick={() => nav("/bassett/findings")}>Bassett Findings</Button>
+        <FindingsCrossNavigation />
       </PageHeader>
       <ProjectScopeNav />
       {viewError && <div role="alert" className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">{viewError} <button type="button" className="ml-2 font-semibold underline" onClick={retryView}>Retry saved view</button></div>}
@@ -199,7 +200,7 @@ export default function Findings() {
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <StatCard label="Open Findings" value={openFindings} sub="excludes fixed and closed findings" icon={Flag} accent="#f97316" />
         <StatCard label="New Findings" value={newFindings} sub="newly recorded findings" icon={AlertTriangle} accent="#2563eb" />
-        <StatCard label="High or Critical severity findings" value={highSeverityFindings} sub="Criticality 4–5" icon={ShieldAlert} accent="#dc2626" />
+        <StatCard label="High or Critical severity findings" value={highSeverityFindings} sub="High or Critical severity" icon={ShieldAlert} accent="#dc2626" />
         <StatCard label="Total Findings" value={findings.length} sub="linked to model comparisons" icon={CheckCircle2} accent="#16a34a" />
       </div>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,420px)]">
@@ -317,7 +318,7 @@ export default function Findings() {
       </div>
       <MethodologyDisclosure title="How Model Finding metrics are calculated" testid="model-findings-methodology">
         <p>Finding counts include only findings created from Model Comparison test cases in the current visibility scope.</p>
-        <p>Open Findings excludes Fixed, Closed, Won&apos;t Fix, and Duplicate statuses. New Findings includes records whose developer status is New. High or Critical severity findings include criticality 4 and 5.</p>
+        <p>Open Findings excludes Fixed, Closed, Won&apos;t Fix, and Duplicate statuses. New Findings includes records whose developer status is New. High or Critical severity findings include findings labeled High or Critical.</p>
         <p>Total Findings includes every visible Model Comparison finding, while the list below reflects the active search and filters. Archived records remain in history but are excluded from active summary populations.</p>
       </MethodologyDisclosure>
       </>}

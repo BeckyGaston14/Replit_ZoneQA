@@ -2,7 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { Link } from "react-router-dom";
 import { StatCard, PageHeader, Section, SrTable, SampleDataBanner, sampleScopeIncludesData, MethodologyDisclosure, LimitedDataWarning } from "../components/shared";
-import { useCollection } from "../lib/hooks";
+import { useCollection, useSampleVisibility } from "../lib/hooks";
+import { useAuth } from "../lib/auth";
 import { Button } from "../components/ui/button";
 import {
   FolderKanban, CheckCircle2, XCircle, AlertTriangle, Flag, Wrench, RefreshCw, Star,
@@ -17,42 +18,41 @@ import { SafeResponsiveContainer } from "../components/SafeResponsiveContainer";
 export default function Dashboard() {
   // Dashboard metrics are mutable analytical snapshots. Keep identical
   // in-flight requests deduplicated, but refetch them on repeat navigation.
-  const dashboardQueryOptions = { retry: false, staleTime: 0, gcTime: 5 * 60_000, refetchOnMount: true };
-  const stats = useQuery({ ...dashboardQueryOptions, queryKey: ["stats"], queryFn: async ({ signal } = {}) => (await api.get("/dashboard/stats", { signal })).data });
-  const metrics = useQuery({ ...dashboardQueryOptions, queryKey: ["metrics"], queryFn: async ({ signal } = {}) => (await api.get("/metrics/summary", { signal })).data });
-  const s = stats.data, m = metrics.data;
+  const auth = useAuth();
+  const userId = auth?.user?.id || null;
+  const sampleVisibility = useSampleVisibility();
+  const sampleScope = sampleVisibility.includeSampleRecords ? "included" : "excluded";
+  // Keep dashboard responses isolated by both authenticated user and the
+  // server-side sample-record preference. The preference query is shared with
+  // the banner/control, so this does not create a second preference request.
+  const dashboardEnabled = (auth ? auth.loading === false && Boolean(userId) : true)
+    && !sampleVisibility.isLoading;
+  const dashboardQueryOptions = {
+    retry: false, staleTime: 0, gcTime: 5 * 60_000, refetchOnMount: true,
+    enabled: dashboardEnabled,
+  };
+  const stats = useQuery({ ...dashboardQueryOptions, queryKey: ["stats", userId, sampleScope], queryFn: async ({ signal } = {}) => (await api.get("/dashboard/stats", { signal })).data });
+  const metrics = useQuery({ ...dashboardQueryOptions, queryKey: ["metrics", userId, sampleScope], queryFn: async ({ signal } = {}) => (await api.get("/metrics/summary", { signal })).data });
+  const s = stats.data || {}, m = metrics.data || {};
   const versionsQuery = useCollection("versions");
   const activeVersionName = m?.active_version || versionsQuery.data?.find((version) => version.active)?.name || "";
   const perfQuery = useQuery({
-    queryKey: ["perf", activeVersionName],
-    enabled: Boolean(activeVersionName),
+    ...dashboardQueryOptions,
+    queryKey: ["perf", activeVersionName, userId, sampleScope],
+    enabled: dashboardEnabled && Boolean(activeVersionName),
     // The versions reference query runs in parallel with stats and metrics.
     // Performance therefore no longer waits for metrics to resolve merely to
     // discover the active version.
     queryFn: async ({ signal } = {}) => (await api.get("/analytics/performance", { params: { version: activeVersionName }, signal })).data,
-    ...dashboardQueryOptions,
   });
-
-  if (stats.isLoading || metrics.isLoading) return <div>
-    <PageHeader title="QA Dashboard" subtitle="Loading the latest persisted QA metrics." />
-    <div className="grid gap-4 xl:grid-cols-2" aria-label="Loading dashboard sections">
-      {["Quality metrics", "Finding workflow", "Program operations"].map((label) => <section key={label} className="rounded-xl border bg-card p-4">
-        <h2 className="font-display font-semibold text-[var(--navy)]">{label}</h2>
-        <DashboardState compact title={`Loading ${label.toLowerCase()}…`} />
-      </section>)}
-    </div>
-  </div>;
-  if (stats.isError || metrics.isError) {
-    const error = stats.error || metrics.error;
-    return <DashboardError error={error} retry={() => { stats.refetch(); metrics.refetch(); }} />;
-  }
-
-  const bc = m.bassett_current, comparison = m.bassett_comparison || bc;
+  const bc = m.bassett_current || {}, comparison = m.bassett_comparison || bc;
   const bassettOnly = m.bassett_only || {
     pass_rate: null, label: "No eligible records", population_label: "Bassett-only Test Runs",
     definition: "Eligible standalone Bassett-only Test Runs for the active version.",
   };
-  const ame = m.all_model_evaluations, fnd = m.findings;
+  const ame = m.all_model_evaluations || { label: "—", definition: "All model evaluation records." };
+  const fnd = m.findings || { open: "—", open_critical: "—", awaiting_fix: "—", ready_for_retest: "—", definition: "Finding workflow records." };
+  const avgScore = m.bassett_avg_score || { value: null, unit: "avg overall score /10", definition: "Average Bassett score for the active version." };
   const versionLabel = m.active_version || "No active version";
   const sampleDataShown = sampleScopeIncludesData({
     versions: versionsQuery.data || [],
@@ -63,7 +63,7 @@ export default function Dashboard() {
     { label: "Model Comparison — Bassett Pass Rate", value: comparison.pass_rate != null ? `${comparison.pass_rate}%` : "N/A", sub: `${comparison.label} · ${versionLabel}`, limitedData: comparison.limited_data || comparison.evaluated, title: comparison.definition, icon: CheckCircle2, accent: "#16a34a", to: dashboardRecordPath("model-comparison-pass-rate") },
     { label: "Bassett-Only Pass Rate", value: bassettOnly.pass_rate != null ? `${bassettOnly.pass_rate}%` : "N/A", sub: `${bassettOnly.label} · ${versionLabel}`, limitedData: bassettOnly.limited_data || bassettOnly.evaluated, title: bassettOnly.definition, icon: CheckCircle2, accent: "#0f766e", to: dashboardRecordPath("bassett-only-pass-rate") },
     { label: "Bassett Failed", value: comparison.failed, sub: `of ${comparison.evaluated} evaluated comparisons · ${versionLabel}`, title: comparison.definition, icon: XCircle, accent: "#dc2626", to: dashboardRecordPath("bassett-failed") },
-    { label: "Bassett Avg Score", value: m.bassett_avg_score.value ?? "—", sub: `${m.bassett_avg_score.unit} · ${versionLabel}`, limitedData: m.bassett_avg_score.limited_data || m.bassett_avg_score.evaluated || comparison.evaluated, title: m.bassett_avg_score.definition, icon: ActIcon, accent: MODEL_COLORS.Bassett, to: dashboardRecordPath("bassett-score") },
+     { label: "Bassett Avg Score", value: avgScore.value ?? "—", sub: `${avgScore.unit} · ${versionLabel}`, limitedData: avgScore.limited_data || avgScore.evaluated || comparison.evaluated, title: avgScore.definition, icon: ActIcon, accent: MODEL_COLORS.Bassett, to: dashboardRecordPath("bassett-score") },
     { label: "All Model Evaluations", value: ame.label, sub: "Bassett + ChatGPT + Claude mixed", title: ame.definition, icon: ClipboardCheck, accent: "#2f3f96", to: dashboardRecordPath("all-model-evaluations") },
      { label: "Open Findings", value: fnd.open, sub: `${fnd.open_critical} High or Critical severity`, title: fnd.definition, icon: Flag, accent: "#f97316", to: dashboardRecordPath("open-findings") },
     { label: "Awaiting Fix", value: fnd.awaiting_fix, sub: "open findings in dev", title: fnd.definition, icon: Wrench, accent: "#2f3f96", to: dashboardRecordPath("awaiting-fix") },
@@ -73,9 +73,9 @@ export default function Dashboard() {
   ];
   const hasModelComparisonMetrics = Number(comparison.evaluated || 0) > 0;
   const groups = [
-    { title: "Bassett Quality", description: hasModelComparisonMetrics ? "Current-version quality and model evaluation outcomes." : "Current-version Bassett-only quality.", cards: hasModelComparisonMetrics ? cards.slice(0, 5) : [cards[1]], showComparisonSetup: !hasModelComparisonMetrics },
-    { title: "Finding Workflow", description: "Open issues moving from confirmation through retest.", cards: cards.slice(5, 8) },
-    { title: "Program Operations", description: "Active projects and approved demonstration assets.", cards: cards.slice(8, 10) },
+    { title: "Bassett Quality", description: hasModelComparisonMetrics ? "Current-version quality and model evaluation outcomes." : "Current-version Bassett-only quality.", cards: hasModelComparisonMetrics ? cards.slice(0, 5) : [cards[1]], showComparisonSetup: !hasModelComparisonMetrics, query: metrics, loadingTitle: "Loading quality metrics…" },
+    { title: "Finding Workflow", description: "Open issues moving from confirmation through retest.", cards: cards.slice(5, 8), query: metrics, loadingTitle: "Loading finding workflow…" },
+    { title: "Program Operations", description: "Active projects and approved demonstration assets.", cards: cards.slice(8, 10), query: stats, loadingTitle: "Loading program operations…" },
   ];
 
   const modelData = (perfQuery.data?.model_summary || [])
@@ -89,20 +89,22 @@ export default function Dashboard() {
         <span><strong>Set an active Bassett version</strong> to calculate current-version pass rates and average scores.</span>
         <Button asChild size="sm"><Link to="/admin">Manage Bassett versions</Link></Button>
       </div>}
-      <div className="grid gap-4 mb-6 xl:grid-cols-2" aria-label="Dashboard metric groups">
+      <div className="grid gap-4 mb-6 xl:grid-cols-2" aria-label={!metrics.data || !stats.data ? "Loading dashboard sections" : "Dashboard metric groups"}>
         {groups.map((group) => <section key={group.title} className="rounded-xl border bg-card p-4" data-testid="dashboard-metric-group" aria-labelledby={`dashboard-${group.title.toLowerCase().replace(/\s+/g, "-")}`}>
           <div className="mb-3">
             <h2 id={`dashboard-${group.title.toLowerCase().replace(/\s+/g, "-")}`} className="font-display font-semibold text-[var(--navy)]">{group.title}</h2>
             <p className="text-xs text-muted-foreground">{group.description}</p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {group.cards.map((c) => <StatCard key={c.label} {...c} showInfo={false} showCalculation={false} testid={`stat-${c.label.toLowerCase().replace(/\s+/g, "-")}`} />)}
-            {group.showComparisonSetup && <div className="flex min-h-36 flex-col justify-center rounded-xl border border-dashed bg-[var(--paper)] p-4 sm:col-span-1" data-testid="dashboard-comparison-setup">
-              <h3 className="font-semibold text-[var(--navy)]">Model Comparison metrics are not available yet</h3>
-              <p className="mt-1 text-xs text-muted-foreground">Complete a Model Comparison test for the active Bassett version to populate pass rate, failures, average score, and model evaluation metrics.</p>
-              <Button asChild size="sm" variant="outline" className="mt-3 self-start"><Link to="/testcases">Open Model Comparison Test Cases</Link></Button>
+          {group.query.isLoading && !group.query.data ? <DashboardState compact title={group.loadingTitle} /> : group.query.isError && !group.query.data ? (
+            <InlineError error={group.query.error} retry={group.query.refetch} />
+          ) : <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {group.cards.map((c) => <StatCard key={c.label} {...c} showInfo={false} showCalculation={false} testid={`stat-${c.label.toLowerCase().replace(/\s+/g, "-")}`} />)}
+              {group.showComparisonSetup && <div className="flex min-h-36 flex-col justify-center rounded-xl border border-dashed bg-[var(--paper)] p-4 sm:col-span-1" data-testid="dashboard-comparison-setup">
+                <h3 className="font-semibold text-[var(--navy)]">Model Comparison metrics are not available yet</h3>
+                <p className="mt-1 text-xs text-muted-foreground">Complete a Model Comparison test for the active Bassett version to populate pass rate, failures, average score, and model evaluation metrics.</p>
+                <Button asChild size="sm" variant="outline" className="mt-3 self-start"><Link to="/testcases">Open Model Comparison Test Cases</Link></Button>
+              </div>}
             </div>}
-          </div>
         </section>)}
       </div>
 
@@ -161,21 +163,6 @@ function DashboardState({ title, detail, compact = false }) {
     <RefreshCw className="animate-spin text-[var(--orange)] mb-2" size={20} />
     <div className="font-semibold text-[var(--navy)]">{title}</div>
     {detail && <div className="text-sm text-muted-foreground mt-1">{detail}</div>}
-  </div>;
-}
-
-function DashboardError({ error, retry }) {
-  if (isAuthenticationError(error)) {
-    return <div role="alert" className="min-h-[40vh] flex flex-col items-center justify-center text-center">
-      <div className="font-semibold text-[var(--navy)]">Your session has expired</div>
-      <p className="text-sm text-muted-foreground mt-1 mb-3">Sign in again to view Dashboard data.</p>
-      <Button asChild><Link to="/login">Sign in</Link></Button>
-    </div>;
-  }
-  return <div role="alert" className="min-h-[40vh] flex flex-col items-center justify-center text-center">
-    <div className="font-semibold text-[var(--navy)]">Dashboard data could not be loaded</div>
-    <p className="text-sm text-muted-foreground mt-1 mb-3">The canonical metrics service returned an error.</p>
-    <Button variant="outline" onClick={retry}><RefreshCw size={14} className="mr-1" /> Retry</Button>
   </div>;
 }
 

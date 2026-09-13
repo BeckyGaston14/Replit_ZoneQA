@@ -16,7 +16,9 @@ export { VerificationBadge };
 
 export function Projects() {
   const navigate = useNavigate();
-  const { data: bassettRuns = [] } = useCollection("bassett/issues");
+  const [createModalOpened, setCreateModalOpened] = useState(false);
+  const bassettRunsQuery = useCollection("bassett/issues", { enabled: createModalOpened });
+  const { data: bassettRuns = [], isLoading: bassettRunsLoading, isError: bassettRunsError, refetch: refetchBassettRuns } = bassettRunsQuery;
   const [selectedRunIds, setSelectedRunIds] = useState([]);
   const availableRuns = bassettRuns.filter((run) => !run.archived && !run.project_id);
   const toggleRun = (runId) => setSelectedRunIds((current) => current.includes(runId)
@@ -29,7 +31,10 @@ export function Projects() {
       label: (project) => `Add test run to ${project.name}`,
       onClick: (project) => navigate(`/bassett/issues?project_id=${encodeURIComponent(project.id)}&new_run=1`),
     }}
-    onNewOpen={() => setSelectedRunIds([])}
+    onNewOpen={() => {
+      setSelectedRunIds([]);
+      setCreateModalOpened(true);
+    }}
     onCreateSuccess={async (project) => {
       if (selectedRunIds.length) await api.post(`/projects/${project.id}/link-bassett-runs`, { run_ids: selectedRunIds });
       setSelectedRunIds([]);
@@ -37,7 +42,12 @@ export function Projects() {
     renderCreateExtras={() => <fieldset className="rounded-xl border p-4">
       <legend className="px-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">Existing Bassett test runs</legend>
       <p className="mb-3 text-xs text-muted-foreground">Optional. Select unassigned test runs to add to this project when it is saved.</p>
-      {availableRuns.length ? <div className="max-h-56 space-y-2 overflow-y-auto rounded-lg border p-2" role="group" aria-label="Existing unassigned Bassett test runs">
+      {bassettRunsLoading ? <p role="status" className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">Loading available Bassett test runs…</p>
+      : bassettRunsError ? <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+        <p>Available Bassett test runs could not be loaded.</p>
+        <button type="button" className="mt-2 font-semibold underline" onClick={() => refetchBassettRuns()}>Retry</button>
+      </div>
+      : availableRuns.length ? <div className="max-h-56 space-y-2 overflow-y-auto rounded-lg border p-2" role="group" aria-label="Existing unassigned Bassett test runs">
         {availableRuns.map((run) => <label key={run.id} className="flex cursor-pointer items-start gap-2 rounded-md p-2 hover:bg-[var(--paper)]">
           <input type="checkbox" className="mt-0.5" checked={selectedRunIds.includes(run.id)} onChange={() => toggleRun(run.id)} />
           <span className="text-sm"><span className="font-semibold text-[var(--navy)]">{run.name || run.title || run.test_id || "Untitled test run"}</span><span className="block text-xs text-muted-foreground">{[run.test_id, run.result, run.test_date].filter(Boolean).join(" · ") || "No result or test date yet"}</span></span>

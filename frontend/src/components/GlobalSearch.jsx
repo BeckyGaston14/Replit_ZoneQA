@@ -71,7 +71,7 @@ export function GlobalSearch() {
     <div className="relative flex-1 max-w-md" ref={boxRef}>
       <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground z-10" />
       {loading && <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-[var(--orange)] z-10" />}
-      <Input data-testid="global-search" value={q} role="combobox" aria-expanded={showPanel} aria-controls="global-search-results" aria-activedescendant={active >= 0 ? `global-search-option-${active}` : undefined} aria-autocomplete="list" aria-label="Search across test cases, municipalities, findings, evidence, projects, properties, regression suites and demos"
+      <Input data-testid="global-search" value={q} role="combobox" aria-expanded={showPanel} aria-controls="global-search-results" aria-activedescendant={active >= 0 ? `global-search-option-${active}` : undefined} aria-autocomplete="list" aria-label="Search across test cases, Bassett test runs, municipalities, findings, evidence, projects, properties, regression suites and demos"
         onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} onKeyDown={onKeyDown}
         placeholder="Search test cases, municipalities, findings…" className="pl-9 h-9 bg-[var(--paper)]" autoComplete="off" />
       {showPanel && (

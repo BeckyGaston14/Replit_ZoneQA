@@ -13,7 +13,7 @@ import { ImportCsvModal } from "../components/ImportCsvModal";
 
 const EXPORT_REPORTS = [
   { key: "qa_summary", title: "Bassett QA Summary", desc: "Overall pass/fail, accuracy, and open findings." },
-  { key: "release", title: "Release Readiness Data", desc: "Bassett evaluations, critical findings, and regression snapshots across releases." },
+  { key: "release", title: "Release Readiness Data", desc: "Bassett evaluations, High or Critical severity findings, and regression snapshots across releases." },
   { key: "regression", title: "Regression Test Data", desc: "Historical regression runs and their included test results." },
   { key: "comparison", title: "Model Comparison Data", desc: "Complete Bassett vs. ChatGPT vs. Claude evaluations by test case." },
   { key: "critical", title: "Critical Findings Data", desc: "All High or Critical severity findings and their related QA records." },

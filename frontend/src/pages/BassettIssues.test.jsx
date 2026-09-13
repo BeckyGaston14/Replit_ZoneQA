@@ -24,7 +24,7 @@ jest.mock("../components/shared", () => ({
 }));
 
 jest.mock("../components/ui/button", () => ({
-  Button: ({ children, ...props }) => <button {...props}>{children}</button>,
+  Button: ({ children, asChild, ...props }) => asChild ? children : <button {...props}>{children}</button>,
 }));
 
 jest.mock("../components/ui/input", () => ({

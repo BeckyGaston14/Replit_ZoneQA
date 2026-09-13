@@ -15,8 +15,8 @@ export function CritBadge({ value }) {
   const label = severityLabel(value);
   return (
     <span data-testid={`crit-badge-${value}`} className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold text-white"
-      style={{ background: CRIT_COLORS[value] }} title={`${label} severity (criticality ${value})`}>
-      {label} <span className="sr-only">Criticality {value}</span>
+      style={{ background: CRIT_COLORS[value] }} title={`${label} severity`}>
+      {label} <span className="sr-only">{label} severity</span>
     </span>
   );
 }

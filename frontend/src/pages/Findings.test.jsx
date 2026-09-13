@@ -23,6 +23,7 @@ const mockSetSearchParams = jest.fn();
 const mockNavigate = jest.fn();
 
 jest.mock("react-router-dom", () => ({
+  Link: ({ children, to, ...props }) => <a href={to} {...props}>{children}</a>,
   useSearchParams: () => [mockSearchParams, mockSetSearchParams],
   useNavigate: () => mockNavigate,
 }), { virtual: true });
@@ -42,7 +43,7 @@ jest.mock("../lib/hooks", () => ({
 }));
 jest.mock("../lib/auth", () => ({ useAuth: () => ({ user: { role: "viewer" } }) }));
 jest.mock("../components/shared", () => ({
-  PageHeader: ({ title }) => <h1>{title}</h1>,
+  PageHeader: ({ title, children }) => <header><h1>{title}</h1>{children}</header>,
   CritBadge: ({ value }) => <span>C{value}</span>,
   MethodologyDisclosure: ({ title, children }) => <section><h2>{title}</h2>{children}</section>,
   Section: ({ title, action, children }) => <section><h2>{title}</h2>{action}{children}</section>,
@@ -52,7 +53,7 @@ jest.mock("../components/Attachments", () => ({ Attachments: () => <div>Attachme
 jest.mock("../components/CommentsThread", () => ({ CommentsThread: () => <div>Comments</div> }));
 jest.mock("../components/AssigneePicker", () => ({ AssigneePicker: () => <div>Assignee</div> }));
 jest.mock("../components/ui/button", () => ({
-  Button: ({ children, size, variant, ...props }) => <button {...props}>{children}</button>,
+  Button: ({ children, asChild, size, variant, ...props }) => asChild ? children : <button {...props}>{children}</button>,
 }));
 jest.mock("../components/forms", () => ({
   FormModal: ({ children }) => <div>{children}</div>,
@@ -92,7 +93,7 @@ beforeEach(() => {
 test("uses the explicit Model Comparison Findings title", () => {
   const view = renderFindings();
   expect(view.container.querySelector("h1").textContent).toBe("Model Comparison Findings");
-  expect(view.container.textContent).not.toContain("Bassett Findings");
+  expect(view.container.querySelector('[data-testid="findings-cross-navigation"]')).not.toBeNull();
   view.unmount();
 });
 

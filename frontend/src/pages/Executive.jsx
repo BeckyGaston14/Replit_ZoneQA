@@ -120,9 +120,9 @@ export default function Executive() {
         ? `All available reporting groups are tied at ${fmtScore(strongestScore)}/10.`
       : null,
     k.open_critical > 0
-      ? `${plural(k.open_critical, "open critical finding")} require${k.open_critical === 1 ? "s" : ""} resolution before the next release.`
+      ? `${plural(k.open_critical, "open High or Critical finding")} require${k.open_critical === 1 ? "s" : ""} resolution before the next release.`
       : k.total_evaluated > 0
-        ? "No open critical findings are recorded in the current evaluated scope."
+        ? "No open High or Critical findings are recorded in the current evaluated scope."
         : "Quality risk cannot be assessed until evaluated tests and findings are recorded.",
     (d.stale_gold_tests || []).length > 0
       ? `Reverification required: ${plural(d.stale_gold_tests.length, "evaluated test relies", "evaluated tests rely")} on a Gold Standard whose supporting evidence is stale (${d.stale_gold_tests.map((t) => t.name).slice(0, 3).join("; ")}).`
@@ -169,7 +169,7 @@ export default function Executive() {
         <StatCard label="Bassett Overall Score" value={fmtScore(k.bassett_avg)} sub={includesComparison ? `benchmarks avg ${fmtScore(k.benchmark_avg)}` : `${d.population_counts?.bassett_only || 0} Bassett-only results`} accent={MODEL_COLORS.Bassett} icon={Target} testid="exec-bassett-avg" />
         <StatCard label="Pass Rate" value={fmtPct(k.pass_rate)} sub={`${k.total_evaluated} evaluated`} accent={k.pass_rate != null && k.pass_rate >= 85 ? "#16a34a" : "#f59e0b"} icon={Percent} />
         {includesComparison && <StatCard label="Bassett Wins" value={k.wins} sub={`${k.losses} losses`} accent="#16a34a" icon={Trophy} />}
-        <StatCard label="Open Critical" value={k.open_critical} sub="findings crit 4-5" accent={k.open_critical ? "#dc2626" : "#16a34a"} icon={AlertTriangle} />
+         <StatCard label="Open High or Critical Findings" value={k.open_critical} sub="High or Critical severity findings" accent={k.open_critical ? "#dc2626" : "#16a34a"} icon={AlertTriangle} />
         {includesComparison && <StatCard label="Competitive Edge" value={edge === null ? "—" : edge >= 0 ? `+${edge}` : edge} sub="pts vs benchmarks" accent={edge === null ? "#64748b" : edge >= 0 ? "#16a34a" : "#dc2626"} icon={TrendingUp} />}
       </div>
 

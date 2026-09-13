@@ -159,7 +159,7 @@ test("report payload preserves the JSON envelope and records counts", () => {
     generated: "2026-09-01T00:00:00.000Z",
     report: "critical",
     stats: { total_tests: 4 },
-    scope: expect.stringContaining("Criticality"),
+    scope: expect.stringContaining("High or Critical"),
     record_counts: { testcases: 1, findings: 1, evaluations: 0, regression_runs: 0 },
   }));
 });

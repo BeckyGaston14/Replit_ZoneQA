@@ -92,7 +92,7 @@ function drawKpiCards(doc, kpis, y, boxes, reportScope = "both", populationCount
     ["Bassett Overall Score", fmtScore(kpis.bassett_avg), includesComparison ? `Benchmark avg ${fmtScore(kpis.benchmark_avg)}` : `${safeText(populationCounts.bassett_only, "0")} Bassett-only results`, MODEL_COLORS.Bassett],
     ["Pass Rate", fmtPct(kpis.pass_rate), `${safeText(kpis.total_evaluated, "0")} evaluated`, kpis.pass_rate != null && kpis.pass_rate >= 85 ? "#16A34A" : "#D97706"],
     ...(includesComparison ? [["Bassett Wins", safeText(kpis.wins, "0"), `${safeText(kpis.losses, "0")} losses`, "#16A34A"]] : []),
-    ["Open Critical", safeText(kpis.open_critical, "0"), "Findings · criticality 4–5", kpis.open_critical ? COLORS.red : "#16A34A"],
+    ["Open High or Critical Findings", safeText(kpis.open_critical, "0"), "High or Critical severity findings", kpis.open_critical ? COLORS.red : "#16A34A"],
     ...(includesComparison ? [["Competitive Edge", number(kpis.bassett_avg) !== null && number(kpis.benchmark_avg) !== null
       ? `${number(kpis.bassett_avg) - number(kpis.benchmark_avg) >= 0 ? "+" : ""}${(number(kpis.bassett_avg) - number(kpis.benchmark_avg)).toFixed(1)}`
       : "—", "Points vs benchmarks", COLORS.navy]] : []),
@@ -304,9 +304,9 @@ export function renderExecutivePdf({ doc, data, chartImages = {}, generated = ne
        ? `Strongest reporting group: ${categories[0].label || categories[0].category} (${fmtScore(categories[0].score ?? categories[0].avg_score)}/10). Weakest: ${categories[categories.length - 1].label || categories[categories.length - 1].category} (${fmtScore(categories[categories.length - 1].score ?? categories[categories.length - 1].avg_score)}/10).`
       : null,
     kpis.open_critical > 0
-      ? `${kpis.open_critical} open critical finding${kpis.open_critical === 1 ? "" : "s"} require resolution before the next release.`
+      ? `${kpis.open_critical} open High or Critical finding${kpis.open_critical === 1 ? "" : "s"} require resolution before the next release.`
       : kpis.total_evaluated > 0
-        ? "No open critical findings are recorded in the current evaluated scope."
+        ? "No open High or Critical findings are recorded in the current evaluated scope."
         : "Quality risk cannot be assessed until evaluated tests and findings are recorded.",
     (data?.stale_gold_tests || []).length
       ? `Reverification required for ${(data.stale_gold_tests || []).length} evaluated test${data.stale_gold_tests.length === 1 ? "" : "s"} with stale Gold Standard evidence.`
