@@ -172,7 +172,7 @@ async def test_migration_13_uses_oldest_id_only_after_completeness_and_links_tie
 
 
 @pytest.mark.asyncio
-async def test_migration_14_merges_only_approved_property_pair_and_preserves_history():
+async def test_migration_14_ignores_technical_identity_bookkeeping_and_preserves_history():
     canonical = "c90c0ba2-122f-4969-99ea-db71a2ead130"
     loser = "7225e02b-0bd6-4e0b-ad28-11b63b3c7380"
     connection = MigrationConnection({
@@ -181,11 +181,15 @@ async def test_migration_14_merges_only_approved_property_pair_and_preserves_his
                 "id": canonical, "name": "6442 N 76th St", "address": "6442 N 76th St",
                 "municipality_id": "49abba9d-4647-4aad-b970-ec851417c779", "city": "Milwaukee", "state": "Wisconsin",
                 "zip": "53223", "created_at": "2026-09-11T21:03:04Z",
+                 "property_identity_enforced": True,
+                 "property_duplicate_key": "production-backfill-key",
             }},
             {"id": loser, "data": {
                 "id": loser, "name": "6442 N 76th St", "address": "6442 North 76th Street",
                 "municipality_id": "49abba9d-4647-4aad-b970-ec851417c779", "city": "Milwaukee", "state": "Wisconsin",
                 "zip": "53223", "created_at": "2026-09-11T21:46:06Z",
+                 "property_identity_enforced": False,
+                 "property_duplicate_key": "pre-migration-key",
             }},
         ],
         "bassett_issues": [{"id": "issue", "data": {"id": "issue", "property_id": loser}}],
@@ -206,6 +210,8 @@ async def test_migration_14_merges_only_approved_property_pair_and_preserves_his
     assert _records(connection, "bassett_history")["history"]["entity_id"] == canonical
     assert _records(connection, "activities")["activity"]["entity_id"] == canonical
     assert len(connection.tables["activities"]) == 2
+    assert _records(connection, "properties")[canonical]["property_identity_enforced"] is True
+    assert _records(connection, "properties")[canonical]["property_duplicate_key"] != "pre-migration-key"
 
     second = await database._consolidate_known_duplicate_properties(connection)
     assert second == {"merged": False, "reassigned": 0}

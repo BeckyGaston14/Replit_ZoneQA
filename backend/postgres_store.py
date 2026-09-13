@@ -892,7 +892,11 @@ class PostgresDatabase:
         material_excluded = {
             "id", "created_at", "updated_at", "created_by", "updated_by",
             "archived", "archived_at", "archived_by", "archived_status",
-            "deleted_at", "property_duplicate_key", "property_merge_canonical_id",
+            "deleted_at",
+            # Duplicate-enforcement and migration bookkeeping are derived
+            # technical fields, not user-authored property content.
+            "property_duplicate_key", "property_identity_enforced",
+            "property_merge_canonical_id",
         }
         left, right = present
         for field in set(left) | set(right):
