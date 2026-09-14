@@ -513,6 +513,87 @@ def test_dashboard_pass_rate_uses_na_when_a_population_has_no_denominator(monkey
     assert populations["bassett_only"]["label"] == "No eligible records"
 
 
+def test_dashboard_action_and_finding_drilldowns_match_their_source_populations(monkeypatch):
+    rows = {
+        "testcases": [{"id": "tc-1", "name": "Comparison case"}],
+        "evaluations": [],
+        "test_runs": [],
+        "versions": [{"id": "v1", "name": "v1", "active": True}],
+        "bassett_scenarios": [
+            {"id": "s1", "stable_id": "S-1", "test_scenario": "Covered scenario"},
+            {"id": "s2", "stable_id": "S-2", "test_scenario": "Legacy execution scenario"},
+            {"id": "s3", "stable_id": "S-3", "test_scenario": "Uncovered scenario"},
+        ],
+        "bassett_issues": [
+            {"id": "attention-1", "title": "Failed run", "scenario_id": "s1",
+             "bassett_version": "v1", "test_type": "Single Prompt",
+             "result": "Fail", "test_date": "2026-09-01", "finding_id": "reverse-linked"},
+            {"id": "old-attention", "title": "Historical failure", "scenario_id": "s3",
+             "bassett_version": "v0", "test_type": "Single Prompt",
+             "result": "Critical Fail", "test_date": "2026-08-01"},
+        ],
+        "bassett_executions": [
+            {"id": "legacy-execution", "scenario_id": "s2", "bassett_version": "v1",
+             "test_type": "Single Prompt", "result": "Needs Improvement",
+             "test_date": "2026-09-02"},
+            {"id": "archived-link", "scenario_id": "s2", "bassett_version": "v1",
+             "result": "Pass", "archived": True, "finding_id": "archived-only"},
+        ],
+        "findings": [
+            {"id": "bassett-low", "title": "Bassett low", "finding_scope": "bassett",
+             "severity": "Low", "developer_status": "New"},
+            {"id": "reverse-linked", "title": "Reverse-linked Bassett finding",
+             "testcase_id": "tc-1", "severity": "Medium", "developer_status": "New"},
+            {"id": "comparison-medium", "title": "Comparison medium",
+             "finding_scope": "comparison", "testcase_id": "tc-1",
+             "severity": "Medium", "developer_status": "In Development"},
+            {"id": "legacy-critical", "title": "Legacy comparison", "testcase_id": "tc-1",
+             "criticality": 5, "developer_status": "New"},
+            {"id": "archived-only", "title": "Archived execution link", "testcase_id": "tc-1",
+             "severity": "High", "developer_status": "New"},
+            {"id": "closed-high", "title": "Closed", "finding_scope": "bassett",
+             "severity": "High", "developer_status": "Closed"},
+        ],
+        "projects": [], "retests": [], "demos": [], "regression_runs": [],
+        "config": [{"id": "global", "eval_dimensions": []}],
+    }
+    monkeypatch.setattr(server, "db", Db(rows))
+
+    async def fake_crud_list(collection, query=None):
+        return [dict(row) for row in rows.get(collection, [])]
+
+    monkeypatch.setattr(server, "crud_list", fake_crud_list)
+
+    summary = asyncio.run(server.metrics_summary({"id": "viewer"}))
+    assert summary["findings"]["bassett_open"] == 2
+    assert summary["findings"]["comparison_open"] == 3
+    assert summary["findings"]["by_severity"]["Low"] == {"bassett": 1, "comparison": 0}
+    assert summary["findings"]["by_severity"]["Medium"] == {"bassett": 1, "comparison": 1}
+    assert summary["findings"]["by_severity"]["Critical"] == {"bassett": 0, "comparison": 1}
+
+    attention = asyncio.run(server.dashboard_metric_records(
+        "bassett-tests-needing-attention", {"id": "viewer"}
+    ))
+    coverage = asyncio.run(server.dashboard_metric_records("scenario-coverage", {"id": "viewer"}))
+    bassett_low = asyncio.run(server.dashboard_metric_records(
+        "bassett-open-findings-low", {"id": "viewer"}
+    ))
+    comparison_critical = asyncio.run(server.dashboard_metric_records(
+        "comparison-open-findings-critical", {"id": "viewer"}
+    ))
+
+    assert attention["count"] == 2
+    assert {record["to"] for record in attention["records"]} == {
+        "/bassett/issues?open=attention-1", None,
+    }
+    assert coverage["count"] == 3
+    assert {record["status"] for record in coverage["records"]} == {
+        "Covered", "No qualifying evaluation",
+    }
+    assert bassett_low["count"] == 1
+    assert comparison_critical["count"] == 1
+
+
 def test_all_metric_endpoints_reconcile_to_complete_comparisons(monkeypatch):
     complete = [
         _evaluation("good-b", "good", "Bassett", 8, run_id="complete"),

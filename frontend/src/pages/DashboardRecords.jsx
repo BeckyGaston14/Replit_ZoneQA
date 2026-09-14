@@ -36,7 +36,9 @@ export default function DashboardRecords() {
         </tr></thead>
         <tbody>
           {data.records.map((record) => <tr key={`${record.type}-${record.id}`} className="border-t">
-            <td className="px-4 py-3 font-semibold text-[var(--navy)]"><Link className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)]" to={record.to}>{record.name}</Link></td>
+            <td className="px-4 py-3 font-semibold text-[var(--navy)]">{record.to
+              ? <Link className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)]" to={record.to}>{record.name}</Link>
+              : record.name}</td>
             <td className="px-4 py-3">{record.type || "—"}</td>
             <td className="px-4 py-3">{data.metric === "bassett-score" ? <ResultBadge value={record.status} /> : (record.status || "—")}</td>
             <td className="px-4 py-3">{data.metric === "bassett-score" && record.value != null

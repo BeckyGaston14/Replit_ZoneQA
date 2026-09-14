@@ -8,199 +8,128 @@ jest.mock("react-router-dom", () => ({
   Link: ({ to, children, ...props }) => <a href={to} {...props}>{children}</a>,
 }), { virtual: true });
 
-const metrics = {
-  active_version: "Bassett v2", bassett_current: { pass_rate: 50, passed: 1, failed: 1, evaluated: 2, label: "1 / 2 passed", definition: "Current definition" },
-  bassett_avg_score: { value: 7.5, unit: "avg overall score /10", definition: "Score definition" },
-  all_model_evaluations: { label: "3 / 4 evaluated", definition: "Evaluation definition" },
-  findings: { open: 2, open_critical: 2, open_high: 1, open_critical_count: 1, awaiting_fix: 1, ready_for_retest: 1, definition: "Finding definition" },
-  regression_current: { passed: 2, failed: 1, execution_date: "2026-08-31", test_date: "2026-08-30", definition: "Regression definition" },
-  test_cases: { total: 3, definition: "Test definition" }, retests: { total: 2, completed: 1, definition: "Retest definition" },
-};
-
-jest.mock("@tanstack/react-query", () => ({
-  useQuery: jest.fn(),
-  useQueryClient: () => ({
-    setQueryData: jest.fn(),
-    removeQueries: jest.fn(),
-    invalidateQueries: jest.fn(),
-  }),
-}));
-
+jest.mock("@tanstack/react-query", () => ({ useQuery: jest.fn(), useQueryClient: () => ({ invalidateQueries: jest.fn(), setQueryData: jest.fn() }) }));
 jest.mock("../lib/api", () => ({ api: { get: jest.fn() } }));
 jest.mock("../lib/auth", () => ({ useAuth: () => ({ loading: false, user: { id: "user-a" } }) }));
-jest.mock("../components/ui/button", () => ({
-  Button: ({ children, asChild, ...props }) => asChild ? children : <button {...props}>{children}</button>,
+jest.mock("../lib/hooks", () => ({
+  useCollection: () => ({ data: [{ name: "Bassett v2", active: true }], isLoading: false }),
+  useSampleVisibility: () => ({ includeSampleRecords: false, isLoading: false }),
 }));
+jest.mock("../components/ui/button", () => ({ Button: ({ children, asChild, ...props }) => asChild ? children : <button {...props}>{children}</button> }));
 jest.mock("../components/shared", () => {
   const actual = jest.requireActual("../components/shared");
-  return { ...actual, HowCalculated: ({ children }) => <div data-testid="how-calculated">{children}</div> };
+  return { ...actual };
 });
-jest.mock("recharts", () => ({
-  ResponsiveContainer: ({ children }) => <div>{children}</div>, BarChart: ({ children }) => <div>{children}</div>,
-  Bar: ({ children }) => <div>{children}</div>, Cell: () => null, XAxis: () => null, YAxis: () => null, CartesianGrid: () => null, Tooltip: () => null,
-}));
 
-const defaultUseQuery = ({ queryKey }) => {
-  const data = queryKey[0] === "stats" ? { active_projects: 1, demo_approved: 1 }
-    : queryKey[0] === "metrics" ? metrics
-      : queryKey[0] === "perf" ? { scope: "Bassett version: Bassett v2", model_summary: [{ model: "Bassett", avg_score: 7.5 }, { model: "ChatGPT", avg_score: 6.5 }] }
-        : [];
-  return { data, isLoading: false, isError: false, refetch: jest.fn() };
+const metrics = {
+  active_version: "Bassett v2",
+  bassett_only: { pass_rate: 50, label: "1 / 2 passed", evaluated: 2 },
+  bassett_comparison: { pass_rate: 75, label: "3 / 4 passed", evaluated: 4 },
+  tests_needing_attention: 3,
+  scenario_coverage: "68%",
+  findings: {
+    bassett_open: 8, comparison_open: 4,
+    by_severity: { "Very Low": { bassett: 1, comparison: 0 }, Low: { bassett: 2, comparison: 1 }, Medium: { bassett: 3, comparison: 1 }, High: { bassett: 1, comparison: 1 }, Critical: { bassett: 1, comparison: 1 } },
+  },
+};
+
+const queryResult = (queryKey) => {
+  const kind = queryKey[0];
+  if (kind === "stats") return { data: { active_projects: 1 }, isLoading: false, isError: false, refetch: jest.fn() };
+  if (kind === "metrics") return { data: metrics, isLoading: false, isError: false, refetch: jest.fn() };
+  if (kind === "bassett-metrics") return { data: { test_runs: { attention: 3, definition: "Attention definition", test_bank_coverage: { percent: 68, covered: 17, total: 25 } } }, isLoading: false, isError: false, refetch: jest.fn() };
+  if (kind === "perf" && queryKey[1] === "bassett") return { data: { model_summary: [{ model: "Bassett", avg_score: 8, score_count: 2, passed: 1, failed: 2 }], by_category: [{ category: "Research", avg_score: 8, count: 2 }], reporting_groups: [{ label: "Research Quality", score: 7.5, count: 2 }] }, isLoading: false, isError: false, refetch: jest.fn() };
+  if (kind === "perf") return { data: { model_summary: [{ model: "Bassett", avg_score: 7.5, score_count: 3, passed: 3, failed: 1 }, { model: "ChatGPT", avg_score: 7, score_count: 4, passed: 2, failed: 2 }] }, isLoading: false, isError: false, refetch: jest.fn() };
+  return { data: [], isLoading: false, isError: false, refetch: jest.fn() };
 };
 
 const { useQuery } = require("@tanstack/react-query");
-
+const { api } = require("../lib/api");
 beforeEach(() => {
-  // resetMocks clears implementations as well as call history in the Jest
-  // config, so reinstall the baseline for every test before any overrides.
-  useQuery.mockImplementation(defaultUseQuery);
+  useQuery.mockImplementation(({ queryKey }) => queryResult(queryKey));
+  api.get.mockReset();
 });
 
-test("Dashboard cards are keyboard-accessible links to exact metric record sets", () => {
+function renderDashboard() {
   const container = document.createElement("div");
   const root = createRoot(container);
   act(() => root.render(<Dashboard />));
-  const cards = [...container.querySelectorAll('a[data-testid^="stat-"]')];
-  expect(cards).toHaveLength(12);
-  expect(container.querySelectorAll('[data-testid="dashboard-metric-group"]')).toHaveLength(3);
-  expect(cards.map((card) => card.getAttribute("href"))).toContain("/dashboard/records/model-comparison-pass-rate");
-  expect(cards.map((card) => card.getAttribute("href"))).toContain("/dashboard/records/bassett-only-pass-rate");
-  expect(cards.map((card) => card.getAttribute("href"))).toContain("/dashboard/records/all-model-evaluations");
-  expect(cards.map((card) => card.getAttribute("href"))).not.toContain("/dashboard/records/retests");
-  expect(cards.map((card) => card.getAttribute("href"))).not.toContain("/dashboard/records/regression-current");
-  expect(cards.every((card) => card.getAttribute("aria-describedby"))).toBe(true);
-  expect(container.textContent).toContain("Active version: Bassett v2");
-  expect(container.textContent).toContain("Bassett version: Bassett v2");
-  expect(container.querySelector("table caption").textContent).toContain("Average model scores");
+  return { container, root };
+}
+
+test("renders the exact hierarchy with responsive KPI and panel classes", () => {
+  const { container, root } = renderDashboard();
+  expect([...container.querySelectorAll("h2")].map((node) => node.textContent)).toEqual(["Primary KPIs", "Performance", "Performance by Category / Bassett Reporting Group", "Findings and action"]);
+  expect(container.querySelector(".grid-cols-1.sm\\:grid-cols-2.xl\\:grid-cols-4")).not.toBeNull();
+  expect(container.querySelector(".grid-cols-1.lg\\:grid-cols-2")).not.toBeNull();
+  expect(container.querySelectorAll('a[data-testid^="stat-"]')).toHaveLength(4);
+  expect(container.querySelector('[data-testid="stat-tests-needing-attention"]').textContent).toContain("3");
+  expect(container.querySelector('[data-testid="stat-scenario-coverage"]').textContent).toContain("68%");
+  expect(container.textContent).toContain("17/25 active scenarios evaluated");
   act(() => root.unmount());
 });
 
-test("Dashboard starts with metric groups and does not render the redundant workspace path", () => {
-  const container = document.createElement("div");
-  const root = createRoot(container);
-  act(() => root.render(<Dashboard />));
-
-  expect(container.querySelector('[data-testid="workspace-path"]')).toBeNull();
-  expect(container.querySelector("h1").textContent).toBe("QA Dashboard");
-  expect(container.querySelectorAll('[data-testid="dashboard-metric-group"]')).toHaveLength(3);
-  expect(container.querySelectorAll('a[data-testid^="stat-"]')).toHaveLength(12);
-  expect(container.textContent).toContain("Bassett Quality");
-  expect(container.textContent).toContain("Finding Workflow");
-  expect(container.textContent).not.toContain("Release Confidence");
-  expect(container.textContent).not.toContain("Regression (latest run)");
-  expect(container.textContent).not.toContain("Retest Executions");
-  expect(container.textContent).toContain("Program Operations");
-  expect(container.textContent).toContain("Model Comparison — Bassett Pass Rate");
-  expect(container.textContent).toContain("Bassett-Only Pass Rate");
-  expect(container.textContent).toContain("Open High Findings");
-  expect(container.textContent).toContain("Open Critical Findings");
-  expect(container.textContent).toContain("N/A");
-  expect(container.textContent).toContain("Limited data — 2 evaluated records");
-
-  act(() => root.unmount());
-});
-
-test("dashboard methodology has one collapsed keyboard-accessible disclosure without an empty reporting-groups panel", () => {
-  const container = document.createElement("div");
-  const root = createRoot(container);
-  act(() => root.render(<Dashboard />));
-
-  const infos = [...container.querySelectorAll('[data-testid="metric-info"]')];
-  expect(infos).toHaveLength(0);
-  const methodology = container.querySelector('[data-testid="dashboard-methodology"]');
-  expect(container.querySelectorAll('[data-testid="dashboard-methodology"]')).toHaveLength(1);
-  expect(methodology.open).toBe(false);
-  expect(methodology.querySelectorAll("summary")).toHaveLength(1);
-  expect(methodology.querySelector("summary").textContent).toBe("How dashboard metrics are calculated");
-  expect(methodology.querySelector("summary").getAttribute("class")).toContain("focus-visible");
-  expect(methodology.querySelectorAll("details")).toHaveLength(0);
-  expect(container.querySelector('[data-testid="dashboard-reporting-groups-panel"]')).toBeNull();
-  expect(methodology.querySelector("h3").textContent).toBe("Bassett Reporting Groups");
-
-  act(() => methodology.querySelector("summary").click());
-  expect(methodology.open).toBe(true);
-  expect(methodology.textContent).toContain("Seven reporting groups consolidate the 12 stored scoring dimensions.");
-  expect(container.textContent.match(/How calculated/g)).toBeNull();
-
-  act(() => root.unmount());
-  container.remove();
-});
-
-test("Average Score chart gives each visible model its own legend entry", () => {
-  const container = document.createElement("div");
-  const root = createRoot(container);
-  act(() => root.render(<Dashboard />));
-
-  const legend = container.querySelector('[aria-label="Model color legend"]');
-  expect(legend).not.toBeNull();
-  expect([...legend.querySelectorAll("span")].map((entry) => entry.textContent)).toEqual(["Bassett", "ChatGPT"]);
-  expect(legend.textContent).not.toContain("Benchmarks");
-  expect(container.textContent).toContain("Scale: 0–10");
-
-  act(() => root.unmount());
-  container.remove();
-});
-
-test("starts performance query from the parallel active-version reference, not metrics resolution", () => {
-  const original = useQuery.getMockImplementation();
-  useQuery.mockImplementation(({ queryKey }) => {
-    if (queryKey[0] === "stats") return { data: { active_projects: 0, demo_approved: 0 }, isLoading: false, isError: false, refetch: jest.fn() };
-    if (queryKey[0] === "metrics") return { data: undefined, isLoading: true, isError: false, refetch: jest.fn() };
-    if (queryKey[0] === "versions") return { data: [{ id: "v1", name: "Bassett v2", active: true }], isLoading: false, isError: false, refetch: jest.fn() };
-    return { data: { model_summary: [] }, isLoading: false, isError: false, refetch: jest.fn() };
+test("separates performance scope requests and uses active-version KPI and exact severity drilldowns", async () => {
+  const { container, root } = renderDashboard();
+  const calls = useQuery.mock.calls.map(([options]) => options);
+  expect(calls.filter((call) => call.queryKey?.[0] === "perf").map((call) => call.queryKey[1])).toEqual(["bassett", "comparison"]);
+  expect(calls.filter((call) => call.queryKey?.[0] === "perf").every((call) => call.queryFn.toString().includes("scope"))).toBe(true);
+  const hrefs = [...container.querySelectorAll("a")].map((node) => node.getAttribute("href"));
+  expect(hrefs).toEqual(expect.arrayContaining([
+    "/dashboard/records/bassett-only-pass-rate", "/dashboard/records/model-comparison-pass-rate",
+    "/dashboard/records/bassett-tests-needing-attention", "/dashboard/records/scenario-coverage",
+    "/dashboard/records/bassett-open-findings-very-low", "/dashboard/records/comparison-open-findings-critical",
+  ]));
+  const bassettMetricsCall = calls.find((call) => call.queryKey?.[0] === "bassett-metrics");
+  api.get.mockResolvedValueOnce({ data: {} });
+  await act(async () => bassettMetricsCall.queryFn({ signal: "signal" }));
+  expect(api.get).toHaveBeenCalledWith("/bassett/metrics", {
+    params: { version_id: "Bassett v2" },
+    signal: "signal",
   });
-
-  const container = document.createElement("div");
-  const root = createRoot(container);
-  act(() => root.render(<Dashboard />));
-
-  const perfCall = useQuery.mock.calls.find(([options]) => options.queryKey?.[0] === "perf");
-  expect(useQuery.mock.calls.filter(([options]) => options.queryKey?.[0] === "perf")).toHaveLength(1);
-  expect(useQuery.mock.calls.find(([options]) => options.queryKey?.[0] === "stats")?.[0]).toEqual(expect.objectContaining({
-    queryKey: ["stats", "user-a", "excluded"],
-    staleTime: 0,
-  }));
-  expect(useQuery.mock.calls.find(([options]) => options.queryKey?.[0] === "metrics")?.[0]).toEqual(expect.objectContaining({
-    queryKey: ["metrics", "user-a", "excluded"],
-    staleTime: 0,
-  }));
-  expect(perfCall?.[0]).toEqual(expect.objectContaining({
-    queryKey: ["perf", "Bassett v2", "user-a", "excluded"],
-    enabled: true,
-  }));
-  expect(container.querySelector('[aria-label="Loading dashboard sections"]')).not.toBeNull();
-
+  expect(container.textContent).toContain("Average score (n=2)");
+  expect(container.textContent).toContain("Evaluated results3");
   act(() => root.unmount());
-  useQuery.mockImplementation(original);
-  container.remove();
 });
 
-test("dashboard renders available groups while a different mutable snapshot is still loading", () => {
-  const original = useQuery.getMockImplementation();
-  useQuery.mockImplementation(({ queryKey }) => {
-    if (queryKey[0] === "stats") return {
-      data: { active_projects: 3, demo_approved: 2 }, isLoading: false, isError: false, refetch: jest.fn(),
-    };
-    if (queryKey[0] === "metrics") return {
-      data: undefined, isLoading: true, isError: false, refetch: jest.fn(),
-    };
-    if (queryKey[0] === "versions") return {
-      data: [{ id: "v1", name: "Bassett v2", active: true }], isLoading: false, isError: false, refetch: jest.fn(),
-    };
-    return { data: { model_summary: [] }, isLoading: false, isError: false, refetch: jest.fn() };
-  });
-
-  const container = document.createElement("div");
-  const root = createRoot(container);
-  act(() => root.render(<Dashboard />));
-
-  expect(container.querySelector("h1").textContent).toBe("QA Dashboard");
-  expect(container.querySelector('[data-testid="dashboard-metric-group"]').textContent).toContain("Loading quality metrics");
-  expect(container.textContent).toContain("Active Projects");
-  expect(container.textContent).toContain("Program Operations");
-  expect(container.querySelector('[aria-label="Loading dashboard sections"]')).not.toBeNull();
-
+test("keeps all five severities, consolidates methodology, and toggles empty categories", () => {
+  const { container, root } = renderDashboard();
+  expect(["Very Low", "Low", "Medium", "High", "Critical"].every((label) => container.textContent.includes(label))).toBe(true);
+  expect(container.querySelectorAll('[data-testid="dashboard-methodology"]').length).toBe(1);
+  expect(container.querySelectorAll("summary").length).toBe(2);
+  expect(container.querySelectorAll('[data-testid="dashboard-reporting-groups-methodology"]')).toHaveLength(1);
+  expect(container.textContent).not.toContain("How calculated");
+  const toggle = [...container.querySelectorAll("button")].find((button) => button.textContent.includes("Show categories without results"));
+  expect(toggle).not.toBeNull();
+  act(() => toggle.click());
+  expect(toggle.textContent).toContain("Hide categories without results");
   act(() => root.unmount());
-  useQuery.mockImplementation(original);
-  container.remove();
+});
+
+test("uses compact empty state wording without fixed chart heights", () => {
+  useQuery.mockImplementation(({ queryKey }) => {
+    const result = queryResult(queryKey);
+    if (queryKey[0] === "perf") return { ...result, data: { model_summary: [] } };
+    if (queryKey[0] === "bassett-metrics") return { ...result, data: { categories: [] } };
+    return result;
+  });
+  const { container, root } = renderDashboard();
+  expect(container.querySelectorAll('[role="status"]').length).toBeGreaterThan(0);
+  expect(container.textContent).toContain("No evaluated records yet");
+  expect(container.innerHTML).not.toContain("min-h-36");
+  act(() => root.unmount());
+});
+
+test("renders retryable KPI and category errors instead of empty or N/A states", () => {
+  useQuery.mockImplementation(({ queryKey }) => {
+    const result = queryResult(queryKey);
+    if (queryKey[0] === "bassett-metrics") return { ...result, data: undefined, isError: true };
+    if (queryKey[0] === "perf" && queryKey[1] === "bassett") return { ...result, data: undefined, isError: true };
+    return result;
+  });
+  const { container, root } = renderDashboard();
+  expect(container.querySelectorAll('[role="alert"]')).toHaveLength(3);
+  expect(container.textContent).not.toContain("Scenario CoverageN/A");
+  expect(container.textContent).not.toContain("No evaluated records yet");
+  act(() => root.unmount());
 });

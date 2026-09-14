@@ -262,6 +262,21 @@ def _finding_severity_counts(findings):
     return counts
 
 
+def _all_finding_severity_counts(findings):
+    counts = {label: 0 for label in ("Very Low", "Low", "Medium", "High", "Critical")}
+    for finding in findings:
+        try:
+            severity, _ = _canonical_severity_pair(
+                finding.get("severity"), finding.get("criticality"),
+                allow_invalid_severity_fallback=True,
+            )
+        except (HTTPException, TypeError, ValueError):
+            continue
+        if severity in counts:
+            counts[severity] += 1
+    return counts
+
+
 def _finding_scope(finding):
     """Classify persisted findings without inferring comparison from absence."""
     explicit = str(finding.get("finding_scope") or "").casefold()
@@ -271,6 +286,15 @@ def _finding_scope(finding):
     if explicit in {"bassett", "bassett_only"} or "bassett" in source:
         return "bassett"
     return None
+
+
+def _finding_is_bassett(finding, linked_finding_ids=None):
+    return bool(
+        _finding_scope(finding) == "bassett"
+        or finding.get("bassett_issue_id")
+        or finding.get("bassett_execution_id")
+        or finding.get("id") in (linked_finding_ids or set())
+    )
 
 
 def _canonicalize_finding_severity(document):
@@ -8573,6 +8597,19 @@ async def metrics_summary(user=Depends(get_current_user)):
         raw_evaluations, valid_testcase_ids=valid_ids,
     )
     findings = await crud_list("findings")
+    bassett_issues = _filter_sample_scope(
+        "bassett_issues",
+        await db.bassett_issues.find({"archived": {"$ne": True}}, {"_id": 0}).to_list(5000),
+    )
+    bassett_executions = _filter_sample_scope(
+        "bassett_executions",
+        await db.bassett_executions.find({"archived": {"$ne": True}}, {"_id": 0}).to_list(10000),
+    )
+    linked_bassett_finding_ids = {
+        record.get("finding_id")
+        for record in (*bassett_issues, *bassett_executions)
+        if record.get("finding_id")
+    }
     retests = _canonical_retest_executions(await crud_list("retests"), tcs)
     runs = await crud_list("regression_runs")
     active_versions = _filter_sample_scope(
@@ -8616,6 +8653,17 @@ async def metrics_summary(user=Depends(get_current_user)):
     scored = [e for e in b_cur if e.get("overall_score") is not None]
     open_f = [f for f in findings if _finding_is_open(f)]
     open_finding_severity = _finding_severity_counts(open_f)
+    bassett_open_findings = [
+        finding for finding in open_f
+        if _finding_is_bassett(finding, linked_bassett_finding_ids)
+    ]
+    comparison_open_findings = [
+        finding for finding in open_f
+        if not _finding_is_bassett(finding, linked_bassett_finding_ids)
+        and (_finding_scope(finding) == "comparison" or finding.get("testcase_id") in valid_ids)
+    ]
+    bassett_severity = _all_finding_severity_counts(bassett_open_findings)
+    comparison_severity = _all_finding_severity_counts(comparison_open_findings)
     reg = _latest_regression_run(runs, ver)
 
     return {
@@ -8637,7 +8685,16 @@ async def metrics_summary(user=Depends(get_current_user)):
         "bassett_avg_score": {"value": average_score(b_cur), "evaluated": len(b_cur),
                               "limited_data": {"limited": len(b_cur) < 5, "evaluated": len(b_cur), "threshold": 5},
                               "unit": "avg overall score /10", "definition": f"Mean of latest Bassett evaluation scores per test case for {ver or 'the active version'}, n={len(scored)}."},
-        "findings": {"open": len(open_f), "open_critical": len([f for f in open_f if _finding_is_high_or_critical(f)]),
+        "findings": {"open": len(open_f), "bassett_open": len(bassett_open_findings),
+                      "comparison_open": len(comparison_open_findings),
+                      "by_severity": {
+                          label: {
+                              "bassett": bassett_severity[label],
+                              "comparison": comparison_severity[label],
+                          }
+                          for label in bassett_severity
+                      },
+                      "open_critical": len([f for f in open_f if _finding_is_high_or_critical(f)]),
                       "open_high": open_finding_severity["high"],
                       "open_critical_count": open_finding_severity["critical"],
                       "awaiting_fix": len([f for f in open_f if f.get("developer_status") in FINDING_AWAITING_FIX_STATUSES]),
@@ -8671,6 +8728,18 @@ async def dashboard_metric_records(metric: str, user=Depends(get_current_user)):
         raw_evaluations, valid_testcase_ids=valid_ids,
     )
     findings = await crud_list("findings")
+    bassett_scenarios = _filter_sample_scope(
+        "bassett_scenarios",
+        await db.bassett_scenarios.find({"archived": {"$ne": True}}, {"_id": 0}).to_list(5000),
+    )
+    bassett_issues = _filter_sample_scope(
+        "bassett_issues",
+        await db.bassett_issues.find({"archived": {"$ne": True}}, {"_id": 0}).to_list(5000),
+    )
+    bassett_executions = _filter_sample_scope(
+        "bassett_executions",
+        await db.bassett_executions.find({"archived": {"$ne": True}}, {"_id": 0}).to_list(10000),
+    )
     retests = _canonical_retest_executions(await crud_list("retests"), tcs)
     projects = await crud_list("projects")
     projects = _enrich_project_completions(projects, tcs)
@@ -8681,6 +8750,40 @@ async def dashboard_metric_records(metric: str, user=Depends(get_current_user)):
     )
     active = active_versions[0] if active_versions else None
     version = active.get("name", "") if active else ""
+    versions = await crud_list("versions")
+    bassett_issues = [_canonicalize_bassett_version_record(row, versions) for row in bassett_issues]
+    bassett_executions = [_canonicalize_bassett_version_record(row, versions) for row in bassett_executions]
+    bassett_runs = _canonical_bassett_lineages(
+        bassett_issues,
+        bassett_executions,
+        active_scenario_ids={scenario["id"] for scenario in bassett_scenarios},
+    )
+    attention_runs = [
+        run for run in bassett_runs
+        if _bassett_version_is_required(run)
+        and (not version or run.get("bassett_version") == version)
+        and (
+            _canonical_bassett_result(run.get("result")) in (*FAIL_SET, "Needs Improvement")
+            or run.get("result") == "Blocked"
+        )
+    ]
+    latest_coverage_run = {}
+    for run in bassett_runs:
+        scenario_id = run.get("scenario_id")
+        if (
+            scenario_id not in {scenario["id"] for scenario in bassett_scenarios}
+            or (version and run.get("bassett_version") != version)
+            or not _dashboard_bassett_result_is_eligible(run)
+            or not _bassett_version_is_required(run)
+        ):
+            continue
+        current = latest_coverage_run.get(scenario_id)
+        if current is None or _dashboard_bassett_order(run) > _dashboard_bassett_order(current):
+            latest_coverage_run[scenario_id] = run
+    scenario_records = [
+        {**scenario, "_coverage_run": latest_coverage_run.get(scenario.get("id"))}
+        for scenario in bassett_scenarios
+    ]
     current_view = await _evaluation_read_model(
         raw_evaluations, valid_testcase_ids=valid_ids, version=version or None,
     )
@@ -8690,6 +8793,20 @@ async def dashboard_metric_records(metric: str, user=Depends(get_current_user)):
         tcs, raw_evaluations, version, comparison_view=current_view
     )
     open_findings = [f for f in findings if _finding_is_open(f)]
+    linked_bassett_finding_ids = {
+        record.get("finding_id")
+        for record in (*bassett_issues, *bassett_executions)
+        if record.get("finding_id")
+    }
+    bassett_open_findings = [
+        finding for finding in open_findings
+        if _finding_is_bassett(finding, linked_bassett_finding_ids)
+    ]
+    comparison_open_findings = [
+        finding for finding in open_findings
+        if not _finding_is_bassett(finding, linked_bassett_finding_ids)
+        and (_finding_scope(finding) == "comparison" or finding.get("testcase_id") in valid_ids)
+    ]
     latest_regression = _latest_regression_run(runs, version)
 
     comparison_pass_records = bassett_populations["model_comparison"]["records"]
@@ -8729,7 +8846,32 @@ async def dashboard_metric_records(metric: str, user=Depends(get_current_user)):
                     "Active Test Case-linked, non-archived retest executions."),
         "demo-approved": ("Approved demos", [d for d in demos if d.get("status") == "Approved"],
                            "Demo records whose status is Approved."),
+        "bassett-tests-needing-attention": (
+            "Tests Needing Attention", attention_runs,
+            "Bassett Test Runs with Needs Improvement, Fail, Critical Fail, or legacy Blocked results.",
+        ),
+        "scenario-coverage": (
+            "Scenario Coverage", scenario_records,
+            "All active Test Bank scenarios. Covered scenarios have a qualifying completed evaluation; Draft and Not Evaluated runs are excluded.",
+        ),
     }
+    severity_slug_labels = {
+        "very-low": "Very Low", "low": "Low", "medium": "Medium",
+        "high": "High", "critical": "Critical",
+    }
+    for scope_name, scoped_findings in (
+        ("bassett", bassett_open_findings),
+        ("comparison", comparison_open_findings),
+    ):
+        for severity_slug, severity_label in severity_slug_labels.items():
+            definitions[f"{scope_name}-open-findings-{severity_slug}"] = (
+                f"{scope_name.title()} Open {severity_label} Findings",
+                [
+                    finding for finding in scoped_findings
+                    if _all_finding_severity_counts([finding])[severity_label]
+                ],
+                f"Unresolved {severity_label} findings in the {scope_name.title()} scope.",
+            )
     if metric not in definitions:
         raise HTTPException(404, "Unknown Dashboard metric")
     title, records, definition = definitions[metric]
@@ -8761,7 +8903,41 @@ async def dashboard_metric_records(metric: str, user=Depends(get_current_user)):
                 "value": record.get("overall_score"), "date": record.get("_dashboard_date") or (record.get("created_at") or "")[:10],
                 "secondary": f"{record.get('bassett_version') or version} · Model Comparison", "to": f"/testcases/{record.get('testcase_id')}",
             }
-        if metric in ("open-findings", "open-high-findings", "open-critical-findings", "awaiting-fix", "ready-for-retest"):
+        if metric == "bassett-tests-needing-attention":
+            issue_id = (
+                record.get("id") if record.get("_lineage_source") == "issue"
+                else record.get("issue_id") or record.get("bassett_issue_id") or record.get("source_issue_id")
+            )
+            return {
+                "id": record["id"],
+                "name": record.get("title") or record.get("test_id") or "Bassett Test Run",
+                "type": f"Bassett-Only · {_dashboard_bassett_test_type(record) or 'Test Run'}",
+                "status": _canonical_bassett_result(record.get("result")),
+                "raw_status": record.get("result"),
+                "value": record.get("overall_score") if record.get("overall_score") is not None else record.get("score"),
+                "date": (record.get("test_date") or record.get("created_at") or "")[:10],
+                "secondary": record.get("bassett_version") or "Bassett Test Bank",
+                "to": f"/bassett/issues?open={issue_id}" if issue_id else None,
+            }
+        if metric == "scenario-coverage":
+            run = record.get("_coverage_run") or {}
+            covered = bool(
+                run
+                and _dashboard_bassett_result_is_eligible(run)
+                and _bassett_version_is_required(run)
+            )
+            return {
+                "id": record["id"],
+                "name": record.get("test_scenario") or record.get("title") or record.get("stable_id") or "Test Bank scenario",
+                "type": "Test Bank Scenario",
+                "status": "Covered" if covered else "No qualifying evaluation",
+                "raw_status": run.get("result"),
+                "value": run.get("result") if covered else None,
+                "date": (run.get("test_date") or run.get("created_at") or "")[:10],
+                "secondary": record.get("workflow_stage") or record.get("category"),
+                "to": "/bassett/test-bank",
+            }
+        if metric in ("open-findings", "open-high-findings", "open-critical-findings", "awaiting-fix", "ready-for-retest") or "-open-findings-" in metric:
             severity, _ = _canonical_severity_pair(
                 record.get("severity"), record.get("criticality"),
                 allow_invalid_severity_fallback=True,

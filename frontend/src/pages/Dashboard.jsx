@@ -1,177 +1,172 @@
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "../lib/api";
 import { Link } from "react-router-dom";
-import { StatCard, PageHeader, Section, SrTable, SampleDataBanner, sampleScopeIncludesData, MethodologyDisclosure, LimitedDataWarning } from "../components/shared";
+import { AlertTriangle, CheckCircle2, ClipboardCheck, RefreshCw, SlidersHorizontal } from "lucide-react";
+import { api } from "../lib/api";
+import { Button } from "../components/ui/button";
+import { PageHeader, Section, SampleDataBanner, sampleScopeIncludesData, MethodologyDisclosure, LimitedDataWarning, StatCard } from "../components/shared";
 import { useCollection, useSampleVisibility } from "../lib/hooks";
 import { useAuth } from "../lib/auth";
-import { Button } from "../components/ui/button";
-import {
-  FolderKanban, CheckCircle2, XCircle, AlertTriangle, Flag, ShieldAlert, Wrench, RefreshCw, Star,
-  ClipboardCheck, Activity as ActIcon,
-} from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from "recharts";
 import { dashboardRecordPath } from "../lib/routePaths";
-import { EVALUATION_SCORE_DOMAIN, EVALUATION_SCORE_TICKS, evaluationScoreOrNull, formatEvaluationScore } from "../lib/evaluationScale";
-import { MODEL_COLORS, MODEL_ORDER } from "../lib/modelColors";
-import { SafeResponsiveContainer } from "../components/SafeResponsiveContainer";
+import { MODEL_COLORS } from "../lib/modelColors";
+import { SEVERITY_LABELS } from "../lib/severity";
+import { evaluationScoreOrNull, formatEvaluationScore } from "../lib/evaluationScale";
+import { REPORTING_GROUPS } from "../lib/scoringGroups";
+
+const queryDefaults = { retry: false, staleTime: 0, gcTime: 5 * 60_000, refetchOnMount: true };
+
+function first(...values) {
+  return values.find((value) => value !== null && value !== undefined);
+}
+
+function severityRows(findings = {}, scope) {
+  const source = findings.by_severity || {};
+  return SEVERITY_LABELS.map((label) => {
+    const slug = label.toLowerCase().replace(/\s+/g, "-");
+    const candidates = [source[label], source[slug], source[slug.replace("-", "_")], source[SEVERITY_LABELS.indexOf(label) + 1]];
+    const entry = candidates.find((value) => value !== undefined);
+    const value = typeof entry === "object" ? first(entry?.[scope], entry?.count, entry?.total, entry?.open) : entry;
+    return { label, slug, value: value == null ? 0 : value };
+  });
+}
+
+function performanceRows(raw = []) {
+  const entries = Array.isArray(raw) ? raw : Object.entries(raw).map(([name, value]) => ({ name, ...(typeof value === "object" ? value : { average_score: value }) }));
+  return entries.map((entry) => ({
+    name: entry.name || entry.label || entry.category || entry.group || entry.reporting_group || "Unnamed",
+    score: evaluationScoreOrNull(first(entry.average_score, entry.avg_score, entry.score, entry.value)),
+    evaluated: first(entry.evaluated, entry.count, entry.qualifying_count, entry.score_count, 0),
+  }));
+}
+
+function useDashboardPerformance({ scope, activeVersion, userId, sampleScope, enabled }) {
+  return useQuery({
+    ...queryDefaults,
+    queryKey: ["perf", scope, activeVersion, userId, sampleScope],
+    enabled: enabled && Boolean(activeVersion),
+    queryFn: async ({ signal }) => (await api.get("/analytics/performance", { params: { version: activeVersion, scope }, signal })).data,
+  });
+}
 
 export default function Dashboard() {
-  // Dashboard metrics are mutable analytical snapshots. Keep identical
-  // in-flight requests deduplicated, but refetch them on repeat navigation.
   const auth = useAuth();
   const userId = auth?.user?.id || null;
   const sampleVisibility = useSampleVisibility();
   const sampleScope = sampleVisibility.includeSampleRecords ? "included" : "excluded";
-  // Keep dashboard responses isolated by both authenticated user and the
-  // server-side sample-record preference. The preference query is shared with
-  // the banner/control, so this does not create a second preference request.
-  const dashboardEnabled = (auth ? auth.loading === false && Boolean(userId) : true)
-    && !sampleVisibility.isLoading;
-  const dashboardQueryOptions = {
-    retry: false, staleTime: 0, gcTime: 5 * 60_000, refetchOnMount: true,
-    enabled: dashboardEnabled,
-  };
-  const stats = useQuery({ ...dashboardQueryOptions, queryKey: ["stats", userId, sampleScope], queryFn: async ({ signal } = {}) => (await api.get("/dashboard/stats", { signal })).data });
-  const metrics = useQuery({ ...dashboardQueryOptions, queryKey: ["metrics", userId, sampleScope], queryFn: async ({ signal } = {}) => (await api.get("/metrics/summary", { signal })).data });
-  const s = stats.data || {}, m = metrics.data || {};
+  const enabled = (auth ? auth.loading === false && Boolean(userId) : true) && !sampleVisibility.isLoading;
+  const options = { ...queryDefaults, enabled };
   const versionsQuery = useCollection("versions");
-  const activeVersionName = m?.active_version || versionsQuery.data?.find((version) => version.active)?.name || "";
-  const perfQuery = useQuery({
-    ...dashboardQueryOptions,
-    queryKey: ["perf", activeVersionName, userId, sampleScope],
-    enabled: dashboardEnabled && Boolean(activeVersionName),
-    // The versions reference query runs in parallel with stats and metrics.
-    // Performance therefore no longer waits for metrics to resolve merely to
-    // discover the active version.
-    queryFn: async ({ signal } = {}) => (await api.get("/analytics/performance", { params: { version: activeVersionName }, signal })).data,
+  const stats = useQuery({ ...options, queryKey: ["stats", userId, sampleScope], queryFn: async ({ signal }) => (await api.get("/dashboard/stats", { signal })).data });
+  const metrics = useQuery({ ...options, queryKey: ["metrics", userId, sampleScope], queryFn: async ({ signal }) => (await api.get("/metrics/summary", { signal })).data });
+  const m = metrics.data || {};
+  const activeVersion = m.active_version || versionsQuery.data?.find((version) => version.active)?.name || "";
+  const bassettMetrics = useQuery({
+    ...options,
+    queryKey: ["bassett-metrics", activeVersion, userId, sampleScope],
+    enabled: enabled && Boolean(activeVersion),
+    queryFn: async ({ signal }) => (await api.get("/bassett/metrics", { params: { version_id: activeVersion }, signal })).data,
   });
-  const bc = m.bassett_current || {}, comparison = m.bassett_comparison || bc;
-  const bassettOnly = m.bassett_only || {
-    pass_rate: null, label: "No eligible records", population_label: "Bassett-only Test Runs",
-    definition: "Eligible standalone Bassett-only Test Runs for the active version.",
-  };
-  const ame = m.all_model_evaluations || { label: "—", definition: "All model evaluation records." };
-  const fnd = m.findings || { open: "—", open_critical: "—", open_high: "—", open_critical_count: "—", awaiting_fix: "—", ready_for_retest: "—", definition: "Finding workflow records." };
-  const avgScore = m.bassett_avg_score || { value: null, unit: "avg overall score /10", definition: "Average Bassett score for the active version." };
-  const versionLabel = m.active_version || "No active version";
-  const sampleDataShown = sampleScopeIncludesData({
-    versions: versionsQuery.data || [],
-    selectedVersion: m.active_version || "",
-    records: [m, s, perfQuery.data],
-  });
-  const cards = [
-    { label: "Model Comparison — Bassett Pass Rate", value: comparison.pass_rate != null ? `${comparison.pass_rate}%` : "N/A", sub: `${comparison.label} · ${versionLabel}`, limitedData: comparison.limited_data || comparison.evaluated, title: comparison.definition, icon: CheckCircle2, accent: "#16a34a", to: dashboardRecordPath("model-comparison-pass-rate") },
-    { label: "Bassett-Only Pass Rate", value: bassettOnly.pass_rate != null ? `${bassettOnly.pass_rate}%` : "N/A", sub: `${bassettOnly.label} · ${versionLabel}`, limitedData: bassettOnly.limited_data || bassettOnly.evaluated, title: bassettOnly.definition, icon: CheckCircle2, accent: "#0f766e", to: dashboardRecordPath("bassett-only-pass-rate") },
-    { label: "Bassett Failed", value: comparison.failed, sub: `of ${comparison.evaluated} evaluated comparisons · ${versionLabel}`, title: comparison.definition, icon: XCircle, accent: "#dc2626", to: dashboardRecordPath("bassett-failed") },
-     { label: "Bassett Avg Score", value: avgScore.value ?? "—", sub: `${avgScore.unit} · ${versionLabel}`, limitedData: avgScore.limited_data || avgScore.evaluated || comparison.evaluated, title: avgScore.definition, icon: ActIcon, accent: MODEL_COLORS.Bassett, to: dashboardRecordPath("bassett-score") },
-    { label: "All Model Evaluations", value: ame.label, sub: "Bassett + ChatGPT + Claude mixed", title: ame.definition, icon: ClipboardCheck, accent: "#2f3f96", to: dashboardRecordPath("all-model-evaluations") },
-     { label: "Open Findings (all severities)", value: fnd.open, sub: `High + Critical total: ${fnd.open_critical}`, title: fnd.definition, icon: Flag, accent: "#f97316", to: dashboardRecordPath("open-findings") },
-    { label: "Open High Findings", value: fnd.open_high, sub: "High severity", title: fnd.definition, icon: ShieldAlert, accent: "#ea580c", to: dashboardRecordPath("open-high-findings") },
-    { label: "Open Critical Findings", value: fnd.open_critical_count, sub: "Critical severity", title: fnd.definition, icon: ShieldAlert, accent: "#dc2626", to: dashboardRecordPath("open-critical-findings") },
-    { label: "Awaiting Fix", value: fnd.awaiting_fix, sub: "open findings in dev", title: fnd.definition, icon: Wrench, accent: "#2f3f96", to: dashboardRecordPath("awaiting-fix") },
-    { label: "Ready for Retest", value: fnd.ready_for_retest, sub: "findings awaiting retest", title: fnd.definition, icon: RefreshCw, accent: "#0ea5e9", to: dashboardRecordPath("ready-for-retest") },
-    { label: "Active Projects", value: s.active_projects, sub: "testing projects", title: "Testing Projects whose status is Active.", icon: FolderKanban, accent: "#16215a", to: dashboardRecordPath("active-projects") },
-    { label: "Demo Approved", value: s.demo_approved, sub: "demo library", title: "Demo records whose status is Approved.", icon: Star, accent: "#f59e0b", to: dashboardRecordPath("demo-approved") },
+  const bassettPerformance = useDashboardPerformance({ scope: "bassett", activeVersion, userId, sampleScope, enabled });
+  const comparisonPerformance = useDashboardPerformance({ scope: "comparison", activeVersion, userId, sampleScope, enabled });
+  const s = stats.data || {};
+  const findings = m.findings || {};
+  const bassett = m.bassett_only || {};
+  const comparison = m.bassett_comparison || {};
+  const versionLabel = activeVersion || "No active version";
+  const sampleShown = sampleScopeIncludesData({ versions: versionsQuery.data || [], selectedVersion: activeVersion, records: [m, s, bassettMetrics.data] });
+  const bassettWorkspace = bassettMetrics.data || {};
+  const needsAttention = first(bassettWorkspace.test_runs?.attention, "N/A");
+  const coverage = bassettWorkspace.test_runs?.test_bank_coverage;
+  const kpis = [
+    { label: "Bassett-Only Pass Rate", value: bassett.pass_rate == null ? "N/A" : `${bassett.pass_rate}%`, sub: `${first(bassett.label, "Bassett-only test runs")} · ${versionLabel}`, icon: CheckCircle2, accent: "#0f766e", to: dashboardRecordPath("bassett-only-pass-rate"), title: bassett.definition },
+    { label: "Model Comparison Pass Rate", value: comparison.pass_rate == null ? "N/A" : `${comparison.pass_rate}%`, sub: `${first(comparison.label, "Model comparison runs")} · ${versionLabel}`, icon: CheckCircle2, accent: "#16a34a", to: dashboardRecordPath("model-comparison-pass-rate"), title: comparison.definition },
+    { label: "Tests Needing Attention", value: needsAttention, sub: "Needs Improvement, Fail, Critical Fail, or Blocked", icon: AlertTriangle, accent: "#c2410c", to: dashboardRecordPath("bassett-tests-needing-attention"), title: bassettWorkspace.test_runs?.definition },
+    { label: "Scenario Coverage", value: coverage ? `${coverage.percent}%` : "N/A", sub: coverage ? `${coverage.covered}/${coverage.total} active scenarios evaluated` : "Active Test Bank scenarios", icon: ClipboardCheck, accent: "#2f3f96", to: dashboardRecordPath("scenario-coverage"), title: bassettWorkspace.test_runs?.definition },
   ];
-  const hasModelComparisonMetrics = Number(comparison.evaluated || 0) > 0;
-  const groups = [
-    { title: "Bassett Quality", description: hasModelComparisonMetrics ? "Current-version quality and model evaluation outcomes." : "Current-version Bassett-only quality.", cards: hasModelComparisonMetrics ? cards.slice(0, 5) : [cards[1]], showComparisonSetup: !hasModelComparisonMetrics, query: metrics, loadingTitle: "Loading quality metrics…" },
-    { title: "Finding Workflow", description: "Open issues moving from confirmation through retest.", cards: cards.slice(5, 10), query: metrics, loadingTitle: "Loading finding workflow…" },
-    { title: "Program Operations", description: "Active projects and approved demonstration assets.", cards: cards.slice(10, 12), query: stats, loadingTitle: "Loading program operations…" },
-  ];
-
-  const modelData = (perfQuery.data?.model_summary || [])
-    .map((row) => ({ name: row.model, score: evaluationScoreOrNull(row.avg_score), evaluated: row.score_count ?? row.evaluated }))
-    .filter((row) => row.score !== null);
+  const loadingAny = metrics.isLoading || bassettMetrics.isLoading;
   return (
-    <div>
+    <div className="min-w-0">
       <PageHeader title="QA Dashboard" subtitle={`Scope: Active version: ${versionLabel} · Bassett dashboard scope · archived and unfinished records excluded.`} />
-      <SampleDataBanner show={sampleDataShown} />
-      {!m.active_version && <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-        <span><strong>Set an active Bassett version</strong> to calculate current-version pass rates and average scores.</span>
-        <Button asChild size="sm"><Link to="/admin">Manage Bassett versions</Link></Button>
-      </div>}
-      <div className="grid gap-4 mb-6 xl:grid-cols-2" aria-label={!metrics.data || !stats.data ? "Loading dashboard sections" : "Dashboard metric groups"}>
-        {groups.map((group) => <section key={group.title} className="rounded-xl border bg-card p-4" data-testid="dashboard-metric-group" aria-labelledby={`dashboard-${group.title.toLowerCase().replace(/\s+/g, "-")}`}>
-          <div className="mb-3">
-            <h2 id={`dashboard-${group.title.toLowerCase().replace(/\s+/g, "-")}`} className="font-display font-semibold text-[var(--navy)]">{group.title}</h2>
-            <p className="text-xs text-muted-foreground">{group.description}</p>
-          </div>
-          {group.query.isLoading && !group.query.data ? <DashboardState compact title={group.loadingTitle} /> : group.query.isError && !group.query.data ? (
-            <InlineError error={group.query.error} retry={group.query.refetch} />
-          ) : <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {group.cards.map((c) => <StatCard key={c.label} {...c} showInfo={false} showCalculation={false} testid={`stat-${c.label.toLowerCase().replace(/\s+/g, "-")}`} />)}
-              {group.showComparisonSetup && <div className="flex min-h-36 flex-col justify-center rounded-xl border border-dashed bg-[var(--paper)] p-4 sm:col-span-1" data-testid="dashboard-comparison-setup">
-                <h3 className="font-semibold text-[var(--navy)]">Model Comparison metrics are not available yet</h3>
-                <p className="mt-1 text-xs text-muted-foreground">Complete a Model Comparison test for the active Bassett version to populate pass rate, failures, average score, and model evaluation metrics.</p>
-                <Button asChild size="sm" variant="outline" className="mt-3 self-start"><Link to="/testcases">Open Model Comparison Test Cases</Link></Button>
-              </div>}
-            </div>}
-        </section>)}
-      </div>
+      <SampleDataBanner show={sampleShown} />
+      {!activeVersion && <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"><span><strong>Set an active Bassett version</strong> to calculate current-version metrics.</span><Button asChild size="sm"><Link to="/admin">Manage Bassett versions</Link></Button></div>}
 
-      <div className="min-w-0">
-        <div className="min-w-0">
-          <Section title="Bassett vs. Benchmark Models — Average Score">
-            <p className="text-xs text-muted-foreground mb-3">{perfQuery.data?.scope || `Latest evaluations; Bassett limited to ${versionLabel}.`}</p>
-            <p className="text-xs text-muted-foreground mb-3">Scale: 0–10. Missing model scores are unavailable and are not plotted as zero.</p>
-            {perfQuery.isLoading ? <DashboardState compact title="Loading chart…" detail="Loading active-version model scores." /> : perfQuery.isError ? (
-              <InlineError error={perfQuery.error} retry={perfQuery.refetch} />
-            ) : modelData.length === 0 ? (
-              <div className="flex min-h-36 flex-col items-center justify-center gap-3 rounded-lg border border-dashed px-4 py-8 text-center">
-                <p className="text-sm text-muted-foreground">No scored model evaluations exist for this scope.</p>
-                <Button asChild size="sm" variant="outline"><Link to="/testcases">Create or evaluate a comparison test case</Link></Button>
-              </div>
-            ) : <SafeResponsiveContainer height={260} testId="dashboard-model-chart">
-              <BarChart data={modelData}>
-                <XAxis dataKey="name" tick={{ fontSize: 13 }} />
-                <YAxis domain={EVALUATION_SCORE_DOMAIN} ticks={EVALUATION_SCORE_TICKS} tick={{ fontSize: 12 }} />
-                <Tooltip formatter={(value) => [formatEvaluationScore(value), "Average score (0–10)"]} />
-                <Bar dataKey="score" radius={[6, 6, 0, 0]}>
-                  {modelData.map((d, i) => <Cell key={i} fill={MODEL_COLORS[d.name] || "#64748b"} />)}
-                </Bar>
-              </BarChart>
-            </SafeResponsiveContainer>}
-            <SrTable caption={`Average model scores. Scale: 0 to 10. ${perfQuery.data?.scope || ""}`} columns={["Model", "Average score out of 10"]} rows={modelData.map((row) => [row.name, formatEvaluationScore(row.score)])} />
-            <div className="flex gap-4 mt-3 text-xs text-muted-foreground flex-wrap" aria-label="Model color legend">
-              {MODEL_ORDER.filter((model) => modelData.some((row) => row.name === model)).map((model) => (
-                <span key={model} className="flex items-center gap-2"><i className="h-3 w-3 rounded" style={{ background: MODEL_COLORS[model] }} />{model}</span>
-              ))}
-            </div>
-             {modelData.map((row) => <LimitedDataWarning key={`${row.name}-limited`} evaluated={row.evaluated} />)}
-          </Section>
+      <section aria-labelledby="dashboard-kpis" className="mb-5">
+        <h2 id="dashboard-kpis" className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Primary KPIs</h2>
+        {loadingAny && (!metrics.data || !bassettMetrics.data) ? <DashboardState title="Loading primary metrics…" /> : (metrics.isError || bassettMetrics.isError) ? <InlineError retry={() => Promise.all([metrics.refetch(), bassettMetrics.refetch()])} /> : <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">{kpis.map((card) => <StatCard key={card.label} {...card} showInfo={false} showCalculation={false} testid={`stat-${card.label.toLowerCase().replace(/\s+/g, "-")}`} />)}</div>}
+      </section>
+
+      <section aria-labelledby="dashboard-performance" className="mb-5">
+        <h2 id="dashboard-performance" className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Performance</h2>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <PerformancePanel title="Bassett-Only Performance" query={bassettPerformance} data={bassettPerformance.data || {}} scope="bassett" version={versionLabel} />
+          <PerformancePanel title="Model Comparison Performance" query={comparisonPerformance} data={comparisonPerformance.data || {}} scope="comparison" version={versionLabel} />
         </div>
-      </div>
+      </section>
+
+      <CategorySection query={bassettPerformance} />
+
+      <section aria-labelledby="dashboard-findings" className="mb-5">
+        <h2 id="dashboard-findings" className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Findings and action</h2>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <FindingsPanel title="Bassett Findings" scope="bassett" findings={findings} total={first(findings.bassett_open, findings.open, 0)} />
+          <FindingsPanel title="Model Comparison Findings" scope="comparison" findings={findings} total={first(findings.comparison_open, 0)} />
+        </div>
+      </section>
+
       <MethodologyDisclosure title="How dashboard metrics are calculated" testid="dashboard-methodology">
-          <p>Dashboard cards use the active Bassett version and the current dashboard scope. Each Test Bank definition or Test Case contributes only its latest qualifying record.</p>
-          <p>Pass includes <strong className="text-foreground">Pass</strong> and <strong className="text-foreground">Pass with Minor Issues</strong>. Incomplete, draft, not-evaluated, archived, and out-of-scope records are excluded. Retests and variants remain separate unless the card definition explicitly includes them.</p>
-          <p>Model Comparison cards use complete, non-partial comparison runs. Bassett-only cards include eligible Single Prompt and Multi-Turn Conversation runs and exclude anything linked to or expanded into Model Comparison.</p>
-          <p>Missing and N/A scores are unavailable rather than zero. Every card opens the exact numerator/denominator population used for its displayed metric, with source navigation to the relevant record.</p>
-           <div data-testid="dashboard-reporting-groups-methodology">
-             <h3 className="font-semibold text-sm text-[var(--navy)]">Bassett Reporting Groups</h3>
-             <p className="mt-1">Seven reporting groups consolidate the 12 stored scoring dimensions. Configured weights apply only to applicable scored values; missing and N/A values are excluded, never treated as zero.</p>
-           </div>
+        <p>Performance and action metrics use the active Bassett version and the current dashboard scope. Finding totals span unresolved findings across visible versions. Archived, unfinished, missing, and N/A records are excluded; missing scores are never treated as zero.</p>
+        <p>Pass includes <strong className="text-foreground">Pass</strong> and <strong className="text-foreground">Pass with Minor Issues</strong>. Bassett-only and Model Comparison populations remain separate, and each link opens the exact source population used for its metric.</p>
       </MethodologyDisclosure>
     </div>
   );
 }
 
-function isAuthenticationError(error) {
-  return error?.response?.status === 401 || error?.response?.status === 403;
+function PerformancePanel({ title, query, data, scope, version }) {
+  const rows = (data?.model_summary || data?.summary || []).map((row) => ({ name: row.model || row.name || "Model", score: evaluationScoreOrNull(first(row.avg_score, row.average_score, row.score)), evaluated: first(row.evaluated, row.score_count, row.count, 0) })).filter((row) => row.score !== null);
+  const bassettRow = (data?.model_summary || []).find((row) => row.model === "Bassett");
+  const average = first(data?.average_score, data?.avg_score, bassettRow?.avg_score);
+  const scoreCount = first(bassettRow?.score_count, 0);
+  const evaluatedResults = Number(bassettRow?.passed || 0) + Number(bassettRow?.failed || 0);
+  const evaluated = first(data?.evaluated, data?.evaluated_count, evaluatedResults);
+  const passRate = first(data?.pass_rate, data?.passRate, evaluatedResults ? Math.round((Number(bassettRow?.passed || 0) / evaluatedResults) * 1000) / 10 : null);
+  return <Section title={title}><p className="mb-3 text-xs text-muted-foreground">Scope: {scope === "bassett" ? "Bassett-only" : "Model Comparison"} · {version}</p>
+    {query.isLoading ? <DashboardState compact title="Loading performance…" /> : query.isError ? <InlineError retry={query.refetch} /> : rows.length === 0 ? <EmptyCompact /> : <div className="space-y-2">{rows.map((row) => <div key={row.name} className="grid grid-cols-[minmax(72px,1fr)_minmax(90px,2fr)_auto] items-center gap-2 text-xs"><span className="truncate font-medium">{row.name}</span><div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full" style={{ width: `${(row.score / 10) * 100}%`, background: MODEL_COLORS[row.name] || "var(--navy)" }} /></div><span className="font-mono text-muted-foreground">{formatEvaluationScore(row.score)}</span></div>)}</div>}
+    <div className="mt-4 grid grid-cols-3 gap-2 border-t pt-3 text-xs"><Metric label={`Average score (n=${scoreCount})`} value={average == null ? "N/A" : formatEvaluationScore(average)} /><Metric label="Evaluated results" value={evaluated} /><Metric label="Pass rate" value={passRate == null ? "N/A" : `${passRate}%`} /></div>
+    <LimitedDataWarning evaluated={evaluated} />
+  </Section>;
 }
 
-function DashboardState({ title, detail, compact = false }) {
-  return <div role="status" className={`${compact ? "py-8" : "min-h-[40vh]"} flex flex-col items-center justify-center text-center`}>
-    <RefreshCw className="animate-spin text-[var(--orange)] mb-2" size={20} />
-    <div className="font-semibold text-[var(--navy)]">{title}</div>
-    {detail && <div className="text-sm text-muted-foreground mt-1">{detail}</div>}
-  </div>;
+function CategorySection({ query }) {
+  const [showEmpty, setShowEmpty] = useState(false);
+  const categories = useMemo(() => {
+    const evaluated = performanceRows(query.data?.by_category || []);
+    const byName = new Map(evaluated.map((row) => [row.name, row]));
+    return [...new Set(["Research", "Analysis", ...evaluated.map((row) => row.name)])]
+      .map((name) => byName.get(name) || { name, score: null, evaluated: 0 });
+  }, [query.data]);
+  const groups = useMemo(() => {
+    const evaluated = performanceRows(query.data?.reporting_groups || []);
+    const byName = new Map(evaluated.map((row) => [row.name, row]));
+    return REPORTING_GROUPS.map((group) => byName.get(group.label) || { name: group.label, score: null, evaluated: 0 });
+  }, [query.data]);
+  const visibleCategories = categories.filter((row) => showEmpty || Number(row.evaluated) > 0);
+  const visibleGroups = groups.filter((row) => row.score !== null);
+  return <section aria-labelledby="dashboard-categories" className="mb-5 rounded-xl border bg-card p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><h2 id="dashboard-categories" className="font-display font-semibold text-[var(--navy)]">Performance by Category / Bassett Reporting Group</h2><p className="text-xs text-muted-foreground">Qualifying evaluated scores only; missing and N/A values are excluded.</p></div><button type="button" className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)]" aria-pressed={showEmpty} onClick={() => setShowEmpty((value) => !value)}><SlidersHorizontal size={13} /> {showEmpty ? "Hide categories without results" : "Show categories without results"}</button></div>
+    {query.isLoading && !query.data ? <DashboardState compact title="Loading categories…" /> : query.isError ? <InlineError retry={query.refetch} /> : (visibleCategories.length === 0 && visibleGroups.length === 0) ? <EmptyCompact /> : <div className="mt-4 grid gap-x-8 gap-y-4 lg:grid-cols-2"><CompactBars title="Categories" rows={visibleCategories} /><CompactBars title="Bassett Reporting Groups" rows={visibleGroups} /></div>}
+    <details data-testid="dashboard-reporting-groups-methodology" className="mt-4 border-t pt-3 text-xs text-muted-foreground"><summary className="cursor-pointer font-semibold text-[var(--navy)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)]">About Bassett Reporting Groups</summary><p className="mt-2">Seven reporting groups consolidate the 12 stored scoring dimensions. Configured weights apply only to applicable scored values; missing and N/A scores are excluded, never treated as zero.</p></details>
+  </section>;
 }
 
-function InlineError({ error, retry }) {
-  return <div role="alert" className="py-8 text-center">
-    <p className="text-sm text-muted-foreground">{isAuthenticationError(error) ? "Your session expired." : "This section could not be loaded."}</p>
-    <Button size="sm" variant="outline" className="mt-2" onClick={() => retry()}><RefreshCw size={13} className="mr-1" /> Retry</Button>
-  </div>;
+function CompactBars({ title, rows }) {
+  return <div className="min-w-0"><h3 className="mb-2 text-xs font-semibold text-[var(--navy)]">{title}</h3>{rows.length === 0 ? <EmptyCompact /> : <div className="space-y-2">{rows.map((row) => <div key={row.name} className="grid grid-cols-[minmax(90px,1fr)_minmax(80px,2fr)_auto] items-center gap-2 text-xs"><span className="truncate" title={row.name}>{row.name}</span><div className="h-2 overflow-hidden rounded-full bg-muted">{row.score !== null && <div className="h-full rounded-full bg-[var(--orange)]" style={{ width: `${row.score * 10}%` }} />}</div><span className="font-mono text-muted-foreground">{row.score === null ? "N/A" : formatEvaluationScore(row.score)}</span></div>)}</div>}</div>;
 }
 
+function FindingsPanel({ title, scope, findings, total }) {
+  const rows = severityRows(findings, scope);
+  return <Section title={title}><div className="mb-3 flex items-baseline justify-between"><span className="text-xs text-muted-foreground">Unresolved findings</span><strong className="font-display text-xl text-[var(--navy)]">{total}</strong></div><div className="space-y-1.5">{rows.map((row) => <Link key={row.label} to={dashboardRecordPath(`${scope === "bassett" ? "bassett" : "comparison"}-open-findings-${row.slug}`)} className="grid grid-cols-[1fr_auto] rounded-md px-2 py-1.5 text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)]"><span>{row.label}</span><span className="font-mono font-semibold">{row.value}</span></Link>)}</div></Section>;
+}
+
+function Metric({ label, value }) { return <div><div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div><div className="mt-0.5 font-semibold text-[var(--navy)]">{value}</div></div>; }
+function EmptyCompact() { return <div role="status" className="rounded-md border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">No evaluated records yet</div>; }
+function DashboardState({ title, compact = false }) { return <div role="status" className={`${compact ? "py-4" : "py-8"} text-center text-sm text-muted-foreground`}><RefreshCw className="mx-auto mb-2 animate-spin" size={17} />{title}</div>; }
+function InlineError({ retry }) { return <div role="alert" className="py-4 text-center text-xs text-muted-foreground">This section could not be loaded. <Button size="sm" variant="outline" className="ml-2" onClick={() => retry()}>Retry</Button></div>; }
