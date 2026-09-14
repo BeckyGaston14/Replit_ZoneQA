@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { Button } from "../components/ui/button";
@@ -22,13 +22,17 @@ function safeRedirectPath(path) {
 export { safeRedirectPath };
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const nav = useNavigate();
   const location = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (user) nav(safeRedirectPath(location.state?.from), { replace: true });
+  }, [location.state, nav, user]);
 
   const submit = async (e) => {
     e.preventDefault(); setBusy(true); setErr("");

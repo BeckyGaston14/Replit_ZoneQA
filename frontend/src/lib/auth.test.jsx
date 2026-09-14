@@ -1,4 +1,4 @@
-import { act } from "react";
+import { act, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import {
   AuthProvider, AUTH_BOOTSTRAP_RETRY_DELAY_MS, AUTH_EXPIRED_EVENT, useAuth,
@@ -19,14 +19,17 @@ mockGet = jest.fn();
 mockPost = jest.fn();
 
 function Probe() {
-  const { user, loading } = useAuth();
-  return <div data-user={user?.id || ""} data-loading={String(loading)} />;
+  const { user, loading, login } = useAuth();
+  return <div data-user={user?.id || ""} data-loading={String(loading)}>
+    <button onClick={() => login("user@example.com", "password")}>Log in</button>
+  </div>;
 }
 
-function renderProvider() {
+function renderProvider({ strict = false, bootstrapRetries } = {}) {
   const container = document.createElement("div");
   const root = createRoot(container);
-  act(() => root.render(<AuthProvider><Probe /></AuthProvider>));
+  const provider = <AuthProvider bootstrapRetries={bootstrapRetries}><Probe /></AuthProvider>;
+  act(() => root.render(strict ? <StrictMode>{provider}</StrictMode> : provider));
   return { container, unmount: () => act(() => root.unmount()) };
 }
 
@@ -62,6 +65,59 @@ test("AuthProvider treats auth-me failure as signed out", async () => {
   await act(async () => Promise.resolve());
   expect(view.container.firstChild.getAttribute("data-loading")).toBe("false");
   expect(view.container.firstChild.getAttribute("data-user")).toBe("");
+  expect(mockGet).toHaveBeenCalledTimes(1);
+  view.unmount();
+});
+
+test("AuthProvider shares the pending session check across Strict Mode mounts", async () => {
+  let resolve;
+  mockGet.mockReturnValueOnce(new Promise((finish) => { resolve = finish; }));
+  const view = renderProvider({ strict: true, bootstrapRetries: 0 });
+  expect(mockGet).toHaveBeenCalledTimes(1);
+  expect(view.container.firstChild.getAttribute("data-loading")).toBe("true");
+  await act(async () => resolve({ data: { id: "user-1", role: "tester" } }));
+  expect(view.container.firstChild.getAttribute("data-user")).toBe("user-1");
+  view.unmount();
+});
+
+test("changing from public to protected retry policy does not repeat the session check", async () => {
+  mockGet.mockResolvedValueOnce({ data: { id: "user-1", role: "tester" } });
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  await act(async () => {
+    root.render(<AuthProvider bootstrapRetries={0}><Probe /></AuthProvider>);
+  });
+  await act(async () => {
+    root.render(<AuthProvider bootstrapRetries={2}><Probe /></AuthProvider>);
+  });
+  expect(mockGet).toHaveBeenCalledTimes(1);
+  expect(container.firstChild.getAttribute("data-user")).toBe("user-1");
+  act(() => root.unmount());
+});
+
+test("a late session success cannot overwrite a newer successful login", async () => {
+  let resolveSession;
+  mockGet.mockReturnValueOnce(new Promise((resolve) => { resolveSession = resolve; }));
+  mockPost.mockResolvedValueOnce({ data: { user: { id: "new-user", role: "tester" } } });
+  const view = renderProvider({ bootstrapRetries: 0 });
+
+  await act(async () => view.container.querySelector("button").click());
+  expect(view.container.firstChild.getAttribute("data-user")).toBe("new-user");
+  await act(async () => resolveSession({ data: { id: "old-user", role: "tester" } }));
+  expect(view.container.firstChild.getAttribute("data-user")).toBe("new-user");
+  view.unmount();
+});
+
+test("a late session 401 cannot clear a newer successful login", async () => {
+  let rejectSession;
+  mockGet.mockReturnValueOnce(new Promise((resolve, reject) => { rejectSession = reject; }));
+  mockPost.mockResolvedValueOnce({ data: { user: { id: "new-user", role: "tester" } } });
+  const view = renderProvider({ bootstrapRetries: 0 });
+
+  await act(async () => view.container.querySelector("button").click());
+  await act(async () => rejectSession({ response: { status: 401 } }));
+  expect(view.container.firstChild.getAttribute("data-user")).toBe("new-user");
+  expect(view.container.firstChild.getAttribute("data-loading")).toBe("false");
   view.unmount();
 });
 

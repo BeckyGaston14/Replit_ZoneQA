@@ -32,3 +32,20 @@ test("clears the previous user's cache before rendering the switched user's chil
   expect(container.querySelector('[data-testid="ready"]')).not.toBeNull();
   act(() => root.unmount());
 });
+
+test("renders public children without waiting while still preparing auth cache ownership", () => {
+  mockAuthState = { user: null };
+  const queryClient = new QueryClient();
+  const container = document.createElement("div");
+  const root = createRoot(container);
+
+  act(() => root.render(
+    <QueryClientProvider client={queryClient}>
+      <AuthQueryCacheBoundary block={false}><div data-testid="public-ready">Sign in</div></AuthQueryCacheBoundary>
+    </QueryClientProvider>,
+  ));
+
+  expect(container.querySelector('[data-testid="public-ready"]')).not.toBeNull();
+  expect(container.textContent).not.toContain("Preparing secure session");
+  act(() => root.unmount());
+});

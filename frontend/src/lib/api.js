@@ -38,7 +38,8 @@ api.interceptors.response.use(
     // Credential submission failures do not prove that an existing browser
     // session has expired.  All other definitive auth responses do.
     const isCredentialEndpoint = /\/auth\/(login|activate|bootstrap)(?:$|\?)/.test(url);
-    if (!isCredentialEndpoint && isDefinitiveAuthFailure(error)) {
+    const isSessionBootstrap = /\/auth\/me(?:$|\?)/.test(url);
+    if (!isCredentialEndpoint && !isSessionBootstrap && isDefinitiveAuthFailure(error)) {
       window.dispatchEvent(new Event("zoneqa:auth-expired"));
     }
     return Promise.reject(error);

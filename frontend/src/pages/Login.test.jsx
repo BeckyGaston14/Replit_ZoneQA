@@ -7,13 +7,14 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const mockLogin = jest.fn();
 const mockNavigate = jest.fn();
 let mockLocation = { state: undefined };
+let mockAuth = { login: mockLogin, user: null, loading: true };
 
 jest.mock("react-router-dom", () => ({
   useLocation: () => mockLocation,
   useNavigate: () => mockNavigate,
 }), { virtual: true });
 
-jest.mock("../lib/auth", () => ({ useAuth: () => ({ login: mockLogin }) }));
+jest.mock("../lib/auth", () => ({ useAuth: () => mockAuth }));
 jest.mock("../components/ui/button", () => ({
   Button: ({ children, ...props }) => <button {...props}>{children}</button>,
 }));
@@ -47,6 +48,24 @@ beforeEach(() => {
   mockLogin.mockReset();
   mockNavigate.mockReset();
   mockLocation = { state: undefined };
+  mockAuth = { login: mockLogin, user: null, loading: true };
+});
+
+test("Login renders the form immediately while the session check is pending", () => {
+  const view = renderLogin();
+  expect(view.container.querySelector("form")).not.toBeNull();
+  expect(view.container.querySelector("#login-email")).not.toBeNull();
+  expect(view.container.textContent).toContain("ZoneQA");
+  expect(view.container.querySelector('[role="alert"]')).toBeNull();
+  view.unmount();
+});
+
+test("Login redirects an already authenticated session to the requested page", () => {
+  mockLocation = { state: { from: "/reports?kind=release" } };
+  mockAuth = { login: mockLogin, user: { id: "user-1" }, loading: false };
+  const view = renderLogin();
+  expect(mockNavigate).toHaveBeenCalledWith("/reports?kind=release", { replace: true });
+  view.unmount();
 });
 
 test("Login has stable accessible fields and announces invalid credentials", async () => {

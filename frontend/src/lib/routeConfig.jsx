@@ -1,30 +1,35 @@
-import Dashboard from "../pages/Dashboard";
-import DashboardRecords from "../pages/DashboardRecords";
-import Performance from "../pages/Performance";
-import TestCases from "../pages/TestCases";
-import TestCaseDetail from "../pages/TestCaseDetail";
-import VariantComparison from "../pages/VariantComparison";
-import Comparison from "../pages/Comparison";
-import Findings from "../pages/Findings";
-import Regression from "../pages/Regression";
-import ReleaseReadiness from "../pages/ReleaseReadiness";
-import Executive from "../pages/Executive";
-import Coverage from "../pages/Coverage";
-import Insights from "../pages/Insights";
-import CalendarPage from "../pages/CalendarPage";
-import Demos from "../pages/Demos";
-import Reports from "../pages/Reports";
-import Admin from "../pages/Admin";
-import DataIntegrity from "../pages/DataIntegrity";
-import AccountSecurity from "../pages/AccountSecurity";
-import AuditDetail from "../pages/AuditDetail";
-import BassettIssues from "../pages/BassettIssues";
-import BassettTestBank from "../pages/BassettTestBank";
-import { Projects, Municipalities, Properties, Evidence } from "../pages/Resources";
+import { lazy } from "react";
 import { ROUTES } from "./routePaths";
 export { NAV_SECTIONS } from "./navigationConfig";
 
 export { ROUTES } from "./routePaths";
+
+const Dashboard = lazy(() => import("../pages/Dashboard"));
+const DashboardRecords = lazy(() => import("../pages/DashboardRecords"));
+const Performance = lazy(() => import("../pages/Performance"));
+const TestCases = lazy(() => import("../pages/TestCases"));
+const TestCaseDetail = lazy(() => import("../pages/TestCaseDetail"));
+const VariantComparison = lazy(() => import("../pages/VariantComparison"));
+const Comparison = lazy(() => import("../pages/Comparison"));
+const Findings = lazy(() => import("../pages/Findings"));
+const Regression = lazy(() => import("../pages/Regression"));
+const ReleaseReadiness = lazy(() => import("../pages/ReleaseReadiness"));
+const Executive = lazy(() => import("../pages/Executive"));
+const Coverage = lazy(() => import("../pages/Coverage"));
+const Insights = lazy(() => import("../pages/Insights"));
+const CalendarPage = lazy(() => import("../pages/CalendarPage"));
+const Demos = lazy(() => import("../pages/Demos"));
+const Reports = lazy(() => import("../pages/Reports"));
+const Admin = lazy(() => import("../pages/Admin"));
+const DataIntegrity = lazy(() => import("../pages/DataIntegrity"));
+const AccountSecurity = lazy(() => import("../pages/AccountSecurity"));
+const AuditDetail = lazy(() => import("../pages/AuditDetail"));
+const BassettIssues = lazy(() => import("../pages/BassettIssues"));
+const BassettTestBank = lazy(() => import("../pages/BassettTestBank"));
+const Projects = lazy(() => import("../pages/Resources").then((module) => ({ default: module.Projects })));
+const Municipalities = lazy(() => import("../pages/Resources").then((module) => ({ default: module.Municipalities })));
+const Properties = lazy(() => import("../pages/Resources").then((module) => ({ default: module.Properties })));
+const Evidence = lazy(() => import("../pages/Resources").then((module) => ({ default: module.Evidence })));
 
 export const APP_ROUTES = [
   { path: ROUTES.dashboard, component: Dashboard },

@@ -27,6 +27,8 @@ test("API interceptor ignores transient errors and dispatches definitive expiry"
   const rejected = api.interceptors.response.handlers.find((handler) => handler.rejected);
   await expect(rejected.rejected(interceptorError(503))).rejects.toEqual(expect.any(Object));
   expect(expired).not.toHaveBeenCalled();
+  await expect(rejected.rejected(interceptorError(401, undefined, "/auth/me"))).rejects.toEqual(expect.any(Object));
+  expect(expired).not.toHaveBeenCalled();
   await expect(rejected.rejected(interceptorError(401))).rejects.toEqual(expect.any(Object));
   expect(expired).toHaveBeenCalledTimes(1);
   window.removeEventListener("zoneqa:auth-expired", expired);

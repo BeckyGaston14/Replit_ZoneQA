@@ -10,6 +10,7 @@ jest.mock("@/App.css", () => ({}), { virtual: true });
 jest.mock("@/index.css", () => ({}), { virtual: true });
 jest.mock("@/lib/auth", () => ({ AuthProvider: ({ children }) => children, useAuth: () => mockAuth }), { virtual: true });
 jest.mock("@/components/Layout", () => ({ children }) => <div data-testid="layout">{children}</div>, { virtual: true });
+jest.mock("./lib/authQueryCache", () => ({ AuthQueryCacheBoundary: ({ children }) => children }));
 jest.mock("@/pages/Login", () => () => <div>Sign in page</div>, { virtual: true });
 jest.mock("@/pages/ActivateUser", () => () => <div>Activate page</div>, { virtual: true });
 jest.mock("@/pages/ForgotPassword", () => () => <div>Forgot password page</div>, { virtual: true });
@@ -24,14 +25,16 @@ jest.mock("react-router-dom", () => ({
   useLocation: () => mockLocation,
 }), { virtual: true });
 
-function renderProtected(roles, entry = "/comparison?tc=tc-1#detail") {
+async function renderProtected(roles, entry = "/comparison?tc=tc-1#detail") {
   const parsed = new URL(entry, "https://zoneqa.test");
   mockLocation = { pathname: parsed.pathname, search: parsed.search, hash: parsed.hash };
   const container = document.createElement("div");
   const root = createRoot(container);
-  act(() => root.render(
-    <Protected roles={roles}><div data-testid="protected-content">Authorized content</div></Protected>,
-  ));
+  await act(async () => {
+    root.render(
+      <Protected roles={roles}><div data-testid="protected-content">Authorized content</div></Protected>,
+    );
+  });
   return { container, unmount: () => act(() => root.unmount()) };
 }
 
@@ -40,29 +43,29 @@ afterEach(() => {
   mockAuth.loading = false;
 });
 
-test("Protected exposes accessible loading feedback", () => {
+test("Protected exposes accessible loading feedback", async () => {
   mockAuth.loading = true;
-  const view = renderProtected();
+  const view = await renderProtected();
   expect(view.container.querySelector('[role="status"]').textContent).toContain("Loading");
   view.unmount();
 });
 
-test("signed-out direct URL redirects to Login with the original authorized path", () => {
-  const view = renderProtected();
+test("signed-out direct URL redirects to Login with the original authorized path", async () => {
+  const view = await renderProtected();
   expect(view.container.querySelector('[data-testid="protected-content"]')).toBeNull();
   expect(view.container.querySelector('[data-testid="navigate"]').getAttribute("data-to")).toBe("/login");
   expect(view.container.querySelector('[data-testid="navigate"]').getAttribute("data-from")).toBe("/comparison?tc=tc-1#detail");
   view.unmount();
 });
 
-test("authenticated users access direct URLs while denied roles return home", () => {
+test("authenticated users access direct URLs while denied roles return home", async () => {
   mockAuth.user = { id: "admin-1", role: "admin" };
-  let view = renderProtected(["admin"]);
+  let view = await renderProtected(["admin"]);
   expect(view.container.querySelector('[data-testid="protected-content"]')).not.toBeNull();
   view.unmount();
 
   mockAuth.user = { id: "viewer-1", role: "viewer" };
-  view = renderProtected(["admin"]);
+  view = await renderProtected(["admin"]);
   expect(view.container.querySelector('[data-testid="protected-content"]')).toBeNull();
   expect(view.container.querySelector('[data-testid="navigate"]').getAttribute("data-to")).toBe("/");
   view.unmount();
