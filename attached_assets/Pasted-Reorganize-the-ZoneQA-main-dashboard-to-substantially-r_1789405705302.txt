@@ -1,0 +1,26 @@
+Reorganize the ZoneQA main dashboard to substantially reduce empty/blank space and scrolling while preserving all current calculations, scopes, drilldowns, filters, permissions, and data behavior.
+
+Implement this information hierarchy:
+1. Top row: exactly four primary KPI cards — Bassett-Only Pass Rate, Model Comparison Pass Rate, Tests Needing Attention, and Scenario Coverage. Keep existing metric definitions and make every card drill into its exact source population.
+2. Second row: two equal-width, equal-height performance panels side by side on desktop — Bassett-Only Performance on the left and Model Comparison Performance on the right. Each should show its existing compact visualization and no more than 2–3 directly useful supporting metrics. Do not mix Bassett-only and model-comparison populations.
+3. Third row: one full-width Performance by Category / Bassett Reporting Group section using compact horizontal bars. Hide categories with no qualifying evaluated results by default and provide a small Show categories without results control. Missing or N/A scores must remain excluded, never treated as zero. Put the reporting-group explanation in a collapsed disclosure inside or directly below this section.
+4. Fourth row: two compact findings/action panels side by side — Bassett Findings and Model Comparison Findings. Show unresolved totals with Very Low, Low, Medium, High, and Critical kept distinct, plus clear links that open correctly filtered records.
+5. Bottom: one collapsed dashboard-wide disclosure titled How dashboard metrics are calculated. Remove repeated per-card calculation disclosures.
+
+Layout requirements:
+- Remove fixed/minimum heights that produce blank space. Let cards size to content.
+- Equalize heights only for cards in the same desktop row.
+- For empty charts/sections, show a compact No evaluated records yet state, not a large blank plotting area.
+- Do not put Release Readiness, Regression metrics, Recent Activity, or empty reporting groups back on the main dashboard.
+- Use the existing ZoneQA visual system, semantic status colors, spacing, typography, borders, and icon conventions. Do not introduce decorative color blocks.
+- Desktop: responsive 4-column KPI row and 2-column panel rows.
+- Tablet: use 2 columns where space permits.
+- Mobile: single-column priority order with no horizontal overflow, clipped tooltips, or oversized blank cards.
+- Preserve loading, error, populated, partially populated, and empty states without layout shift.
+
+Verification:
+- Add/update focused frontend tests for exact section/order, responsive CSS behavior, empty-state compaction, scope separation, drilldown/filter links, calculation disclosure consolidation, severity separation, and Show categories without results.
+- Run the full frontend suite, affected backend/dashboard tests, production build, and startup/health checks.
+- Review the dashboard visually at desktop, tablet, and phone widths with populated and empty/partial data.
+- Independently inspect the diff for broken metrics, hidden functionality, accessibility, regressions, and unintended changes.
+- Commit only focused source/test changes. Do not change production data and do not publish. Report the exact changes, tests, and commit hash.
