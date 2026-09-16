@@ -1,0 +1,2412 @@
+{
+  "schema_version": 1,
+  "source_url": "https://docs.google.com/spreadsheets/d/1VDv4i0EeWN0eZ5ETY4S_Ijd7k4Pqe6kkb2wUfV9Tngs/edit",
+  "retrieved_on": "2026-09-16",
+  "categories": [
+    {
+      "key": "property_zoning_rules",
+      "name": "Property & Zoning Rules",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-03",
+        "G-04",
+        "G-05",
+        "G-06",
+        "G-07",
+        "G-08"
+      ]
+    },
+    {
+      "key": "sources_citations",
+      "name": "Sources & Citations",
+      "rubric_ids": [
+        "G-09",
+        "G-10"
+      ]
+    },
+    {
+      "key": "reasoning_conversation",
+      "name": "Reasoning & Conversation",
+      "rubric_ids": [
+        "G-11",
+        "G-12",
+        "G-13",
+        "G-14",
+        "G-15",
+        "G-16",
+        "G-17",
+        "G-18",
+        "G-19",
+        "G-20"
+      ]
+    },
+    {
+      "key": "analysis_next_steps",
+      "name": "Analysis & Next Steps",
+      "rubric_ids": [
+        "G-21",
+        "G-22",
+        "G-23",
+        "G-24",
+        "G-25"
+      ]
+    },
+    {
+      "key": "documents_municipal_records",
+      "name": "Documents & Municipal Records",
+      "rubric_ids": [
+        "G-26",
+        "G-27",
+        "G-28",
+        "G-29",
+        "G-30",
+        "G-31"
+      ]
+    }
+  ],
+  "rubric_items": [
+    {
+      "rubric_id": "G-01",
+      "category": "property_zoning_rules",
+      "evaluation_criterion": "Verify the property and governing jurisdiction",
+      "evaluation_complexity": "Low",
+      "why_it_matters": "Research can be wrong if it is done for the wrong property or government office.",
+      "expected_behavior": "Match the property to official records and confirm the city, county, or other agency with zoning authority.",
+      "passing_standard": "Identifies the correct property and government authority, or explains what still needs confirmation."
+    },
+    {
+      "rubric_id": "G-02",
+      "category": "property_zoning_rules",
+      "evaluation_criterion": "Provide the correct zoning district",
+      "evaluation_complexity": "Low",
+      "why_it_matters": "Using the wrong district can make every later zoning answer incorrect.",
+      "expected_behavior": "Use the current official zoning map and identify any split zoning, overlay, or boundary issue that could affect the answer.",
+      "passing_standard": "Names the correct base district and clearly identifies any split zoning, overlay, or map uncertainty."
+    },
+    {
+      "rubric_id": "G-03",
+      "category": "property_zoning_rules",
+      "evaluation_criterion": "Provide correct use regulations",
+      "evaluation_complexity": "Low",
+      "why_it_matters": "A use can be allowed in different ways, and the required approval path can change the outcome.",
+      "expected_behavior": "State whether the use is permitted, permitted with conditions, requires a conditional use permit or other approval, is prohibited, or cannot yet be determined. Include related conditions, approval standards, and supporting code sections.",
+      "passing_standard": "Correctly distinguishes the use status and identifies the applicable conditions, approval path, and any missing facts without guessing."
+    },
+    {
+      "rubric_id": "G-04",
+      "category": "property_zoning_rules",
+      "evaluation_criterion": "Classify a use and identify its approval path",
+      "evaluation_complexity": "Moderate",
+      "why_it_matters": "A use may be allowed directly, need special approval, or have extra rules.",
+      "expected_behavior": "Use definitions, use tables, footnotes, overlays, and approval conditions. State when the available facts do not support a firm classification.",
+      "passing_standard": "Identifies the likely use category, permission status, special rules, and missing facts without guessing."
+    },
+    {
+      "rubric_id": "G-05",
+      "category": "property_zoning_rules",
+      "evaluation_criterion": "Provide correct parking regulations",
+      "evaluation_complexity": "High",
+      "why_it_matters": "Parking requirements can vary by use, size, location, existing conditions, and available reductions or alternatives.",
+      "expected_behavior": "Identify the applicable parking requirements, including required spaces, calculation method, accessible parking, loading, bicycle parking, shared or off-site parking, reductions, and approval conditions when applicable. State what property details or municipal confirmation are still needed.",
+      "passing_standard": "Provides the applicable parking rules and calculation basis, identifies relevant exceptions or alternatives, and clearly separates confirmed requirements from items needing more information."
+    },
+    {
+      "rubric_id": "G-06",
+      "category": "property_zoning_rules",
+      "evaluation_criterion": "Provide complete district regulations",
+      "evaluation_complexity": "Low",
+      "why_it_matters": "Key rules can be missed if the answer relies only on a use table or short summary.",
+      "expected_behavior": "Include the relevant district rules, including uses, development standards, parking, special rules, and applicable footnotes or cross-references.",
+      "passing_standard": "Includes all material district rules needed for the request and identifies additional code sections that may affect the answer."
+    },
+    {
+      "rubric_id": "G-07",
+      "category": "property_zoning_rules",
+      "evaluation_criterion": "Provide code regulations without losing important exceptions, conditions, or footnotes",
+      "evaluation_complexity": "High",
+      "why_it_matters": "An otherwise correct summary can give the wrong result if it leaves out an exception, condition, footnote, or cross-reference in the code.",
+      "expected_behavior": "Include every material exception, condition, footnote, cross-reference, and limitation that affects the requested regulation. Clearly identify when another code section or municipal confirmation is needed.",
+      "passing_standard": "Provides the full applicable regulation with all material qualifications and points to the supporting code sections."
+    },
+    {
+      "rubric_id": "G-08",
+      "category": "property_zoning_rules",
+      "evaluation_criterion": "Explain nonconforming rules accurately",
+      "evaluation_complexity": "High",
+      "why_it_matters": "Nonconforming rights can depend on the property's history, changes, damage, timing, and permits.",
+      "expected_behavior": "Explain the rules that may apply to continuation, changes, expansion, rebuilding, damage thresholds, and timing. Identify when records or municipal confirmation are needed.",
+      "passing_standard": "Explains the applicable rules and limits without claiming rights not supported by records or municipal confirmation."
+    },
+    {
+      "rubric_id": "G-09",
+      "category": "sources_citations",
+      "evaluation_criterion": "Provide accurate citations",
+      "evaluation_complexity": "Low",
+      "why_it_matters": "Citations allow readers to trace important statements to the source material that supports them.",
+      "expected_behavior": "Cite the precise source, page, section, or record that supports each material statement. Do not use a citation that does not substantiate the statement.",
+      "passing_standard": "Each citation accurately identifies the supporting source and location, and it supports the statement it accompanies."
+    },
+    {
+      "rubric_id": "G-10",
+      "category": "sources_citations",
+      "evaluation_criterion": "Provide accurate links to associated code sections",
+      "evaluation_complexity": "Low",
+      "why_it_matters": "Direct links let the user verify the exact regulation and its related provisions.",
+      "expected_behavior": "Provide direct, current links to the official code sections that support the response, including related sections when they materially affect the answer.",
+      "passing_standard": "Every link leads to the relevant official code section and supports the statement it accompanies."
+    },
+    {
+      "rubric_id": "G-11",
+      "category": "reasoning_conversation",
+      "evaluation_criterion": "Use the active conversation context in follow-up questions",
+      "evaluation_complexity": "Moderate",
+      "why_it_matters": "Users should not have to repeat details, decisions, or limits already provided.",
+      "expected_behavior": "Use relevant facts and decisions already established in the conversation. Ask a follow-up only when an important detail is unclear, missing, or has changed.",
+      "passing_standard": "Uses the active conversation context correctly and asks only for information that is truly needed."
+    },
+    {
+      "rubric_id": "G-12",
+      "category": "reasoning_conversation",
+      "evaluation_criterion": "Ask one clear question when a request is unclear",
+      "evaluation_complexity": "Moderate",
+      "why_it_matters": "A vague request can lead to the wrong research or analysis.",
+      "expected_behavior": "Ask a short question that resolves the important uncertainty and use known facts where possible.",
+      "passing_standard": "The question is specific, necessary, and avoids asking for information already provided."
+    },
+    {
+      "rubric_id": "G-13",
+      "category": "reasoning_conversation",
+      "evaluation_criterion": "Do not guess an unknown abbreviation",
+      "evaluation_complexity": "Moderate",
+      "why_it_matters": "The same abbreviation can mean different things in different sources.",
+      "expected_behavior": "Use a definition from the source material or ask a focused question.",
+      "passing_standard": "The meaning is supported by a source or clearly left unresolved."
+    },
+    {
+      "rubric_id": "G-14",
+      "category": "reasoning_conversation",
+      "evaluation_criterion": "Clearly separate facts, assumptions, and unknowns",
+      "evaluation_complexity": "Moderate",
+      "why_it_matters": "Readers need to know what is confirmed and what still needs checking.",
+      "expected_behavior": "Label assumptions and missing information next to the affected conclusion.",
+      "passing_standard": "No assumption is presented as a fact, and important unknowns have a specific next step."
+    },
+    {
+      "rubric_id": "G-15",
+      "category": "reasoning_conversation",
+      "evaluation_criterion": "Be honest when a source or tool cannot be reached",
+      "evaluation_complexity": "Low",
+      "why_it_matters": "An unsuccessful search must not be described as completed.",
+      "expected_behavior": "Say what could not be reached, retain the verified work, and give the next useful step.",
+      "passing_standard": "Does not claim to have reviewed an unavailable source and clearly separates completed from incomplete work."
+    },
+    {
+      "rubric_id": "G-16",
+      "category": "reasoning_conversation",
+      "evaluation_criterion": "Be honest about what Bassett cannot do",
+      "evaluation_complexity": "Low",
+      "why_it_matters": "Users may assume Bassett can access systems or complete actions it cannot.",
+      "expected_behavior": "State the limitation plainly and give the best practical next step.",
+      "passing_standard": "Does not claim access, submission, download, or completion without evidence."
+    },
+    {
+      "rubric_id": "G-17",
+      "category": "reasoning_conversation",
+      "evaluation_criterion": "Do not treat missing information as a negative answer",
+      "evaluation_complexity": "Moderate",
+      "why_it_matters": "Not finding a record does not prove that the record or approval does not exist.",
+      "expected_behavior": "State what was searched, what was not found, and which source could confirm the answer.",
+      "passing_standard": "Does not turn a missing search result into a definite negative finding."
+    },
+    {
+      "rubric_id": "G-18",
+      "category": "reasoning_conversation",
+      "evaluation_criterion": "Apply a user correction everywhere it matters",
+      "evaluation_complexity": "Moderate",
+      "why_it_matters": "A correction should change every affected conclusion, not just one sentence.",
+      "expected_behavior": "Update all related statements, conclusions, and next steps that rely on the corrected fact.",
+      "passing_standard": "No earlier version of the corrected information remains in the result."
+    },
+    {
+      "rubric_id": "G-19",
+      "category": "reasoning_conversation",
+      "evaluation_criterion": "Answer every part of a multi-part request",
+      "evaluation_complexity": "Moderate",
+      "why_it_matters": "Missing one part can leave the user without a usable answer.",
+      "expected_behavior": "Track each requested item and answer all of them, or explain why an item cannot be completed.",
+      "passing_standard": "Every requested item has an answer, status, or clear next step."
+    },
+    {
+      "rubric_id": "G-20",
+      "category": "reasoning_conversation",
+      "evaluation_criterion": "Stay within the user's requested scope",
+      "evaluation_complexity": "Moderate",
+      "why_it_matters": "Extra work can add confusion or change work the user did not ask to change.",
+      "expected_behavior": "Complete the requested task and identify optional follow-up work without doing it automatically.",
+      "passing_standard": "Covers the requested work without unrelated changes."
+    },
+    {
+      "rubric_id": "G-21",
+      "category": "analysis_next_steps",
+      "evaluation_criterion": "Keep property facts separate when comparing two properties",
+      "evaluation_complexity": "High",
+      "why_it_matters": "Using facts from the wrong property can make an answer unreliable.",
+      "expected_behavior": "Use only each property's verified details and clearly label shared information.",
+      "passing_standard": "No address, parcel, approval, or conclusion from one property appears in the other property's result."
+    },
+    {
+      "rubric_id": "G-22",
+      "category": "analysis_next_steps",
+      "evaluation_criterion": "Keep research separate from property analysis",
+      "evaluation_complexity": "Moderate",
+      "why_it_matters": "Listing rules is different from deciding how they apply to a property.",
+      "expected_behavior": "For research, provide current rules and sources without deciding compliance. For analysis, apply rules only to supported property facts.",
+      "passing_standard": "Clearly states whether the response is research or analysis and does not make a compliance decision when only research was requested."
+    },
+    {
+      "rubric_id": "G-23",
+      "category": "analysis_next_steps",
+      "evaluation_criterion": "Give the right next step or CTA when one is needed",
+      "evaluation_complexity": "Moderate",
+      "why_it_matters": "A useful answer should tell the user what to do next when an important fact is missing or a separate review is needed.",
+      "expected_behavior": "When the answer cannot be completed with available information, give a specific next step, such as a municipal request, needed document, approval, or expert review. Do not add one when no action is needed.",
+      "passing_standard": "The next step is specific, relevant, and matches the missing information or decision; it is not vague or unnecessary."
+    },
+    {
+      "rubric_id": "G-24",
+      "category": "analysis_next_steps",
+      "evaluation_criterion": "Prepare a handoff another person can use",
+      "evaluation_complexity": "Moderate",
+      "why_it_matters": "A vague handoff forces the next reviewer to repeat work.",
+      "expected_behavior": "Summarize the task, verified findings, sources, open items, and next action.",
+      "passing_standard": "Another reviewer can see what is done, what remains, and what evidence is needed."
+    },
+    {
+      "rubric_id": "G-25",
+      "category": "analysis_next_steps",
+      "evaluation_criterion": "Separate zoning rules from other regulated-use requirements",
+      "evaluation_complexity": "Very High",
+      "why_it_matters": "Some uses also involve state licenses, utility approvals, or other agencies.",
+      "expected_behavior": "Identify the local zoning rules, then separately list outside agency, state, utility, or licensing requirements that need further review.",
+      "passing_standard": "Clearly separates zoning findings from other requirements and directs unanswered questions to the right agency or expert."
+    },
+    {
+      "rubric_id": "G-26",
+      "category": "documents_municipal_records",
+      "evaluation_criterion": "Use the document version the user says is current",
+      "evaluation_complexity": "High",
+      "why_it_matters": "Older documents can give a different answer from the current version.",
+      "expected_behavior": "Use the latest user-designated version and flag any material conflict with an older version.",
+      "passing_standard": "Relies on the correct version and explains any material conflict."
+    },
+    {
+      "rubric_id": "G-27",
+      "category": "documents_municipal_records",
+      "evaluation_criterion": "Handle incomplete or unreadable uploads honestly",
+      "evaluation_complexity": "High",
+      "why_it_matters": "A partial file can create the false impression that the full document was reviewed.",
+      "expected_behavior": "State what could be read and identify the missing pages or replacement file needed.",
+      "passing_standard": "Accurately describes the review and does not summarize unseen content."
+    },
+    {
+      "rubric_id": "G-28",
+      "category": "documents_municipal_records",
+      "evaluation_criterion": "Use surveys, plans, and municipal records correctly",
+      "evaluation_complexity": "High",
+      "why_it_matters": "Plans and records can be incomplete, outdated, or about a different property.",
+      "expected_behavior": "Check the property match, date, version, approval status, and missing pages. Separate what the record shows from what it does not show.",
+      "passing_standard": "Uses only supported document facts, identifies the correct record, and notes missing or conflicting materials."
+    },
+    {
+      "rubric_id": "G-29",
+      "category": "documents_municipal_records",
+      "evaluation_criterion": "Summarize documents without losing important exceptions, conditions, or footnotes",
+      "evaluation_complexity": "High",
+      "why_it_matters": "A summary can change the meaning if it leaves out an exception, condition, or footnote.",
+      "expected_behavior": "Keep all exceptions, conditions, footnotes, and other limits that could affect the answer.",
+      "passing_standard": "Keeps every exception, condition, or footnote that could change the decision and points to the source."
+    },
+    {
+      "rubric_id": "G-30",
+      "category": "documents_municipal_records",
+      "evaluation_criterion": "Search municipal permit records carefully",
+      "evaluation_complexity": "Moderate",
+      "why_it_matters": "Online permit searches may be incomplete or use a different property identifier.",
+      "expected_behavior": "Search official records using available identifiers, save the source and result details, and separate no result from no record.",
+      "passing_standard": "Reports the official source, property match, permit details, and any limit or follow-up request needed."
+    },
+    {
+      "rubric_id": "G-31",
+      "category": "documents_municipal_records",
+      "evaluation_criterion": "Plan a complete municipal records request",
+      "evaluation_complexity": "High",
+      "why_it_matters": "A request sent to the wrong office or missing key details can delay the report.",
+      "expected_behavior": "Identify the record type, department, recipient, portal or email, property identifiers, fee or timing information, and special instructions.",
+      "passing_standard": "Provides a complete, usable request plan and clearly labels information that still needs confirmation."
+    }
+  ],
+  "scenarios": [
+    {
+      "test_id": "A-01",
+      "test_type": "Analysis",
+      "test_scenario": "Evaluate a property for general conformance with the zoning-report regulation categories (use, setbacks, lot, height, bulk, parking), identifying applicable controls, supported findings, unresolved items, and next steps.",
+      "complexity": "Moderate",
+      "why_it_matters": "A reliable analysis requires applying the controlling sources without assuming missing property facts, approvals, or legal rights.",
+      "what_bassett_should_do": "Use current official sources to evaluate the stated scenario. State supported findings, material assumptions, limitations, and the next document, municipal, or expert review needed.",
+      "success_criteria": "Provides a source-backed, scenario-specific analysis; separates facts from assumptions; avoids unsupported certainty; and gives actionable next steps.",
+      "priority": "P0 - Immediate",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-14",
+        "G-23",
+        "G-03",
+        "G-04",
+        "G-05"
+      ]
+    },
+    {
+      "test_id": "A-02",
+      "test_type": "Analysis",
+      "test_scenario": "Evaluate the existing use or uses on a property. Identify the applicable use classification; whether each use is permitted by right, conditional or special, accessory, temporary, or potentially nonconforming; and list applicable use-specific, overlay, and approval-condition standards. Clearly distinguish supported findings from facts, records, or municipal confirmation still needed.",
+      "complexity": "High",
+      "why_it_matters": "A reliable analysis requires applying the controlling sources without assuming missing property facts, approvals, or legal rights.",
+      "what_bassett_should_do": "Use current official sources to evaluate the stated scenario. State supported findings, material assumptions, limitations, and the next document, municipal, or expert review needed.",
+      "success_criteria": "Provides a source-backed, scenario-specific analysis; separates facts from assumptions; avoids unsupported certainty; and gives actionable next steps.",
+      "priority": "P1 - High",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-14",
+        "G-23",
+        "G-03",
+        "G-04",
+        "G-08"
+      ]
+    },
+    {
+      "test_id": "A-03",
+      "test_type": "Analysis",
+      "test_scenario": "Assess a potentially legal nonconforming use, structure, lot, or site condition. Identify applicable rules on continuation, change, expansion, abandonment or discontinuance, damage, reconstruction, permitting, and time limits; determine what any rebuild threshold is based on and distinguish evidence-based findings from questions requiring records or legal or municipal review.",
+      "complexity": "High",
+      "why_it_matters": "A reliable analysis requires applying the controlling sources without assuming missing property facts, approvals, or legal rights.",
+      "what_bassett_should_do": "Use current official sources to evaluate the stated scenario. State supported findings, material assumptions, limitations, and the next document, municipal, or expert review needed.",
+      "success_criteria": "Provides a source-backed, scenario-specific analysis; separates facts from assumptions; avoids unsupported certainty; and gives actionable next steps.",
+      "priority": "P1 - High",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-14",
+        "G-23",
+        "G-08"
+      ]
+    },
+    {
+      "test_id": "A-04",
+      "test_type": "Analysis",
+      "test_scenario": "Evaluate a property with more than one zoning district; apply controls by area, avoid blanket conclusions, and identify boundary evidence needed for final analysis.",
+      "complexity": "Very High",
+      "why_it_matters": "A reliable analysis requires applying the controlling sources without assuming missing property facts, approvals, or legal rights.",
+      "what_bassett_should_do": "Use current official sources to evaluate the stated scenario. State supported findings, material assumptions, limitations, and the next document, municipal, or expert review needed.",
+      "success_criteria": "Provides a source-backed, scenario-specific analysis; separates facts from assumptions; avoids unsupported certainty; and gives actionable next steps.",
+      "priority": "P0 - Immediate",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-14",
+        "G-23",
+        "G-21"
+      ]
+    },
+    {
+      "test_id": "A-05",
+      "test_type": "Analysis",
+      "test_scenario": "Apply frontage, lot-orientation, and setback rules to a property with unusual boundaries or access; flag any classification issue needing plans or municipal confirmation.",
+      "complexity": "Very High",
+      "why_it_matters": "A reliable analysis requires applying the controlling sources without assuming missing property facts, approvals, or legal rights.",
+      "what_bassett_should_do": "Use current official sources to evaluate the stated scenario. State supported findings, material assumptions, limitations, and the next document, municipal, or expert review needed.",
+      "success_criteria": "Provides a source-backed, scenario-specific analysis; separates facts from assumptions; avoids unsupported certainty; and gives actionable next steps.",
+      "priority": "P1 - High",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-14",
+        "G-23",
+        "G-28"
+      ]
+    },
+    {
+      "test_id": "A-06",
+      "test_type": "Analysis",
+      "test_scenario": "Build an approval and zoning-history timeline for a property; identify potentially controlling documents and distinguish documented rights from unresolved gaps.",
+      "complexity": "Very High",
+      "why_it_matters": "A reliable analysis requires applying the controlling sources without assuming missing property facts, approvals, or legal rights.",
+      "what_bassett_should_do": "Use current official sources to evaluate the stated scenario. State supported findings, material assumptions, limitations, and the next document, municipal, or expert review needed.",
+      "success_criteria": "Provides a source-backed, scenario-specific analysis; separates facts from assumptions; avoids unsupported certainty; and gives actionable next steps.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-14",
+        "G-23",
+        "G-24",
+        "G-26",
+        "G-17"
+      ]
+    },
+    {
+      "test_id": "A-07",
+      "test_type": "Analysis",
+      "test_scenario": "Reconcile conflicting measurements from property sources; show how each supported figure changes the analysis and identify the authority needed to resolve the conflict.",
+      "complexity": "Very High",
+      "why_it_matters": "A reliable analysis requires applying the controlling sources without assuming missing property facts, approvals, or legal rights.",
+      "what_bassett_should_do": "Use current official sources to evaluate the stated scenario. State supported findings, material assumptions, limitations, and the next document, municipal, or expert review needed.",
+      "success_criteria": "Provides a source-backed, scenario-specific analysis; separates facts from assumptions; avoids unsupported certainty; and gives actionable next steps.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-14",
+        "G-23",
+        "G-21",
+        "G-28"
+      ]
+    },
+    {
+      "test_id": "A-08",
+      "test_type": "Analysis",
+      "test_scenario": "Evaluate a proposed change in use or development by identifying base zoning, overlays or site-specific controls, approvals, and material facts needed before a conclusion.",
+      "complexity": "Moderate",
+      "why_it_matters": "A reliable analysis requires applying the controlling sources without assuming missing property facts, approvals, or legal rights.",
+      "what_bassett_should_do": "Use current official sources to evaluate the stated scenario. State supported findings, material assumptions, limitations, and the next document, municipal, or expert review needed.",
+      "success_criteria": "Provides a source-backed, scenario-specific analysis; separates facts from assumptions; avoids unsupported certainty; and gives actionable next steps.",
+      "priority": "P0 - Immediate",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-14",
+        "G-23",
+        "G-03",
+        "G-04"
+      ]
+    },
+    {
+      "test_id": "A-09",
+      "test_type": "Analysis",
+      "test_scenario": "Classify an existing or proposed use whose operations could fit more than one code definition; identify distinguishing facts, related standards, and when municipal interpretation is needed.",
+      "complexity": "High",
+      "why_it_matters": "A reliable analysis requires applying the controlling sources without assuming missing property facts, approvals, or legal rights.",
+      "what_bassett_should_do": "Use current official sources to evaluate the stated scenario. State supported findings, material assumptions, limitations, and the next document, municipal, or expert review needed.",
+      "success_criteria": "Provides a source-backed, scenario-specific analysis; separates facts from assumptions; avoids unsupported certainty; and gives actionable next steps.",
+      "priority": "P0 - Immediate",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-14",
+        "G-23",
+        "G-03",
+        "G-04"
+      ]
+    },
+    {
+      "test_id": "A-10",
+      "test_type": "Analysis",
+      "test_scenario": "Assess a proposed development against dimensional standards, existing conditions, and possible exceptions; separate calculations from items requiring a survey, plan, or confirmation.",
+      "complexity": "Moderate",
+      "why_it_matters": "A reliable analysis requires applying the controlling sources without assuming missing property facts, approvals, or legal rights.",
+      "what_bassett_should_do": "Use current official sources to evaluate the stated scenario. State supported findings, material assumptions, limitations, and the next document, municipal, or expert review needed.",
+      "success_criteria": "Provides a source-backed, scenario-specific analysis; separates facts from assumptions; avoids unsupported certainty; and gives actionable next steps.",
+      "priority": "P0 - Immediate",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-14",
+        "G-23",
+        "G-28"
+      ]
+    },
+    {
+      "test_id": "A-11",
+      "test_type": "Analysis",
+      "test_scenario": "Analyze parking and/or access for a proposed change using the likely use category, available site data, exceptions, and the inputs needed for a reliable compliance conclusion.",
+      "complexity": "Moderate",
+      "why_it_matters": "A reliable analysis requires applying the controlling sources without assuming missing property facts, approvals, or legal rights.",
+      "what_bassett_should_do": "Use current official sources to evaluate the stated scenario. State supported findings, material assumptions, limitations, and the next document, municipal, or expert review needed.",
+      "success_criteria": "Provides a source-backed, scenario-specific analysis; separates facts from assumptions; avoids unsupported certainty; and gives actionable next steps.",
+      "priority": "P0 - Immediate",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-14",
+        "G-23",
+        "G-05"
+      ]
+    },
+    {
+      "test_id": "A-12",
+      "test_type": "Analysis",
+      "test_scenario": "Review a proposal affected by base zoning, an overlay, and site-specific controls; explain the hierarchy and any approvals or confirmations required.",
+      "complexity": "High",
+      "why_it_matters": "A reliable analysis requires applying the controlling sources without assuming missing property facts, approvals, or legal rights.",
+      "what_bassett_should_do": "Use current official sources to evaluate the stated scenario. State supported findings, material assumptions, limitations, and the next document, municipal, or expert review needed.",
+      "success_criteria": "Provides a source-backed, scenario-specific analysis; separates facts from assumptions; avoids unsupported certainty; and gives actionable next steps.",
+      "priority": "P0 - Immediate",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-14",
+        "G-23"
+      ]
+    },
+    {
+      "test_id": "A-13",
+      "test_type": "Analysis",
+      "test_scenario": "Evaluate a project with multiple uses or activities; analyze each use and shared requirements, then identify missing operational facts and approval triggers.",
+      "complexity": "Very High",
+      "why_it_matters": "A reliable analysis requires applying the controlling sources without assuming missing property facts, approvals, or legal rights.",
+      "what_bassett_should_do": "Use current official sources to evaluate the stated scenario. State supported findings, material assumptions, limitations, and the next document, municipal, or expert review needed.",
+      "success_criteria": "Provides a source-backed, scenario-specific analysis; separates facts from assumptions; avoids unsupported certainty; and gives actionable next steps.",
+      "priority": "P1 - High",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-14",
+        "G-23",
+        "G-03",
+        "G-04",
+        "G-05"
+      ]
+    },
+    {
+      "test_id": "A-14",
+      "test_type": "Analysis",
+      "test_scenario": "Analyze a proposal at or near a numerical threshold; apply measurement and rounding rules, cite exceptions, and state what blocks a final conclusion.",
+      "complexity": "High",
+      "why_it_matters": "A reliable analysis requires applying the controlling sources without assuming missing property facts, approvals, or legal rights.",
+      "what_bassett_should_do": "Use current official sources to evaluate the stated scenario. State supported findings, material assumptions, limitations, and the next document, municipal, or expert review needed.",
+      "success_criteria": "Provides a source-backed, scenario-specific analysis; separates facts from assumptions; avoids unsupported certainty; and gives actionable next steps.",
+      "priority": "P1 - High",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-14",
+        "G-23",
+        "G-28"
+      ]
+    },
+    {
+      "test_id": "A-15",
+      "test_type": "Analysis",
+      "test_scenario": "Evaluate a proposed expansion of an existing development; identify growth triggers, existing approvals, and why grandfathering or exemptions cannot be assumed.",
+      "complexity": "Very High",
+      "why_it_matters": "A reliable analysis requires applying the controlling sources without assuming missing property facts, approvals, or legal rights.",
+      "what_bassett_should_do": "Use current official sources to evaluate the stated scenario. State supported findings, material assumptions, limitations, and the next document, municipal, or expert review needed.",
+      "success_criteria": "Provides a source-backed, scenario-specific analysis; separates facts from assumptions; avoids unsupported certainty; and gives actionable next steps.",
+      "priority": "P1 - High",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-14",
+        "G-23",
+        "G-08",
+        "G-17"
+      ]
+    },
+    {
+      "test_id": "A-16",
+      "test_type": "Analysis",
+      "test_scenario": "Compare a proposed change with recorded approval conditions and amendments; identify applicable limits, missing evidence, and the appropriate municipal follow-up.",
+      "complexity": "Very High",
+      "why_it_matters": "A reliable analysis requires applying the controlling sources without assuming missing property facts, approvals, or legal rights.",
+      "what_bassett_should_do": "Use current official sources to evaluate the stated scenario. State supported findings, material assumptions, limitations, and the next document, municipal, or expert review needed.",
+      "success_criteria": "Provides a source-backed, scenario-specific analysis; separates facts from assumptions; avoids unsupported certainty; and gives actionable next steps.",
+      "priority": "P1 - High",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-14",
+        "G-23",
+        "G-08",
+        "G-24",
+        "G-26"
+      ]
+    },
+    {
+      "test_id": "A-17",
+      "test_type": "Analysis",
+      "test_scenario": "Compare development alternatives under the same sources, assumptions, and as-of date; identify decision-driving differences, remaining gaps, and the next review step.",
+      "complexity": "High",
+      "why_it_matters": "A reliable analysis requires applying the controlling sources without assuming missing property facts, approvals, or legal rights.",
+      "what_bassett_should_do": "Use current official sources to evaluate the stated scenario. State supported findings, material assumptions, limitations, and the next document, municipal, or expert review needed.",
+      "success_criteria": "Provides a source-backed, scenario-specific analysis; separates facts from assumptions; avoids unsupported certainty; and gives actionable next steps.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-14",
+        "G-23",
+        "G-21"
+      ]
+    },
+    {
+      "test_id": "A-18",
+      "test_type": "Analysis",
+      "test_scenario": "Analyze an existing or proposed fence against applicable zoning and supplementary regulations; identify the controlling yard/location, height, material or opacity standards, permits, and facts that require plan or municipal confirmation.",
+      "complexity": "Moderate",
+      "why_it_matters": "A reliable analysis requires applying the controlling sources without assuming missing property facts, approvals, or legal rights.",
+      "what_bassett_should_do": "Use current official sources to evaluate the stated scenario. State supported findings, material assumptions, limitations, and the next document, municipal, or expert review needed.",
+      "success_criteria": "Provides a source-backed, scenario-specific analysis; separates facts from assumptions; avoids unsupported certainty; and gives actionable next steps.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-14",
+        "G-23",
+        "G-28"
+      ]
+    },
+    {
+      "test_id": "A-19",
+      "test_type": "Analysis",
+      "test_scenario": "Evaluate whether an accessory dwelling unit may be allowed on a property by identifying eligibility, location, size, occupancy, parking, owner or lot requirements, approvals, and property facts needed for a reliable answer.",
+      "complexity": "High",
+      "why_it_matters": "A reliable analysis requires applying the controlling sources without assuming missing property facts, approvals, or legal rights.",
+      "what_bassett_should_do": "Use current official sources to evaluate the stated scenario. State supported findings, material assumptions, limitations, and the next document, municipal, or expert review needed.",
+      "success_criteria": "Provides a source-backed, scenario-specific analysis; separates facts from assumptions; avoids unsupported certainty; and gives actionable next steps.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-14",
+        "G-23",
+        "G-05"
+      ]
+    },
+    {
+      "test_id": "A-20",
+      "test_type": "Analysis",
+      "test_scenario": "Assess an existing or proposed sign under applicable zoning, overlay, and supplementary regulations; identify sign type, location, area, height, illumination, permit status, and missing design details.",
+      "complexity": "High",
+      "why_it_matters": "A reliable analysis requires applying the controlling sources without assuming missing property facts, approvals, or legal rights.",
+      "what_bassett_should_do": "Use current official sources to evaluate the stated scenario. State supported findings, material assumptions, limitations, and the next document, municipal, or expert review needed.",
+      "success_criteria": "Provides a source-backed, scenario-specific analysis; separates facts from assumptions; avoids unsupported certainty; and gives actionable next steps.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-14",
+        "G-23",
+        "G-28"
+      ]
+    },
+    {
+      "test_id": "A-21",
+      "test_type": "Analysis",
+      "test_scenario": "Evaluate an accessory structure or site amenity—such as a detached building, shed, pool, or similar feature—under relevant location, setback, height, coverage, permit, and approval standards.",
+      "complexity": "Moderate",
+      "why_it_matters": "A reliable analysis requires applying the controlling sources without assuming missing property facts, approvals, or legal rights.",
+      "what_bassett_should_do": "Use current official sources to evaluate the stated scenario. State supported findings, material assumptions, limitations, and the next document, municipal, or expert review needed.",
+      "success_criteria": "Provides a source-backed, scenario-specific analysis; separates facts from assumptions; avoids unsupported certainty; and gives actionable next steps.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-14",
+        "G-23",
+        "G-28"
+      ]
+    },
+    {
+      "test_id": "A-22",
+      "test_type": "Analysis",
+      "test_scenario": "Evaluate a proposed solar energy facility or accessory solar installation by identifying use classification, district and overlay controls, height, setbacks, coverage, glare or screening, approvals, and any state-law or utility issues requiring confirmation.",
+      "complexity": "High",
+      "why_it_matters": "A reliable analysis requires applying the controlling sources without assuming missing property facts, approvals, or legal rights.",
+      "what_bassett_should_do": "Use current official sources to evaluate the stated scenario. State supported findings, material assumptions, limitations, and the next document, municipal, or expert review needed.",
+      "success_criteria": "Provides a source-backed, scenario-specific analysis; separates facts from assumptions; avoids unsupported certainty; and gives actionable next steps.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-14",
+        "G-23",
+        "G-03",
+        "G-04",
+        "G-25"
+      ]
+    },
+    {
+      "test_id": "A-23",
+      "test_type": "Analysis",
+      "test_scenario": "Evaluate a proposed marijuana or cannabis facility by identifying use classification, zoning and overlay controls, spacing or buffer standards, sensitive-use measurements, local and state licensing interfaces, approvals, and missing operational facts.",
+      "complexity": "High",
+      "why_it_matters": "A reliable analysis requires applying the controlling sources without assuming missing property facts, approvals, or legal rights.",
+      "what_bassett_should_do": "Use current official sources to evaluate the stated scenario. State supported findings, material assumptions, limitations, and the next document, municipal, or expert review needed.",
+      "success_criteria": "Provides a source-backed, scenario-specific analysis; separates facts from assumptions; avoids unsupported certainty; and gives actionable next steps.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-14",
+        "G-23",
+        "G-03",
+        "G-04",
+        "G-25"
+      ]
+    },
+    {
+      "test_id": "A-24",
+      "test_type": "Analysis",
+      "test_scenario": "Evaluate a proposed data center or similar high-demand technology use by identifying use classification, site and building standards, power or utility facilities, generators, cooling, noise, parking, approvals, and facts requiring agency confirmation.",
+      "complexity": "High",
+      "why_it_matters": "A reliable analysis requires applying the controlling sources without assuming missing property facts, approvals, or legal rights.",
+      "what_bassett_should_do": "Use current official sources to evaluate the stated scenario. State supported findings, material assumptions, limitations, and the next document, municipal, or expert review needed.",
+      "success_criteria": "Provides a source-backed, scenario-specific analysis; separates facts from assumptions; avoids unsupported certainty; and gives actionable next steps.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-14",
+        "G-23",
+        "G-03",
+        "G-04",
+        "G-05",
+        "G-25"
+      ]
+    },
+    {
+      "test_id": "A-25",
+      "test_type": "Analysis",
+      "test_scenario": "Evaluate another heavily regulated use, such as waste handling, adult-oriented use, medical use, or a high-impact industrial operation, by integrating zoning controls, special standards, buffers, approvals, external regulation, and missing facts.",
+      "complexity": "High",
+      "why_it_matters": "A reliable analysis requires applying the controlling sources without assuming missing property facts, approvals, or legal rights.",
+      "what_bassett_should_do": "Use current official sources to evaluate the stated scenario. State supported findings, material assumptions, limitations, and the next document, municipal, or expert review needed.",
+      "success_criteria": "Provides a source-backed, scenario-specific analysis; separates facts from assumptions; avoids unsupported certainty; and gives actionable next steps.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-14",
+        "G-23",
+        "G-03",
+        "G-04",
+        "G-21",
+        "G-25"
+      ]
+    },
+    {
+      "test_id": "A-26",
+      "test_type": "Analysis",
+      "test_scenario": "Respond to an early diligence request with incomplete property information: state what can be answered now, identify only material gaps, and give the next research step.",
+      "complexity": "High",
+      "why_it_matters": "A reliable analysis requires applying the controlling sources without assuming missing property facts, approvals, or legal rights.",
+      "what_bassett_should_do": "Use current official sources to evaluate the stated scenario. State supported findings, material assumptions, limitations, and the next document, municipal, or expert review needed.",
+      "success_criteria": "Provides a source-backed, scenario-specific analysis; separates facts from assumptions; avoids unsupported certainty; and gives actionable next steps.",
+      "priority": "P0 - Immediate",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-14",
+        "G-23",
+        "G-17"
+      ]
+    },
+    {
+      "test_id": "A-27",
+      "test_type": "Analysis",
+      "test_scenario": "Prepare a property-level feasibility assessment from a complete file set; deliver findings, assumptions, risks, and next actions without requesting facts already supplied.",
+      "complexity": "Very High",
+      "why_it_matters": "A reliable analysis requires applying the controlling sources without assuming missing property facts, approvals, or legal rights.",
+      "what_bassett_should_do": "Use current official sources to evaluate the stated scenario. State supported findings, material assumptions, limitations, and the next document, municipal, or expert review needed.",
+      "success_criteria": "Provides a source-backed, scenario-specific analysis; separates facts from assumptions; avoids unsupported certainty; and gives actionable next steps.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-14",
+        "G-23",
+        "G-24",
+        "G-26",
+        "G-11",
+        "G-27",
+        "G-28",
+        "G-29"
+      ]
+    },
+    {
+      "test_id": "A-28",
+      "test_type": "Analysis",
+      "test_scenario": "Create a decision-oriented risk summary for a property with uncertain controls or records; prioritize issues by impact, confidence, owner, and escalation path.",
+      "complexity": "High",
+      "why_it_matters": "A reliable analysis requires applying the controlling sources without assuming missing property facts, approvals, or legal rights.",
+      "what_bassett_should_do": "Use current official sources to evaluate the stated scenario. State supported findings, material assumptions, limitations, and the next document, municipal, or expert review needed.",
+      "success_criteria": "Provides a source-backed, scenario-specific analysis; separates facts from assumptions; avoids unsupported certainty; and gives actionable next steps.",
+      "priority": "P0 - Immediate",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-14",
+        "G-23",
+        "G-24",
+        "G-26",
+        "G-17"
+      ]
+    },
+    {
+      "test_id": "A-29",
+      "test_type": "Analysis",
+      "test_scenario": "Assess other supplementary site regulations that may affect a property or proposal, such as outdoor storage, screening, lighting, refuse areas, or operational standards; identify triggers, controlling rules, missing facts, and the next verification step.",
+      "complexity": "High",
+      "why_it_matters": "A reliable analysis requires applying the controlling sources without assuming missing property facts, approvals, or legal rights.",
+      "what_bassett_should_do": "Use current official sources to evaluate the stated scenario. State supported findings, material assumptions, limitations, and the next document, municipal, or expert review needed.",
+      "success_criteria": "Provides a source-backed, scenario-specific analysis; separates facts from assumptions; avoids unsupported certainty; and gives actionable next steps.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-14",
+        "G-23"
+      ]
+    },
+    {
+      "test_id": "D-01",
+      "test_type": "Document Handling",
+      "test_scenario": "Prepare an official zoning-report source package by confirming current code/map versions, property match, source authority and dates, and report-ready regulations and citations.",
+      "complexity": "Low",
+      "why_it_matters": "This document task must preserve the controlling record, property match, version, and record limits so report findings are not based on incomplete or misread evidence.",
+      "what_bassett_should_do": "Review the stated document task. Preserve source and version details, extract only supported facts, identify missing or conflicting records, and prepare the appropriate follow-up when verification is needed.",
+      "success_criteria": "Produces report-ready, source-linked evidence with the property match and limitations clear; no unsupported fact or conclusion is introduced; and next records or outreach steps are identified.",
+      "priority": "P0 - Immediate",
+      "rubric_ids": [
+        "G-01",
+        "G-14",
+        "G-26",
+        "G-28",
+        "G-29",
+        "G-09",
+        "G-10"
+      ]
+    },
+    {
+      "test_id": "D-02",
+      "test_type": "Document Handling",
+      "test_scenario": "Triage client-supplied property documents by confirming identity, date, version, completeness, and relevance before using them as report evidence.",
+      "complexity": "Moderate",
+      "why_it_matters": "This document task must preserve the controlling record, property match, version, and record limits so report findings are not based on incomplete or misread evidence.",
+      "what_bassett_should_do": "Review the stated document task. Preserve source and version details, extract only supported facts, identify missing or conflicting records, and prepare the appropriate follow-up when verification is needed.",
+      "success_criteria": "Produces report-ready, source-linked evidence with the property match and limitations clear; no unsupported fact or conclusion is introduced; and next records or outreach steps are identified.",
+      "priority": "P0 - Immediate",
+      "rubric_ids": [
+        "G-01",
+        "G-14",
+        "G-26",
+        "G-28",
+        "G-29",
+        "G-27"
+      ]
+    },
+    {
+      "test_id": "D-03",
+      "test_type": "Document Handling",
+      "test_scenario": "Extract report-ready facts from a multi-page municipal document, retaining governing sections, footnotes, exceptions, and exact citations.",
+      "complexity": "Moderate",
+      "why_it_matters": "This document task must preserve the controlling record, property match, version, and record limits so report findings are not based on incomplete or misread evidence.",
+      "what_bassett_should_do": "Review the stated document task. Preserve source and version details, extract only supported facts, identify missing or conflicting records, and prepare the appropriate follow-up when verification is needed.",
+      "success_criteria": "Produces report-ready, source-linked evidence with the property match and limitations clear; no unsupported fact or conclusion is introduced; and next records or outreach steps are identified.",
+      "priority": "P0 - Immediate",
+      "rubric_ids": [
+        "G-01",
+        "G-14",
+        "G-26",
+        "G-28",
+        "G-29",
+        "G-09",
+        "G-10"
+      ]
+    },
+    {
+      "test_id": "D-04",
+      "test_type": "Document Handling",
+      "test_scenario": "Create a complete client-upload inventory for a report, covering surveys, site plans, applications, operations narratives, prior approvals, permits, occupancy records, correspondence, and prior reports; identify missing or stale items.",
+      "complexity": "Very High",
+      "why_it_matters": "This document task must preserve the controlling record, property match, version, and record limits so report findings are not based on incomplete or misread evidence.",
+      "what_bassett_should_do": "Review the stated document task. Preserve source and version details, extract only supported facts, identify missing or conflicting records, and prepare the appropriate follow-up when verification is needed.",
+      "success_criteria": "Produces report-ready, source-linked evidence with the property match and limitations clear; no unsupported fact or conclusion is introduced; and next records or outreach steps are identified.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-01",
+        "G-14",
+        "G-26",
+        "G-28",
+        "G-29",
+        "G-27"
+      ]
+    },
+    {
+      "test_id": "D-05",
+      "test_type": "Document Handling",
+      "test_scenario": "Build a source and document register for the active report, linking each finding to its governing source, date, property match, and limitation.",
+      "complexity": "Very High",
+      "why_it_matters": "This document task must preserve the controlling record, property match, version, and record limits so report findings are not based on incomplete or misread evidence.",
+      "what_bassett_should_do": "Review the stated document task. Preserve source and version details, extract only supported facts, identify missing or conflicting records, and prepare the appropriate follow-up when verification is needed.",
+      "success_criteria": "Produces report-ready, source-linked evidence with the property match and limitations clear; no unsupported fact or conclusion is introduced; and next records or outreach steps are identified.",
+      "priority": "P1 - High",
+      "rubric_ids": [
+        "G-01",
+        "G-14",
+        "G-26",
+        "G-28",
+        "G-29",
+        "G-09",
+        "G-10"
+      ]
+    },
+    {
+      "test_id": "D-06",
+      "test_type": "Document Handling",
+      "test_scenario": "Handle a client-provided survey for a zoning report: verify the subject property and survey date/type, then identify usable evidence on parcel boundaries, lot area, frontage, easements, rights-of-way, structures, setbacks, parking, and notes.",
+      "complexity": "Moderate",
+      "why_it_matters": "This document task must preserve the controlling record, property match, version, and record limits so report findings are not based on incomplete or misread evidence.",
+      "what_bassett_should_do": "Review the stated document task. Preserve source and version details, extract only supported facts, identify missing or conflicting records, and prepare the appropriate follow-up when verification is needed.",
+      "success_criteria": "Produces report-ready, source-linked evidence with the property match and limitations clear; no unsupported fact or conclusion is introduced; and next records or outreach steps are identified.",
+      "priority": "P0 - Immediate",
+      "rubric_ids": [
+        "G-01",
+        "G-14",
+        "G-26",
+        "G-28",
+        "G-29",
+        "G-07"
+      ]
+    },
+    {
+      "test_id": "D-07",
+      "test_type": "Document Handling",
+      "test_scenario": "Extract the survey information needed for conformance analysis—property lines, building locations, measured yards, dimensions, lot area, frontage, encroachments, access, parking, and any features not shown or not reliably measured.",
+      "complexity": "Very High",
+      "why_it_matters": "This document task must preserve the controlling record, property match, version, and record limits so report findings are not based on incomplete or misread evidence.",
+      "what_bassett_should_do": "Review the stated document task. Preserve source and version details, extract only supported facts, identify missing or conflicting records, and prepare the appropriate follow-up when verification is needed.",
+      "success_criteria": "Produces report-ready, source-linked evidence with the property match and limitations clear; no unsupported fact or conclusion is introduced; and next records or outreach steps are identified.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-01",
+        "G-14",
+        "G-26",
+        "G-28",
+        "G-29",
+        "G-07"
+      ]
+    },
+    {
+      "test_id": "D-08",
+      "test_type": "Document Handling",
+      "test_scenario": "Reconcile survey data with client-provided facts, maps, or plans; distinguish survey-supported facts from assumptions and identify discrepancies that require a current surveyor, plan, or municipal confirmation.",
+      "complexity": "Very High",
+      "why_it_matters": "This document task must preserve the controlling record, property match, version, and record limits so report findings are not based on incomplete or misread evidence.",
+      "what_bassett_should_do": "Review the stated document task. Preserve source and version details, extract only supported facts, identify missing or conflicting records, and prepare the appropriate follow-up when verification is needed.",
+      "success_criteria": "Produces report-ready, source-linked evidence with the property match and limitations clear; no unsupported fact or conclusion is introduced; and next records or outreach steps are identified.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-01",
+        "G-14",
+        "G-26",
+        "G-28",
+        "G-29",
+        "G-07"
+      ]
+    },
+    {
+      "test_id": "D-09",
+      "test_type": "Document Handling",
+      "test_scenario": "Review an entitlement, approval, or condition package; identify the operative document, referenced exhibits, missing materials, and report limitations.",
+      "complexity": "High",
+      "why_it_matters": "This document task must preserve the controlling record, property match, version, and record limits so report findings are not based on incomplete or misread evidence.",
+      "what_bassett_should_do": "Review the stated document task. Preserve source and version details, extract only supported facts, identify missing or conflicting records, and prepare the appropriate follow-up when verification is needed.",
+      "success_criteria": "Produces report-ready, source-linked evidence with the property match and limitations clear; no unsupported fact or conclusion is introduced; and next records or outreach steps are identified.",
+      "priority": "P1 - High",
+      "rubric_ids": [
+        "G-01",
+        "G-14",
+        "G-26",
+        "G-28",
+        "G-29",
+        "G-17",
+        "G-23"
+      ]
+    },
+    {
+      "test_id": "D-10",
+      "test_type": "Document Handling",
+      "test_scenario": "Review an approved site plan and related approval: verify the property, approval date, plan revision, referenced sheets and conditions, then identify which details control the report.",
+      "complexity": "Very High",
+      "why_it_matters": "This document task must preserve the controlling record, property match, version, and record limits so report findings are not based on incomplete or misread evidence.",
+      "what_bassett_should_do": "Review the stated document task. Preserve source and version details, extract only supported facts, identify missing or conflicting records, and prepare the appropriate follow-up when verification is needed.",
+      "success_criteria": "Produces report-ready, source-linked evidence with the property match and limitations clear; no unsupported fact or conclusion is introduced; and next records or outreach steps are identified.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-01",
+        "G-14",
+        "G-26",
+        "G-28",
+        "G-29",
+        "G-07",
+        "G-17",
+        "G-23"
+      ]
+    },
+    {
+      "test_id": "D-11",
+      "test_type": "Document Handling",
+      "test_scenario": "Review a proposed site plan for zoning-report analysis: separate existing from proposed conditions and identify the plan inputs needed for use, setbacks, height, lot coverage, parking, loading, access, landscaping, and open-space analysis.",
+      "complexity": "Very High",
+      "why_it_matters": "This document task must preserve the controlling record, property match, version, and record limits so report findings are not based on incomplete or misread evidence.",
+      "what_bassett_should_do": "Review the stated document task. Preserve source and version details, extract only supported facts, identify missing or conflicting records, and prepare the appropriate follow-up when verification is needed.",
+      "success_criteria": "Produces report-ready, source-linked evidence with the property match and limitations clear; no unsupported fact or conclusion is introduced; and next records or outreach steps are identified.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-01",
+        "G-14",
+        "G-26",
+        "G-28",
+        "G-29",
+        "G-07"
+      ]
+    },
+    {
+      "test_id": "D-12",
+      "test_type": "Document Handling",
+      "test_scenario": "Compare a proposed site plan with the approved or previously submitted plan; identify material changes, missing revisions or sheets, and whether municipal review or approval status must be verified.",
+      "complexity": "Very High",
+      "why_it_matters": "This document task must preserve the controlling record, property match, version, and record limits so report findings are not based on incomplete or misread evidence.",
+      "what_bassett_should_do": "Review the stated document task. Preserve source and version details, extract only supported facts, identify missing or conflicting records, and prepare the appropriate follow-up when verification is needed.",
+      "success_criteria": "Produces report-ready, source-linked evidence with the property match and limitations clear; no unsupported fact or conclusion is introduced; and next records or outreach steps are identified.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-01",
+        "G-14",
+        "G-26",
+        "G-28",
+        "G-29",
+        "G-07",
+        "G-17",
+        "G-23"
+      ]
+    },
+    {
+      "test_id": "D-13",
+      "test_type": "Document Handling",
+      "test_scenario": "Handle a site-plan approval package with missing exhibits, conditions, or referenced revisions; list the exact records needed and state what conclusions remain limited.",
+      "complexity": "Very High",
+      "why_it_matters": "This document task must preserve the controlling record, property match, version, and record limits so report findings are not based on incomplete or misread evidence.",
+      "what_bassett_should_do": "Review the stated document task. Preserve source and version details, extract only supported facts, identify missing or conflicting records, and prepare the appropriate follow-up when verification is needed.",
+      "success_criteria": "Produces report-ready, source-linked evidence with the property match and limitations clear; no unsupported fact or conclusion is introduced; and next records or outreach steps are identified.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-01",
+        "G-14",
+        "G-26",
+        "G-28",
+        "G-29",
+        "G-07",
+        "G-17",
+        "G-23"
+      ]
+    },
+    {
+      "test_id": "D-14",
+      "test_type": "Document Handling",
+      "test_scenario": "Obtain municipal documents online when the municipality provides official online access. Locate the correct portal or record page, retrieve available documents, preserve source links and dates, and identify records that still require a direct request.",
+      "complexity": "Moderate",
+      "why_it_matters": "This document task must preserve the controlling record, property match, version, and record limits so report findings are not based on incomplete or misread evidence.",
+      "what_bassett_should_do": "Review the stated document task. Preserve source and version details, extract only supported facts, identify missing or conflicting records, and prepare the appropriate follow-up when verification is needed.",
+      "success_criteria": "Produces report-ready, source-linked evidence with the property match and limitations clear; no unsupported fact or conclusion is introduced; and next records or outreach steps are identified.",
+      "priority": "P1 - High",
+      "rubric_ids": [
+        "G-01",
+        "G-14",
+        "G-26",
+        "G-28",
+        "G-29",
+        "G-31",
+        "G-15",
+        "G-16",
+        "G-17",
+        "G-23"
+      ]
+    },
+    {
+      "test_id": "D-15",
+      "test_type": "Document Handling",
+      "test_scenario": "Prepare a targeted municipal document request for a report: identify the custodian, property identifiers, and records needed for zoning, approved plans, permits, certificates, inspections, violations, approvals, and conditions.",
+      "complexity": "Moderate",
+      "why_it_matters": "This document task must preserve the controlling record, property match, version, and record limits so report findings are not based on incomplete or misread evidence.",
+      "what_bassett_should_do": "Review the stated document task. Preserve source and version details, extract only supported facts, identify missing or conflicting records, and prepare the appropriate follow-up when verification is needed.",
+      "success_criteria": "Produces report-ready, source-linked evidence with the property match and limitations clear; no unsupported fact or conclusion is introduced; and next records or outreach steps are identified.",
+      "priority": "P1 - High",
+      "rubric_ids": [
+        "G-01",
+        "G-14",
+        "G-26",
+        "G-28",
+        "G-29",
+        "G-31"
+      ]
+    },
+    {
+      "test_id": "D-16",
+      "test_type": "Document Handling",
+      "test_scenario": "Review municipal records received in response to an outreach request; distinguish what each record establishes, what is unavailable, conflicts, or requires a follow-up request.",
+      "complexity": "Moderate",
+      "why_it_matters": "This document task must preserve the controlling record, property match, version, and record limits so report findings are not based on incomplete or misread evidence.",
+      "what_bassett_should_do": "Review the stated document task. Preserve source and version details, extract only supported facts, identify missing or conflicting records, and prepare the appropriate follow-up when verification is needed.",
+      "success_criteria": "Produces report-ready, source-linked evidence with the property match and limitations clear; no unsupported fact or conclusion is introduced; and next records or outreach steps are identified.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-01",
+        "G-14",
+        "G-26",
+        "G-28",
+        "G-29",
+        "G-17",
+        "G-23",
+        "G-31"
+      ]
+    },
+    {
+      "test_id": "D-17",
+      "test_type": "Document Handling",
+      "test_scenario": "Review certificates of occupancy, permits, inspection records, and enforcement or violation documents; report factual status and record limits without treating them as conclusive zoning or legal determinations.",
+      "complexity": "Moderate",
+      "why_it_matters": "This document task must preserve the controlling record, property match, version, and record limits so report findings are not based on incomplete or misread evidence.",
+      "what_bassett_should_do": "Review the stated document task. Preserve source and version details, extract only supported facts, identify missing or conflicting records, and prepare the appropriate follow-up when verification is needed.",
+      "success_criteria": "Produces report-ready, source-linked evidence with the property match and limitations clear; no unsupported fact or conclusion is introduced; and next records or outreach steps are identified.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-01",
+        "G-14",
+        "G-26",
+        "G-28",
+        "G-29",
+        "G-17",
+        "G-23"
+      ]
+    },
+    {
+      "test_id": "D-18",
+      "test_type": "Document Handling",
+      "test_scenario": "Process a client-provided zoning, planning, or municipal correspondence record; identify author, authority, date, scope, correction history, and whether follow-up is required.",
+      "complexity": "High",
+      "why_it_matters": "This document task must preserve the controlling record, property match, version, and record limits so report findings are not based on incomplete or misread evidence.",
+      "what_bassett_should_do": "Review the stated document task. Preserve source and version details, extract only supported facts, identify missing or conflicting records, and prepare the appropriate follow-up when verification is needed.",
+      "success_criteria": "Produces report-ready, source-linked evidence with the property match and limitations clear; no unsupported fact or conclusion is introduced; and next records or outreach steps are identified.",
+      "priority": "P1 - High",
+      "rubric_ids": [
+        "G-01",
+        "G-14",
+        "G-26",
+        "G-28",
+        "G-29",
+        "G-17",
+        "G-23"
+      ]
+    },
+    {
+      "test_id": "D-19",
+      "test_type": "Document Handling",
+      "test_scenario": "Review a scanned or low-quality municipal document; identify reliable text, unresolved portions, and the clearer source needed before a finding.",
+      "complexity": "High",
+      "why_it_matters": "This document task must preserve the controlling record, property match, version, and record limits so report findings are not based on incomplete or misread evidence.",
+      "what_bassett_should_do": "Review the stated document task. Preserve source and version details, extract only supported facts, identify missing or conflicting records, and prepare the appropriate follow-up when verification is needed.",
+      "success_criteria": "Produces report-ready, source-linked evidence with the property match and limitations clear; no unsupported fact or conclusion is introduced; and next records or outreach steps are identified.",
+      "priority": "P1 - High",
+      "rubric_ids": [
+        "G-01",
+        "G-14",
+        "G-26",
+        "G-28",
+        "G-29",
+        "G-27"
+      ]
+    },
+    {
+      "test_id": "D-20",
+      "test_type": "Document Handling",
+      "test_scenario": "Compare municipal documents that conflict or supersede one another; preserve the version chain and identify the authority needed to resolve the conflict.",
+      "complexity": "High",
+      "why_it_matters": "This document task must preserve the controlling record, property match, version, and record limits so report findings are not based on incomplete or misread evidence.",
+      "what_bassett_should_do": "Review the stated document task. Preserve source and version details, extract only supported facts, identify missing or conflicting records, and prepare the appropriate follow-up when verification is needed.",
+      "success_criteria": "Produces report-ready, source-linked evidence with the property match and limitations clear; no unsupported fact or conclusion is introduced; and next records or outreach steps are identified.",
+      "priority": "P1 - High",
+      "rubric_ids": [
+        "G-01",
+        "G-14",
+        "G-26",
+        "G-28",
+        "G-29",
+        "G-17",
+        "G-23",
+        "G-31"
+      ]
+    },
+    {
+      "test_id": "D-21",
+      "test_type": "Document Handling",
+      "test_scenario": "Convert client and municipal documents into report-ready evidence: preserve citations, source dates, property match, verified facts, user-provided facts, assumptions, unresolved issues, and recommended next steps.",
+      "complexity": "Low",
+      "why_it_matters": "This document task must preserve the controlling record, property match, version, and record limits so report findings are not based on incomplete or misread evidence.",
+      "what_bassett_should_do": "Review the stated document task. Preserve source and version details, extract only supported facts, identify missing or conflicting records, and prepare the appropriate follow-up when verification is needed.",
+      "success_criteria": "Produces report-ready, source-linked evidence with the property match and limitations clear; no unsupported fact or conclusion is introduced; and next records or outreach steps are identified.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-01",
+        "G-14",
+        "G-26",
+        "G-28",
+        "G-29",
+        "G-09",
+        "G-10"
+      ]
+    },
+    {
+      "test_id": "D-22",
+      "test_type": "Document Handling",
+      "test_scenario": "Handle a document package for a solar energy facility or accessory solar installation by inventorying site plans, equipment and layout materials, interconnection or utility materials, and operational information, permits, approvals, agency records, and missing documents for the report.",
+      "complexity": "High",
+      "why_it_matters": "This document task must preserve the controlling record, property match, version, and record limits so report findings are not based on incomplete or misread evidence.",
+      "what_bassett_should_do": "Review the stated document task. Preserve source and version details, extract only supported facts, identify missing or conflicting records, and prepare the appropriate follow-up when verification is needed.",
+      "success_criteria": "Produces report-ready, source-linked evidence with the property match and limitations clear; no unsupported fact or conclusion is introduced; and next records or outreach steps are identified.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-01",
+        "G-14",
+        "G-26",
+        "G-28",
+        "G-29",
+        "G-03",
+        "G-04",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-25",
+        "G-27"
+      ]
+    },
+    {
+      "test_id": "D-23",
+      "test_type": "Document Handling",
+      "test_scenario": "Handle a document package for a marijuana or cannabis facility by inventorying operations materials, licensing records, spacing or buffer exhibits, plans, and agency correspondence, permits, approvals, agency records, and missing documents for the report.",
+      "complexity": "High",
+      "why_it_matters": "This document task must preserve the controlling record, property match, version, and record limits so report findings are not based on incomplete or misread evidence.",
+      "what_bassett_should_do": "Review the stated document task. Preserve source and version details, extract only supported facts, identify missing or conflicting records, and prepare the appropriate follow-up when verification is needed.",
+      "success_criteria": "Produces report-ready, source-linked evidence with the property match and limitations clear; no unsupported fact or conclusion is introduced; and next records or outreach steps are identified.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-01",
+        "G-14",
+        "G-26",
+        "G-28",
+        "G-29",
+        "G-03",
+        "G-04",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-25",
+        "G-27"
+      ]
+    },
+    {
+      "test_id": "D-24",
+      "test_type": "Document Handling",
+      "test_scenario": "Handle a document package for a data center or similar high-demand technology use by inventorying site and building plans, utility or power materials, generator and cooling information, and operational documentation, permits, approvals, agency records, and missing documents for the report.",
+      "complexity": "High",
+      "why_it_matters": "This document task must preserve the controlling record, property match, version, and record limits so report findings are not based on incomplete or misread evidence.",
+      "what_bassett_should_do": "Review the stated document task. Preserve source and version details, extract only supported facts, identify missing or conflicting records, and prepare the appropriate follow-up when verification is needed.",
+      "success_criteria": "Produces report-ready, source-linked evidence with the property match and limitations clear; no unsupported fact or conclusion is introduced; and next records or outreach steps are identified.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-01",
+        "G-14",
+        "G-26",
+        "G-28",
+        "G-29",
+        "G-03",
+        "G-04",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-25",
+        "G-27"
+      ]
+    },
+    {
+      "test_id": "D-25",
+      "test_type": "Document Handling",
+      "test_scenario": "Handle a document package for another heavily regulated use, such as waste handling, adult-oriented use, medical use, or a high-impact industrial operation by inventorying plans, operations materials, external-agency records, and supporting compliance documentation, permits, approvals, agency records, and missing documents for the report.",
+      "complexity": "High",
+      "why_it_matters": "This document task must preserve the controlling record, property match, version, and record limits so report findings are not based on incomplete or misread evidence.",
+      "what_bassett_should_do": "Review the stated document task. Preserve source and version details, extract only supported facts, identify missing or conflicting records, and prepare the appropriate follow-up when verification is needed.",
+      "success_criteria": "Produces report-ready, source-linked evidence with the property match and limitations clear; no unsupported fact or conclusion is introduced; and next records or outreach steps are identified.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-01",
+        "G-14",
+        "G-26",
+        "G-28",
+        "G-29",
+        "G-03",
+        "G-04",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-25",
+        "G-27"
+      ]
+    },
+    {
+      "test_id": "R-01",
+      "test_type": "General Research",
+      "test_scenario": "Resolve a property identity issue when an address or other identifier may match more than one location; verify the parcel or request the minimum focused clarification.",
+      "complexity": "Moderate",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P0 - Immediate",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-12",
+        "G-13",
+        "G-14",
+        "G-23"
+      ]
+    },
+    {
+      "test_id": "R-02",
+      "test_type": "General Research",
+      "test_scenario": "Find the right piece of land when the address or other details are incomplete, such as an empty lot or land near a city or county line. Confirm where it is, who governs it, and its zoning district.",
+      "complexity": "High",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P0 - Immediate",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-12",
+        "G-13",
+        "G-14",
+        "G-23"
+      ]
+    },
+    {
+      "test_id": "R-03",
+      "test_type": "General Research",
+      "test_scenario": "Find and verify a parcel using an APN or parcel identification number; cross-check official assessor, GIS, and jurisdiction sources, resolve format or retired-ID issues, and report the supported property match.",
+      "complexity": "Low",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P0 - Immediate",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22"
+      ]
+    },
+    {
+      "test_id": "R-04",
+      "test_type": "General Research",
+      "test_scenario": "Find and verify a parcel using ownership information; cross-check official assessor, property, and GIS sources, distinguish owner information from tenant, applicant, or marketing claims, and flag ambiguous matches.",
+      "complexity": "Moderate",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P0 - Immediate",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22"
+      ]
+    },
+    {
+      "test_id": "R-05",
+      "test_type": "General Research",
+      "test_scenario": "Find the official online assessor or property record for a parcel and provide the relevant link or links, if available. Confirm the record matches the property before using it.",
+      "complexity": "Moderate",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P1 - High",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22"
+      ]
+    },
+    {
+      "test_id": "R-06",
+      "test_type": "General Research",
+      "test_scenario": "Research publicly available web sources for salient property data, including official maps and records, planning materials, applications, project information, and reputable contextual sources; distinguish authoritative evidence from leads requiring verification.",
+      "complexity": "Moderate",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P0 - Immediate",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-14",
+        "G-15",
+        "G-23"
+      ]
+    },
+    {
+      "test_id": "R-07",
+      "test_type": "General Research",
+      "test_scenario": "Find out which city or county makes the zoning rules for a property within an unincorporated area, but within a city ETJ or planning boundary/urban growrth area.",
+      "complexity": "Low",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P0 - Immediate",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-12",
+        "G-13",
+        "G-14",
+        "G-23"
+      ]
+    },
+    {
+      "test_id": "R-08",
+      "test_type": "General Research",
+      "test_scenario": "Find the official online zoning map for a property and provide a link plus a clear map snippet showing the property, if available. Identify the map date or version and clearly state when no official online map is available.",
+      "complexity": "Moderate",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P1 - High",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-14",
+        "G-15",
+        "G-23"
+      ]
+    },
+    {
+      "test_id": "R-09",
+      "test_type": "General Research",
+      "test_scenario": "Verify base zoning when official sources disagree; compare source authority, dates, and parcel match before stating a district or referring the issue for municipal confirmation.",
+      "complexity": "Low",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P0 - Immediate",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-14",
+        "G-15",
+        "G-23"
+      ]
+    },
+    {
+      "test_id": "R-10",
+      "test_type": "General Research",
+      "test_scenario": "Identify all potentially controlling layers for a proposed use or development, including base zoning, overlays, special districts, and site-specific controls.",
+      "complexity": "High",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P0 - Immediate",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22"
+      ]
+    },
+    {
+      "test_id": "R-11",
+      "test_type": "General Research",
+      "test_scenario": "Reconcile a conflict between an official map and municipal correspondence; distinguish what is supportable now from the exact confirmation required before reliance.",
+      "complexity": "High",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P0 - Immediate",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-14",
+        "G-15",
+        "G-23"
+      ]
+    },
+    {
+      "test_id": "R-12",
+      "test_type": "General Research",
+      "test_scenario": "Locate and list the current zoning regulations that may govern a proposed or existing use, including relevant definitions, use tables, district references, use-specific standards, and approval pathways. Do not classify the use or determine whether it is permitted.",
+      "complexity": "Moderate",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P0 - Immediate",
+      "rubric_ids": [
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-03",
+        "G-04"
+      ]
+    },
+    {
+      "test_id": "R-13",
+      "test_type": "General Research",
+      "test_scenario": "Locate and explain the current zoning-code definition or definitions for a specified term, use, feature, or measurement. Include cross-references, exceptions, and related defined terms, but do not classify a property or determine compliance.",
+      "complexity": "Moderate",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P0 - Immediate",
+      "rubric_ids": [
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22"
+      ]
+    },
+    {
+      "test_id": "R-14",
+      "test_type": "General Research",
+      "test_scenario": "Research a proposed use subject to tables, definitions, footnotes, and supplemental standards; integrate the provisions and identify operational facts needed for a complete conclusion.",
+      "complexity": "High",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P0 - Immediate",
+      "rubric_ids": [
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-03",
+        "G-04",
+        "G-12",
+        "G-13",
+        "G-14",
+        "G-23"
+      ]
+    },
+    {
+      "test_id": "R-15",
+      "test_type": "General Research",
+      "test_scenario": "Classify a proposed business or operation not expressly named in the code; compare defined uses, list distinguishing facts, and recommend interpretation when the category remains uncertain.",
+      "complexity": "High",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P1 - High",
+      "rubric_ids": [
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-03",
+        "G-04",
+        "G-12",
+        "G-13",
+        "G-14",
+        "G-23"
+      ]
+    },
+    {
+      "test_id": "R-16",
+      "test_type": "General Research",
+      "test_scenario": "Locate and list the current development standards that may be relevant to a specified zoning district or property, including lot area, frontage, density, height, setbacks, coverage, open space, and related definitions or exceptions. Do not calculate or determine conformance.",
+      "complexity": "Moderate",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P0 - Immediate",
+      "rubric_ids": [
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22"
+      ]
+    },
+    {
+      "test_id": "R-17",
+      "test_type": "General Research",
+      "test_scenario": "Research how a dimensional standard is measured, including definitions, grade or boundary references, exclusions, and overlay limits; identify necessary property data.",
+      "complexity": "Moderate",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P1 - High",
+      "rubric_ids": [
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22"
+      ]
+    },
+    {
+      "test_id": "R-18",
+      "test_type": "General Research",
+      "test_scenario": "Locate and list the current parking, loading, access, and bicycle-parking regulations that may be relevant to a specified property or use, including ratios, measurement rules, reductions, shared-parking provisions, and approval references. Do not calculate requirements or compliance.",
+      "complexity": "Moderate",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P0 - Immediate",
+      "rubric_ids": [
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-05"
+      ]
+    },
+    {
+      "test_id": "R-19",
+      "test_type": "General Research",
+      "test_scenario": "Locate and list the zoning-related approval and review procedures that may be relevant to an existing/ proposed use or development, such as administrative review, site-plan review, conditional use, special exception, variance, or rezoning procedures. Do not determine which approval is required.",
+      "complexity": "Moderate",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P0 - Immediate",
+      "rubric_ids": [
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22"
+      ]
+    },
+    {
+      "test_id": "R-20",
+      "test_type": "General Research",
+      "test_scenario": "Locate and list the current regulations addressing legal nonconforming uses, structures, lots, discontinuance, damage, repair, rebuilding, and change of use. Do not determine whether a property has nonconforming rights.",
+      "complexity": "Moderate",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P0 - Immediate",
+      "rubric_ids": [
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-08"
+      ]
+    },
+    {
+      "test_id": "R-21",
+      "test_type": "General Research",
+      "test_scenario": "Provide a clear explanation of the current regulations addressing legal nonconforming uses, structures, lots, discontinuance, damage, repair, reconstruction, rebuilding, and change of use. Explain the triggers, thresholds, time limits, and required approvals stated in the code without determining a specific property's rights.",
+      "complexity": "Moderate",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P0 - Immediate",
+      "rubric_ids": [
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-08"
+      ]
+    },
+    {
+      "test_id": "R-22",
+      "test_type": "General Research",
+      "test_scenario": "Determine which external code edition and local amendments govern a property; distinguish adopted material from current online text and flag unavailable adoption evidence.",
+      "complexity": "High",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P1 - High",
+      "rubric_ids": [
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-14",
+        "G-15",
+        "G-23"
+      ]
+    },
+    {
+      "test_id": "R-23",
+      "test_type": "General Research",
+      "test_scenario": "Analyze a possible conflict among local controls, a temporary action, and state-law limits; define scope and dates, avoid unsupported legal certainty, and route for appropriate expert or municipal review.",
+      "complexity": "High",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P0 - Immediate",
+      "rubric_ids": [
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-14",
+        "G-15",
+        "G-23",
+        "G-25"
+      ]
+    },
+    {
+      "test_id": "R-24",
+      "test_type": "General Research",
+      "test_scenario": "Assess a property said to have no zoning; distinguish zoning from other development controls and produce a practical diligence checklist without claiming unrestricted development.",
+      "complexity": "Very High",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P1 - High",
+      "rubric_ids": [
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-25"
+      ]
+    },
+    {
+      "test_id": "R-25",
+      "test_type": "General Research",
+      "test_scenario": "Evaluate a multi-parcel project with differing zoning or existing conditions; preserve parcel-specific conclusions and identify shared access, parking, or approval questions.",
+      "complexity": "High",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P1 - High",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22"
+      ]
+    },
+    {
+      "test_id": "R-26",
+      "test_type": "General Research",
+      "test_scenario": "Conduct an initial feasibility review for a proposed development: identify likely use controls, dimensional standards, parking/access, approvals, known facts, and next required inputs.",
+      "complexity": "Moderate",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P1 - High",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-05"
+      ]
+    },
+    {
+      "test_id": "R-27",
+      "test_type": "General Research",
+      "test_scenario": "Identify the full set of municipal offices, departments, or outside public entities that municipal documents for the zoning report need to be requested from.",
+      "complexity": "High",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P1 - High",
+      "rubric_ids": [
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-01",
+        "G-14",
+        "G-23",
+        "G-24",
+        "G-31"
+      ]
+    },
+    {
+      "test_id": "R-28",
+      "test_type": "General Research",
+      "test_scenario": "Generate a municipal outreach matrix for zoning-report document types. For each document type, identify the recipient, department, portal or email, required property identifiers, estimated fee, estimated turnaround time, and special requirements or issues.",
+      "complexity": "High",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P1 - High",
+      "rubric_ids": [
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-01",
+        "G-14",
+        "G-23",
+        "G-24",
+        "G-31"
+      ]
+    },
+    {
+      "test_id": "R-29",
+      "test_type": "General Research",
+      "test_scenario": "Identify the right department, office, or entity for each individual request, such as a zoning letter, certificate of occupancy, permits, inspections, violations, approved plans, or planning approvals.",
+      "complexity": "Moderate",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P1 - High",
+      "rubric_ids": [
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-01",
+        "G-14",
+        "G-23",
+        "G-24",
+        "G-31"
+      ]
+    },
+    {
+      "test_id": "R-30",
+      "test_type": "General Research",
+      "test_scenario": "Prepare a municipal-outreach handoff for unresolved items, including the specific question, supporting sources, missing document list, property identifiers, responsible agency, and expected follow-up.",
+      "complexity": "Moderate",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P1 - High",
+      "rubric_ids": [
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-01",
+        "G-14",
+        "G-23",
+        "G-24",
+        "G-31"
+      ]
+    },
+    {
+      "test_id": "R-31",
+      "test_type": "General Research",
+      "test_scenario": "Search a municipality's available permit records for a property or project. Use the official portal or records source, search by the available property identifiers, capture permit number, type, status, dates, and source link, and identify gaps requiring a direct records request.",
+      "complexity": "Moderate",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-17",
+        "G-30"
+      ]
+    },
+    {
+      "test_id": "R-32",
+      "test_type": "General Research",
+      "test_scenario": "Map authority and record custody where a property or project involves more than one government or department; provide a sequenced research and outreach plan.",
+      "complexity": "Very High",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-14",
+        "G-23",
+        "G-24",
+        "G-31"
+      ]
+    },
+    {
+      "test_id": "R-33",
+      "test_type": "General Research",
+      "test_scenario": "Distinguish proposed, adopted, and effective zoning changes; locate adoption and effective-date evidence before applying any change to the property analysis.",
+      "complexity": "High",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P0 - Immediate",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-14",
+        "G-15",
+        "G-23"
+      ]
+    },
+    {
+      "test_id": "R-34",
+      "test_type": "General Research",
+      "test_scenario": "Distinguish current zoning from future land-use or policy designations, including pending plan changes; state the immediate development implication and the next status check.",
+      "complexity": "High",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P1 - High",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22"
+      ]
+    },
+    {
+      "test_id": "R-35",
+      "test_type": "General Research",
+      "test_scenario": "Trace a property through changes in parcel identifiers or boundaries; connect verified historic and current records, and flag gaps affecting rights or approval history.",
+      "complexity": "High",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-08"
+      ]
+    },
+    {
+      "test_id": "R-36",
+      "test_type": "General Research",
+      "test_scenario": "Research a property affected by annexation or a change in jurisdiction; determine authorities and controls at relevant dates, transition issues, and needed municipal records.",
+      "complexity": "Very High",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-08"
+      ]
+    },
+    {
+      "test_id": "R-37",
+      "test_type": "General Research",
+      "test_scenario": "Research zoning, approvals, and jurisdiction for a specified historical date; locate effective versions and actions, and clearly identify where archival or municipal confirmation is required.",
+      "complexity": "Very High",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-01",
+        "G-02",
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-08",
+        "G-14",
+        "G-15",
+        "G-23"
+      ]
+    },
+    {
+      "test_id": "R-38",
+      "test_type": "General Research",
+      "test_scenario": "Locate and list the current zoning and supplementary regulations that may govern fences for a specified property, including relevant definitions, location, height, material or opacity, permit, and overlay provisions. Do not determine compliance.",
+      "complexity": "Moderate",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-14"
+      ]
+    },
+    {
+      "test_id": "R-39",
+      "test_type": "General Research",
+      "test_scenario": "Locate and list the current regulations for accessory dwelling units that may be relevant to a specified property, including definitions, eligibility, location, size, occupancy, parking, approvals, and any overlay provisions. Do not determine whether an ADU is allowed.",
+      "complexity": "Moderate",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-03",
+        "G-04",
+        "G-05"
+      ]
+    },
+    {
+      "test_id": "R-40",
+      "test_type": "General Research",
+      "test_scenario": "Locate and list the current sign regulations that may be relevant to a specified property, including definitions, sign types, measurement rules, area, height, location, illumination, permits, and overlay standards. Do not determine compliance.",
+      "complexity": "Moderate",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-14"
+      ]
+    },
+    {
+      "test_id": "R-41",
+      "test_type": "General Research",
+      "test_scenario": "Locate and list the current regulations for accessory structures and site amenities that may be relevant to a specified property, such as detached buildings, sheds, pools, or similar features. Include definitions, location, setback, height, coverage, and permit provisions without analyzing compliance.",
+      "complexity": "Moderate",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-14"
+      ]
+    },
+    {
+      "test_id": "R-42",
+      "test_type": "General Research",
+      "test_scenario": "Locate and list supplementary site regulations that may be relevant to a specified property or proposal, such as outdoor storage, screening, lighting, refuse areas, or operational standards. Do not determine whether the rules are triggered or satisfied.",
+      "complexity": "Moderate",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-14"
+      ]
+    },
+    {
+      "test_id": "R-43",
+      "test_type": "General Research",
+      "test_scenario": "Locate and list current regulations that may govern a solar energy facility or accessory solar installation, including definitions, use permissions, site and design standards, overlays, approvals, and any referenced state-law or utility provisions. Do not determine compliance.",
+      "complexity": "Moderate",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-03",
+        "G-04",
+        "G-25"
+      ]
+    },
+    {
+      "test_id": "R-44",
+      "test_type": "General Research",
+      "test_scenario": "Locate and list current municipal regulations that may govern a marijuana or cannabis facility, including definitions, use permissions, spacing or buffer provisions, sensitive-use references, overlays, approvals, and local licensing provisions. Do not determine eligibility or compliance.",
+      "complexity": "Moderate",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-03",
+        "G-04",
+        "G-25"
+      ]
+    },
+    {
+      "test_id": "R-45",
+      "test_type": "General Research",
+      "test_scenario": "Locate and list current regulations that may govern a data center or similar high-demand technology use, including definitions, use permissions, site standards, infrastructure or generator provisions, operational standards, overlays, and approvals. Do not classify the use or determine compliance.",
+      "complexity": "Moderate",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-03",
+        "G-04",
+        "G-25"
+      ]
+    },
+    {
+      "test_id": "R-46",
+      "test_type": "General Research",
+      "test_scenario": "Locate and list current regulations for another heavily regulated use, such as waste handling, adult-oriented use, medical use, or a high-impact industrial operation, including definitions, special standards, buffers, approvals, and cross-references. Do not determine compliance.",
+      "complexity": "Moderate",
+      "why_it_matters": "Accurate research requires current official sources, the correct property or jurisdiction match, and clear limits on what the available records establish.",
+      "what_bassett_should_do": "Research the stated request using current official sources. Cite the source and date, distinguish verified information from leads or gaps, and identify the next municipal, document, or expert step when needed.",
+      "success_criteria": "Returns a current, clearly sourced result matched to the stated research request; does not overstate what the sources establish; and identifies any remaining verification needed.",
+      "priority": "P2 - Medium",
+      "rubric_ids": [
+        "G-06",
+        "G-07",
+        "G-09",
+        "G-10",
+        "G-22",
+        "G-03",
+        "G-04",
+        "G-25"
+      ]
+    }
+  ]
+}
