@@ -1,7 +1,15 @@
 const COMPARISON_MODELS = new Set(["Bassett", "ChatGPT", "Claude"]);
 import { calculateComparisonScore } from "./comparison";
 import { normalizeEvaluationResult } from "./evaluationResults";
-import { aggregateReportingGroups, calculateReportingGroups } from "./scoringGroups";
+import {
+  aggregateReportingGroups,
+  aggregateRubricCategories,
+  calculateReportingGroups,
+  calculateRubricCategories,
+  CURRENT_RUBRIC_REVISION,
+  currentRubricMetrics,
+  isLegacyEvaluation,
+} from "./scoringGroups";
 import { findingSeverityLabel, isHighOrCriticalSeverity } from "./severity";
 import { LEGACY_RUBRIC_REVISION } from "./rubricCatalog";
 
@@ -134,6 +142,12 @@ function buildComparisonRecords(source) {
     if (!complete) return;
 
     const selected = [...COMPARISON_MODELS].map((model) => slots.get(model));
+    const scoringSystems = new Set(selected.map((evaluation) =>
+      evaluation.rubric_revision === CURRENT_RUBRIC_REVISION
+        ? CURRENT_RUBRIC_REVISION
+        : LEGACY_RUBRIC_REVISION
+    ));
+    if (scoringSystems.size !== 1) return;
     const testcaseId = selected[0].testcase_id;
     if (!selected.every((evaluation) => evaluation.testcase_id === testcaseId)) return;
     const run = runsById.get(selected[0].run_id) || {};
@@ -186,47 +200,80 @@ const BUILDERS = {
   municipality: buildMunicipalityRecords,
 };
 
-export function buildReportPayload({ kind, stats, releaseEvidence, minimumQualifyingTests, insufficientEvidence, releaseReadiness, bassettOnlyEvaluations = [], testcases = [], findings = [], evaluations = [], regressionRuns, testRuns, evaluationDimensions, generated = new Date().toISOString() }) {
-  const scoredEvaluations = evaluationDimensions ? evaluations.map((evaluation) => {
-    if (evaluation.rubric_revision || evaluation.selected_rubric_ids) {
-      return {
-        ...evaluation,
-        rubric_revision: evaluation.rubric_revision || LEGACY_RUBRIC_REVISION,
-        score_label: `Rubric average (${evaluation.rubric_revision || LEGACY_RUBRIC_REVISION})`,
-      };
-    }
-    const calculation = calculateComparisonScore(evaluation, evaluationDimensions);
+function scoreEvaluationForExport(evaluation, evaluationDimensions) {
+  if (evaluation.rubric_revision === CURRENT_RUBRIC_REVISION) {
+    const rubricMetrics = currentRubricMetrics([evaluation]);
     return {
       ...evaluation,
-      final_result: normalizeEvaluationResult(evaluation.final_result),
-      overall_score: calculation.score,
-      weighted_score: calculation.score,
-      score_mode: calculation.weightsActive ? "weighted" : "average",
-      score_label: calculation.scoreLabel,
-      weight_explanation: calculation.weightExplanation,
-      system_recommended: calculation.score === null
-        ? "Not Evaluated"
-        : calculation.score >= 8.5 ? "Pass"
-          : calculation.score >= 7 ? "Pass with Minor Issues"
-            : calculation.score >= 5 ? "Needs Improvement"
-              : calculation.score >= 3 ? "Fail"
-                : "Critical Fail",
+      model: evaluation.model || "Bassett",
+      overall_score: rubricMetrics.overall_score,
+      weighted_score: rubricMetrics.overall_score,
+      category_scores: Object.fromEntries(
+        rubricMetrics.categories
+          .filter((category) => category.scoredValueCount > 0)
+          .map((category) => [category.label, {
+            category: category.key,
+            average: category.score,
+            numerator: category.numerator,
+            denominator: category.denominator,
+            count: category.scoredValueCount,
+          }]),
+      ),
+      score_count: rubricMetrics.score_count,
+      score_mode: "rubric_average",
+      score_label: `Rubric average (${CURRENT_RUBRIC_REVISION})`,
+      weight_explanation: "Neutral rubric weights; missing, N/A, and unchecked criteria are excluded.",
     };
-  }) : evaluations;
+  }
+  if (!evaluationDimensions) return evaluation;
+  const calculation = calculateComparisonScore(evaluation, evaluationDimensions);
+  return {
+    ...evaluation,
+    final_result: normalizeEvaluationResult(evaluation.final_result),
+    overall_score: calculation.score,
+    weighted_score: calculation.score,
+    score_mode: calculation.weightsActive ? "weighted" : "average",
+    score_label: calculation.scoreLabel,
+    weight_explanation: calculation.weightExplanation,
+    system_recommended: calculation.score === null
+      ? "Not Evaluated"
+      : calculation.score >= 8.5 ? "Pass"
+        : calculation.score >= 7 ? "Pass with Minor Issues"
+          : calculation.score >= 5 ? "Needs Improvement"
+            : calculation.score >= 3 ? "Fail"
+              : "Critical Fail",
+  };
+}
+
+export function buildReportPayload({ kind, stats, releaseEvidence, minimumQualifyingTests, insufficientEvidence, releaseReadiness, bassettOnlyEvaluations = [], testcases = [], findings = [], evaluations = [], regressionRuns, testRuns, evaluationDimensions, generated = new Date().toISOString() }) {
+  const scoredEvaluations = evaluations.map((evaluation) =>
+    scoreEvaluationForExport(evaluation, evaluationDimensions));
+  const scoredBassettOnlyEvaluations = bassettOnlyEvaluations.map((evaluation) =>
+    scoreEvaluationForExport({ ...evaluation, model: "Bassett" }, evaluationDimensions));
   const source = canonicalSource({
     testcases,
     findings,
     evaluations: scoredEvaluations,
-    ...(bassettOnlyEvaluations.length ? { bassett_only_evaluations: bassettOnlyEvaluations } : {}),
+    ...(scoredBassettOnlyEvaluations.length
+      ? { bassett_only_evaluations: scoredBassettOnlyEvaluations }
+      : {}),
     ...(regressionRuns === undefined ? {} : { regression_runs: regressionRuns }),
     ...(testRuns === undefined ? {} : { test_runs: testRuns }),
   });
   const records = (BUILDERS[kind] || BUILDERS.qa_summary)(source);
-  const bassettEvaluations = records.evaluations.filter((evaluation) => evaluation.model === "Bassett");
-  const reportingGroups = aggregateReportingGroups(bassettEvaluations, evaluationDimensions || []);
+  const bassettEvaluations = [
+    ...records.evaluations.filter((evaluation) => evaluation.model === "Bassett"),
+    ...(records.bassett_only_evaluations || []),
+  ];
+  const currentEvaluations = bassettEvaluations.filter((evaluation) => evaluation.rubric_revision === CURRENT_RUBRIC_REVISION);
+  const legacyEvaluations = bassettEvaluations.filter(isLegacyEvaluation);
+  const currentRubricCategories = aggregateRubricCategories(currentEvaluations);
+  const legacyReportingGroups = aggregateReportingGroups(legacyEvaluations, evaluationDimensions || []);
   const detailedEvaluations = records.evaluations.map((evaluation) => ({
     ...evaluation,
-    reporting_groups: calculateReportingGroups(evaluation, evaluationDimensions || []),
+    ...(evaluation.rubric_revision === CURRENT_RUBRIC_REVISION
+      ? { rubric_categories: calculateRubricCategories(evaluation) }
+      : { reporting_groups: calculateReportingGroups(evaluation, evaluationDimensions || []) }),
   }));
   return {
     generated,
@@ -245,7 +292,24 @@ export function buildReportPayload({ kind, stats, releaseEvidence, minimumQualif
     ...(releaseReadiness ? { release_readiness: releaseReadiness } : {}),
     ...records,
     evaluations: detailedEvaluations,
-    reporting_groups: reportingGroups,
+    rubric_revision: CURRENT_RUBRIC_REVISION,
+    current_rubric_categories: currentRubricCategories,
+    legacy_reporting_groups: legacyReportingGroups,
+    // Retain the historical key for consumers that explicitly request legacy
+    // dimensions; it is never populated with current rubric categories.
+    reporting_groups: legacyReportingGroups,
+    score_populations: {
+      current_rubric: {
+        revision: CURRENT_RUBRIC_REVISION,
+        evaluation_count: currentEvaluations.length,
+        score_count: currentRubricCategories.reduce((sum, row) => sum + row.scoredValueCount, 0),
+      },
+      legacy12: {
+        revision: LEGACY_RUBRIC_REVISION,
+        evaluation_count: legacyEvaluations.length,
+        score_count: legacyReportingGroups.reduce((sum, row) => sum + row.scoredValueCount, 0),
+      },
+    },
     severity_summary: severitySummary(records.findings || []),
     record_counts: Object.fromEntries(
       Object.entries(records)

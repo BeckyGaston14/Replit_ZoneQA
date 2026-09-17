@@ -31,6 +31,16 @@ function number(value) {
   return Number.isFinite(Number(value)) ? Number(value) : null;
 }
 
+export function rankedRubricCategories(categories = []) {
+  return categories
+    .map((category) => ({
+      category,
+      score: number(category?.score ?? category?.avg_score ?? category?.average),
+    }))
+    .filter((entry) => entry.score !== null && entry.score >= 0 && entry.score <= 10)
+    .sort((left, right) => right.score - left.score);
+}
+
 function safeText(value, fallback = "—") {
   return value === null || value === undefined || value === "" ? fallback : String(value);
 }
@@ -289,7 +299,12 @@ function tableHeight(doc, table) {
 
 export function renderExecutivePdf({ doc, data, chartImages = {}, generated = new Date().toLocaleDateString() }) {
   const kpis = data?.kpis || {};
-  const categories = data?.reporting_groups?.length ? data.reporting_groups : (data?.categories || []);
+  const categories = data?.rubric_categories?.length
+    ? data.rubric_categories
+    : (data?.current_rubric_categories?.length ? data.current_rubric_categories : (data?.categories || []));
+  const rankedCategories = rankedRubricCategories(categories);
+  const strongestCategory = rankedCategories[0];
+  const weakestCategory = rankedCategories[rankedCategories.length - 1];
   const failureModes = data?.failure_modes || [];
   const includesComparison = data?.report_scope !== "bassett";
   const takeaways = [
@@ -307,8 +322,8 @@ export function renderExecutivePdf({ doc, data, chartImages = {}, generated = ne
       : Number(kpis.total_evaluated || 0) > 0
         ? "No outright head-to-head wins or losses are recorded in the current evaluated scope."
         : "Head-to-head results are unavailable until comparable model evaluations are recorded.",
-    categories.length > 1
-       ? `Strongest reporting group: ${categories[0].label || categories[0].category} (${fmtScore(categories[0].score ?? categories[0].avg_score)}/10). Weakest: ${categories[categories.length - 1].label || categories[categories.length - 1].category} (${fmtScore(categories[categories.length - 1].score ?? categories[categories.length - 1].avg_score)}/10).`
+    rankedCategories.length > 1
+       ? `Strongest current rubric category: ${strongestCategory.category.label || strongestCategory.category.category} (${fmtScore(strongestCategory.score)}/10). Weakest: ${weakestCategory.category.label || weakestCategory.category.category} (${fmtScore(weakestCategory.score)}/10).`
       : null,
     kpis.open_critical > 0
       ? `Open findings include ${safeText(kpis.open_high, "—")} High and ${safeText(kpis.open_critical_count, "—")} Critical (${safeText(kpis.open_critical, "0")} High + Critical total) requiring resolution before the next release.`
@@ -357,10 +372,10 @@ export function renderExecutivePdf({ doc, data, chartImages = {}, generated = ne
        // Keep the internal box name stable for layout/audit consumers; the
        // visible title and table headers use the reporting-group terminology.
        name: "Bassett Category Performance",
-       title: "Bassett Reporting Group Performance",
-       note: "Scale: 0–10. Configured-weight averages use applicable underlying dimensions in the report scope.",
+       title: "Current Rubric Category Performance",
+       note: `Revision ${safeText(data?.rubric_revision, "2026-09-16")} · Scale: 0–10. Neutral-weight averages use selected scored criteria; missing, N/A, and unchecked criteria are excluded. Legacy12 groups are separate.`,
       image: chartImages.categories,
-       table: { headers: ["Reporting group", "Average score out of 10"], widths: [145, 37], rows: categories.map((item) => [item.label || item.category, formatEvaluationScore(item.score ?? item.avg_score)]) },
+        table: { headers: ["Current rubric category", "Average score out of 10"], widths: [145, 37], rows: categories.map((item) => [item.label || item.category, formatEvaluationScore(item.score ?? item.avg_score)]) },
     },
   ];
 

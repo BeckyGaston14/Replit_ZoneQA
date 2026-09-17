@@ -256,3 +256,84 @@ test("exports exclude archived, superseded, partial, and orphan-linked records",
   expect(ids(payload, "evaluations")).toEqual(["current"]);
   expect(payload.regression_runs[0].testcase_ids).toEqual(["active"]);
 });
+
+test("report exports keep current rubric categories separate from legacy12 groups", () => {
+  const current = {
+    id: "current", testcase_id: "active", model: "Bassett", rubric_revision: "2026-09-16",
+    selected_rubric_ids: ["G-01", "G-09", "G-11", "G-21", "G-26"],
+    rubric_scores: { "G-01": 0, "G-09": 10, "G-11": 8, "G-21": "N/A", "G-26": 6 },
+    final_result: "Pass",
+  };
+  const legacy = { id: "legacy", testcase_id: "active", model: "Bassett", final_result: "Pass", scores: { accuracy: 8 } };
+  const payload = buildReportPayload({
+    kind: "qa_summary",
+    testcases: [{ id: "active" }],
+    findings: [],
+    evaluations: [current, legacy],
+    evaluationDimensions: [{ key: "accuracy", label: "Accuracy" }],
+  });
+  expect(payload.current_rubric_categories).toHaveLength(5);
+  expect(payload.current_rubric_categories.map((row) => row.score)).toEqual([0, 10, 8, null, 6]);
+  expect(payload.score_populations.current_rubric.score_count).toBe(4);
+  expect(payload.score_populations.legacy12.evaluation_count).toBe(1);
+  expect(payload.evaluations.find((row) => row.id === "current").rubric_categories).toHaveLength(5);
+  expect(payload.evaluations.find((row) => row.id === "legacy").reporting_groups).toHaveLength(7);
+});
+
+test("comparison exports reject a mixed current-rubric and legacy12 triplet", () => {
+  const base = {
+    testcase_id: "active", run_id: "run-1", final_result: "Pass",
+    overall_score: 8, scores: {},
+  };
+  const payload = buildReportPayload({
+    kind: "comparison",
+    testcases: [{ id: "active" }],
+    testRuns: [{
+      id: "run-1", status: "Completed",
+      outcome: "Complete", comparison_complete: true,
+    }],
+    findings: [],
+    evaluations: [
+      {
+        ...base, id: "bassett", model: "Bassett",
+        rubric_revision: "2026-09-16",
+        selected_rubric_ids: ["G-01"], rubric_scores: { "G-01": 8 },
+      },
+      { ...base, id: "chatgpt", model: "ChatGPT", scores: { accuracy: 8 } },
+      { ...base, id: "claude", model: "Claude", scores: { accuracy: 8 } },
+    ],
+    evaluationDimensions: [{ key: "accuracy", label: "Accuracy" }],
+  });
+  expect(payload.evaluations).toEqual([]);
+});
+
+test("release exports include current Bassett-only scores in five category totals", () => {
+  const payload = buildReportPayload({
+    kind: "release",
+    testcases: [],
+    findings: [],
+    evaluations: [],
+    bassettOnlyEvaluations: [{
+      id: "solo-current",
+      testcase_id: "bassett:scenario-1",
+      rubric_revision: "2026-09-16",
+      selected_rubric_ids: ["G-01", "G-09", "G-11", "G-21", "G-26"],
+      rubric_scores: {
+        "G-01": 0, "G-09": 10, "G-11": 8, "G-21": 7, "G-26": 6,
+      },
+      final_result: "Pass",
+    }],
+    evaluationDimensions: [{ key: "accuracy", label: "Accuracy" }],
+  });
+  expect(payload.current_rubric_categories).toHaveLength(5);
+  expect(payload.current_rubric_categories.map((row) => row.score)).toEqual([0, 10, 8, 7, 6]);
+  expect(payload.current_rubric_categories.map((row) => row.denominator)).toEqual([1, 1, 1, 1, 1]);
+  expect(payload.score_populations.current_rubric).toMatchObject({
+    evaluation_count: 1,
+    score_count: 5,
+  });
+  expect(payload.bassett_only_evaluations[0]).toMatchObject({
+    overall_score: 6.2,
+    score_count: 5,
+  });
+});

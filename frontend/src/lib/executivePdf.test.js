@@ -4,7 +4,7 @@ global.TextDecoder = TextDecoder;
 const fs = require("fs");
 const path = require("path");
 const jsPDF = require("jspdf").default;
-const { A4_PAGE, renderExecutivePdf } = require("./executivePdf");
+const { A4_PAGE, rankedRubricCategories, renderExecutivePdf } = require("./executivePdf");
 
 const ONE_PIXEL_PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAIAAAACUFjqAAAAE0lEQVR4nGP48esPHsQwKo0NAQBsLSUIb0XLBgAAAABJRU5ErkJggg==";
 
@@ -12,7 +12,7 @@ function chart(width, height) {
   return { dataUrl: ONE_PIXEL_PNG, width, height };
 }
 
-function reportData(categoryCount = 6, longLabels = false) {
+function reportData(categoryCount = 5, longLabels = false) {
   return {
     scope: "Scope: latest evaluation per test case per model · Bassett version: v1.9 · retests excluded",
     kpis: {
@@ -31,7 +31,8 @@ function reportData(categoryCount = 6, longLabels = false) {
       { mode: "Missed context", count: 3 },
       { mode: "Calculation error", count: 2 },
     ],
-    categories: Array.from({ length: categoryCount }, (_, index) => ({
+    rubric_revision: "2026-09-16",
+    rubric_categories: Array.from({ length: categoryCount }, (_, index) => ({
       category: longLabels ? `Category ${index + 1} with a deliberately long descriptive label that wraps within its table cell` : `Category ${index + 1}`,
       avg_score: 6.5 + index / 10,
     })),
@@ -60,6 +61,24 @@ function assertNoIntersectingLayoutBoxes(boxes) {
     });
   });
 }
+
+test("ranks PDF rubric takeaways by scored value and excludes empty categories", () => {
+  const ranked = rankedRubricCategories([
+    { label: "Property & Zoning Rules", avg_score: 0 },
+    { label: "Sources & Citations", avg_score: 10 },
+    { label: "Reasoning & Conversation", avg_score: null },
+    { label: "Analysis & Next Steps", avg_score: 7 },
+    { label: "Documents & Municipal Records", avg_score: 6 },
+  ]);
+  expect(ranked.map((entry) => entry.category.label)).toEqual([
+    "Sources & Citations",
+    "Analysis & Next Steps",
+    "Documents & Municipal Records",
+    "Property & Zoning Rules",
+  ]);
+  expect(ranked[0].score).toBe(10);
+  expect(ranked.at(-1).score).toBe(0);
+});
 
 test("renders a multi-section report into bounded, non-overlapping A4 pages", () => {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });

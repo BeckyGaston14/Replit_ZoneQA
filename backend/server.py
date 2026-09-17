@@ -30,6 +30,7 @@ from test_bank_catalog import (
     CATEGORIES as RUBRIC_CATALOG_CATEGORIES,
     REFERENCE as RUBRIC_CATALOG_REFERENCE,
     RUBRIC_ITEMS as RUBRIC_CATALOG_ITEMS,
+    aggregate_rubric_evaluations,
     normalize_rubric_ids,
     rubric_snapshot,
     scenario_definition,
@@ -6234,6 +6235,53 @@ async def update_bassett_key(request: Request, user=Depends(require_roles("admin
     return {"ok": True, "bassett_api_key_set": True}
 
 # ---------- Dashboard / Analytics ----------
+def _metric_model_summary(evaluations):
+    by_model = {}
+    for evaluation in evaluations:
+        model = evaluation.get("model", "?")
+        entry = by_model.setdefault(model, {"scores": [], "pass": 0, "fail": 0})
+        if evaluation.get("overall_score") is not None:
+            entry["scores"].append(evaluation["overall_score"])
+        if evaluation.get("normalized_result") in PASS_RESULTS:
+            entry["pass"] += 1
+        elif evaluation.get("normalized_result") in FAIL_RESULTS:
+            entry["fail"] += 1
+    return [
+        {
+            "model": model,
+            "avg_score": round(sum(entry["scores"]) / len(entry["scores"]), 1)
+            if entry["scores"] else None,
+            "score_count": len(entry["scores"]),
+            "passed": entry["pass"],
+            "failed": entry["fail"],
+        }
+        for model, entry in by_model.items()
+    ]
+
+
+def _metric_scoring_populations(evaluations, dimensions=None):
+    current = [
+        evaluation for evaluation in evaluations
+        if evaluation.get("rubric_revision") == CATALOG_REVISION
+    ]
+    legacy = [
+        evaluation for evaluation in evaluations
+        if evaluation.get("rubric_revision") != CATALOG_REVISION
+    ]
+    return {
+        "current_rubric": current,
+        "legacy_dimensions": legacy,
+        "current_categories": aggregate_rubric_evaluations([
+            evaluation for evaluation in current
+            if evaluation.get("model") == "Bassett"
+        ]),
+        "legacy_reporting_groups": reporting_group_averages(
+            legacy,
+            dimensions or [],
+        ) if legacy else [],
+    }
+
+
 async def _authoritative_evaluation_read_model(evaluations):
     """Recalculate legacy records before any dashboard, export, or comparison read."""
     config = await db.config.find_one({"id": "global"}, {"_id": 0}) or DEFAULT_CONFIG
@@ -6248,17 +6296,22 @@ async def _authoritative_evaluation_read_model(evaluations):
         )
         authoritative = score_evaluation(evaluation.get("scores"), dimensions)
         if rubric_current:
+            selected_rubric_ids = normalize_rubric_ids(
+                evaluation.get("selected_rubric_ids") or []
+            )
+            rubric_scores = dict(evaluation.get("rubric_scores") or {})
+            rubric_result = score_rubrics(rubric_scores, selected_rubric_ids)
             authoritative.update({
                 "overall_score": rubric_result["overall_score"],
                 "weighted_score": rubric_result["overall_score"],
                 "score_mode": "rubric_average",
                 "score_label": "Rubric average",
                 "weight_explanation": "Neutral rubric weights; missing and N/A values are excluded.",
-                "category_scores": evaluation.get("category_scores") or rubric_result["category_scores"],
-                "score_count": evaluation.get("score_count", rubric_result["score_count"]),
-                "rubric_scores": dict(evaluation.get("rubric_scores") or {}),
+                "category_scores": rubric_result["category_scores"],
+                "score_count": rubric_result["score_count"],
+                "rubric_scores": rubric_scores,
                 "rubric_revision": CATALOG_REVISION,
-                "selected_rubric_ids": list(evaluation.get("selected_rubric_ids") or []),
+                "selected_rubric_ids": selected_rubric_ids,
                 "additional_rubric_ids": list(evaluation.get("additional_rubric_ids") or []),
                 "rubric_definition_snapshot": dict(
                     evaluation.get("rubric_definition_snapshot") or {}
@@ -6270,6 +6323,7 @@ async def _authoritative_evaluation_read_model(evaluations):
             "normalized_result": result["result"],
             "result_label": result["result"],
             "result_workflow_state": result["is_workflow_state"],
+            "scoring_system": "current_rubric" if rubric_current else "legacy_dimensions",
         })
     return read_model
 
@@ -6314,6 +6368,14 @@ async def _complete_comparison_evaluations(
             and isinstance(slots.get(model, {}).get("scores"), dict)
             for model in COMPARISON_MODELS
         ):
+            continue
+        scoring_systems = {
+            slots[model].get("scoring_system")
+            for model in COMPARISON_MODELS
+        }
+        if len(scoring_systems) != 1:
+            # A current-rubric score and a legacy12 dimension score are not
+            # comparable even when both happen to use a 0–10 display scale.
             continue
         bassett = slots["Bassett"]
         run = run_by_id.get(bassett.get("run_id"), {})
@@ -6420,7 +6482,17 @@ async def dashboard_stats(user=Depends(get_current_user), include_sample: Option
 
     bassett_evals = evaluation_view["bassett"]
     bassett_summary = result_summary(bassett_evals)
-    accuracy = average_score(bassett_evals, empty=0)
+    dashboard_scoring = _metric_scoring_populations(
+        bassett_evals,
+        (await db.config.find_one({"id": "global"}, {"_id": 0}) or DEFAULT_CONFIG)
+        .get("eval_dimensions", []),
+    )
+    dashboard_analytical = (
+        dashboard_scoring["current_rubric"]
+        if dashboard_scoring["current_rubric"]
+        else dashboard_scoring["legacy_dimensions"]
+    )
+    accuracy = average_score(dashboard_analytical, empty=0)
     bassett_populations = await _dashboard_bassett_populations(
         tcs, eligible_evaluations, active_version, comparison_view=evaluation_view
     )
@@ -6448,6 +6520,12 @@ async def dashboard_stats(user=Depends(get_current_user), include_sample: Option
         "regression_failures": latest_regression.get("failed", 0) if latest_regression else 0,
         "demo_approved": cnt(demos, "status", "Approved"),
         "bassett_accuracy": accuracy,
+        "rubric_categories": dashboard_scoring["current_categories"],
+        "legacy_reporting_groups": dashboard_scoring["legacy_reporting_groups"],
+        "scoring_populations": {
+            "current_rubric": len(dashboard_scoring["current_rubric"]),
+            "legacy_dimensions": len(dashboard_scoring["legacy_dimensions"]),
+        },
         "total_tests": len(tcs),
         "total_findings": len(findings),
         "project_last_tested_dates": project_last_tested_dates,
@@ -6552,9 +6630,35 @@ async def analytics_performance(user=Depends(get_current_user),
         ):
             continue
         scores = run.get("evaluation_scores") or run.get("scores") or {}
+        rubric_revision = run.get("rubric_revision") or run.get("bassett_rubric_revision")
+        rubric_scores = dict(run.get("rubric_scores") or run.get("bassett_rubric_scores") or {})
+        selected_rubric_ids = normalize_rubric_ids(
+            run.get("selected_rubric_ids")
+            or run.get("bassett_selected_rubric_ids")
+            or []
+        )
         scenario = scenario_by_id.get(run.get("scenario_id"), {})
+        if rubric_revision == CATALOG_REVISION:
+            rubric_result = score_rubrics(rubric_scores, selected_rubric_ids)
+            authoritative = {
+                "overall_score": rubric_result["overall_score"],
+                "weighted_score": rubric_result["overall_score"],
+                "score_mode": "rubric_average",
+                "score_label": "Rubric average",
+                "category_scores": rubric_result["category_scores"],
+                "score_count": rubric_result["score_count"],
+                "rubric_revision": CATALOG_REVISION,
+                "rubric_scores": rubric_scores,
+                "selected_rubric_ids": selected_rubric_ids,
+                "scoring_system": "current_rubric",
+            }
+        else:
+            authoritative = {
+                **score_evaluation(scores, config.get("eval_dimensions", [])),
+                "scoring_system": "legacy_dimensions",
+            }
         candidate = {
-            **run, **score_evaluation(scores, config.get("eval_dimensions", [])),
+            **run, **authoritative,
             "model": "Bassett", "scores": scores,
             "normalized_result": _canonical_bassett_result(run.get("result")),
             "testcase_id": f"bassett:{run.get('scenario_id') or run.get('id')}",
@@ -6568,19 +6672,12 @@ async def analytics_performance(user=Depends(get_current_user),
     standalone_evals = list(latest_standalone.values())
     evals = standalone_evals if report_scope == "bassett" else comparison_evals if report_scope == "comparison" else [*comparison_evals, *standalone_evals]
 
-    by_model = {}
-    for e in evals:
-        m = e.get("model", "?")
-        by_model.setdefault(m, {"scores": [], "pass": 0, "fail": 0})
-        if e.get("overall_score") is not None:
-            by_model[m]["scores"].append(e["overall_score"])
-        if e.get("normalized_result") in PASS_RESULTS:
-            by_model[m]["pass"] += 1
-        elif e.get("normalized_result") in FAIL_RESULTS:
-            by_model[m]["fail"] += 1
-    model_summary = [{"model": k, "avg_score": round(sum(v["scores"]) / len(v["scores"]), 1) if v["scores"] else None,
-                       "score_count": len(v["scores"]), "passed": v["pass"], "failed": v["fail"]}
-                      for k, v in by_model.items()]
+    scoring_populations = _metric_scoring_populations(evals, config.get("eval_dimensions", []))
+    current_evals = scoring_populations["current_rubric"]
+    legacy_evals = scoring_populations["legacy_dimensions"]
+    model_summary = _metric_model_summary(
+        current_evals if current_evals else legacy_evals
+    )
 
     # by category (Bassett only)
     cat = {}
@@ -6590,15 +6687,33 @@ async def analytics_performance(user=Depends(get_current_user),
         )
         cat.setdefault(c, [])
         cat[c].append(e["overall_score"])
-    by_category = [{"category": k, "avg_score": round(sum(v) / len(v), 1), "count": len(v)} for k, v in cat.items()]
+    by_category = (
+        [
+            {
+                "category": row["category"],
+                "label": row["label"],
+                "avg_score": row["average"],
+                "count": row["count"],
+                "numerator": row["numerator"],
+                "denominator": row["denominator"],
+            }
+            for row in scoring_populations["current_categories"]
+        ]
+        if current_evals else
+        [{"category": k, "avg_score": round(sum(v) / len(v), 1), "count": len(v)} for k, v in cat.items()]
+    )
 
     # dimension averages Bassett
     dim_avg = {}
     b = [e for e in evals if e.get("model") == "Bassett"]
     config = await db.config.find_one({"id": "global"}, {"_id": 0}) or DEFAULT_CONFIG
+    legacy_bassett = [
+        evaluation for evaluation in legacy_evals
+        if evaluation.get("model") == "Bassett"
+    ]
     for d in dims:
         vals = []
-        for evaluation in b:
+        for evaluation in legacy_bassett:
             raw_value = evaluation.get("scores", {}).get(d)
             if raw_value in (None, "", "N/A"):
                 continue
@@ -6609,15 +6724,13 @@ async def analytics_performance(user=Depends(get_current_user),
             if 0 <= value <= 10:
                 vals.append(value)
         dim_avg[d] = round(sum(vals) / len(vals), 1) if vals else None
-    reporting_groups = reporting_group_averages(
-        [evaluation for evaluation in b if isinstance(evaluation.get("scores"), dict)],
-        config.get("eval_dimensions", []),
-    )
+    reporting_groups = scoring_populations["legacy_reporting_groups"]
 
     # competitive: wins/losses/shared failures
     wins = losses = shared_fail = 0
     by_tc = {}
-    for e in evals:
+    analytical_evals = current_evals if current_evals else legacy_evals
+    for e in analytical_evals:
         by_tc.setdefault(e["testcase_id"], {})[e.get("model")] = e
     for tid, models in by_tc.items():
         bs = models.get("Bassett", {}).get("overall_score")
@@ -6635,8 +6748,23 @@ async def analytics_performance(user=Depends(get_current_user),
     report_evidence = evidence_status(
         result_summary([e for e in evals if e.get("model") == "Bassett"])["evaluated"]
     )
-    return {"model_summary": model_summary, "by_category": by_category, "dimension_averages": dim_avg,
+    return {"model_summary": model_summary, "by_category": by_category,
+            "rubric_categories": by_category if current_evals else [],
+            "legacy_reporting_groups": reporting_groups,
             "reporting_groups": reporting_groups,
+            "scoring_populations": {
+                "current_rubric": {
+                    "evaluation_count": len(current_evals),
+                    "model_summary": _metric_model_summary(current_evals),
+                    "categories": scoring_populations["current_categories"],
+                },
+                "legacy_dimensions": {
+                    "evaluation_count": len(legacy_evals),
+                    "model_summary": _metric_model_summary(legacy_evals),
+                    "reporting_groups": reporting_groups,
+                },
+            },
+            "dimension_averages": dim_avg,
             "wins": wins, "losses": losses, "shared_failures": shared_fail, "scope": scope_text,
             "report_scope": report_scope, "population_counts": {
                 "bassett_only": len(standalone_evals),
@@ -7980,7 +8108,32 @@ async def analytics_executive(
         ):
             continue
         scores = run.get("evaluation_scores") or run.get("scores") or {}
-        authoritative = score_evaluation(scores, dimensions)
+        rubric_revision = run.get("rubric_revision") or run.get("bassett_rubric_revision")
+        rubric_scores = dict(run.get("rubric_scores") or run.get("bassett_rubric_scores") or {})
+        selected_rubric_ids = normalize_rubric_ids(
+            run.get("selected_rubric_ids")
+            or run.get("bassett_selected_rubric_ids")
+            or []
+        )
+        if rubric_revision == CATALOG_REVISION:
+            rubric_result = score_rubrics(rubric_scores, selected_rubric_ids)
+            authoritative = {
+                "overall_score": rubric_result["overall_score"],
+                "weighted_score": rubric_result["overall_score"],
+                "score_mode": "rubric_average",
+                "score_label": "Rubric average",
+                "category_scores": rubric_result["category_scores"],
+                "score_count": rubric_result["score_count"],
+                "rubric_revision": CATALOG_REVISION,
+                "rubric_scores": rubric_scores,
+                "selected_rubric_ids": selected_rubric_ids,
+                "scoring_system": "current_rubric",
+            }
+        else:
+            authoritative = {
+                **score_evaluation(scores, dimensions),
+                "scoring_system": "legacy_dimensions",
+            }
         result = _canonical_bassett_result(run.get("result"))
         standalone_bassett.append({
             **run,
@@ -8001,6 +8154,10 @@ async def analytics_executive(
         else comparison_evals if report_scope == "comparison"
         else [*comparison_evals, *standalone_bassett]
     )
+    scoring_populations = _metric_scoring_populations(evals, dimensions)
+    current_evals = scoring_populations["current_rubric"]
+    legacy_evals = scoring_populations["legacy_dimensions"]
+    analytical_evals = current_evals if current_evals else legacy_evals
     # Findings are retained for audit/history after archival, but are not current
     # analytical evidence.
     def is_bassett_finding(finding):
@@ -8035,7 +8192,7 @@ async def analytics_executive(
 
     # quarterly trend per model
     buckets = {}
-    for e in evals:
+    for e in analytical_evals:
         if e.get("overall_score") is None:
             continue
         q, sort_key = quarter_of(e.get("created_at", ""))
@@ -8052,7 +8209,7 @@ async def analytics_executive(
                 row[m] = round(sum(vals) / len(vals), 1)
         trend.append(row)
 
-    b = [e for e in evals if e.get("model") == "Bassett"]
+    b = [e for e in analytical_evals if e.get("model") == "Bassett"]
     scored = [e for e in b if e.get("overall_score") is not None]
     bassett_avg = average_score(b)
     bassett_summary = result_summary(b)
@@ -8062,7 +8219,7 @@ async def analytics_executive(
 
     # wins/losses vs benchmarks
     by_tc = {}
-    for e in evals:
+    for e in analytical_evals:
         if e.get("overall_score") is not None:
             by_tc.setdefault(e["testcase_id"], {})[e.get("model")] = e["overall_score"]
     wins = losses = 0
@@ -8095,11 +8252,25 @@ async def analytics_executive(
             tcs.get(e["testcase_id"], {}), scenario_by_id
         )
         cat.setdefault(c, []).append(e["overall_score"])
-    categories = sorted([{"category": k, "avg_score": round(sum(v) / len(v), 1), "count": len(v)}
-                         for k, v in cat.items()], key=lambda x: -x["avg_score"])
-    reporting_groups = reporting_group_averages(scored, dimensions)
+    categories = (
+        [
+            {
+                "category": row["category"],
+                "label": row["label"],
+                "avg_score": row["average"],
+                "count": row["count"],
+                "numerator": row["numerator"],
+                "denominator": row["denominator"],
+            }
+            for row in scoring_populations["current_categories"]
+        ]
+        if current_evals else
+        sorted([{"category": k, "avg_score": round(sum(v) / len(v), 1), "count": len(v)}
+                for k, v in cat.items()], key=lambda x: -x["avg_score"])
+    )
+    reporting_groups = scoring_populations["legacy_reporting_groups"]
 
-    bench_scores = [e["overall_score"] for e in evals if e.get("model") != "Bassett" and e.get("overall_score") is not None]
+    bench_scores = [e["overall_score"] for e in analytical_evals if e.get("model") != "Bassett" and e.get("overall_score") is not None]
     bench_avg = round(sum(bench_scores) / len(bench_scores), 1) if bench_scores else None
 
     stale_map = await compute_stale_gold_map()
@@ -8118,7 +8289,7 @@ async def analytics_executive(
         ),
     }
     report_evidence = evidence_status(evaluated_count)
-    benchmark_evaluated_count = len([e for e in evals if e.get("model") != "Bassett"])
+    benchmark_evaluated_count = len([e for e in analytical_evals if e.get("model") != "Bassett"])
     return {"kpis": {"bassett_avg": bassett_avg, "benchmark_avg": bench_avg, "pass_rate": pass_rate,
                      "wins": wins, "losses": losses, "open_critical": open_critical,
                      "open_high": open_finding_severity["high"],
@@ -8127,8 +8298,23 @@ async def analytics_executive(
                      "limited_data": limited_data,
                      "benchmark_evaluated": benchmark_evaluated_count,
                      "total_findings": len(findings)},
-             "trend": trend, "failure_modes": failure_modes, "categories": categories,
-             "reporting_groups": reporting_groups, "scope": scope,
+              "trend": trend, "failure_modes": failure_modes, "categories": categories,
+              "rubric_categories": categories if current_evals else [],
+              "legacy_reporting_groups": reporting_groups,
+              "reporting_groups": reporting_groups,
+              "scoring_populations": {
+                  "current_rubric": {
+                      "evaluation_count": len(current_evals),
+                      "model_summary": _metric_model_summary(current_evals),
+                      "categories": scoring_populations["current_categories"],
+                  },
+                  "legacy_dimensions": {
+                      "evaluation_count": len(legacy_evals),
+                      "model_summary": _metric_model_summary(legacy_evals),
+                      "reporting_groups": reporting_groups,
+                  },
+              },
+              "scope": scope,
             "stale_gold_tests": stale_gold, "sample_data_included": include_sample,
              "has_evaluated_data": evaluated_count > 0, "report_scope": report_scope,
              "release_evidence": report_evidence,

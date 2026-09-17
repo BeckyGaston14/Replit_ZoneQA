@@ -73,7 +73,48 @@ def score_rubrics(scores: Any, selected_ids: Any) -> dict[str, Any]:
     scores = scores if isinstance(scores, dict) else {}
     ids = normalize_rubric_ids(selected_ids)
     values = []
-    by_category: dict[str, list[float]] = {}
+    by_category = aggregate_rubric_categories(scores, ids)
+    for rubric_id in ids:
+        raw = scores.get(rubric_id)
+        if raw in (None, "", "N/A", "NA", "Missing"):
+            continue
+        try:
+            value = float(raw)
+        except (TypeError, ValueError):
+            continue
+        if not 0 <= value <= 10:
+            continue
+        values.append(value)
+    category_scores = {
+        category_name(category): {
+            **details,
+            "category": category,
+        }
+        for category, details in by_category.items()
+        if details["count"]
+    }
+    return {
+        "category_scores": category_scores,
+        "overall_score": round(sum(values) / len(values), 1) if values else None,
+        "score_count": len(values),
+    }
+
+
+def aggregate_rubric_categories(scores: Any, selected_ids: Any) -> dict[str, dict[str, Any]]:
+    """Aggregate selected current-revision rubric values across every catalog category.
+
+    The returned rows deliberately include numerator and denominator rather than
+    only a rounded average.  Missing, N/A, unchecked, invalid, and out-of-range
+    values never enter either total; numeric zero remains a valid observation.
+    All five catalog categories are returned so analytical consumers can render a
+    stable chart and distinguish an empty category from an absent category.
+    """
+    scores = scores if isinstance(scores, dict) else {}
+    ids = normalize_rubric_ids(selected_ids)
+    category_totals = {
+        category["key"]: {"numerator": 0.0, "denominator": 0, "count": 0}
+        for category in CATEGORIES
+    }
     for rubric_id in ids:
         raw = scores.get(rubric_id)
         if raw in (None, "", "N/A", "NA", "Missing"):
@@ -85,18 +126,47 @@ def score_rubrics(scores: Any, selected_ids: Any) -> dict[str, Any]:
         if not 0 <= value <= 10:
             continue
         category = RUBRIC_BY_ID[rubric_id]["category"]
-        by_category.setdefault(category, []).append(value)
-        values.append(value)
-    category_scores = {
-        category_name(category): {
-            "category": category,
-            "average": round(sum(items) / len(items), 1),
-            "count": len(items),
-        }
-        for category, items in by_category.items()
-    }
+        totals = category_totals[category]
+        totals["numerator"] += value
+        totals["denominator"] += 1
+        totals["count"] += 1
     return {
-        "category_scores": category_scores,
-        "overall_score": round(sum(values) / len(values), 1) if values else None,
-        "score_count": len(values),
+        category: {
+            "category": category,
+            "average": round(details["numerator"] / details["denominator"], 1)
+            if details["denominator"] else None,
+            **details,
+        }
+        for category, details in category_totals.items()
     }
+
+
+def aggregate_rubric_evaluations(evaluations: Any) -> list[dict[str, Any]]:
+    """Aggregate current-revision rubric values across evaluation records."""
+    totals = {
+        category["key"]: {"numerator": 0.0, "denominator": 0, "count": 0}
+        for category in CATEGORIES
+    }
+    evaluation_count = 0
+    for evaluation in evaluations if isinstance(evaluations, list) else []:
+        result = aggregate_rubric_categories(
+            evaluation.get("rubric_scores") or {},
+            evaluation.get("selected_rubric_ids") or [],
+        )
+        if result:
+            evaluation_count += 1
+        for category, details in result.items():
+            totals[category]["numerator"] += details["numerator"]
+            totals[category]["denominator"] += details["denominator"]
+            totals[category]["count"] += details["count"]
+    return [
+        {
+            "category": category,
+            "label": category_name(category),
+            "average": round(details["numerator"] / details["denominator"], 1)
+            if details["denominator"] else None,
+            **details,
+            "evaluation_count": evaluation_count,
+        }
+        for category, details in totals.items()
+    ]

@@ -81,10 +81,10 @@ export default function Executive() {
 
   if (query.isLoading || query.isError) return <div><PageHeader title="Executive Summary" subtitle="Shareable QA outcomes and trends." /><QueryState query={query} resource="executive summary" testId="executive-query" /></div>;
   const { kpis: k, trend, failure_modes, categories } = d;
-  const reportingGroups = d.reporting_groups || [];
+  const currentCategories = d.rubric_categories || d.current_rubric_categories || categories || [];
   const sampleDataShown = sampleScopeIncludesData({ records: [d] });
   const hasEvaluatedData = d.has_evaluated_data ?? Number(k.total_evaluated || 0) > 0;
-   const chartCategories = (reportingGroups.length ? reportingGroups : categories).filter((category) => evaluationScoreOrNull(category.score ?? category.avg_score) !== null);
+   const chartCategories = currentCategories.filter((category) => evaluationScoreOrNull(category.score ?? category.avg_score) !== null);
 
   const rankedCategories = [...chartCategories].sort(
     (a, b) => evaluationScoreOrNull(b.score ?? b.avg_score) - evaluationScoreOrNull(a.score ?? a.avg_score)
@@ -117,7 +117,7 @@ export default function Executive() {
         ? "No outright head-to-head wins or losses are recorded in the current evaluated scope."
         : "Head-to-head results are unavailable until comparable model evaluations are recorded.",
     strongest && weakest && strongestScore > weakestScore
-       ? `Strongest reporting group: ${strongest.label || strongest.category} (${fmtScore(strongest.score ?? strongest.avg_score)}/10). Weakest: ${weakest.label || weakest.category} (${fmtScore(weakest.score ?? weakest.avg_score)}/10).`
+       ? `Strongest current rubric category: ${strongest.label || strongest.category} (${fmtScore(strongest.score ?? strongest.avg_score)}/10). Weakest: ${weakest.label || weakest.category} (${fmtScore(weakest.score ?? weakest.avg_score)}/10).`
       : strongest && weakest && strongestScore === weakestScore
         ? `All available reporting groups are tied at ${fmtScore(strongestScore)}/10.`
       : null,
@@ -225,8 +225,8 @@ export default function Executive() {
       </div>
 
       <div className="bg-card border rounded-xl p-5 mt-4">
-         <h3 className="font-semibold font-display text-[var(--navy)] mb-3">Bassett Reporting Group Performance</h3>
-         <p className="text-xs text-muted-foreground mb-2">Scale: 0–10. Configured-weight averages of applicable underlying dimensions; missing and N/A values are excluded.</p>
+         <h3 className="font-semibold font-display text-[var(--navy)] mb-3">Current Rubric Category Performance</h3>
+         <p className="text-xs text-muted-foreground mb-2">Revision {d.rubric_revision || "2026-09-16"} · neutral-weight averages of selected rubric criteria; zero is valid and missing, N/A, and unchecked criteria are excluded. Legacy12 groups are not mixed into this chart.</p>
          {chartCategories.length === 0 ? <div role="status" className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">No scored evaluation dimensions are available for this report scope. Complete the evaluation category scores—not only the overall result—to populate this chart.</div> : <div ref={categoriesChartRef} data-testid="exec-categories-chart-render" className="min-w-0">
            <SafeResponsiveContainer height={Math.max(200, chartCategories.length * 44)} testId="exec-categories-responsive-chart">
               <BarChart data={chartCategories.map((item) => ({ ...item, category: item.label || item.category, avg_score: item.score ?? item.avg_score }))} layout="vertical" margin={{ left: 20 }}>
@@ -239,11 +239,11 @@ export default function Executive() {
              </BarChart>
            </SafeResponsiveContainer>
          </div>}
-         <SrTable caption="Bassett reporting-group performance. Scale: 0 to 10." columns={["Reporting group", "Average score out of 10", "Underlying dimensions"]} rows={chartCategories.map((c) => [(c.label || c.category), formatEvaluationScore(c.score ?? c.avg_score), (c.dimensions || c.underlyingDimensions || []).map((item) => item.label || item.key || item).join(", ")])} />
+          <SrTable caption="Current rubric category performance. Scale: 0 to 10." columns={["Current rubric category", "Average score out of 10", "Scored criteria"]} rows={chartCategories.map((c) => [(c.label || c.category), formatEvaluationScore(c.score ?? c.avg_score), `${c.scored_value_count ?? c.scoredValueCount ?? c.count ?? 0} scored criteria`] )} />
       </div>
        <MethodologyDisclosure title="How executive metrics are calculated" testid="executive-methodology">
           <p>Executive KPIs and charts summarize persisted QA evaluations, separate High and Critical findings, and model comparisons for the displayed scope: {d.scope || "current reporting scope"}.</p>
-         <p>Pass rate is passing evaluated tests divided by evaluated tests; scores are arithmetic means of available 0–10 scores; competitive edge is Bassett average minus benchmark average.</p>
+          <p>Pass rate is passing evaluated tests divided by evaluated tests. Current rubric category and overall scores use neutral arithmetic means of selected available 0–10 criteria; legacy12 dimension scores are reported separately and are never mixed into current-revision comparisons.</p>
          <p>Sample data follows the authenticated user's Show sample records preference. Missing scores are unavailable, not zero; stale Gold Standards are surfaced for reverification.</p>
        </MethodologyDisclosure>
     </div>
