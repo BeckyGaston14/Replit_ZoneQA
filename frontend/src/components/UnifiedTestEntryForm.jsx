@@ -18,6 +18,7 @@ import {
   LEGACY_RUBRIC_REVISION,
   normalizeRubricCatalog,
   reconcileRubricSelection,
+  reconcileScenarioRubricSelection,
   rubricDimensions,
   unassociatedRubricItems,
 } from "../lib/rubricCatalog";
@@ -55,7 +56,8 @@ export const emptyBassettTestRun = {
   issue_category: "General", severity: "Medium", priority: "Medium", environment: "",
   test_date: "", scenario_id: "", general_subtype_ids: [], project_id: "", municipality_id: "", property_id: "",
   version_id: "", bassett_version: "", status: "Not Started", result: "Pass", score: "", notes: "", evidence: "",
-  evaluation_scores: {}, selected_rubric_ids: [], rubric_revision: LEGACY_RUBRIC_REVISION,
+  evaluation_scores: {}, selected_rubric_ids: [], rubric_revision: null,
+  rubric_selection_initialized: false, rubric_scenario_ids: [], confirm_rubric_removal: false,
   create_finding: false, finding: {}, follow_up_action: "",
   retest_target: "", retest_date: "", source_links: "", attachments: [],
 };
@@ -117,7 +119,8 @@ export function createComparisonTestDraft(overrides = {}, timeZone, now = new Da
     test_date: todayInTimeZone(timeZone, now), status: "Draft", test_type: "Competitive Benchmark",
     criticality: 3, difficulty: 2, environment: "", notes: "", reproduction_steps: "",
     gold_standard_answer: "", exact_bassett_answer: "", verified_correct_answer: "",
-    result: "Not Evaluated", evaluation_scores: {}, selected_rubric_ids: [], rubric_revision: LEGACY_RUBRIC_REVISION,
+    result: "Not Evaluated", evaluation_scores: {}, rubric_revision: null,
+    selected_rubric_ids: [], rubric_selection_initialized: false, rubric_scenario_ids: [], confirm_rubric_removal: false,
     create_finding: false, finding: {},
     assignee_id: "", follow_up_action: "", retest_target: "", retest_date: "",
     source_links: "", attachments: [], responses: {}, evaluations: {},
@@ -146,6 +149,8 @@ export function createComparisonEditDraft(full, timeZone, now = new Date()) {
     evaluation_scores: evaluations.Bassett?.scores || {},
     selected_rubric_ids: testcase.selected_rubric_ids || evaluations.Bassett?.selected_rubric_ids || [],
     rubric_revision: testcase.rubric_revision || evaluations.Bassett?.rubric_revision || LEGACY_RUBRIC_REVISION,
+    rubric_selection_initialized: true,
+    rubric_scenario_ids: testcase.rubric_scenario_ids || (testcase.scenario_id ? [testcase.scenario_id] : []),
     result: evaluations.Bassett?.final_result || testcase.bassett_result || "Not Evaluated",
     comparison: {
       comparison_result: testcase.comparison_result || "Incomplete",
@@ -300,7 +305,7 @@ export function RubricCriteriaSelector({ catalog, mappedIds = [], selectedIds = 
     const accepted = typeof globalThis.confirm === "function"
       ? globalThis.confirm(`Remove ${rubricId} after its score has been entered?`) : true;
     if (scored && !accepted) return;
-    onChange(selectedIds.filter((id) => id !== rubricId));
+    onChange(selectedIds.filter((id) => id !== rubricId), { confirm_rubric_removal: Boolean(scored) });
   };
   const itemRow = (item) => <label key={item.rubric_id} className="flex items-start gap-2 rounded-md border p-2 text-sm">
     <input type="checkbox" checked={selected.has(item.rubric_id)} disabled={disabled} onChange={(event) => toggle(item.rubric_id, event.target.checked)} />
@@ -326,6 +331,17 @@ export function RubricScoreSummary({ catalog, scores = {}, selectedIds = [] }) {
     <div className="font-semibold text-[var(--navy)]">Neutral rubric averages</div>
     <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs"><span><b>Overall:</b> {formatNeutralAverage(summary.overall)} / 10</span>{Object.entries(summary.categories).map(([category, value]) => <span key={category}><b>{category}:</b> {formatNeutralAverage(value)} / 10</span>)}</div>
     <p className="mt-2 text-xs text-muted-foreground">Missing and N/A criteria are excluded; zero is included. No score is assigned automatically.</p>
+  </div>;
+}
+
+export function RubricAssociationEditor({ catalog, selectedIds = [], onChange, disabled = false }) {
+  const items = normalizeRubricCatalog(catalog).rubric_items;
+  const selected = new Set(selectedIds);
+  if (!items.length) return null;
+  return <div className="space-y-2 rounded-lg border bg-[var(--paper)] p-3" data-testid="rubric-association-editor">
+    <div className="text-sm font-semibold text-[var(--navy)]">Mapped rubric associations</div>
+    <p className="text-xs text-muted-foreground">Select the catalog criteria that apply to this scenario. These associations default checked when a run is created, but do not assign scores.</p>
+    <div className="max-h-72 space-y-2 overflow-y-auto">{items.map((item) => <label key={item.rubric_id} className="flex items-start gap-2 rounded-md border bg-background p-2 text-sm"><input type="checkbox" checked={selected.has(item.rubric_id)} disabled={disabled} onChange={(event) => onChange(event.target.checked ? [...new Set([...selectedIds, item.rubric_id])] : selectedIds.filter((id) => id !== item.rubric_id))} /><span><span className="font-semibold text-[var(--navy)]">{item.rubric_id} · {item.evaluation_criterion}</span><span className="block text-xs text-muted-foreground">{item.expected_behavior}</span></span></label>)}</div>
   </div>;
 }
 
@@ -555,24 +571,33 @@ export default function UnifiedTestEntryForm({
   const mappedRubricIds = useMemo(() => reconcileRubricSelection({
     scenarios, scenarioIds: activeScenarioIds, selectedRubricIds: [],
   }).mappedRubricIds, [scenarios, activeScenarioIds]);
+  const catalogActive = normalizedRubricCatalog.rubric_items.length > 0
+    && form.rubric_revision !== LEGACY_RUBRIC_REVISION
+    && (!form.id || form.rubric_revision === normalizedRubricCatalog.revision);
   useEffect(() => {
-    if (!normalizedRubricCatalog.rubric_items.length || !mappedRubricIds.length) return;
-    const reconciled = reconcileRubricSelection({
-      scenarios, scenarioIds: activeScenarioIds,
-      selectedRubricIds: form.selected_rubric_ids || [],
-      scores: form.evaluation_scores || {},
-    });
-    const current = form.selected_rubric_ids || [];
-    if (JSON.stringify(current) === JSON.stringify(reconciled.selectedRubricIds)
+    if (!catalogActive) return;
+    const previousScenarioIds = form.rubric_scenario_ids || (form.rubric_selection_initialized ? activeScenarioIds : []);
+    if (form.rubric_selection_initialized && JSON.stringify(previousScenarioIds) === JSON.stringify(activeScenarioIds)
       && form.rubric_revision === normalizedRubricCatalog.revision) return;
+    const reconciled = reconcileScenarioRubricSelection({
+      scenarios, previousScenarioIds, scenarioIds: activeScenarioIds,
+      selectedRubricIds: form.selected_rubric_ids || [], scores: form.evaluation_scores || {},
+      initialized: form.rubric_selection_initialized === true,
+      confirmRemoval: (rubricId) => typeof globalThis.confirm !== "function"
+        || globalThis.confirm(`Remove ${rubricId} after its score has been entered?`),
+    });
+    if (!reconciled.confirmed) return;
     setForm((previous) => ({
       ...previous,
       selected_rubric_ids: reconciled.selectedRubricIds,
       rubric_revision: normalizedRubricCatalog.revision,
-      evaluation_scores: { ...(previous.evaluation_scores || {}), ...reconciled.scores },
+      rubric_selection_initialized: true,
+      rubric_scenario_ids: reconciled.previousScenarioIds,
+      confirm_rubric_removal: previous.confirm_rubric_removal || reconciled.confirm_rubric_removal,
+      evaluation_scores: reconciled.scores,
     }));
-  }, [activeScenarioIds, form.evaluation_scores, form.rubric_revision, form.selected_rubric_ids, mappedRubricIds, normalizedRubricCatalog.rubric_items.length, normalizedRubricCatalog.revision, scenarios, setForm]);
-  const dimensions = (normalizedRubricCatalog.rubric_items.length && form.selected_rubric_ids?.length
+  }, [activeScenarioIds, catalogActive, form.evaluation_scores, form.rubric_revision, form.rubric_scenario_ids, form.rubric_selection_initialized, form.selected_rubric_ids, normalizedRubricCatalog.revision, scenarios, setForm]);
+  const dimensions = (catalogActive && form.selected_rubric_ids?.length
     ? rubricDimensions(normalizedRubricCatalog, form.selected_rubric_ids)
     : (config.eval_dimensions?.length ? config.eval_dimensions : DEFAULT_DIMENSIONS.map(([key, label, weight, question]) => ({ key, label, weight, question })))).map((dimension) => {
      const fallback = DEFAULT_DIMENSIONS.find(([key]) => key === dimension.key);
@@ -773,7 +798,7 @@ export default function UnifiedTestEntryForm({
       <Field label={isComparison ? "Comparison Category" : "Finding Category"}><Input value={form.issue_category || form.category || ""} onChange={(e) => update(isComparison ? "category" : "issue_category", e.target.value)} /></Field>
     </div></GuidedSection>
 
-     <GuidedSection index={3} title="4. Canonical Evaluation" active={activeSection === 3} status={sectionStatus(3)} onActivate={activateSection}><p className="text-xs text-muted-foreground">Use the selected revision rubric. Blank dimensions and N/A remain unavailable and are excluded from the denominator; zero is a valid score.</p><div className="mt-4 space-y-4"><GeneralSubtypeGuidance subtypes={generalSubtypes} selectedIds={form.general_subtype_ids || []} />{rubricCatalog && <RubricCriteriaSelector catalog={normalizedRubricCatalog} mappedIds={mappedRubricIds} selectedIds={form.selected_rubric_ids || []} scores={evaluationFor("Bassett").scores} disabled={lockedCommon} onChange={(ids) => setForm((current) => ({ ...current, selected_rubric_ids: ids, rubric_revision: normalizedRubricCatalog.revision }))} />}<h4 className="font-semibold text-sm text-[var(--navy)]">Bassett evaluation · {form.rubric_revision || LEGACY_RUBRIC_REVISION} · calculated score</h4><EvaluationGrid model="Bassett" scores={evaluationFor("Bassett").scores} dimensions={dimensions} onChange={updateEvaluation} locked={lockedCommon} /><RubricScoreSummary catalog={normalizedRubricCatalog} scores={evaluationFor("Bassett").scores} selectedIds={form.selected_rubric_ids || []} /><Field label="Bassett Score Rationale" required={hasScoredDimension(evaluationFor("Bassett").scores)} description="Cite the specific answer evidence that supports the selected numbers (minimum 20 characters when scored)."><Textarea rows={3} value={evaluationFor("Bassett").rationale || form.score_rationale || ""} onChange={(e) => updateEvaluationRationale("Bassett", e.target.value)} /></Field></div></GuidedSection>
+     <GuidedSection index={3} title="4. Canonical Evaluation" active={activeSection === 3} status={sectionStatus(3)} onActivate={activateSection}><p className="text-xs text-muted-foreground">Use the selected revision rubric. Blank dimensions and N/A remain unavailable and are excluded from the denominator; zero is a valid score.</p><div className="mt-4 space-y-4"><GeneralSubtypeGuidance subtypes={generalSubtypes} selectedIds={form.general_subtype_ids || []} />{rubricCatalog && catalogActive && <RubricCriteriaSelector catalog={normalizedRubricCatalog} mappedIds={mappedRubricIds} selectedIds={form.selected_rubric_ids || []} scores={evaluationFor("Bassett").scores} disabled={lockedCommon} onChange={(ids, meta = {}) => setForm((current) => ({ ...current, selected_rubric_ids: ids, rubric_revision: normalizedRubricCatalog.revision, rubric_selection_initialized: true, confirm_rubric_removal: current.confirm_rubric_removal || meta.confirm_rubric_removal }))} />}<h4 className="font-semibold text-sm text-[var(--navy)]">Bassett evaluation · {form.rubric_revision || LEGACY_RUBRIC_REVISION} · calculated score</h4><EvaluationGrid model="Bassett" scores={evaluationFor("Bassett").scores} dimensions={dimensions} onChange={updateEvaluation} locked={lockedCommon} /><RubricScoreSummary catalog={normalizedRubricCatalog} scores={evaluationFor("Bassett").scores} selectedIds={form.selected_rubric_ids || []} /><Field label="Bassett Score Rationale" required={hasScoredDimension(evaluationFor("Bassett").scores)} description="Cite the specific answer evidence that supports the selected numbers (minimum 20 characters when scored)."><Textarea rows={3} value={evaluationFor("Bassett").rationale || form.score_rationale || ""} onChange={(e) => updateEvaluationRationale("Bassett", e.target.value)} /></Field></div></GuidedSection>
 
     <GuidedSection index={4} title="5. Findings & Ownership" active={activeSection === 4} status={sectionStatus(4)} onActivate={activateSection}><div className="space-y-4">
       <label className="flex items-center gap-2 text-sm"><Checkbox aria-label="Create a linked Bassett finding" checked={Boolean(form.create_finding)} onCheckedChange={(checked) => update("create_finding", checked === true)} /> Create a linked Bassett finding</label>
@@ -800,7 +825,7 @@ export default function UnifiedTestEntryForm({
         const index = 7 + modelIndex;
         return <GuidedSection key={model} index={index} title={`${model} response, model metadata & settings`} active={activeSection === index} status={sectionStatus(index)} onActivate={activateSection} comparisonOnly><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><Field label={`${model} response`} description="Leave blank to record this response as unavailable."><Textarea rows={6} value={responseFor(model).response || ""} onChange={(e) => updateResponse(model, "response", e.target.value)} placeholder="Leave blank to record unavailable." /></Field><Field label="Model name"><Input value={responseFor(model).model_name || model} onChange={(e) => updateResponse(model, "model_name", e.target.value)} /></Field><Field label="Model version"><Input value={responseFor(model).version || ""} onChange={(e) => updateResponse(model, "version", e.target.value)} /></Field><Field label="Response date"><Input type="date" value={responseFor(model).test_date || form.test_date || ""} onChange={(e) => updateResponse(model, "test_date", e.target.value)} /></Field><Field label="Settings"><Textarea rows={2} value={typeof responseFor(model).settings === "string" ? responseFor(model).settings : JSON.stringify(responseFor(model).settings || {})} onChange={(e) => updateResponse(model, "settings", e.target.value)} placeholder="Temperature, system prompt, tools…" /></Field></div></GuidedSection>;
       })}
-      <GuidedSection index={9} title="Benchmark evaluations & canonical scores" active={activeSection === 9} status={sectionStatus(9)} onActivate={activateSection} comparisonOnly><div className="space-y-6">{["ChatGPT", "Claude"].map((model) => <div key={model} className="space-y-3"><div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end"><h4 className="font-semibold text-sm text-[var(--navy)]">{model} evaluation · {form.rubric_revision || LEGACY_RUBRIC_REVISION} · calculated score</h4><Field label={`${model} verdict`}><select className="h-9 w-full rounded-md border bg-background px-3 py-2 text-sm" value={normalizeEvaluationResult(evaluationFor(model).final_result)} onChange={(e) => updateEvaluationResult(model, e.target.value)}>{COMPARISON_RESULT_OPTIONS.map((value) => <option key={value}>{value}</option>)}</select></Field></div><EvaluationGrid model={model} scores={evaluationFor(model).scores} dimensions={dimensions} onChange={updateEvaluation} /><RubricScoreSummary catalog={normalizedRubricCatalog} scores={evaluationFor(model).scores} selectedIds={form.selected_rubric_ids || []} /><Field label={`${model} score rationale`} required={hasScoredDimension(evaluationFor(model).scores)} description="Cite specific evidence supporting the selected scores (minimum 20 characters when scored)."><Textarea rows={3} value={evaluationFor(model).rationale || ""} onChange={(e) => updateEvaluationRationale(model, e.target.value)} /></Field></div>)}</div></GuidedSection>
+     <GuidedSection index={9} title="Benchmark evaluations & canonical scores" active={activeSection === 9} status={sectionStatus(9)} onActivate={activateSection} comparisonOnly><div className="space-y-6">{["ChatGPT", "Claude"].map((model) => <div key={model} className="space-y-3"><div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end"><h4 className="font-semibold text-sm text-[var(--navy)]">{model} evaluation · {form.rubric_revision || LEGACY_RUBRIC_REVISION} · calculated score</h4><Field label={`${model} verdict`}><select className="h-9 w-full rounded-md border bg-background px-3 py-2 text-sm" value={normalizeEvaluationResult(evaluationFor(model).final_result)} onChange={(e) => updateEvaluationResult(model, e.target.value)}>{COMPARISON_RESULT_OPTIONS.map((value) => <option key={value}>{value}</option>)}</select></Field></div><EvaluationGrid model={model} scores={evaluationFor(model).scores} dimensions={dimensions} onChange={updateEvaluation} locked={lockedCommon} />{catalogActive && <RubricScoreSummary catalog={normalizedRubricCatalog} scores={evaluationFor(model).scores} selectedIds={form.selected_rubric_ids || []} />}<Field label={`${model} score rationale`} required={hasScoredDimension(evaluationFor(model).scores)} description="Cite specific evidence supporting the selected scores (minimum 20 characters when scored)."><Textarea rows={3} value={evaluationFor(model).rationale || ""} onChange={(e) => updateEvaluationRationale(model, e.target.value)} /></Field></div>)}</div></GuidedSection>
       <GuidedSection index={10} title="Benchmark result & competitive findings" active={activeSection === 10} status={sectionStatus(10)} onActivate={activateSection} comparisonOnly><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><Field label="Bassett-versus-benchmark result"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={comparison.comparison_result || "Incomplete"} onChange={(e) => updateNested("comparison", "comparison_result", e.target.value)}>{COMPARISON_RESULT_OPTIONS.map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Win / loss / tie / shared failure"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={comparison.comparison_classification || "Incomplete"} onChange={(e) => updateNested("comparison", "comparison_classification", e.target.value)}>{COMPARISON_CLASSIFICATIONS.map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Competitive advantage"><Textarea rows={3} value={comparison.competitive_advantage || ""} onChange={(e) => updateNested("comparison", "competitive_advantage", e.target.value)} /></Field><Field label="Competitive gap"><Textarea rows={3} value={comparison.competitive_gap || ""} onChange={(e) => updateNested("comparison", "competitive_gap", e.target.value)} /></Field><Field label="Comparison-specific findings"><Textarea rows={4} value={comparison.findings?.[0]?.description || ""} onChange={(e) => updateNested("comparison", "findings", [{ title: "Comparison finding", description: e.target.value }])} placeholder="Never mixed into Bassett-only findings." /></Field></div></GuidedSection>
      </div>}
       <ReviewSummary mode={mode} conversationSource={form.conversation_source} progress={progress} sectionStatus={sectionStatus} sectionIssue={sectionIssue} sectionRequired={sectionRequired} activateSection={activateSection} totalSections={totalSections} />

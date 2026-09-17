@@ -2,6 +2,7 @@ import {
   LEGACY_RUBRIC_REVISION,
   normalizeRubricCatalog,
   reconcileRubricSelection,
+  reconcileScenarioRubricSelection,
   removeRubricSelection,
   rubricDimensions,
   unassociatedRubricItems,
@@ -46,4 +47,39 @@ test("scored removal requires confirmation and zero is treated as scored", () =>
 test("legacy revision is explicit", () => {
   expect(normalizeRubricCatalog(null).revision).toBeNull();
   expect(LEGACY_RUBRIC_REVISION).toBe("legacy12");
+});
+
+test("initialization is stable, new scenario mappings union, and unchecks survive", () => {
+  const initialized = reconcileScenarioRubricSelection({
+    scenarios, scenarioIds: ["s1"], selectedRubricIds: [], initialized: false,
+  });
+  expect(initialized.selectedRubricIds).toEqual(["G-01", "G-02"]);
+  const changed = reconcileScenarioRubricSelection({
+    scenarios, previousScenarioIds: ["s1"], scenarioIds: ["s1", "s2"],
+    selectedRubricIds: ["G-01"], initialized: true,
+  });
+  expect(changed.selectedRubricIds).toEqual(["G-01", "G-03"]);
+  const reloaded = reconcileScenarioRubricSelection({
+    scenarios, previousScenarioIds: ["s1", "s2"], scenarioIds: ["s1", "s2"],
+    selectedRubricIds: changed.selectedRubricIds, initialized: true,
+  });
+  expect(reloaded.selectedRubricIds).toEqual(["G-01", "G-03"]);
+});
+
+test("scenario removal preserves shared IDs and confirms scored removals", () => {
+  const declined = reconcileScenarioRubricSelection({
+    scenarios, previousScenarioIds: ["s1", "s2"], scenarioIds: ["s2"],
+    selectedRubricIds: ["G-01", "G-02", "G-03"], scores: { "G-01": 0 },
+    initialized: true, confirmRemoval: () => false,
+  });
+  expect(declined.confirmed).toBe(false);
+  expect(declined.selectedRubricIds).toEqual(["G-01", "G-02", "G-03"]);
+  const accepted = reconcileScenarioRubricSelection({
+    scenarios, previousScenarioIds: ["s1", "s2"], scenarioIds: ["s2"],
+    selectedRubricIds: ["G-01", "G-02", "G-03"], scores: { "G-01": 0 },
+    initialized: true, confirmRemoval: () => true,
+  });
+  expect(accepted.selectedRubricIds).toEqual(["G-02", "G-03"]);
+  expect(accepted.scores).toEqual({});
+  expect(accepted.confirm_rubric_removal).toBe(true);
 });

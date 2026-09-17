@@ -3,6 +3,7 @@ import { calculateComparisonScore } from "./comparison";
 import { normalizeEvaluationResult } from "./evaluationResults";
 import { aggregateReportingGroups, calculateReportingGroups } from "./scoringGroups";
 import { findingSeverityLabel, isHighOrCriticalSeverity } from "./severity";
+import { LEGACY_RUBRIC_REVISION } from "./rubricCatalog";
 
 const REPORT_SCOPES = {
   qa_summary: "All persisted QA records.",
@@ -187,6 +188,13 @@ const BUILDERS = {
 
 export function buildReportPayload({ kind, stats, releaseEvidence, minimumQualifyingTests, insufficientEvidence, releaseReadiness, bassettOnlyEvaluations = [], testcases = [], findings = [], evaluations = [], regressionRuns, testRuns, evaluationDimensions, generated = new Date().toISOString() }) {
   const scoredEvaluations = evaluationDimensions ? evaluations.map((evaluation) => {
+    if (evaluation.rubric_revision || evaluation.selected_rubric_ids) {
+      return {
+        ...evaluation,
+        rubric_revision: evaluation.rubric_revision || LEGACY_RUBRIC_REVISION,
+        score_label: `Rubric average (${evaluation.rubric_revision || LEGACY_RUBRIC_REVISION})`,
+      };
+    }
     const calculation = calculateComparisonScore(evaluation, evaluationDimensions);
     return {
       ...evaluation,

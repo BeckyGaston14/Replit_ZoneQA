@@ -36,6 +36,39 @@ export function reconcileRubricSelection({
   };
 }
 
+export function reconcileScenarioRubricSelection({
+  scenarios = [], previousScenarioIds = [], scenarioIds = [], selectedRubricIds = [],
+  scores = {}, initialized = false, confirmRemoval = () => true,
+}) {
+  const previousMapped = scenarioRubricIds(scenarios, previousScenarioIds);
+  const mapped = scenarioRubricIds(scenarios, scenarioIds);
+  if (!initialized) {
+    return {
+      selectedRubricIds: mapped,
+      mappedRubricIds: mapped,
+      previousScenarioIds: scenarioIds,
+      scores: Object.fromEntries(Object.entries(scores || {}).filter(([id]) => mapped.includes(id))),
+      confirm_rubric_removal: false,
+      confirmed: true,
+    };
+  }
+  const newlyMapped = mapped.filter((id) => !previousMapped.includes(id));
+  const removed = previousMapped.filter((id) => !mapped.includes(id) && selectedRubricIds.includes(id));
+  const scoredRemoved = removed.filter((id) => scores?.[id] !== undefined && scores[id] !== "" && scores[id] !== null && scores[id] !== "N/A");
+  if (scoredRemoved.length && !scoredRemoved.every((id) => confirmRemoval(id))) {
+    return { selectedRubricIds, mappedRubricIds: mapped, previousScenarioIds: scenarioIds, scores, confirm_rubric_removal: false, confirmed: false };
+  }
+  const selected = [...new Set([...selectedRubricIds, ...newlyMapped].filter((id) => !removed.includes(id) || !scoredRemoved.includes(id)))];
+  return {
+    selectedRubricIds: selected,
+    mappedRubricIds: mapped,
+    previousScenarioIds: scenarioIds,
+    scores: Object.fromEntries(Object.entries(scores || {}).filter(([id]) => selected.includes(id))),
+    confirm_rubric_removal: Boolean(scoredRemoved.length),
+    confirmed: true,
+  };
+}
+
 export function rubricDimensions(catalog, selectedIds = []) {
   const { rubric_items: items } = normalizeRubricCatalog(catalog);
   const selected = new Set(selectedIds);

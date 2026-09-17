@@ -20,6 +20,7 @@ import {
   TEST_BANK_SORT_COLUMNS,
 } from "../lib/testBankSorting";
 import { BassettTestRunForm, createBassettTestRunDraft } from "../components/BassettTestRunForm";
+import { RubricAssociationEditor } from "../components/UnifiedTestEntryForm";
 import { formatTestDate } from "../lib/testDates";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { TABLE_ACTION_CELL_CLASS, TABLE_CELL_CLASS, TABLE_CLASS, TABLE_EMPTY_CELL_CLASS, TABLE_HEAD_CLASS } from "../lib/tableStyles";
@@ -31,7 +32,7 @@ import { loadBassettScenarioForEdit } from "../lib/bassettEditLoaders";
 const emptyScenario = {
   workflow_stage: "", test_scenario: "",
   complexity: "Medium", why_it_matters: "", what_bassett_should_do: "",
-  success_criteria: "", priority: "Medium", test_type: "Single Prompt", scoring_category: "",
+  success_criteria: "", priority: "Medium", test_type: "Analysis", scoring_category: "",
   project_id: "", testcase_id: "", version_id: "", catalog_revision: "",
 };
 const DEFAULT_TEST_BANK_VIEW = { filters: { search: "", stage: "all", complexity: "all", priority: "all" } };
@@ -86,6 +87,8 @@ export default function BassettTestBank() {
   const [showArchived, setShowArchived] = useState(false);
   const [stageDraft, setStageDraft] = useState({ name: "", code: "", position: "", active: true });
   const [stageConflict, setStageConflict] = useState(null);
+  const [migrationPreview, setMigrationPreview] = useState(null);
+  const [migrationApplying, setMigrationApplying] = useState(false);
   const { data: scenarios = [], isLoading } = useTestBank({ includeArchived: true });
   const { data: metrics } = useQuery({ queryKey: ["bassett-metrics"], queryFn: async () => (await api.get("/bassett/metrics")).data });
   const { data: projects = [] } = useCollection("projects");
@@ -261,6 +264,22 @@ export default function BassettTestBank() {
       } else toast.error(importError(error, "Unable to save category"));
     }
   };
+  const previewRubricMigration = async () => {
+    try {
+      const { data } = await api.get("/bassett/rubric-migration/preview");
+      setMigrationPreview(data);
+    } catch (error) { toast.error(importError(error, "Unable to preview rubric migration")); }
+  };
+  const applyRubricMigration = async () => {
+    setMigrationApplying(true);
+    try {
+      const { data } = await api.post("/bassett/rubric-migration/apply", { confirm: true });
+      toast.success(`${data.updated ?? data.migrated ?? 0} record(s) migrated`);
+      setMigrationPreview(null);
+      qc.invalidateQueries();
+    } catch (error) { toast.error(importError(error, "Unable to apply rubric migration")); }
+    finally { setMigrationApplying(false); }
+  };
   const scenarioDirty = Boolean(form && scenarioBaseline.current && JSON.stringify(form) !== JSON.stringify(scenarioBaseline.current));
 
   return <div>
@@ -269,6 +288,7 @@ export default function BassettTestBank() {
       <Button variant="outline" onClick={exportCsv}><FileOutput /> Export CSV</Button>
       <Button variant="outline" aria-pressed={showArchived} onClick={() => setShowArchived((value) => !value)}>{showArchived ? "Active scenarios" : "Archived scenarios"}</Button>
       {canManage && <Button variant="outline" onClick={() => setShowWorkflowManager(true)}>Manage categories & prefixes</Button>}
+      {canManage && <Button variant="outline" onClick={previewRubricMigration}>Preview rubric migration</Button>}
         {canManage && <Button onClick={() => { const draft = { ...emptyScenario, scoring_category: rubricCatalog?.categories?.[0]?.key || "", catalog_revision: rubricCatalog?.revision || "" }; scenarioBaseline.current = draft; setFormErrors({}); setScenarioError(""); setConflict(null); setForm(draft); }} className="bg-[var(--orange)] hover:bg-[var(--orange-600)]"><Plus /> New Test Scenario</Button>}
     </PageHeader>
     {viewError && <div role="alert" className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">{viewError} <button type="button" className="ml-2 font-semibold underline" onClick={clearViewError}>Dismiss</button></div>}
@@ -341,14 +361,15 @@ export default function BassettTestBank() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
        <Field label="Workflow stage" required error={formErrors.workflow_stage}><select required data-testid="field-workflow_stage" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.workflow_stage} onChange={(e) => setScenarioField("workflow_stage", e.target.value)}><option value="">Select workflow stage</option>{stages.map((x) => <option key={x}>{x}</option>)}</select></Field>
        <Field label="Primary Scoring Category" required><select required data-testid="field-scoring_category" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.scoring_category || ""} onChange={(e) => setScenarioField("scoring_category", e.target.value)}><option value="">Select scoring category</option>{(rubricCatalog?.categories || []).map((category) => <option key={category.key} value={category.key}>{category.name}</option>)}</select><p className="mt-1 text-xs text-muted-foreground">Distinct from workflow stage and Test Type.</p></Field>
-       <Field label="Test Type" required><select required data-testid="field-test_type" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.test_type || "Single Prompt"} onChange={(e) => setScenarioField("test_type", e.target.value)}><option>Single Prompt</option><option>Multi-turn</option></select></Field>
+       <Field label="Test Type" required><select required data-testid="field-test_type" className="h-9 w-full rounded-md border bg-background px-3 py-2 text-sm" value={form.test_type || "Analysis"} onChange={(e) => setScenarioField("test_type", e.target.value)}><option>Analysis</option><option>Document Handling</option><option>General Research</option></select></Field>
           <Field label="Complexity" required error={formErrors.complexity}><select data-testid="field-complexity" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.complexity} onChange={(e) => setScenarioField("complexity", e.target.value)}>{["Low", "Moderate", "Medium", "High", "Very High"].map((x) => <option key={x}>{x}</option>)}</select></Field>
           <div className="sm:col-span-2"><Field label="Test Scenario" required error={formErrors.test_scenario}><Textarea data-testid="field-test_scenario" rows={3} value={form.test_scenario} onChange={(e) => setScenarioField("test_scenario", e.target.value)} /></Field></div>
           <div className="sm:col-span-2"><Field label="Why it matters" required error={formErrors.why_it_matters}><Textarea data-testid="field-why_it_matters" rows={2} value={form.why_it_matters} onChange={(e) => setScenarioField("why_it_matters", e.target.value)} /></Field></div>
           <div className="sm:col-span-2"><Field label="What Bassett should do" required error={formErrors.what_bassett_should_do}><Textarea data-testid="field-what_bassett_should_do" rows={3} value={form.what_bassett_should_do} onChange={(e) => setScenarioField("what_bassett_should_do", e.target.value)} /></Field></div>
           <div className="sm:col-span-2"><Field label="Success criteria" required error={formErrors.success_criteria}><Textarea data-testid="field-success_criteria" rows={3} value={form.success_criteria} onChange={(e) => setScenarioField("success_criteria", e.target.value)} /></Field></div>
         </div>
-      </fieldset>
+       </fieldset>
+       <RubricAssociationEditor catalog={rubricCatalog} selectedIds={form.rubric_ids || []} onChange={(ids) => setScenarioField("rubric_ids", ids)} />
       <fieldset className="rounded-xl border p-4">
         <legend className="px-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">Outcome and prioritization</legend>
         <Field label="Priority"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.priority} onChange={(e) => setScenarioField("priority", e.target.value)}>{["P0 - Immediate", "P1 - High", "P2 - Medium", "Critical", "High", "Medium", "Low"].map((x) => <option key={x}>{x}</option>)}</select></Field>
@@ -361,6 +382,13 @@ export default function BassettTestBank() {
           <Field label="General Test Subtype"><select aria-label="General Test Subtype" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.testcase_id} onChange={(e) => setScenarioField("testcase_id", e.target.value)}><option value="">Not linked</option>{testcases.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></Field>
         </div>
       </details>
+    </FormModal>}
+    {migrationPreview && <FormModal open onOpenChange={(open) => !open && setMigrationPreview(null)} title="Preview rubric migration" onSubmit={applyRubricMigration} submitLabel={migrationApplying ? "Applying…" : "Apply migration"} submitDisabled={migrationApplying}>
+      <div className="space-y-3 text-sm">
+        <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-900"><b>No changes have been made.</b> Review this preview and explicitly confirm Apply migration to update eligible legacy records. Historical records that cannot be safely converted remain unchanged.</p>
+        <pre className="max-h-64 overflow-auto rounded-lg bg-[var(--paper)] p-3 text-xs">{JSON.stringify(migrationPreview, null, 2)}</pre>
+        <label className="flex items-start gap-2"><input type="checkbox" required /> <span>I understand this is an explicit migration and want to apply the preview.</span></label>
+      </div>
     </FormModal>}
     {execute && <BassettTestRunForm form={execute} setForm={setExecute} scenarios={scenarios} rubricCatalog={rubricCatalog} generalSubtypes={generalSubtypes} versions={versions} projects={projects} onSubmit={recordExecution} onCancel={() => setExecute(null)} submitting={savingRun} />}
     {showImport && <FormModal open onOpenChange={(open) => !open && setShowImport(false)} title="Review Spreadsheet Test Scenarios" onSubmit={preview ? commitImport : previewImport} submitLabel={importing ? "Importing…" : preview ? "Confirm Import Accepted Rows" : "Preview Rows"} wide>
