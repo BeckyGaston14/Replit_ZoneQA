@@ -102,7 +102,7 @@ export function reconcileScenarioRubricSelection({
 }
 
 export function rubricDimensions(catalog, selectedIds = []) {
-  const { rubric_items: items } = normalizeRubricCatalog(catalog);
+  const { rubric_items: items, categories } = normalizeRubricCatalog(catalog);
   const selected = new Set(selectedIds);
   return items
     .filter((item) => selected.has(item.rubric_id))
@@ -112,6 +112,7 @@ export function rubricDimensions(catalog, selectedIds = []) {
       question: item.expected_behavior,
       description: item.passing_standard,
       rubric: item,
+      category: categories.find((category) => category.key === item.category || category.name === item.category)?.name || item.category,
     }));
 }
 

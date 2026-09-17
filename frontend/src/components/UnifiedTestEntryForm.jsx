@@ -189,13 +189,17 @@ export function createComparisonEditDraft(full, timeZone, now = new Date()) {
 export function ScenarioSelector({ scenarios, value, onChange, category = "", onCategoryChange, error }) {
   const id = useId();
   const [query, setQuery] = useState("");
-  const categories = [...new Set(scenarios.map((scenario) => scenario.workflow_stage).filter(Boolean))].sort();
-  const shown = scenarios.filter((scenario) => (!category || scenario.workflow_stage === category) && [scenario.stable_id, scenario.test_scenario, scenario.priority]
+  const available = scenarios.filter((scenario) => (!scenario.archived && !scenario.archived_at) || scenario.id === value);
+  const group = (scenario) => scenario.catalog_revision ? (scenario.test_type || scenario.report_type || scenario.workflow_stage) : scenario.workflow_stage;
+  const categories = [...new Set(available.map(group).filter(Boolean))].sort();
+  const selectedGroup = available.find((scenario) => scenario.id === value);
+  const activeCategory = selectedGroup ? group(selectedGroup) : category;
+  const shown = available.filter((scenario) => (!activeCategory || group(scenario) === activeCategory) && [scenario.stable_id, scenario.test_scenario, scenario.priority]
     .some((field) => String(field || "").toLowerCase().includes(query.toLowerCase())));
   const errorId = `${id}-error`;
   return <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-    <Field label="Category" required controlId={`${id}-category`}>
-       <select id={`${id}-category`} required aria-label="Test Scenario category" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={category || ""} onChange={(event) => { setQuery(""); onCategoryChange(event.target.value); }}>
+    <Field label="Scenario Category" required controlId={`${id}-category`}>
+       <select id={`${id}-category`} required aria-label="Test Scenario category" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={activeCategory || ""} onChange={(event) => { setQuery(""); onCategoryChange(event.target.value); }}>
         <option value="">Select a category first</option>
         {categories.map((item) => <option key={item} value={item}>{item}</option>)}
       </select>
@@ -204,7 +208,7 @@ export function ScenarioSelector({ scenarios, value, onChange, category = "", on
       <Input aria-label="Search Test Scenario records" placeholder={category ? `Search ${category} scenarios…` : "Select a category first"} value={query} onChange={(e) => setQuery(e.target.value)} disabled={!category} />
       <select required disabled={!category} aria-label="Test Scenario" aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} className="mt-2 h-9 w-full rounded-md border bg-background px-3 text-sm" value={value || ""} onChange={(e) => onChange(e.target.value)}>
       <option value="">{category ? `Select one of ${shown.length} ${category} scenarios` : "Select a category first"}</option>
-      {shown.map((scenario) => <option key={scenario.id} value={scenario.id}>{scenario.stable_id} · {scenario.test_scenario} · {scenario.workflow_stage} · {scenario.priority}</option>)}
+      {shown.map((scenario) => <option key={scenario.id} value={scenario.id}>{scenario.stable_id} · {scenario.test_scenario} · {group(scenario)} · {scenario.priority}{scenario.archived ? " (archived)" : ""}</option>)}
       </select>
       {error && <p id={errorId} role="alert" className="text-xs text-red-700">{error}</p>}
     </Field>
@@ -213,7 +217,7 @@ export function ScenarioSelector({ scenarios, value, onChange, category = "", on
 
 export function ScenarioDefinition({ scenario }) {
   if (!scenario) return null;
-  const fields = [["Stable ID", scenario.stable_id], ["Category", scenario.workflow_stage], ["Test Scenario", scenario.test_scenario], ["Complexity", scenario.complexity], ["Why it matters", scenario.why_it_matters], ["What Bassett should do", scenario.what_bassett_should_do], ["Success criteria", scenario.success_criteria], ["Priority", scenario.priority]];
+  const fields = [["Stable ID", scenario.stable_id], ["Scenario Category", scenario.catalog_revision ? (scenario.test_type || scenario.report_type || scenario.workflow_stage) : scenario.workflow_stage], ["Test Scenario", scenario.test_scenario], ["Complexity", scenario.complexity], ["Why it matters", scenario.why_it_matters], ["What Bassett should do", scenario.what_bassett_should_do], ["Success criteria", scenario.success_criteria], ["Priority", scenario.priority]];
   return <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">{fields.map(([label, value]) => <div key={label}><div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">{label}</div><div className="whitespace-pre-wrap">{value || "—"}</div></div>)}</div>;
 }
 
@@ -305,13 +309,20 @@ function QuickAdd({ label, value, items, onChange, fields, defaults = {}, disabl
 }
 
 function EvaluationGrid({ model, scores, dimensions, onChange, locked }) {
+  const groups = dimensions.reduce((result, dimension) => {
+    const category = dimension.category || "";
+    (result[category] ||= []).push(dimension);
+    return result;
+  }, {});
   return <div className="space-y-3">
     <details className="rounded-lg border bg-[var(--paper)] p-3"><summary className="cursor-pointer text-sm font-semibold text-[var(--navy)]">View the shared 0–10 scoring rubric</summary><div className="mt-3 grid gap-1 text-xs">{SCORE_RUBRIC.map(([score, reason]) => <div key={score} className="grid grid-cols-[1.5rem_1fr] gap-2"><b>{score}</b><span>{reason}</span></div>)}</div></details>
+    {Object.entries(groups).map(([category, items]) => <section key={category} className="space-y-2">
+    {category && <h5 className="text-sm font-semibold text-[var(--navy)]">{category}</h5>}
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-       {dimensions.map((dimension) => <Field key={dimension.key} label={dimension.label} description={dimension.question}>
+       {items.map((dimension) => <Field key={dimension.key} label={dimension.label} description={dimension.question}>
         <ScoreSelect value={scores?.[dimension.key]} disabled={locked} ariaLabel={`${model} ${dimension.label} score`} onChange={(value) => onChange(model, dimension.key, value)} />
       </Field>)}
-    </div>
+    </div></section>)}
   </div>;
 }
 
@@ -322,8 +333,8 @@ export function RubricCriteriaSelector({ catalog, mappedIds = [], selectedIds = 
   const selected = new Set(selectedIds);
   const toggle = (rubricId, checked) => {
     if (checked) return onChange([...new Set([...selectedIds, rubricId])]);
-    const scored = scores?.[rubricId] !== undefined && scores?.[rubricId] !== "" && scores?.[rubricId] !== null;
-    const accepted = typeof globalThis.confirm === "function"
+    const scored = scores?.[rubricId] !== undefined && scores?.[rubricId] !== "" && scores?.[rubricId] !== null && scores?.[rubricId] !== "N/A";
+    const accepted = scored && typeof globalThis.confirm === "function"
       ? globalThis.confirm(`Remove ${rubricId} after its score has been entered?`) : true;
     if (scored && !accepted) return;
     onChange(selectedIds.filter((id) => id !== rubricId), { confirm_rubric_removal: Boolean(scored) });
@@ -336,7 +347,10 @@ export function RubricCriteriaSelector({ catalog, mappedIds = [], selectedIds = 
   return <div className="space-y-3 rounded-lg border bg-[var(--paper)] p-3" data-testid="rubric-criteria-selector">
     <div className="text-sm font-semibold text-[var(--navy)]">Rubric criteria <span className="text-xs font-normal text-muted-foreground">Revision {normalized.revision}</span></div>
     <p className="text-xs text-muted-foreground">Scenario-mapped criteria are selected by default. Unchecked criteria are excluded from scoring; no score is assigned automatically.</p>
-    <div className="space-y-2">{normalized.rubric_items.filter((item) => mapped.has(item.rubric_id)).map(itemRow)}</div>
+    <div className="space-y-3">{normalized.categories.map((category) => {
+      const items = normalized.rubric_items.filter((item) => mapped.has(item.rubric_id) && (item.category === category.key || item.category === category.name));
+      return items.length ? <section key={category.key} className="space-y-2"><h5 className="font-semibold text-sm text-[var(--navy)]">{category.name}</h5>{items.map(itemRow)}</section> : null;
+    })}</div>
     <details>
       <summary className="cursor-pointer text-sm font-semibold text-[var(--navy)]">Additional unassociated criteria ({additional.length})</summary>
       <div className="mt-2 space-y-2">{additional.map(itemRow)}</div>
@@ -406,11 +420,13 @@ function progressFor(form, mode) {
       ? [["turns", (form.turns || []).every((turn) => String(turn.prompt || "").trim() && String(turn.response || "").trim()) && (form.turns || []).length]]
       : [["question_asked", form.question_asked], ["exact_bassett_answer", form.exact_bassett_answer], ["verified_correct_answer", form.verified_correct_answer]]), ["test_date", form.test_date]]
     : [["scenario_id", form.scenario_id], ["name", form.name], ["prompt", form.prompts?.[0]?.text], ["gold_standard_answer", form.gold_standard_answer], ["exact_bassett_answer", form.exact_bassett_answer], ["test_date", form.test_date]];
+  if (form.rubric_revision && form.rubric_revision !== LEGACY_RUBRIC_REVISION) fields.push(["scoring_category", form.scoring_category]);
   const complete = fields.filter(([, value]) => String(value || "").trim()).length;
   return { complete, total: fields.length, ready: complete === fields.length };
 }
 
 function validate(form, mode) {
+  if (form.rubric_revision && form.rubric_revision !== LEGACY_RUBRIC_REVISION && !String(form.scoring_category || "").trim()) return "Select a Primary Scoring Category.";
   if (mode === "bassett") {
     const versionError = bassettVersionRequirementMessage(form);
     if (form.conversation_source === "uploaded_conversation") {
@@ -577,11 +593,12 @@ function TurnBuilder({ turns = [], scenarios = [], uploadedConversation = false,
 }
 
 export default function UnifiedTestEntryForm({
-  mode = "bassett", form, setForm, scenarios = [], versions = [], projects = [],
+  mode = "bassett", form, setForm, scenarios: suppliedScenarios = [], versions = [], projects = [],
   municipalities = [], properties = [], users = [], generalSubtypes = [], rubricCatalog = null, config = {}, onSubmit, onCancel,
   onSaveDraft, submitting = false, conflictNotice = null, lockedCommon = false,
 }) {
   const isComparison = mode === "comparison";
+  const scenarios = useMemo(() => suppliedScenarios.filter((scenario) => !scenario.archived && !scenario.archived_at || (form.id && [form.scenario_id, ...(form.scenario_ids || []), ...(form.turns || []).map((turn) => turn.scenario_id)].includes(scenario.id))), [suppliedScenarios, form.id, form.scenario_id, form.scenario_ids, form.turns]);
   const selectedScenario = scenarios.find((scenario) => scenario.id === form.scenario_id) || form.scenario;
   const activeScenarioIds = useMemo(() => [...new Set([
     form.scenario_id,
@@ -623,7 +640,14 @@ export default function UnifiedTestEntryForm({
       evaluation_scores: reconciled.scores,
     }));
   }, [activeScenarioIds, catalogActive, form.evaluation_scores, form.rubric_revision, form.rubric_scenario_ids, form.rubric_selection_initialized, form.selected_rubric_ids, normalizedRubricCatalog.revision, scenarios, setForm]);
-  const dimensions = (catalogActive && form.selected_rubric_ids?.length
+  useEffect(() => {
+    if (!catalogActive || !selectedScenario) return;
+    const candidate = form.scoring_category || selectedScenario.scoring_category;
+    const suggested = normalizedRubricCatalog.categories.find((category) => category.key === candidate || category.name === candidate)
+      || normalizedRubricCatalog.categories.find((category) => (selectedScenario.rubric_ids || []).some((id) => category.rubric_ids?.includes(id)));
+    if (suggested && form.scoring_category !== suggested.key) setForm((current) => ({ ...current, scoring_category: suggested.key }));
+  }, [catalogActive, form.scoring_category, selectedScenario, normalizedRubricCatalog.categories, setForm]);
+  const dimensions = (catalogActive
     ? rubricDimensions(normalizedRubricCatalog, form.selected_rubric_ids)
     : (config.eval_dimensions?.length ? config.eval_dimensions : DEFAULT_DIMENSIONS.map(([key, label, weight, question]) => ({ key, label, weight, question })))).map((dimension) => {
      const fallback = DEFAULT_DIMENSIONS.find(([key]) => key === dimension.key);
@@ -714,6 +738,7 @@ export default function UnifiedTestEntryForm({
   };
   const sectionIssue = (index) => {
     if (index === 0) {
+      if (catalogActive && !form.scoring_category) return "Select a Primary Scoring Category.";
       if (!String(form.scenario_id || "").trim()) return "Select a Test Scenario.";
       if (isComparison && !String(form.name || "").trim()) return "Enter a test name.";
       if (!String(form.test_date || "").trim()) return "Enter a test date.";
@@ -795,15 +820,15 @@ export default function UnifiedTestEntryForm({
      <GuidedSection index={0} title="1. Test Setup" active={activeSection === 0} status={sectionStatus(0)} onActivate={activateSection}><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
        {!lockedCommon && <div className="sm:col-span-2"><ScenarioSelector scenarios={scenarios} category={form.workflow_stage || selectedScenario?.workflow_stage || ""} onCategoryChange={(category) => setForm((current) => ({ ...current, workflow_stage: category, scenario_id: "" }))} value={form.scenario_id} onChange={(value) => { const scenario = scenarios.find((item) => item.id === value); setForm((current) => ({ ...current, scenario_id: value, workflow_stage: scenario?.workflow_stage || current.workflow_stage })); }} error={attemptedSections.has(0) && !String(form.scenario_id || "").trim() ? "Test Scenario is required." : undefined} /></div>}
       {selectedScenario && <div className="sm:col-span-2 rounded-xl border bg-[var(--paper)] p-4"><div className="font-semibold mb-3">Read-only Test Bank definition</div><ScenarioDefinition scenario={selectedScenario} /></div>}
-      <div className="sm:col-span-2"><GeneralSubtypeSelector subtypes={generalSubtypes} value={form.general_subtype_ids || []} onChange={(value) => update("general_subtype_ids", value)} disabled={lockedCommon} /></div>
+      {!catalogActive && <div className="sm:col-span-2"><GeneralSubtypeSelector subtypes={generalSubtypes} value={form.general_subtype_ids || []} onChange={(value) => update("general_subtype_ids", value)} disabled={lockedCommon} /></div>}
       <Field label="Sequential Test ID"><Input value={form.test_id || "Assigned on save"} readOnly className="bg-muted" /></Field>
        <Field label="Test Name" required={isComparison} error={attemptedSections.has(0) && isComparison && !String(form.name || "").trim() ? "Test Name is required." : undefined}><Input value={form.name || form.title || ""} disabled={lockedCommon} onChange={(e) => update(isComparison ? "name" : "title", e.target.value)} /></Field>
        <Field label="Bassett version" description="Required for completed tests and version-specific dashboard reporting."><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={selectedVersionId} disabled={lockedCommon} onChange={(e) => { const selected = versions.find((version) => version.id === e.target.value); setForm((current) => ({ ...current, version_id: selected?.id || "", bassett_version: selected?.name || "" })); }}><option value="">Not specified</option>{savedVersionUnavailable && <option value={form.version_id}>{form.bassett_version || "Saved version unavailable"}</option>}{versions.map((version) => <option key={version.id} value={version.id}>{version.name}{version.active === false ? " (inactive)" : ""}</option>)}</select></Field>
        {form.id && versionError && <div role="alert" className="sm:col-span-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">This completed historical test run has no Bassett version assigned. Choose a version before saving; the historical record remains unchanged until you save.</div>}
        <Field label="Test Date" required error={attemptedSections.has(0) && !String(form.test_date || "").trim() ? "Test Date is required." : undefined}><Input type="date" value={form.test_date || ""} disabled={lockedCommon} onChange={(e) => update("test_date", e.target.value)} /></Field>
       <Field label="Environment"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.environment || ""} disabled={lockedCommon} onChange={(e) => update("environment", e.target.value)}><option value="">Not specified</option>{[...new Set([...(config.environments || []), form.environment].filter(Boolean))].map((value) => <option key={value} value={value}>{value}</option>)}</select></Field>
-        {!isComparison && <Field label="Test type" description="Test Type is distinct from the primary scoring category."><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.test_type || "Single Prompt"} disabled={lockedCommon} onChange={(e) => update("test_type", e.target.value)}><option>Single Prompt</option><option>Multi-turn</option></select></Field>}
-        <Field label="Primary Scoring Category" description="The suggested category comes from the Test Bank and is editable."><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.scoring_category || selectedScenario?.scoring_category || ""} disabled={lockedCommon} onChange={(e) => update("scoring_category", e.target.value)}><option value="">Not assigned</option>{normalizedRubricCatalog.categories.map((category) => <option key={category.key} value={category.key}>{category.name}</option>)}</select></Field>
+        {!isComparison && <Field label="Conversation Format" description="Choose a single prompt or a multi-turn conversation."><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.test_type || "Single Prompt"} disabled={lockedCommon} onChange={(e) => update("test_type", e.target.value)}><option>Single Prompt</option><option>Multi-turn</option></select></Field>}
+        {catalogActive && <Field label="Primary Scoring Category" required description="The suggested category comes from the Test Bank and is editable."><select required className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.scoring_category || ""} disabled={lockedCommon} onChange={(e) => update("scoring_category", e.target.value)}><option value="">Select a scoring category</option>{normalizedRubricCatalog.categories.map((category) => <option key={category.key} value={category.key}>{category.name}</option>)}</select></Field>}
        {!isComparison && <div className="sm:col-span-2"><Field label="How are you recording this Bassett interaction?" required description="The original upload remains the authoritative conversation record."><div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Bassett conversation source">
          {[['structured_text', 'Enter conversation in ZoneQA', 'Enter a single prompt or an ordered multi-turn conversation.'], ['uploaded_conversation', 'Use an uploaded Bassett conversation', 'Attach the exported conversation now; transcript entry is optional until comparison.']].map(([value, label, description]) => <label key={value} className={`cursor-pointer rounded-lg border p-3 ${(form.conversation_source || 'structured_text') === value ? 'border-[var(--orange)] bg-orange-50' : 'bg-background'}`}><span className="flex items-start gap-2"><input type="radio" name="conversation-source" value={value} checked={(form.conversation_source || 'structured_text') === value} disabled={lockedCommon} onChange={() => setForm((current) => ({ ...current, conversation_source: value, transcript_status: value === 'structured_text' ? 'not_needed' : (bassettTranscriptReady(current) ? 'confirmed' : 'needs_review') }))} /><span><span className="block font-semibold text-[var(--navy)]">{label}</span><span className="mt-1 block text-xs text-muted-foreground">{description}</span></span></span></label>)}
        </div></Field></div>}
