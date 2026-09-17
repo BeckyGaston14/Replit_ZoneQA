@@ -654,7 +654,11 @@ export default function UnifiedTestEntryForm({
         scores: { ...(current.evaluations?.[model]?.scores || {}), [key]: value },
       },
     },
-    ...(model === "Bassett" ? { evaluation_scores: { ...(current.evaluation_scores || {}), [key]: value } } : {}),
+    ...(model === "Bassett" ? {
+      evaluation_scores: { ...(current.evaluation_scores || {}), [key]: value },
+      ...(current.rubric_revision && current.rubric_revision !== LEGACY_RUBRIC_REVISION
+        ? { rubric_scores: { ...(current.rubric_scores || {}), [key]: value } } : {}),
+    } : {}),
   }));
   const updateEvaluationResult = (model, value) => setForm((current) => ({
     ...current,

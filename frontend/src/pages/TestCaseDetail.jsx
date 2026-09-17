@@ -38,6 +38,7 @@ import { SCORE_RUBRIC, hasScoredDimension } from "../lib/scoreRubric";
 import { SEVERITY_LABELS } from "../lib/severity";
 import { ScoreSelect } from "../components/ScoreSelect";
 import UnifiedTestEntryForm, { createComparisonEditDraft } from "../components/UnifiedTestEntryForm";
+import { serializeComparisonEvaluations } from "../lib/rubricCatalog";
 
 const ANN_TO_FINDING = {
   "Citation Problem": "citation problem", "Hallucination": "hallucination",
@@ -196,7 +197,7 @@ export default function TestCaseDetail() {
     const body = {
       testcase: { ...editForm },
       responses: editForm.responses || {},
-      evaluations: editForm.evaluations || {},
+      evaluations: serializeComparisonEvaluations(editForm),
       comparison: editForm.comparison || {},
       source_bassett_issue_id: editForm.source_bassett_issue_id,
       expected_revision: editForm.expected_revision,

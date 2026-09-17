@@ -1,5 +1,21 @@
 export const LEGACY_RUBRIC_REVISION = "legacy12";
 
+export function serializeComparisonEvaluations(form = {}) {
+  const revision = form.rubric_revision;
+  if (!revision || revision === LEGACY_RUBRIC_REVISION) return form.evaluations || {};
+  return Object.fromEntries(["Bassett", "ChatGPT", "Claude"].map((model) => {
+    const evaluation = form.evaluations?.[model] || {};
+    const scores = evaluation.scores || (model === "Bassett" ? form.evaluation_scores : {});
+    return [model, {
+      ...evaluation,
+      scores,
+      rubric_scores: evaluation.rubric_scores || scores,
+      selected_rubric_ids: evaluation.selected_rubric_ids || form.selected_rubric_ids || [],
+      rubric_revision: evaluation.rubric_revision || revision,
+    }];
+  }));
+}
+
 export function normalizeRubricCatalog(catalog) {
   if (!catalog || typeof catalog !== "object") return { revision: null, categories: [], rubric_items: [] };
   return {
