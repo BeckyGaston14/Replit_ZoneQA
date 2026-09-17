@@ -485,3 +485,27 @@ test("uploaded Bassett conversations require a file while prompt and response be
   act(() => uploaded.root.unmount());
 });
 
+test("current converted comparison evaluations reopen with rubric scores including zero", () => {
+  const draft = createComparisonEditDraft({
+    testcase: { id: "tc-current", rubric_revision: "2026-09-16", selected_rubric_ids: ["G-01"], prompts: [{ text: "Question" }] },
+    evaluations: [
+      { model: "Bassett", rubric_revision: "2026-09-16", scores: { accuracy: 9 }, rubric_scores: { "G-01": 0 } },
+      { model: "ChatGPT", rubric_revision: "2026-09-16", scores: { accuracy: 4 }, rubric_scores: { "G-01": 7 } },
+      { model: "Claude", rubric_revision: "2026-09-16", scores: { accuracy: 5 }, rubric_scores: { "G-01": 8 } },
+    ],
+  });
+  expect(draft.evaluations.Bassett.scores).toEqual({ accuracy: 9, "G-01": 0 });
+  expect(draft.evaluations.ChatGPT.scores["G-01"]).toBe(7);
+  expect(draft.evaluation_scores["G-01"]).toBe(0);
+});
+
+test("legacy comparison evaluations are not hydrated from rubric-shaped fields", () => {
+  const evaluation = { model: "Bassett", scores: { accuracy: 3 }, rubric_scores: { "G-01": 0 } };
+  const draft = createComparisonEditDraft({
+    testcase: { id: "tc-legacy", rubric_revision: "legacy12", prompts: [{ text: "Question" }] },
+    evaluations: [evaluation],
+  });
+  expect(draft.evaluations.Bassett).toBe(evaluation);
+  expect(draft.evaluations.Bassett.scores).toEqual({ accuracy: 3 });
+});
+

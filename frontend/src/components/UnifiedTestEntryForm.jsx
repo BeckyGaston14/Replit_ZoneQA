@@ -132,7 +132,27 @@ export function createComparisonTestDraft(overrides = {}, timeZone, now = new Da
 export function createComparisonEditDraft(full, timeZone, now = new Date()) {
   const testcase = full?.testcase || full || {};
   const responses = Object.fromEntries((full?.responses || []).map((response) => [response.model, response]));
-  const evaluations = Object.fromEntries((full?.evaluations || []).map((evaluation) => [evaluation.model, evaluation]));
+  const rawEvaluations = Object.fromEntries((full?.evaluations || []).map((evaluation) => [evaluation.model, evaluation]));
+  const rubricRevision = testcase.rubric_revision
+    || rawEvaluations.Bassett?.rubric_revision
+    || LEGACY_RUBRIC_REVISION;
+  const currentRubric = rubricRevision !== LEGACY_RUBRIC_REVISION;
+  const evaluations = currentRubric
+    ? Object.fromEntries(["Bassett", "ChatGPT", "Claude"].map((model) => {
+      const evaluation = rawEvaluations[model] || {};
+      const rubricScores = evaluation.rubric_scores || (model === "Bassett" ? testcase.rubric_scores : null);
+      return [model, rubricScores
+        ? {
+          ...evaluation,
+          // rubric_scores is authoritative for converted/current evaluations;
+          // merge after legacy-shaped scores so zero is retained.
+          scores: { ...(evaluation.scores || {}), ...rubricScores },
+          rubric_revision: evaluation.rubric_revision || rubricRevision,
+          selected_rubric_ids: evaluation.selected_rubric_ids || testcase.selected_rubric_ids || [],
+        }
+        : evaluation];
+    }))
+    : rawEvaluations;
   const gold = full?.gold_standard || full?.goldstandard || {};
   const bassettResponse = responses.Bassett?.response || "";
   return {
@@ -148,7 +168,7 @@ export function createComparisonEditDraft(full, timeZone, now = new Date()) {
     evaluations,
     evaluation_scores: evaluations.Bassett?.scores || {},
     selected_rubric_ids: testcase.selected_rubric_ids || evaluations.Bassett?.selected_rubric_ids || [],
-    rubric_revision: testcase.rubric_revision || evaluations.Bassett?.rubric_revision || LEGACY_RUBRIC_REVISION,
+    rubric_revision: rubricRevision,
     rubric_selection_initialized: true,
     rubric_scenario_ids: testcase.rubric_scenario_ids || (testcase.scenario_id ? [testcase.scenario_id] : []),
     result: evaluations.Bassett?.final_result || testcase.bassett_result || "Not Evaluated",
