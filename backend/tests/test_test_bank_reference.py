@@ -148,3 +148,15 @@ def test_guidance_refresh_keeps_canonical_ids_and_is_idempotent(monkeypatch):
     snapshot = [dict(row) for row in db.rows]
     asyncio.run(server._seed_bassett_catalog())
     assert db.rows == snapshot
+
+
+def test_existing_catalog_still_previews_changed_guidance(monkeypatch):
+    from test_bank_catalog import scenario_definition
+    rows = [{**scenario_definition(row), "id": row["test_id"], "archived": False,
+             "guidance_revision": "2026-09-16"} for row in REFERENCE["scenarios"]]
+    monkeypatch.setattr(server, "db", _Db(rows))
+    preview = asyncio.run(server._catalog_revision_preview())
+    assert preview["already_applied"] is False
+    assert preview["would_update_guidance"] == 100
+    assert preview["would_insert"] == 0
+    assert preview["would_archive"] == 0

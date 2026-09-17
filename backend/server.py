@@ -4974,6 +4974,9 @@ async def _catalog_revision_preview():
     stable_ids = {row["test_id"] for row in RUBRIC_CATALOG_REFERENCE["scenarios"]}
     legacy = [row for row in active if row.get("catalog_revision") != CATALOG_REVISION]
     missing = [stable_id for stable_id in stable_ids if stable_id not in target_by_stable]
+    guidance_revision = RUBRIC_CATALOG_REFERENCE.get("guidance_revision", CATALOG_REVISION)
+    refresh = [stable_id for stable_id in stable_ids if stable_id in target_by_stable
+               and target_by_stable[stable_id].get("guidance_revision") != guidance_revision]
     return {
         "revision": CATALOG_REVISION,
         "scenario_count": len(stable_ids),
@@ -4981,9 +4984,11 @@ async def _catalog_revision_preview():
         "categories_count": len(RUBRIC_CATALOG_CATEGORIES),
         "would_archive": len(legacy),
         "would_insert": len(missing),
+        "would_update_guidance": len(refresh),
+        "guidance_revision": guidance_revision,
         "legacy_scenario_ids": [row.get("id") for row in legacy],
         "missing_stable_ids": sorted(missing),
-        "already_applied": not legacy and not missing,
+        "already_applied": not legacy and not missing and not refresh,
     }
 
 
