@@ -15,7 +15,7 @@ import { SafeResponsiveContainer } from "../components/SafeResponsiveContainer";
 import { EVALUATION_SCALE_LABEL, EVALUATION_SCORE_DOMAIN, EVALUATION_SCORE_TICKS, evaluationScoreOrNull, formatEvaluationScore } from "../lib/evaluationScale";
 import { MODEL_COLORS } from "../lib/modelColors";
 import { Button } from "../components/ui/button";
-import { REPORTING_GROUPS } from "../lib/scoringGroups";
+import { CURRENT_RUBRIC_CATEGORIES, REPORTING_GROUPS } from "../lib/scoringGroups";
 import { SEVERITY_LABELS } from "../lib/severity";
 import { QueryState } from "../components/PageState";
 
@@ -99,8 +99,10 @@ export default function Performance() {
 
   const bassett = (perf?.model_summary || []).find((m) => m.model === "Bassett");
   const RADAR_SHORT = { accuracy: "Accuracy", citation_accuracy: "Citation", interpretation: "Interpret.", calculation: "Calc.", context: "Context", completeness: "Complete.", usefulness: "Useful.", current_code: "Current Code", missing_info: "Missing Info", followup: "Follow-Up", source_quality: "Source Qual.", guidance: "Guidance" };
-  const dimensionRows = (perf?.reporting_groups || REPORTING_GROUPS.map((group) => ({ ...group, score: null }))).map((group) => ({ dim: group.label, full: group.label, score: evaluationScoreOrNull(group.score), underlying: group.underlyingDimensions || group.dimensions }));
+  const dimensionRows = (perf?.rubric_categories || perf?.current_rubric_categories || CURRENT_RUBRIC_CATEGORIES.map((group) => ({ ...group, score: null }))).map((group) => ({ dim: group.label, full: group.label, score: evaluationScoreOrNull(group.score ?? group.avg_score), underlying: group.scored_value_count ?? group.scoredValueCount ?? group.count ?? 0 }));
+  const legacyDimensionRows = (perf?.legacy_reporting_groups || perf?.reporting_groups || REPORTING_GROUPS.map((group) => ({ ...group, score: null }))).map((group) => ({ dim: group.label, full: group.label, score: evaluationScoreOrNull(group.score), underlying: group.underlyingDimensions || group.dimensions }));
   const radar = dimensionRows.filter((dimension) => dimension.score !== null);
+  const legacyRadar = legacyDimensionRows.filter((dimension) => dimension.score !== null);
   const categoryRows = [...(perf?.by_category || [])].sort((a, b) => Number(b.avg_score ?? -1) - Number(a.avg_score ?? -1));
   const cat = categoryRows.filter((category) => evaluationScoreOrNull(category.avg_score) !== null);
   const hasFilters = Object.keys(DEFAULT_FILTERS).some((key) => flt[key] !== DEFAULT_FILTERS[key]);
@@ -162,9 +164,9 @@ export default function Performance() {
 
       <div className="grid lg:grid-cols-2 gap-4 mb-4">
         <div className="bg-card border rounded-xl p-5">
-           <h3 className="font-semibold font-display text-[var(--navy)] mb-3">Bassett Reporting Groups</h3>
-           <p className="text-xs text-muted-foreground mb-2">{EVALUATION_SCALE_LABEL}. Groups use configured-weight averages of applicable underlying dimensions; missing and N/A values are not zero.</p>
-          {radar.length < 3 ? <div role="status" className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">No complete reporting-group chart is available for this scope. Score at least three applicable evaluation groups to display the radar; available values remain listed in the accessible table below.</div> : <SafeResponsiveContainer height={300} testId="performance-radar-chart">
+           <h3 className="font-semibold font-display text-[var(--navy)] mb-3">Current Rubric Categories</h3>
+            <p className="text-xs text-muted-foreground mb-2">Revision {perf.rubric_revision || "2026-09-16"} · {EVALUATION_SCALE_LABEL}. Neutral-weight averages of selected criteria; zero is valid and missing, N/A, and unchecked criteria are excluded.</p>
+           {radar.length < 3 ? <div role="status" className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">No complete current-rubric chart is available for this scope. Score at least three categories to display the radar; available values remain listed in the accessible table below.</div> : <SafeResponsiveContainer height={300} testId="performance-radar-chart">
             <RadarChart data={radar}>
               <PolarGrid gridType="polygon" /><PolarAngleAxis dataKey="dim" tick={{ fontSize: 10 }} />
               <PolarRadiusAxis domain={EVALUATION_SCORE_DOMAIN} ticks={EVALUATION_SCORE_TICKS} tick={{ fontSize: 10 }} axisLine={false} />
@@ -172,7 +174,8 @@ export default function Performance() {
               <Radar dataKey="score" stroke={MODEL_COLORS.Bassett} fill={MODEL_COLORS.Bassett} fillOpacity={0.4} />
             </RadarChart>
           </SafeResponsiveContainer>}
-           <SrTable caption="Bassett reporting-group averages. Scale: 0 to 10. Missing and N/A dimensions are unavailable and are not zero." columns={["Reporting group", "Average score out of 10", "Underlying dimensions"]} rows={dimensionRows.map((r) => [r.full, formatEvaluationScore(r.score), (r.underlying || []).map((item) => item.label || item.key || item).join(", ")])} />
+           <SrTable caption="Current rubric category averages. Scale: 0 to 10." columns={["Current category", "Average score out of 10", "Scored criteria"]} rows={dimensionRows.map((r) => [r.full, formatEvaluationScore(r.score), `${r.underlying} scored criteria`])} />
+           {legacyRadar.length > 0 && <div className="mt-4 border-t pt-3"><p className="text-xs font-semibold text-muted-foreground">Legacy12 reporting groups (historical, not mixed)</p><SrTable caption="Legacy12 reporting-group averages" columns={["Legacy group", "Average score out of 10", "Underlying dimensions"]} rows={legacyDimensionRows.map((r) => [r.full, formatEvaluationScore(r.score), (r.underlying || []).map((item) => item.label || item.key || item).join(", ")])} /></div>}
         </div>
         <div className="bg-card border rounded-xl p-5">
           <h3 className="font-semibold font-display text-[var(--navy)] mb-3">Bassett Performance by Category</h3>
@@ -205,7 +208,7 @@ export default function Performance() {
          <p>{perf.scope || "Current filtered performance scope."} The active filters above, including version, environment, project, municipality, category, criticality, variants, and evaluated date range, define the population.</p>
          <p>Overall scores are means of available 0–10 scores from the selected population. In Both, Bassett-only runs expanded or linked to Model Comparison are excluded to prevent double counting.</p>
          <p>Wins, losses, and shared failures use Model Comparison records only because Bassett-only runs have no benchmark response.</p>
-         <p>Reporting groups use configured-weight averages of applicable underlying dimensions. Missing and N/A values are excluded and never treated as zero; the underlying 12 dimensions remain available in records and exports.</p>
+         <p>Current rubric categories use neutral-weight averages of selected applicable criteria. Missing, N/A, and unchecked criteria are excluded and never treated as zero; zero is a valid score. Legacy12 reporting groups remain available separately and are never mixed with current-revision scores.</p>
        </MethodologyDisclosure>
       </>}
     </div>
