@@ -3894,6 +3894,13 @@ async def _seed_bassett_catalog():
                 if not existing or any(existing.get(key) != value for key, value in definition.items()):
                     logger.error("Bassett canonical seed conflict for %s; existing row was not overwritten",
                                  definition["stable_id"])
+        elif existing.get("guidance_revision") != definition.get("guidance_revision"):
+            # Refresh approved definitions in place. Execution snapshots and
+            # rubric revision remain unchanged, so historical scores survive.
+            await db.bassett_scenarios.update_one(
+                {"id": existing["id"]},
+                {"$set": {**definition, "updated_at": now_iso()}},
+            )
         elif existing.get("catalog_revision") == CATALOG_REVISION and existing.get("archived"):
             await db.bassett_scenarios.update_one(
                 {"id": existing["id"]},

@@ -59,6 +59,7 @@ def scenario_definition(source: dict[str, Any]) -> dict[str, Any]:
         "priority": source["priority"],
         "scoring_category": suggested_category(rubric_ids),
         "catalog_revision": CATALOG_REVISION,
+        "guidance_revision": REFERENCE.get("guidance_revision", CATALOG_REVISION),
         "rubric_ids": rubric_ids,
     }
 

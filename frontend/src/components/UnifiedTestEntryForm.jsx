@@ -4,6 +4,8 @@ import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import { Checkbox } from "./ui/checkbox";
 import { Button } from "./ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { DRAFT_KEYS, readLocalDraft, deleteLocalDraft, hasDraftContent } from "../lib/localDrafts";
 import { api } from "../lib/api";
 import { toast } from "sonner";
 import { todayInTimeZone } from "../lib/testDates";
@@ -49,7 +51,6 @@ export const DEFAULT_DIMENSIONS = [
   ["source_quality", "Source Quality", 1, "Did it use authoritative, relevant sources?"], ["guidance", "Guidance Quality", 1, "Did it provide clear, practical next-step guidance?"],
   ["completeness", "Completeness", 2, "Did it cover all important parts of the question?"], ["usefulness", "Usefulness", 3, "Would this answer be professionally useful as delivered?"],
 ];
-const DRAFT_KEYS = { bassett: "zoneqa:bassett-workflow-draft", comparison: "zoneqa:comparison-workflow-draft" };
 
 export const emptyBassettTestRun = {
   title: "", question_asked: "", exact_bassett_answer: "", verified_correct_answer: "",
@@ -199,10 +200,10 @@ export function ScenarioSelector({ scenarios, value, onChange, category = "", on
   const errorId = `${id}-error`;
   return <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
     <Field label="Scenario Category" required controlId={`${id}-category`}>
-       <select id={`${id}-category`} required aria-label="Test Scenario category" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={activeCategory || ""} onChange={(event) => { setQuery(""); onCategoryChange(event.target.value); }}>
-        <option value="">Select a category first</option>
-        {categories.map((item) => <option key={item} value={item}>{item}</option>)}
-      </select>
+      <Select required value={activeCategory || ""} onValueChange={(value) => { setQuery(""); onCategoryChange(value); }}>
+        <SelectTrigger id={`${id}-category`} aria-label="Test Scenario category" aria-required="true" className="h-auto min-h-9 w-full text-left [&>span]:line-clamp-none [&>span]:whitespace-normal [&>span]:break-words"><SelectValue placeholder="Select a category first" /></SelectTrigger>
+        <SelectContent className="max-w-[calc(100vw-2rem)]"><SelectItem value="__all" disabled>Select a category first</SelectItem>{categories.map((item) => <SelectItem key={item} value={item} className="whitespace-normal break-words py-2">{item}</SelectItem>)}</SelectContent>
+      </Select>
     </Field>
     <Field label="Test Scenario" required controlId={`${id}-scenario`}>
       <Input aria-label="Search Test Scenario records" placeholder={category ? `Search ${category} scenarios…` : "Select a category first"} value={query} onChange={(e) => setQuery(e.target.value)} disabled={!category} />
@@ -661,7 +662,8 @@ export default function UnifiedTestEntryForm({
   const uploadedConversation = !isComparison && form.conversation_source === "uploaded_conversation";
   const [activeSection, setActiveSection] = useState(0);
   const [attemptedSections, setAttemptedSections] = useState(() => new Set());
-  const [draftAvailable] = useState(() => {
+  const [draftAvailable, setDraftAvailable] = useState(() => {
+    if (form._draftRecovered) return false;
     try { return Boolean(localStorage.getItem(DRAFT_KEYS[mode])); } catch { return false; }
   });
   useEffect(() => {
@@ -685,12 +687,13 @@ export default function UnifiedTestEntryForm({
     });
   }, [form.test_type, form.turns, isComparison, setForm]);
   useEffect(() => {
-    if (form.id) return undefined;
+    // Never overwrite an existing draft while the recovery choice is pending.
+    if (form.id || draftAvailable || !hasDraftContent(form)) return undefined;
     const timeout = globalThis.setTimeout?.(() => {
       try { localStorage.setItem(DRAFT_KEYS[mode], JSON.stringify(serializeBassettTestRunDraft(form))); } catch { /* local draft storage is best effort */ }
     }, 500);
     return () => globalThis.clearTimeout?.(timeout);
-  }, [form, mode]);
+  }, [form, mode, draftAvailable]);
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
   const updateNested = (key, child, value) => setForm((current) => ({ ...current, [key]: { ...(current[key] || {}), [child]: value } }));
   const updatePrompt = (value) => setForm((current) => ({ ...current, question_asked: value, prompts: [{ turn: 1, text: value }] }));
@@ -727,13 +730,19 @@ export default function UnifiedTestEntryForm({
   const saveDraft = () => {
     try {
       localStorage.setItem(DRAFT_KEYS[mode], JSON.stringify(serializeBassettTestRunDraft(form)));
+      setDraftAvailable(false);
       toast.success("Draft saved on this device"); onSaveDraft?.();
     } catch { toast.error("Draft could not be saved on this device"); }
   };
   const recoverDraft = () => {
     try {
-      const saved = JSON.parse(localStorage.getItem(DRAFT_KEYS[mode]) || "null");
-      if (saved) { setForm((current) => ({ ...current, ...saved, submission_id: current.submission_id })); toast.success("Draft recovered"); }
+      const saved = readLocalDraft(mode);
+      if (!saved) { setDraftAvailable(false); return toast.error("This draft is no longer available"); }
+      setForm((current) => ({ ...current, ...saved, attachments: [], attachment_count: 0, submission_id: current.submission_id, _draftRecovered: true }));
+      setDraftAvailable(false);
+      setActiveSection(0);
+      setAttemptedSections(new Set());
+      toast.success("Draft recovered. Reselect any uploaded files.");
     } catch { toast.error("Saved draft could not be recovered"); }
   };
   const sectionIssue = (index) => {
@@ -815,7 +824,7 @@ export default function UnifiedTestEntryForm({
       <span className="text-xs text-muted-foreground">{sectionStatus(activeSection)}</span>
     </div>
     {conflictNotice}
-    {!form.id && draftAvailable && <div className="rounded-lg border border-[var(--orange)] bg-orange-50 p-3 text-sm flex items-center justify-between gap-3"><span>A saved {isComparison ? "comparison" : "Bassett"} draft is available.</span><Button type="button" size="sm" variant="outline" onClick={recoverDraft}>Recover draft</Button></div>}
+    {!form.id && draftAvailable && <div className="rounded-lg border border-[var(--orange)] bg-orange-50 p-3 text-sm flex flex-wrap items-center justify-between gap-3"><span>A saved {isComparison ? "comparison" : "Bassett"} draft is available.</span><div className="flex flex-wrap gap-2"><Button type="button" size="sm" variant="outline" onClick={recoverDraft}>Recover draft</Button><Button type="button" size="sm" variant="outline" onClick={() => { try { deleteLocalDraft(mode); setDraftAvailable(false); toast.success("Draft deleted"); } catch { toast.error("Draft could not be deleted"); } }}>Delete draft</Button></div></div>}
 
      <GuidedSection index={0} title="1. Test Setup" active={activeSection === 0} status={sectionStatus(0)} onActivate={activateSection}><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
        {!lockedCommon && <div className="sm:col-span-2"><ScenarioSelector scenarios={scenarios} category={form.workflow_stage || selectedScenario?.workflow_stage || ""} onCategoryChange={(category) => setForm((current) => ({ ...current, workflow_stage: category, scenario_id: "" }))} value={form.scenario_id} onChange={(value) => { const scenario = scenarios.find((item) => item.id === value); setForm((current) => ({ ...current, scenario_id: value, workflow_stage: scenario?.workflow_stage || current.workflow_stage })); }} error={attemptedSections.has(0) && !String(form.scenario_id || "").trim() ? "Test Scenario is required." : undefined} /></div>}
@@ -828,7 +837,7 @@ export default function UnifiedTestEntryForm({
        <Field label="Test Date" required error={attemptedSections.has(0) && !String(form.test_date || "").trim() ? "Test Date is required." : undefined}><Input type="date" value={form.test_date || ""} disabled={lockedCommon} onChange={(e) => update("test_date", e.target.value)} /></Field>
       <Field label="Environment"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.environment || ""} disabled={lockedCommon} onChange={(e) => update("environment", e.target.value)}><option value="">Not specified</option>{[...new Set([...(config.environments || []), form.environment].filter(Boolean))].map((value) => <option key={value} value={value}>{value}</option>)}</select></Field>
         {!isComparison && <Field label="Conversation Format" description="Choose a single prompt or a multi-turn conversation."><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.test_type || "Single Prompt"} disabled={lockedCommon} onChange={(e) => update("test_type", e.target.value)}><option>Single Prompt</option><option>Multi-turn</option></select></Field>}
-        {catalogActive && <Field label="Primary Scoring Category" required description="The suggested category comes from the Test Bank and is editable."><select required className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.scoring_category || ""} disabled={lockedCommon} onChange={(e) => update("scoring_category", e.target.value)}><option value="">Select a scoring category</option>{normalizedRubricCatalog.categories.map((category) => <option key={category.key} value={category.key}>{category.name}</option>)}</select></Field>}
+        {catalogActive && <Field label="Primary Scoring Category" required description="The suggested category comes from the Test Bank and is editable."><Select required value={form.scoring_category || ""} disabled={lockedCommon} onValueChange={(value) => update("scoring_category", value)}><SelectTrigger aria-label="Primary Scoring Category" className="h-auto min-h-9 text-left [&>span]:line-clamp-none [&>span]:whitespace-normal [&>span]:break-words"><SelectValue placeholder="Select a scoring category" /></SelectTrigger><SelectContent className="max-w-[calc(100vw-2rem)]">{normalizedRubricCatalog.categories.map((category) => <SelectItem key={category.key} value={category.key} className="whitespace-normal break-words py-2">{category.name}</SelectItem>)}</SelectContent></Select></Field>}
        {!isComparison && <div className="sm:col-span-2"><Field label="How are you recording this Bassett interaction?" required description="The original upload remains the authoritative conversation record."><div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Bassett conversation source">
          {[['structured_text', 'Enter conversation in ZoneQA', 'Enter a single prompt or an ordered multi-turn conversation.'], ['uploaded_conversation', 'Use an uploaded Bassett conversation', 'Attach the exported conversation now; transcript entry is optional until comparison.']].map(([value, label, description]) => <label key={value} className={`cursor-pointer rounded-lg border p-3 ${(form.conversation_source || 'structured_text') === value ? 'border-[var(--orange)] bg-orange-50' : 'bg-background'}`}><span className="flex items-start gap-2"><input type="radio" name="conversation-source" value={value} checked={(form.conversation_source || 'structured_text') === value} disabled={lockedCommon} onChange={() => setForm((current) => ({ ...current, conversation_source: value, transcript_status: value === 'structured_text' ? 'not_needed' : (bassettTranscriptReady(current) ? 'confirmed' : 'needs_review') }))} /><span><span className="block font-semibold text-[var(--navy)]">{label}</span><span className="mt-1 block text-xs text-muted-foreground">{description}</span></span></span></label>)}
        </div></Field></div>}

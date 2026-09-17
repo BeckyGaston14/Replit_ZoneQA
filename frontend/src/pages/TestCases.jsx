@@ -25,6 +25,7 @@ import { nextSort, sortTableRows, usePersistentTableSort } from "../lib/tableSor
 import { downloadCsv, tableRowsToCsv, withinDateRange } from "../lib/tableData";
 import { formatTestDate } from "../lib/testDates";
 import { Button } from "../components/ui/button";
+import { LocalDrafts } from "../components/LocalDrafts";
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
@@ -262,6 +263,7 @@ export default function TestCases() {
   return (
     <div>
       <PageHeader title="Model Comparison Test Cases" subtitle="Standard test cases for full Bassett vs ChatGPT vs Claude comparisons, evaluated against Gold Standards.">
+        {canWrite && <LocalDrafts mode="comparison" onRecover={(draft) => setF(createComparisonTestDraft(draft))} />}
         <Button variant="outline" onClick={exportRows} disabled={!isLoading && data.length === 0} aria-label={`Export ${sortedRows.length} filtered Test Cases as CSV`}><FileOutput size={15} className="mr-1" /> Export CSV</Button>
         {canWrite && <Button data-testid="import-csv-btn" variant="outline" onClick={() => setImportOpen(true)}><FileInput size={15} className="mr-1" /> Import CSV</Button>}
          {canWrite && <Button data-testid="add-testcase-btn" onClick={openNew} className="bg-[var(--orange)] hover:bg-[var(--orange-600)]"><Plus size={16} className="mr-1" /> New Model Comparison Test Case</Button>}

@@ -20,6 +20,17 @@ jest.mock("./ui/input", () => ({ Input: (props) => <input {...props} /> }));
 jest.mock("./ui/textarea", () => ({ Textarea: (props) => <textarea {...props} /> }));
 jest.mock("./ui/button", () => ({ Button: ({ children, ...props }) => <button {...props}>{children}</button> }));
 jest.mock("./ui/checkbox", () => ({ Checkbox: ({ checked, onCheckedChange }) => <input type="checkbox" checked={checked} onChange={(event) => onCheckedChange(event.target.checked)} /> }));
+jest.mock("./ui/select", () => {
+  const React = require("react");
+  const Context = React.createContext({});
+  return {
+    Select: ({ children, value, onValueChange, disabled }) => <Context.Provider value={{ value, onValueChange, disabled }}>{children}</Context.Provider>,
+    SelectTrigger: ({ children, ...props }) => { const state = React.useContext(Context); return <select {...props} value={state.value} disabled={state.disabled} onChange={(event) => state.onValueChange(event.target.value)}>{children}</select>; },
+    SelectValue: ({ placeholder }) => <option value="">{placeholder}</option>,
+    SelectContent: ({ children }) => { const state = React.useContext(Context); return <select data-testid="category-options" value={state.value} onChange={(event) => state.onValueChange(event.target.value)}>{children}</select>; },
+    SelectItem: ({ children, value, disabled }) => <option value={value} disabled={disabled}>{children}</option>,
+  };
+});
 jest.mock("../lib/api", () => ({ api: { post: jest.fn() } }));
 jest.mock("sonner", () => ({ toast: { success: jest.fn(), error: jest.fn() } }));
 
@@ -53,6 +64,41 @@ function renderForm(mode, overrides = {}, props = {}) {
 afterEach(() => {
   localStorage.clear();
   jest.clearAllMocks();
+});
+
+test("recovering a draft restores text, dismisses the notice, and leaves the form editable", () => {
+  localStorage.setItem("zoneqa:bassett-workflow-draft", JSON.stringify({ question_asked: "Saved question", attachment_count: 1 }));
+  const view = renderForm("bassett");
+  const recover = [...view.container.querySelectorAll("button")].find((button) => button.textContent === "Recover draft");
+  act(() => recover.click());
+  expect(view.latest().question_asked).toBe("Saved question");
+  expect(view.latest().attachment_count).toBe(0);
+  expect(view.container.textContent).not.toContain("A saved Bassett draft is available");
+  const next = [...view.container.querySelectorAll("button")].find((button) => button.textContent === "Next");
+  act(() => next.click());
+  expect(view.container.querySelector("button")).not.toBeNull();
+  act(() => view.root.unmount());
+});
+
+test("a corrupt draft can be deleted without freezing the test form", () => {
+  localStorage.setItem("zoneqa:bassett-workflow-draft", "broken json");
+  const view = renderForm("bassett");
+  const remove = [...view.container.querySelectorAll("button")].find((button) => button.textContent === "Delete draft");
+  act(() => remove.click());
+  expect(localStorage.getItem("zoneqa:bassett-workflow-draft")).toBeNull();
+  expect(view.container.textContent).not.toContain("A saved Bassett draft is available");
+  act(() => view.root.unmount());
+});
+
+test("opening a new form never auto-overwrites the draft awaiting recovery", () => {
+  jest.useFakeTimers();
+  const saved = JSON.stringify({ question_asked: "Original draft" });
+  localStorage.setItem("zoneqa:bassett-workflow-draft", saved);
+  const view = renderForm("bassett");
+  act(() => jest.advanceTimersByTime(1000));
+  expect(localStorage.getItem("zoneqa:bassett-workflow-draft")).toBe(saved);
+  act(() => view.root.unmount());
+  jest.useRealTimers();
 });
 
 test("Bassett and comparison modes share the core section order while benchmarks stay comparison-only", () => {
@@ -136,8 +182,9 @@ test("category selection filters Test Bank scenarios before scenario selection",
   const scenarioSelect = view.container.querySelector('select[aria-label="Test Scenario"]');
   expect(scenarioSelect.disabled).toBe(true);
   act(() => {
-    category.value = "Analysis";
-    category.dispatchEvent(new Event("change", { bubbles: true }));
+    const options = view.container.querySelector('select[data-testid="category-options"]');
+    options.value = "Analysis";
+    options.dispatchEvent(new Event("change", { bubbles: true }));
   });
   expect(scenarioSelect.disabled).toBe(false);
   expect([...scenarioSelect.options].map((option) => option.textContent).join(" ")).toContain("A-01");

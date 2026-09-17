@@ -1,8 +1,7 @@
 """Validate the approved Test Bank.
 
-The source is Git commit b605cf4801d2ae3354b8b71d998ad1cd9e205600;
-9103f16b3f6821f05d844356f740aa35a0800674d6a3726ae59edf544d6ccb10 is
-the SHA-256 of the checked-in JSON file (not a Git commit).
+The guidance was refreshed from the approved Google Sheet on 2026-09-17.
+The pinned hash below verifies the checked-in JSON, not a Git commit.
 """
 import json
 import asyncio
@@ -23,7 +22,7 @@ def test_reference_contains_all_unique_scenarios_and_rubric_items():
     assert {row["rubric_id"] for row in rubric} == {f"G-{index:02}" for index in range(1, 32)}
     assert hashlib.sha256(
         (Path(__file__).parents[1] / "test_bank_reference_2026_09_16.json").read_bytes()
-    ).hexdigest() == "9103f16b3f6821f05d844356f740aa35a0800674d6a3726ae59edf544d6ccb10"
+    ).hexdigest() == "db11c6b979fe7ea8206c86e6bf65edc62a96e888769c611972bbf7b9c93edc31"
 
 
 def test_every_association_resolves_and_every_rubric_item_has_one_category():
@@ -129,6 +128,23 @@ def test_catalog_reconciliation_archives_legacy_and_is_idempotent(monkeypatch):
         and row.get("stable_id") == "R-01"
     )
     assert fresh["id"] == "bassett-catalog-2026-09-16-R-01"
+    snapshot = [dict(row) for row in db.rows]
+    asyncio.run(server._seed_bassett_catalog())
+    assert db.rows == snapshot
+
+
+def test_guidance_refresh_keeps_canonical_ids_and_is_idempotent(monkeypatch):
+    import server
+    import asyncio
+    from test_bank_catalog import scenario_definition
+    definition = scenario_definition(REFERENCE["scenarios"][0])
+    old = {**definition, "id": "existing-canonical-id", "guidance_revision": "2026-09-16", "why_it_matters": "Old generic guidance", "archived": False}
+    db = _Db([old])
+    monkeypatch.setattr(server, "db", db)
+    asyncio.run(server._seed_bassett_catalog())
+    assert old["id"] == "existing-canonical-id"
+    assert old["why_it_matters"] == definition["why_it_matters"]
+    assert len(db.rows) == 100
     snapshot = [dict(row) for row in db.rows]
     asyncio.run(server._seed_bassett_catalog())
     assert db.rows == snapshot
