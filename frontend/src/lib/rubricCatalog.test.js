@@ -3,6 +3,8 @@ import {
   normalizeRubricCatalog,
   reconcileRubricSelection,
   reconcileScenarioRubricSelection,
+  rubricScoresFromEvaluations,
+  serializeComparisonPayload,
   removeRubricSelection,
   rubricDimensions,
   unassociatedRubricItems,
@@ -82,4 +84,32 @@ test("scenario removal preserves shared IDs and confirms scored removals", () =>
   expect(accepted.selectedRubricIds).toEqual(["G-02", "G-03"]);
   expect(accepted.scores).toEqual({});
   expect(accepted.confirm_rubric_removal).toBe(true);
+});
+
+test("removal scoring aggregates each comparison model and counts zero", () => {
+  expect(rubricScoresFromEvaluations({
+    Bassett: { scores: {} },
+    ChatGPT: { scores: { "G-02": 4 } },
+    Claude: { scores: { "G-03": 0 } },
+  })).toEqual({ "G-02": 4, "G-03": 0 });
+});
+
+test.each([
+  ["ChatGPT", "G-02", 4],
+  ["Claude", "G-03", 6],
+  ["Claude zero", "G-04", 0],
+])("a %s-only score requires removal confirmation", (_label, rubricId, score) => {
+  const model = rubricId === "G-02" ? "ChatGPT" : "Claude";
+  const scores = rubricScoresFromEvaluations({ [model]: { scores: { [rubricId]: score } } });
+  expect(removeRubricSelection([rubricId], rubricId, scores, () => false).confirmed).toBe(false);
+  expect(removeRubricSelection([rubricId], rubricId, scores, () => true).confirmed).toBe(true);
+});
+
+test("comparison payload includes explicit scored-removal confirmation", () => {
+  const payload = serializeComparisonPayload({
+    rubric_revision: "2026-09-16", confirm_rubric_removal: true,
+    evaluations: { Bassett: { scores: { "G-01": 0 } } },
+  });
+  expect(payload.confirm_rubric_removal).toBe(true);
+  expect(payload.evaluations.Bassett.rubric_scores).toEqual({ "G-01": 0 });
 });

@@ -16,6 +16,22 @@ export function serializeComparisonEvaluations(form = {}) {
   }));
 }
 
+export function serializeComparisonPayload(form = {}) {
+  return {
+    evaluations: serializeComparisonEvaluations(form),
+    confirm_rubric_removal: Boolean(form.confirm_rubric_removal),
+  };
+}
+
+export function rubricScoresFromEvaluations(evaluations = {}) {
+  return Object.values(evaluations || {}).reduce((scores, evaluation) => {
+    for (const [rubricId, value] of Object.entries(evaluation?.scores || {})) {
+      if (value !== undefined && value !== "" && value !== null && value !== "N/A") scores[rubricId] = value;
+    }
+    return scores;
+  }, {});
+}
+
 export function normalizeRubricCatalog(catalog) {
   if (!catalog || typeof catalog !== "object") return { revision: null, categories: [], rubric_items: [] };
   return {

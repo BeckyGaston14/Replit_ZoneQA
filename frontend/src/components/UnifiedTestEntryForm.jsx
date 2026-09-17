@@ -19,6 +19,7 @@ import {
   normalizeRubricCatalog,
   reconcileRubricSelection,
   reconcileScenarioRubricSelection,
+  rubricScoresFromEvaluations,
   rubricDimensions,
   unassociatedRubricItems,
 } from "../lib/rubricCatalog";
@@ -591,6 +592,11 @@ export default function UnifiedTestEntryForm({
   const mappedRubricIds = useMemo(() => reconcileRubricSelection({
     scenarios, scenarioIds: activeScenarioIds, selectedRubricIds: [],
   }).mappedRubricIds, [scenarios, activeScenarioIds]);
+  const rubricRemovalScores = useMemo(() => (
+    isComparison
+      ? rubricScoresFromEvaluations(form.evaluations)
+      : (form.evaluation_scores || {})
+  ), [form.evaluation_scores, form.evaluations, isComparison]);
   const catalogActive = normalizedRubricCatalog.rubric_items.length > 0
     && form.rubric_revision !== LEGACY_RUBRIC_REVISION
     && (!form.id || form.rubric_revision === normalizedRubricCatalog.revision);
@@ -822,7 +828,7 @@ export default function UnifiedTestEntryForm({
       <Field label={isComparison ? "Comparison Category" : "Finding Category"}><Input value={form.issue_category || form.category || ""} onChange={(e) => update(isComparison ? "category" : "issue_category", e.target.value)} /></Field>
     </div></GuidedSection>
 
-     <GuidedSection index={3} title="4. Canonical Evaluation" active={activeSection === 3} status={sectionStatus(3)} onActivate={activateSection}><p className="text-xs text-muted-foreground">Use the selected revision rubric. Blank dimensions and N/A remain unavailable and are excluded from the denominator; zero is a valid score.</p><div className="mt-4 space-y-4"><GeneralSubtypeGuidance subtypes={generalSubtypes} selectedIds={form.general_subtype_ids || []} />{rubricCatalog && catalogActive && <RubricCriteriaSelector catalog={normalizedRubricCatalog} mappedIds={mappedRubricIds} selectedIds={form.selected_rubric_ids || []} scores={evaluationFor("Bassett").scores} disabled={lockedCommon} onChange={(ids, meta = {}) => setForm((current) => ({ ...current, selected_rubric_ids: ids, rubric_revision: normalizedRubricCatalog.revision, rubric_selection_initialized: true, confirm_rubric_removal: current.confirm_rubric_removal || meta.confirm_rubric_removal }))} />}<h4 className="font-semibold text-sm text-[var(--navy)]">Bassett evaluation · {form.rubric_revision || LEGACY_RUBRIC_REVISION} · calculated score</h4><EvaluationGrid model="Bassett" scores={evaluationFor("Bassett").scores} dimensions={dimensions} onChange={updateEvaluation} locked={lockedCommon} /><RubricScoreSummary catalog={normalizedRubricCatalog} scores={evaluationFor("Bassett").scores} selectedIds={form.selected_rubric_ids || []} /><Field label="Bassett Score Rationale" required={hasScoredDimension(evaluationFor("Bassett").scores)} description="Cite the specific answer evidence that supports the selected numbers (minimum 20 characters when scored)."><Textarea rows={3} value={evaluationFor("Bassett").rationale || form.score_rationale || ""} onChange={(e) => updateEvaluationRationale("Bassett", e.target.value)} /></Field></div></GuidedSection>
+     <GuidedSection index={3} title="4. Canonical Evaluation" active={activeSection === 3} status={sectionStatus(3)} onActivate={activateSection}><p className="text-xs text-muted-foreground">Use the selected revision rubric. Blank dimensions and N/A remain unavailable and are excluded from the denominator; zero is a valid score.</p><div className="mt-4 space-y-4"><GeneralSubtypeGuidance subtypes={generalSubtypes} selectedIds={form.general_subtype_ids || []} />{rubricCatalog && catalogActive && <RubricCriteriaSelector catalog={normalizedRubricCatalog} mappedIds={mappedRubricIds} selectedIds={form.selected_rubric_ids || []} scores={rubricRemovalScores} disabled={lockedCommon} onChange={(ids, meta = {}) => setForm((current) => ({ ...current, selected_rubric_ids: ids, rubric_revision: normalizedRubricCatalog.revision, rubric_selection_initialized: true, confirm_rubric_removal: current.confirm_rubric_removal || meta.confirm_rubric_removal }))} />}<h4 className="font-semibold text-sm text-[var(--navy)]">Bassett evaluation · {form.rubric_revision || LEGACY_RUBRIC_REVISION} · calculated score</h4><EvaluationGrid model="Bassett" scores={evaluationFor("Bassett").scores} dimensions={dimensions} onChange={updateEvaluation} locked={lockedCommon} /><RubricScoreSummary catalog={normalizedRubricCatalog} scores={evaluationFor("Bassett").scores} selectedIds={form.selected_rubric_ids || []} /><Field label="Bassett Score Rationale" required={hasScoredDimension(evaluationFor("Bassett").scores)} description="Cite the specific answer evidence that supports the selected numbers (minimum 20 characters when scored)."><Textarea rows={3} value={evaluationFor("Bassett").rationale || form.score_rationale || ""} onChange={(e) => updateEvaluationRationale("Bassett", e.target.value)} /></Field></div></GuidedSection>
 
     <GuidedSection index={4} title="5. Findings & Ownership" active={activeSection === 4} status={sectionStatus(4)} onActivate={activateSection}><div className="space-y-4">
       <label className="flex items-center gap-2 text-sm"><Checkbox aria-label="Create a linked Bassett finding" checked={Boolean(form.create_finding)} onCheckedChange={(checked) => update("create_finding", checked === true)} /> Create a linked Bassett finding</label>

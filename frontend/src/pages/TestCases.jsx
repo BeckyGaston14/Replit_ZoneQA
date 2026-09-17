@@ -16,7 +16,7 @@ import { PageHeader } from "../components/shared";
 import { CritBadge, ResultBadge } from "../components/shared";
 import { FormModal, Field, SelectOrAdd, ListSelect, DimSelect } from "../components/forms";
 import UnifiedTestEntryForm, { createComparisonEditDraft, createComparisonTestDraft } from "../components/UnifiedTestEntryForm";
-import { serializeComparisonEvaluations } from "../lib/rubricCatalog";
+import { serializeComparisonPayload } from "../lib/rubricCatalog";
 import { ImportCsvModal } from "../components/ImportCsvModal";
 import { SortableTableHeader } from "../components/SortableTableHeader";
 import { TableSortControls } from "../components/TableSortControls";
@@ -173,7 +173,8 @@ export default function TestCases() {
     setServerError("");
     submitInFlight.current = true;
     if (!f.id) {
-      const body = { testcase: { ...f }, gold_standard: { answer: f.gold_standard_answer || f.verified_correct_answer }, responses: f.responses || {}, evaluations: serializeComparisonEvaluations(f), comparison: f.comparison || {}, submission_id: f.submission_id };
+      const rubricPayload = serializeComparisonPayload(f);
+      const body = { testcase: { ...f }, gold_standard: { answer: f.gold_standard_answer || f.verified_correct_answer }, responses: f.responses || {}, ...rubricPayload, comparison: f.comparison || {}, submission_id: f.submission_id };
       delete body.testcase.attachments;
       const payload = new FormData();
       payload.append("payload", JSON.stringify(body));
@@ -188,7 +189,7 @@ export default function TestCases() {
       const body = {
         testcase: { ...f },
         responses: f.responses || {},
-        evaluations: serializeComparisonEvaluations(f),
+        ...serializeComparisonPayload(f),
         comparison: f.comparison || {},
         source_bassett_issue_id: f.source_bassett_issue_id,
         expected_revision: f.expected_revision,
