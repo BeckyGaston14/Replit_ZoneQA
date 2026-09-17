@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api, formatApiErrorDetail, withExpectedVersion, staleUpdateMessage } from "../lib/api";
-import { useConfig, useSave, useCollection, useGeneralSubtypes, useSavedView, useTestBank, useTestCases } from "../lib/hooks";
+import { useConfig, useSave, useCollection, useGeneralSubtypes, useRubricCatalog, useSavedView, useTestBank, useTestCases } from "../lib/hooks";
 import {
   ALL_TEST_CASES,
   DEFAULT_TEST_CASE_SORT,
@@ -62,6 +62,7 @@ export default function TestCases() {
   const { data: users = [] } = useCollection("users");
   const { data: versions = [] } = useCollection("versions");
   const { data: generalSubtypes = [] } = useGeneralSubtypes();
+  const { data: rubricCatalog } = useRubricCatalog();
   const save = useSave("testcases");
   const [open, setOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -349,7 +350,7 @@ export default function TestCases() {
       </div>}
 
       {f && <UnifiedTestEntryForm
-        mode="comparison" form={f} setForm={setF} scenarios={scenarios} generalSubtypes={generalSubtypes} versions={versions}
+        mode="comparison" form={f} setForm={setF} scenarios={scenarios} generalSubtypes={generalSubtypes} rubricCatalog={rubricCatalog} versions={versions}
         projects={projects} municipalities={municipalities} properties={properties} users={users}
         config={config} onSubmit={submit} onCancel={() => { setConflict(null); setF(null); }}
         submitting={save.isPending || submitInFlight.current}

@@ -140,6 +140,13 @@ export function useGeneralSubtypes(opts = {}) {
   });
 }
 
+export function useRubricCatalog(opts = {}) {
+  return useQuery({
+    queryFn: async ({ signal } = {}) => (await api.get("/bassett/rubric-catalog", { signal })).data,
+    ...useAuthQueryOptions(["bassett-rubric-catalog"], opts, REFERENCE_QUERY_OPTIONS),
+  });
+}
+
 export function useSave(name) {
   const qc = useQueryClient();
   return useMutation({

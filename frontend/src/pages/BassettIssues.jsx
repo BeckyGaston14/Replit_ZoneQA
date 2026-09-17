@@ -156,6 +156,7 @@ export default function BassettIssues() {
   });
   const { data: metrics } = useQuery({ queryKey: ["bassett-metrics"], queryFn: async () => (await api.get("/bassett/metrics")).data });
   const { data: scenarios = [] } = useQuery({ queryKey: ["bassett-scenarios"], queryFn: async () => (await api.get("/bassett/test-bank")).data });
+  const { data: rubricCatalog } = useQuery({ queryKey: ["bassett-rubric-catalog"], queryFn: async () => (await api.get("/bassett/rubric-catalog")).data, staleTime: 30 * 60_000 });
   const { data: generalSubtypes = [] } = useQuery({ queryKey: ["bassett-general-subtypes"], queryFn: async () => (await api.get("/bassett/general-subtypes")).data, staleTime: 30 * 60_000 });
   const { data: projects = [] } = useQuery({ queryKey: ["projects"], queryFn: async () => (await api.get("/projects")).data });
   const { data: municipalities = [] } = useQuery({ queryKey: ["municipalities"], queryFn: async () => (await api.get("/municipalities")).data });
@@ -408,7 +409,7 @@ export default function BassettIssues() {
      </MethodologyDisclosure>
 
      {selected && !showingFindings && <IssueDetail id={selected} onClose={() => setSelected(null)} onEdit={openEdit} onRestore={restore} canWrite={canWrite} canManage={canManage} refresh={() => qc.invalidateQueries()} />}
-    {form && <BassettTestRunForm form={form} setForm={setForm} scenarios={scenarios} generalSubtypes={generalSubtypes} versions={versions} projects={projects} municipalities={municipalities} properties={properties} users={users} config={config} onSubmit={save} onCancel={() => { setConflict(null); setForm(null); }} submitting={saving} conflictNotice={conflict && <div role="alert" className="col-span-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+    {form && <BassettTestRunForm form={form} setForm={setForm} scenarios={scenarios} rubricCatalog={rubricCatalog} generalSubtypes={generalSubtypes} versions={versions} projects={projects} municipalities={municipalities} properties={properties} users={users} config={config} onSubmit={save} onCancel={() => { setConflict(null); setForm(null); }} submitting={saving} conflictNotice={conflict && <div role="alert" className="col-span-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
       <p className="font-semibold">Someone else saved this test run first. Your entries are still open for review.</p>
       <div className="mt-2 flex gap-2">
         <Button type="button" size="sm" variant="outline" onClick={() => { setForm(conflict); setConflict(null); }}>Load latest values</Button>

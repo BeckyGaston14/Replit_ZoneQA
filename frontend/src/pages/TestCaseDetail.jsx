@@ -76,6 +76,7 @@ export default function TestCaseDetail() {
   const { data: users = [] } = useCollection("users");
   const { data: versions = [] } = useCollection("versions");
   const { data: generalSubtypes = [] } = useGeneralSubtypes();
+  const { data: rubricCatalog } = useQuery({ queryKey: ["bassett-rubric-catalog"], queryFn: async () => (await api.get("/bassett/rubric-catalog")).data, staleTime: 30 * 60_000 });
   const { data, isLoading, isError, error, refetch } = useQuery({ queryKey: ["tc-full", id], queryFn: async () => (await api.get(`/testcases/${id}/full`)).data });
   const [respModal, setRespModal] = useState(null);
   const [evalModal, setEvalModal] = useState(null);
@@ -648,6 +649,7 @@ export default function TestCaseDetail() {
         setForm={setEditForm}
         scenarios={scenarios}
         generalSubtypes={generalSubtypes}
+        rubricCatalog={rubricCatalog}
         versions={versions}
         projects={projects}
         municipalities={municipalities}
