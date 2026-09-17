@@ -25,6 +25,16 @@ from postgres_store import (
     PostgresDatabase,
 )
 from bassett_catalog import CANONICAL_SCENARIOS
+from test_bank_catalog import (
+    CATALOG_REVISION,
+    CATEGORIES as RUBRIC_CATALOG_CATEGORIES,
+    REFERENCE as RUBRIC_CATALOG_REFERENCE,
+    RUBRIC_ITEMS as RUBRIC_CATALOG_ITEMS,
+    normalize_rubric_ids,
+    rubric_snapshot,
+    scenario_definition,
+    score_rubrics,
+)
 from general_subtypes import GENERAL_TEST_SUBTYPES, GENERAL_TEST_SUBTYPE_IDS
 from evaluation_metrics import (
     CANONICAL_EVALUATION_RESULTS,
@@ -2505,6 +2515,16 @@ async def _prepare_comparison_workflow(
     evaluation_input = body.get("evaluations") if isinstance(body.get("evaluations"), dict) else {}
     configured = await db.config.find_one({"id": "global"}, {"_id": 0}) or DEFAULT_CONFIG
     allowed_results = set(CANONICAL_EVALUATION_RESULTS)
+    scenario_rubric_ids = normalize_rubric_ids(scenario.get("rubric_ids"))
+    requested_rubric_ids = body.get(
+        "selected_rubric_ids", testcase.get("selected_rubric_ids", scenario_rubric_ids)
+    )
+    selected_rubric_ids = normalize_rubric_ids(requested_rubric_ids)
+    if not set(selected_rubric_ids).issubset(
+        {item["rubric_id"] for item in RUBRIC_CATALOG_ITEMS}
+    ):
+        raise HTTPException(400, detail={"selected_rubric_ids": "Unknown rubric item"})
+    current_rubrics = scenario.get("catalog_revision") == CATALOG_REVISION
     for model in COMPARISON_WORKFLOW_MODELS:
         incoming_response = response_input.get(model)
         incoming_response = incoming_response if isinstance(incoming_response, dict) else {}
@@ -2523,7 +2543,25 @@ async def _prepare_comparison_workflow(
         incoming_evaluation = evaluation_input.get(model)
         incoming_evaluation = incoming_evaluation if isinstance(incoming_evaluation, dict) else {}
         raw_scores = incoming_evaluation.get("scores") or {}
-        authoritative = await _evaluation_score_fields(raw_scores)
+        rubric_scores = {
+            key: value for key, value in raw_scores.items()
+            if str(key).upper().startswith("G-") and key in selected_rubric_ids
+        }
+        legacy_scores = {
+            key: value for key, value in raw_scores.items()
+            if not str(key).upper().startswith("G-")
+        }
+        authoritative = await _evaluation_score_fields(legacy_scores)
+        rubric_result = score_rubrics(rubric_scores, selected_rubric_ids)
+        if current_rubrics and rubric_scores:
+            authoritative = {
+                **authoritative,
+                "overall_score": rubric_result["overall_score"],
+                "weighted_score": rubric_result["overall_score"],
+                "score_mode": "rubric_average",
+                "score_label": "Rubric average",
+                "weight_explanation": "Neutral rubric weights; missing and N/A values are excluded.",
+            }
         normalized_scores = {
             key: value for key, value in raw_scores.items()
             if value not in (None, "")
@@ -2537,7 +2575,22 @@ async def _prepare_comparison_workflow(
             raise HTTPException(400, detail={"evaluations": f"Invalid {model} evaluation result"})
         evaluations.append({
             "id": incoming_evaluation.get("id") or new_id(), "testcase_id": "", "model": model,
-            "scores": normalized_scores,
+            "scores": {
+                key: value for key, value in normalized_scores.items()
+                if not str(key).upper().startswith("G-")
+            },
+            "rubric_revision": CATALOG_REVISION if current_rubrics else None,
+            "selected_rubric_ids": selected_rubric_ids if current_rubrics else [],
+            "additional_rubric_ids": (
+                sorted(set(selected_rubric_ids) - set(scenario_rubric_ids))
+                if current_rubrics else []
+            ),
+            "rubric_definition_snapshot": (
+                rubric_snapshot(selected_rubric_ids) if current_rubrics else {}
+            ),
+            "rubric_scores": rubric_scores if current_rubrics else {},
+            "category_scores": rubric_result["category_scores"] if current_rubrics else {},
+            "score_count": rubric_result["score_count"] if current_rubrics else 0,
             "availability": "available" if authoritative["overall_score"] is not None else "unavailable",
             "unavailable_reason": None if authoritative["overall_score"] is not None else "Not entered",
             "status": "Completed" if authoritative["overall_score"] is not None else "Unavailable",
@@ -2557,7 +2610,20 @@ async def _prepare_comparison_workflow(
             raise HTTPException(409, "Source Bassett test is already linked to another comparison")
     for model, field in (("Bassett", "bassett_evaluation_scores"), ("ChatGPT", "chatgpt_evaluation_scores"), ("Claude", "claude_evaluation_scores")):
         value = evaluation_input.get(model)
-        testcase[field] = dict(value.get("scores") or {}) if isinstance(value, dict) else {}
+        testcase[field] = (
+            {key: score for key, score in (value.get("scores") or {}).items()
+             if not str(key).upper().startswith("G-")}
+            if isinstance(value, dict) else {}
+        )
+    if current_rubrics:
+        testcase.update({
+            "rubric_revision": CATALOG_REVISION,
+            "selected_rubric_ids": selected_rubric_ids,
+            "additional_rubric_ids": sorted(
+                set(selected_rubric_ids) - set(scenario_rubric_ids)
+            ),
+            "rubric_definition_snapshot": rubric_snapshot(selected_rubric_ids),
+        })
     return testcase, goldstandard, responses, evaluations
 
 
@@ -2718,8 +2784,46 @@ async def update_testcase_workflow(
     current = await crud_get("testcases", id)
     if current.get("source_bassett_issue_id") and body.get("source_bassett_issue_id") not in (None, current.get("source_bassett_issue_id")):
         raise HTTPException(409, "The source Bassett relationship is locked")
+    requested_testcase = body.get("testcase") if isinstance(body.get("testcase"), dict) else {}
+    requested_selected = requested_testcase.get(
+        "selected_rubric_ids",
+        body.get("selected_rubric_ids", current.get("selected_rubric_ids")),
+    )
+    current_selected = set(normalize_rubric_ids(current.get("selected_rubric_ids")))
+    next_selected = set(normalize_rubric_ids(requested_selected))
+    removed_rubric_ids = current_selected - next_selected
+    if removed_rubric_ids and current.get("rubric_revision") == CATALOG_REVISION:
+        persisted_evaluations = await db.evaluations.find(
+            {"testcase_id": id}, {"_id": 0}
+        ).to_list(100)
+        scored_removed = set()
+        for evaluation in persisted_evaluations:
+            score_maps = (
+                evaluation.get("rubric_scores") or {},
+                evaluation.get("scores") or {},
+            )
+            for score_map in score_maps:
+                for rubric_id, value in score_map.items():
+                    if (
+                        rubric_id in removed_rubric_ids
+                        and value not in (None, "", "N/A", "NA", "Missing")
+                    ):
+                        scored_removed.add(rubric_id)
+        if scored_removed and body.get("confirm_rubric_removal") is not True:
+            raise HTTPException(
+                409,
+                detail={
+                    "code": "scored_rubric_removal_confirmation_required",
+                    "rubric_ids": sorted(scored_removed),
+                },
+            )
+    merged_testcase_payload = {
+        **current, **(body.get("testcase") or {}), "id": id,
+    }
+    if "selected_rubric_ids" in body and "selected_rubric_ids" not in (body.get("testcase") or {}):
+        merged_testcase_payload["selected_rubric_ids"] = body["selected_rubric_ids"]
     testcase, goldstandard, responses, evaluations = await _prepare_comparison_workflow(
-        {**body, "testcase": {**current, **(body.get("testcase") or {}), "id": id}},
+        {**body, "testcase": merged_testcase_payload},
         user,
         require_scenario=False,
     )
@@ -2739,6 +2843,8 @@ async def update_testcase_workflow(
         "comparison_result", "comparison_classification", "competitive_advantage",
         "competitive_gap", "comparison_notes", "bassett_evaluation_scores",
         "chatgpt_evaluation_scores", "claude_evaluation_scores", "general_subtype_ids",
+         "rubric_revision", "selected_rubric_ids", "additional_rubric_ids",
+         "rubric_definition_snapshot",
     )
     testcase_updates = {key: testcase.get(key) for key in update_fields if key in testcase}
     testcase_updates["updated_at"] = now_iso()
@@ -3204,12 +3310,15 @@ BASSETT_ISSUE_FIELDS = {
     "source_links", "history_context", "score_rationale", "general_subtype_ids",
     "conversation_source", "transcript_status", "transcript_confirmed_by",
     "transcript_confirmed_at",
+    "rubric_revision", "rubric_definition_snapshot", "selected_rubric_ids",
+    "additional_rubric_ids", "rubric_scores", "category_scores", "score_count",
 }
 BASSETT_TEST_TYPES = ("Single Prompt", "Multi-turn")
 BASSETT_SCENARIO_FIELDS = {
     "workflow_stage", "report_type", "test_scenario", "complexity",
     "why_it_matters", "what_bassett_should_do", "success_criteria", "priority",
     "tags", "project_id", "testcase_id", "version_id", "bassett_version",
+    "test_type", "scoring_category", "catalog_revision", "rubric_ids",
 }
 BASSETT_DEFINITION_SNAPSHOT_FIELDS = (
     "stable_id", "workflow_stage", "test_scenario", "complexity",
@@ -3750,11 +3859,28 @@ async def _workflow_stage(stage_name):
     return _normalize_bassett_stage_record(stage)
 
 async def _seed_bassett_catalog():
-    """Add only absent canonical rows; existing non-identical rows are reported."""
-    for definition in CANONICAL_SCENARIOS:
-        existing = await db.bassett_scenarios.find_one({"stable_id": definition["stable_id"]}, {"_id": 0})
+    """Reconcile the approved catalog without rewriting historical evidence."""
+    approved = [scenario_definition(row) for row in RUBRIC_CATALOG_REFERENCE["scenarios"]]
+    active = await db.bassett_scenarios.find(
+        {"archived": {"$ne": True}}, {"_id": 0}
+    ).to_list(10000)
+    for legacy in active:
+        if legacy.get("catalog_revision") != CATALOG_REVISION:
+            await db.bassett_scenarios.update_one(
+                {"id": legacy["id"]},
+                {"$set": {
+                    "archived": True,
+                    "archived_at": now_iso(),
+                    "archived_by": "system:test-bank-revision",
+                }},
+            )
+    for definition in approved:
+        existing = await db.bassett_scenarios.find_one(
+            {"stable_id": definition["stable_id"], "catalog_revision": CATALOG_REVISION},
+            {"_id": 0},
+        )
         if not existing:
-            doc = {**definition, "id": f"bassett-catalog-{definition['stable_id']}",
+            doc = {**definition, "id": f"bassett-catalog-{CATALOG_REVISION}-{definition['stable_id']}",
                    "archived": False, "seeded": True, "created_at": now_iso(),
                    "created_by": "system", "updated_at": now_iso()}
             try:
@@ -3767,6 +3893,11 @@ async def _seed_bassett_catalog():
                 if not existing or any(existing.get(key) != value for key, value in definition.items()):
                     logger.error("Bassett canonical seed conflict for %s; existing row was not overwritten",
                                  definition["stable_id"])
+        elif existing.get("catalog_revision") == CATALOG_REVISION and existing.get("archived"):
+            await db.bassett_scenarios.update_one(
+                {"id": existing["id"]},
+                {"$set": {"archived": False, "updated_at": now_iso()}},
+            )
         elif any(existing.get(key) != value for key, value in definition.items()):
             logger.error("Bassett canonical seed conflict for %s; existing row was not overwritten",
                          definition["stable_id"])
@@ -3910,6 +4041,11 @@ async def bassett_expand_issue(id: str, user=Depends(get_current_user)):
         "comparison_mode": True, "revision": 1,
         "general_subtype_ids": list(issue.get("general_subtype_ids") or []),
         "source_definition_snapshot": dict(snapshot),
+        "rubric_revision": issue.get("rubric_revision") or snapshot.get("catalog_revision"),
+        "selected_rubric_ids": list(issue.get("selected_rubric_ids") or snapshot.get("rubric_ids") or []),
+        "additional_rubric_ids": list(issue.get("additional_rubric_ids") or []),
+        "rubric_definition_snapshot": dict(issue.get("rubric_definition_snapshot") or {}),
+        "category_scores": dict(issue.get("category_scores") or {}),
         "project_id": issue.get("project_id") or scenario.get("project_id"),
         "municipality_id": issue.get("municipality_id"),
         "property_id": issue.get("property_id"),
@@ -3925,6 +4061,13 @@ async def bassett_expand_issue(id: str, user=Depends(get_current_user)):
         "assignee_id": issue.get("assignee_id"), "assignee_name": issue.get("assignee_name"),
         "bassett_test_result": issue.get("result") or issue.get("verdict"),
         "bassett_evaluation_scores": dict(issue.get("evaluation_scores") or {}),
+        "bassett_rubric_revision": issue.get("rubric_revision"),
+        "bassett_selected_rubric_ids": list(issue.get("selected_rubric_ids") or []),
+        "bassett_rubric_definition_snapshot": dict(issue.get("rubric_definition_snapshot") or {}),
+        "bassett_rubric_scores": dict(issue.get("rubric_scores") or {}),
+        "bassett_category_scores": dict(issue.get("category_scores") or {}),
+        "bassett_rubric_overall_score": issue.get("overall_score")
+        if issue.get("rubric_revision") == CATALOG_REVISION else None,
         "bassett_overall_score": issue.get("overall_score"),
         "bassett_follow_up": {
             key: issue.get(key) for key in (
@@ -3965,12 +4108,26 @@ async def bassett_expand_issue(id: str, user=Depends(get_current_user)):
     }]
     evaluations = [{
         "id": new_id(), "testcase_id": testcase_id, "model": "Bassett",
-        "status": "Completed" if issue.get("evaluation_scores") else "Draft",
+        "status": (
+            "Completed"
+            if (
+                issue.get("rubric_revision") == CATALOG_REVISION
+                and int(issue.get("score_count") or 0) > 0
+            ) or issue.get("evaluation_scores")
+            else "Draft"
+        ),
         "availability": "available" if issue.get("overall_score") is not None else "unavailable",
         "unavailable_reason": None if issue.get("overall_score") is not None else "Not entered",
         "final_result": issue.get("evaluation_final_result")
         or issue.get("system_recommended") or "Not Evaluated",
         "scores": dict(issue.get("evaluation_scores") or {}),
+        "rubric_revision": issue.get("rubric_revision"),
+        "selected_rubric_ids": list(issue.get("selected_rubric_ids") or []),
+        "additional_rubric_ids": list(issue.get("additional_rubric_ids") or []),
+        "rubric_definition_snapshot": dict(issue.get("rubric_definition_snapshot") or {}),
+        "rubric_scores": dict(issue.get("rubric_scores") or {}),
+        "category_scores": dict(issue.get("category_scores") or {}),
+        "score_count": issue.get("score_count", 0),
         "overall_score": issue.get("overall_score"),
         "weighted_score": issue.get("weighted_score"),
         "system_recommended": issue.get("system_recommended"),
@@ -4101,6 +4258,45 @@ async def bassett_create_issue(body: Dict[str, Any], user=Depends(get_current_us
     await _validate_bassett_turn_refs(doc)
     scenario = await db.bassett_scenarios.find_one({"id": doc["scenario_id"]}, {"_id": 0})
     _validate_scenario_required(scenario)
+    scenario_rubric_ids = normalize_rubric_ids(scenario.get("rubric_ids"))
+    selected_rubric_ids = normalize_rubric_ids(
+        body.get("selected_rubric_ids", scenario_rubric_ids)
+    )
+    if not set(selected_rubric_ids).issubset({item["rubric_id"] for item in RUBRIC_CATALOG_ITEMS}):
+        raise HTTPException(400, detail={"selected_rubric_ids": "Selected rubric items must belong to the scenario"})
+    rubric_scores = {
+        rubric_id: (body.get("evaluation_scores") or {}).get(rubric_id)
+        for rubric_id in selected_rubric_ids
+        if rubric_id in (body.get("evaluation_scores") or {})
+    }
+    raw_evaluation_scores = body.get("evaluation_scores") or {}
+    if not isinstance(raw_evaluation_scores, dict):
+        raw_evaluation_scores = {}
+    legacy_scores = {
+        key: value for key, value in raw_evaluation_scores.items()
+        if not str(key).upper().startswith("G-")
+    }
+    rubric_result = score_rubrics(rubric_scores, selected_rubric_ids)
+    doc.update({
+        "rubric_revision": CATALOG_REVISION,
+        "selected_rubric_ids": selected_rubric_ids,
+        "additional_rubric_ids": sorted(set(selected_rubric_ids) - set(scenario_rubric_ids)),
+        "rubric_scores": rubric_scores,
+        "rubric_definition_snapshot": rubric_snapshot(selected_rubric_ids),
+        "category_scores": rubric_result["category_scores"],
+        "score_count": rubric_result["score_count"],
+    })
+    if scenario.get("catalog_revision") != CATALOG_REVISION:
+        for field in (
+            "rubric_revision", "selected_rubric_ids", "additional_rubric_ids",
+            "rubric_scores", "rubric_definition_snapshot", "category_scores", "score_count",
+        ):
+            doc.pop(field, None)
+    if rubric_scores:
+        doc["evaluation_scores"] = legacy_scores
+        doc["overall_score"] = rubric_result["overall_score"]
+        doc["weighted_score"] = rubric_result["overall_score"]
+        doc["score_mode"] = "rubric_average"
     creation_payload = "|".join(str(doc.get(key) or "").strip() for key in (
         "scenario_id", "test_date", "question_asked", "exact_bassett_answer", "verified_correct_answer",
         "bassett_version", "environment",
@@ -4180,12 +4376,41 @@ async def _prepare_bassett_workflow_document(body: Dict[str, Any], user: Dict[st
         raw_scores = {}
     if not isinstance(raw_scores, dict):
         raise HTTPException(400, detail={"evaluation_scores": "Scores must be an object"})
-    authoritative = await _evaluation_score_fields(raw_scores)
-    cfg = await db.config.find_one({"id": "global"}, {"_id": 0}) or DEFAULT_CONFIG
-    dimension_keys = [d.get("key") for d in cfg.get("eval_dimensions", []) if d.get("key")]
-    doc["evaluation_scores"] = {
-        key: raw_scores.get(key) for key in dimension_keys if key in raw_scores
+    scenario_rubric_ids = normalize_rubric_ids(scenario.get("rubric_ids"))
+    selected_rubric_ids = normalize_rubric_ids(
+        body.get("selected_rubric_ids", scenario_rubric_ids)
+    )
+    if not set(selected_rubric_ids).issubset({item["rubric_id"] for item in RUBRIC_CATALOG_ITEMS}):
+        raise HTTPException(
+            400,
+            detail={"selected_rubric_ids": "Selected rubric items must belong to the scenario"},
+        )
+    rubric_scores = {
+        rubric_id: raw_scores.get(rubric_id)
+        for rubric_id in selected_rubric_ids
+        if rubric_id in raw_scores
     }
+    rubric_result = score_rubrics(rubric_scores, selected_rubric_ids)
+    legacy_scores = {
+        key: value for key, value in raw_scores.items()
+        if not str(key).upper().startswith("G-")
+    }
+    authoritative = await _evaluation_score_fields(legacy_scores)
+    doc["evaluation_scores"] = legacy_scores
+    doc["rubric_revision"] = CATALOG_REVISION
+    doc["selected_rubric_ids"] = selected_rubric_ids
+    all_rubric_ids = set(RUBRIC_CATALOG_ITEMS[index]["rubric_id"] for index in range(len(RUBRIC_CATALOG_ITEMS)))
+    doc["additional_rubric_ids"] = sorted(set(selected_rubric_ids) - set(scenario_rubric_ids))
+    doc["rubric_scores"] = rubric_scores
+    doc["rubric_definition_snapshot"] = rubric_snapshot(selected_rubric_ids)
+    doc["category_scores"] = rubric_result["category_scores"]
+    doc["score_count"] = rubric_result["score_count"]
+    if rubric_scores:
+        doc["overall_score"] = rubric_result["overall_score"]
+        doc["weighted_score"] = rubric_result["overall_score"]
+        doc["score_mode"] = "rubric_average"
+        doc["score_label"] = "Rubric average"
+        doc["weight_explanation"] = "Neutral rubric weights; missing and N/A values are excluded."
     doc.update({
         "overall_score": authoritative["overall_score"],
         "weighted_score": authoritative["weighted_score"],
@@ -4207,6 +4432,20 @@ async def _prepare_bassett_workflow_document(body: Dict[str, Any], user: Dict[st
         "updated_at": now_iso(),
         "revision": 1,
     })
+    if rubric_scores:
+        doc.update({
+            "overall_score": rubric_result["overall_score"],
+            "weighted_score": rubric_result["overall_score"],
+            "score_mode": "rubric_average",
+            "score_label": "Rubric average",
+            "weight_explanation": "Neutral rubric weights; missing and N/A values are excluded.",
+        })
+    if scenario.get("catalog_revision") != CATALOG_REVISION:
+        for field in (
+            "rubric_revision", "selected_rubric_ids", "additional_rubric_ids",
+            "rubric_scores", "rubric_definition_snapshot", "category_scores", "score_count",
+        ):
+            doc.pop(field, None)
     return doc, scenario, project, testcase, authoritative
 
 async def _uploaded_storage_cleanup(paths):
@@ -4457,6 +4696,66 @@ async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_c
     if "assignee_id" in incoming and user.get("role") not in BASSETT_MANAGER_ROLES:
         raise HTTPException(403, "Only QA managers and administrators can assign issues")
     merged = {**existing, **incoming}
+    if "selected_rubric_ids" in incoming or any(
+        str(key).upper().startswith("G-")
+        for key in (incoming.get("evaluation_scores") or {})
+    ):
+        incoming_g_scores = {
+            key: value for key, value in (incoming.get("evaluation_scores") or {}).items()
+            if str(key).upper().startswith("G-")
+        }
+        if incoming_g_scores:
+            incoming["rubric_scores"] = {
+                **(existing.get("rubric_scores") or {}),
+                **incoming_g_scores,
+            }
+            merged["rubric_scores"] = incoming["rubric_scores"]
+        scenario = await db.bassett_scenarios.find_one(
+            {"id": existing.get("scenario_id")}, {"_id": 0}
+        ) or {}
+        allowed_rubric_ids = set(normalize_rubric_ids(scenario.get("rubric_ids")))
+        selected = normalize_rubric_ids(
+            incoming.get("selected_rubric_ids", existing.get("selected_rubric_ids") or [])
+        )
+        if not set(selected).issubset({item["rubric_id"] for item in RUBRIC_CATALOG_ITEMS}):
+            raise HTTPException(400, "Selected rubric items must belong to the scenario")
+        scored_ids = {
+            rubric_id for rubric_id, value in (existing.get("rubric_scores") or {}).items()
+            if value not in (None, "", "N/A", "NA", "Missing")
+        }
+        removed_scored = scored_ids - set(selected)
+        if removed_scored and not body.get("confirm_rubric_removal"):
+            raise HTTPException(
+                409,
+                detail={"code": "scored_rubric_removal_confirmation_required",
+                        "rubric_ids": sorted(removed_scored)},
+            )
+        scores = {
+            rubric_id: (merged.get("rubric_scores") or {}).get(rubric_id)
+            for rubric_id in selected
+            if rubric_id in (merged.get("rubric_scores") or {})
+        }
+        rubric_result = score_rubrics(scores, selected)
+        if existing.get("rubric_revision") != CATALOG_REVISION:
+            raise HTTPException(409, "Historical runs cannot be assigned current catalog rubrics")
+        incoming["evaluation_scores"] = {
+            key: value for key, value in (incoming.get("evaluation_scores") or {}).items()
+            if not str(key).upper().startswith("G-")
+        }
+        incoming.update({
+            "selected_rubric_ids": selected,
+            "rubric_revision": CATALOG_REVISION,
+            "additional_rubric_ids": sorted(
+                set(selected) - set(normalize_rubric_ids(scenario.get("rubric_ids")))
+            ),
+            "rubric_definition_snapshot": rubric_snapshot(selected),
+            "category_scores": rubric_result["category_scores"],
+            "score_count": rubric_result["score_count"],
+            "rubric_scores": scores,
+            "overall_score": rubric_result["overall_score"],
+            "weighted_score": rubric_result["overall_score"],
+            "score_mode": "rubric_average",
+        })
     merged["severity"], merged["criticality"] = _canonical_severity_pair(
         merged.get("severity"), merged.get("criticality"),
     )
@@ -4639,6 +4938,81 @@ async def bassett_convert_to_finding(id: str, body: Dict[str, Any] = None, user=
 async def bassett_general_subtypes(user=Depends(get_current_user)):
     """Return secondary General classifications without creating a new test type."""
     return GENERAL_TEST_SUBTYPES
+
+
+@api.get("/bassett/rubric-catalog")
+async def bassett_rubric_catalog(user=Depends(get_current_user)):
+    """Return the immutable approved rubric catalog and its revision."""
+    return {
+        "revision": CATALOG_REVISION,
+        "categories": [dict(item) for item in RUBRIC_CATALOG_CATEGORIES],
+        "rubric_items": [dict(item) for item in RUBRIC_CATALOG_ITEMS],
+    }
+
+
+def _require_bassett_admin(user):
+    if str(user.get("role") or "").strip().lower() != "admin":
+        raise HTTPException(403, "Only administrators can apply Test Bank catalog revisions")
+
+
+async def _catalog_revision_preview():
+    active = await db.bassett_scenarios.find(
+        {"archived": {"$ne": True}}, {"_id": 0}
+    ).to_list(10000)
+    target = await db.bassett_scenarios.find(
+        {"catalog_revision": CATALOG_REVISION}, {"_id": 0}
+    ).to_list(10000)
+    target_by_stable = {row.get("stable_id"): row for row in target}
+    stable_ids = {row["test_id"] for row in RUBRIC_CATALOG_REFERENCE["scenarios"]}
+    legacy = [row for row in active if row.get("catalog_revision") != CATALOG_REVISION]
+    missing = [stable_id for stable_id in stable_ids if stable_id not in target_by_stable]
+    return {
+        "revision": CATALOG_REVISION,
+        "scenario_count": len(stable_ids),
+        "rubric_count": len(RUBRIC_CATALOG_ITEMS),
+        "categories_count": len(RUBRIC_CATALOG_CATEGORIES),
+        "would_archive": len(legacy),
+        "would_insert": len(missing),
+        "legacy_scenario_ids": [row.get("id") for row in legacy],
+        "missing_stable_ids": sorted(missing),
+        "already_applied": not legacy and not missing,
+    }
+
+
+@api.post("/bassett/catalog/2026-09-16/preview")
+@api.post("/bassett/catalog/preview")
+@api.get("/bassett/rubric-migration/preview")
+async def bassett_catalog_revision_preview(user=Depends(get_current_user)):
+    _require_bassett_admin(user)
+    return await _catalog_revision_preview()
+
+
+@api.post("/bassett/catalog/2026-09-16/apply")
+@api.post("/bassett/catalog/apply")
+@api.post("/bassett/rubric-migration/apply")
+async def bassett_catalog_revision_apply(
+    body: Dict[str, Any], user=Depends(get_current_user)
+):
+    _require_bassett_admin(user)
+    if not (
+        body.get("confirm") is True
+        or body.get("confirm_revision") == CATALOG_REVISION
+    ):
+        raise HTTPException(
+            400,
+            f"Explicit confirmation is required: set confirm_revision to {CATALOG_REVISION}",
+        )
+    before = await _catalog_revision_preview()
+    if before["already_applied"]:
+        return {**before, "applied": False}
+    transaction = getattr(db, "transaction", None)
+    if callable(transaction):
+        async with transaction():
+            await _seed_bassett_catalog()
+    else:
+        await _seed_bassett_catalog()
+    after = await _catalog_revision_preview()
+    return {**after, "applied": True, "previous": before}
 
 
 @api.get("/bassett/scenarios")
@@ -5121,10 +5495,12 @@ def _bassett_csv_rows(resource, docs):
         "issues": ["id", "title", "question_asked", "exact_bassett_answer", "verified_correct_answer",
                    "issue_category", "severity", "priority", "status", "scenario_id", "finding_id",
                     "version_id", "bassett_version", "environment", "test_date", "reported_date", "result", "score",
+                   "rubric_revision", "selected_rubric_ids", "category_scores", "overall_score",
                    "resolution", "archived", "archived_at"],
         "scenarios": ["id", "stable_id", "workflow_stage", "test_scenario", "complexity",
                       "why_it_matters", "what_bassett_should_do", "success_criteria", "priority",
-                       "version_id", "bassett_version", "project_id", "testcase_id", "archived", "archived_at"],
+                       "version_id", "bassett_version", "catalog_revision", "rubric_ids",
+                       "scoring_category", "archived", "archived_at"],
     }[resource]
     output = io.StringIO()
     writer = csv.DictWriter(output, fieldnames=fields, extrasaction="ignore")
@@ -5865,9 +6241,32 @@ async def _authoritative_evaluation_read_model(evaluations):
     read_model = []
     for evaluation in evaluations:
         result = evaluation_result_details(evaluation.get("final_result"))
+        rubric_current = evaluation.get("rubric_revision") == CATALOG_REVISION
+        rubric_result = score_rubrics(
+            evaluation.get("rubric_scores") or {},
+            evaluation.get("selected_rubric_ids") or [],
+        )
+        authoritative = score_evaluation(evaluation.get("scores"), dimensions)
+        if rubric_current:
+            authoritative.update({
+                "overall_score": rubric_result["overall_score"],
+                "weighted_score": rubric_result["overall_score"],
+                "score_mode": "rubric_average",
+                "score_label": "Rubric average",
+                "weight_explanation": "Neutral rubric weights; missing and N/A values are excluded.",
+                "category_scores": evaluation.get("category_scores") or rubric_result["category_scores"],
+                "score_count": evaluation.get("score_count", rubric_result["score_count"]),
+                "rubric_scores": dict(evaluation.get("rubric_scores") or {}),
+                "rubric_revision": CATALOG_REVISION,
+                "selected_rubric_ids": list(evaluation.get("selected_rubric_ids") or []),
+                "additional_rubric_ids": list(evaluation.get("additional_rubric_ids") or []),
+                "rubric_definition_snapshot": dict(
+                    evaluation.get("rubric_definition_snapshot") or {}
+                ),
+            })
         read_model.append({
             **evaluation,
-            **score_evaluation(evaluation.get("scores"), dimensions),
+            **authoritative,
             "normalized_result": result["result"],
             "result_label": result["result"],
             "result_workflow_state": result["is_workflow_state"],
@@ -10159,7 +10558,6 @@ async def startup():
                 "position": position, "active": True, "seeded": True,
                 "created_at": now_iso(), "updated_at": now_iso(),
             })
-    await _seed_bassett_catalog()
 
 @app.on_event("shutdown")
 async def shutdown():

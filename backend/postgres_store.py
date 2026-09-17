@@ -1474,6 +1474,23 @@ class PostgresDatabase:
                             "INSERT INTO schema_migrations (version) VALUES (14)"
                         )
                         current = 14
+                if current < 15:
+                    async with connection.transaction():
+                        # Catalog revisions intentionally reuse public stable IDs
+                        # while preserving archived historical definitions.
+                        await connection.execute(
+                            "DROP INDEX IF EXISTS bassett_scenarios_stable_id_unique"
+                        )
+                        await connection.execute(
+                            'CREATE UNIQUE INDEX IF NOT EXISTS bassett_scenarios_revision_stable_id_unique '
+                            'ON "bassett_scenarios" '
+                            "((COALESCE(data->>'catalog_revision', 'legacy')), (data->>'stable_id')) "
+                            'WHERE data->>\'stable_id\' IS NOT NULL'
+                        )
+                        await connection.execute(
+                            "INSERT INTO schema_migrations (version) VALUES (15)"
+                        )
+                        current = 15
             finally:
                 # This is a session lock (rather than an xact lock), so it must
                 # be released even when a migration deliberately aborts.
@@ -1705,6 +1722,11 @@ class PostgresDatabase:
                 stored["definition_snapshot"] = {
                     field: scenario.get(field) for field in snapshot_fields
                 }
+                for field in (
+                    "test_type", "scoring_category", "catalog_revision", "rubric_ids",
+                ):
+                    if field in scenario:
+                        stored["definition_snapshot"][field] = copy.deepcopy(scenario[field])
                 await self._insert("bassett_issues", stored, connection)
                 return stored, True
 
@@ -1761,6 +1783,11 @@ class PostgresDatabase:
                 stored["definition_snapshot"] = {
                     field: scenario.get(field) for field in snapshot_fields
                 }
+                for field in (
+                    "test_type", "scoring_category", "catalog_revision", "rubric_ids",
+                ):
+                    if field in scenario:
+                        stored["definition_snapshot"][field] = copy.deepcopy(scenario[field])
                 if finding:
                     stored["finding_id"] = finding["id"]
                 await self._insert("bassett_issues", stored, connection)
