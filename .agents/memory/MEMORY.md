@@ -5,3 +5,4 @@
 - [Client query freshness](client-query-freshness.md) — bounded reuse is lookup-only; mutable, integrity, readiness, and report data refetch after navigation or invalidation.
 - [Sample-filtered search limits](sample-filtered-search-limits.md) — filter relationship-aware sample records before display truncation, including records used to resolve linked results.
 - [Test Bank catalog activation](test-bank-catalog-activation.md) — revision changes require explicit preview and confirmed apply; never reconcile scenario catalogs during startup.
+- [GitHub connector Git writes](github-connector-git-writes.md) — connector API fallbacks require exact-tree guards; read large files directly, not through shell-output transport.
