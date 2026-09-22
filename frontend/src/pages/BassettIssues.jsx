@@ -60,15 +60,16 @@ export async function persistBassettTestRun(form, apiClient = api) {
     const body = { ...form };
     delete body.attachments;
     delete body.conversation_attachment;
-    const payload = new FormData();
-    payload.append("payload", JSON.stringify(body));
-    for (const file of files) payload.append("files", file);
-    const { data } = await apiClient.post("/bassett/issues/workflow", payload);
+    // Persist the record before uploading binary files. A rejected multipart
+    // request must never discard an otherwise complete test run.
+    body.pending_attachment_count = files.length;
+    body.pending_conversation_attachment = Boolean(conversationFile);
+    const { data } = await apiClient.post("/bassett/issues/workflow-json", body);
     createdData = data;
     issueId = data.issue?.id || data.id;
   }
   let uploadFailures = 0;
-  for (const file of form.id ? files : []) {
+  for (const file of files) {
     const upload = new FormData();
     upload.append("entity_type", "bassett_issue");
     upload.append("entity_id", issueId);
@@ -451,7 +452,11 @@ function actionError(error, fallback) {
   if (error?.response?.status === 401) return "Your session has expired. Sign in again, then retry.";
   if (error?.response?.status === 403) return "You do not have permission for this action.";
   if (error?.response?.status === 409) return "This record changed elsewhere. Refresh and retry.";
-  return formatApiErrorDetail(error?.response?.data?.detail) || fallback;
+  if (error?.response?.status === 413) return "The selected upload is too large. Your entries are still open; remove the file or upload a smaller copy and retry.";
+  const detail = error?.response?.data?.detail;
+  if (detail != null) return formatApiErrorDetail(detail);
+  if (!error?.response) return `${fallback}. The server could not be reached; your entries are still open.`;
+  return `${fallback}. Your entries are still open so you can retry.`;
 }
 
 function BassettFindingDetail({ id, onClose, canWrite, refresh, embedded = false }) {

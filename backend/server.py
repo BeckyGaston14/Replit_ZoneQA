@@ -4464,21 +4464,29 @@ async def _uploaded_storage_cleanup(paths):
             logger.error("Unable to clean up failed Bassett workflow object %s: %s", path, error)
 
 async def _bassett_create_workflow_impl(
-    payload: str = Form(...),
+    payload,
     files: List[UploadFile] = File(default=[]),
     user=Depends(get_current_user),
+    *,
+    allow_pending_uploads: bool = False,
 ):
     """Create a Bassett-only run, finding, history, and attachments atomically."""
     _require_bassett_writer(user)
-    try:
-        body = json.loads(payload)
-    except (TypeError, json.JSONDecodeError):
-        raise HTTPException(400, "Workflow payload must be valid JSON")
+    if isinstance(payload, dict):
+        body = payload
+    else:
+        try:
+            body = json.loads(payload)
+        except (TypeError, json.JSONDecodeError):
+            raise HTTPException(400, "Workflow payload must be valid JSON")
     if not isinstance(body, dict):
         raise HTTPException(400, "Workflow payload must be an object")
 
+    has_conversation_attachment = bool(files)
+    if allow_pending_uploads:
+        has_conversation_attachment = bool(body.get("pending_conversation_attachment"))
     doc, scenario, project, testcase, authoritative = await _prepare_bassett_workflow_document(
-        body, user, has_conversation_attachment=bool(files)
+        body, user, has_conversation_attachment=has_conversation_attachment
     )
     creation_payload = "|".join(str(doc.get(key) or "").strip() for key in (
         "scenario_id", "test_date", "question_asked", "exact_bassett_answer",
@@ -4667,6 +4675,7 @@ async def bassett_create_workflow(
             "%s",
             json.dumps({
                 "event": "bassett_create_workflow_failed",
+                "transport": "multipart",
                 "exception_type": type(error).__name__,
                 "message": str(error),
                 "traceback": traceback.format_exc(),
@@ -4674,6 +4683,35 @@ async def bassett_create_workflow(
         )
         raise
 
+
+@api.post("/bassett/issues/workflow-json")
+async def bassett_create_workflow_json(
+    body: Dict[str, Any],
+    user=Depends(get_current_user),
+):
+    """Create the record first; the client uploads selected files afterward.
+
+    This endpoint avoids making successful record creation depend on a browser,
+    reverse proxy, or object store accepting one large multipart request.
+    """
+    try:
+        return await _bassett_create_workflow_impl(
+            body, [], user, allow_pending_uploads=True
+        )
+    except HTTPException:
+        raise
+    except Exception as error:
+        logger.error(
+            "%s",
+            json.dumps({
+                "event": "bassett_create_workflow_failed",
+                "transport": "json",
+                "exception_type": type(error).__name__,
+                "message": str(error),
+                "traceback": traceback.format_exc(),
+            }, ensure_ascii=True, separators=(",", ":")),
+        )
+        raise
 @api.put("/bassett/issues/{id}")
 @api.patch("/bassett/issues/{id}")
 async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_current_user)):

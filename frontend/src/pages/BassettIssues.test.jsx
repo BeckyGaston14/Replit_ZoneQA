@@ -139,7 +139,7 @@ test("Bassett finding detail links back to its source run", () => {
   act(() => root.unmount());
 });
 
-test("save orchestration persists findings and sends new-run files atomically", async () => {
+test("save orchestration persists the run before uploading new-run files", async () => {
   const existingApi = {
     put: jest.fn(() => Promise.resolve({ data: {} })),
     post: jest.fn(() => Promise.resolve({ data: {} })),
@@ -159,16 +159,31 @@ test("save orchestration persists findings and sends new-run files atomically", 
   const createApi = { post: jest.fn(() => Promise.resolve({ data: { issue: { id: "run-2" } } })) };
   const result = await persistBassettTestRun({ attachments: [file], scenario_id: "scenario-1" }, createApi);
   expect(result.issueId).toBe("run-2");
-  const workflowPayload = createApi.post.mock.calls[0][1];
-  expect(workflowPayload).toBeInstanceOf(FormData);
-  expect(workflowPayload.get("files")).toBe(file);
+  expect(createApi.post.mock.calls[0]).toEqual([
+    "/bassett/issues/workflow-json",
+    expect.objectContaining({
+      scenario_id: "scenario-1",
+      pending_attachment_count: 1,
+      pending_conversation_attachment: false,
+    }),
+  ]);
+  expect(createApi.post.mock.calls[1][0]).toBe("/attachments/upload");
+  expect(createApi.post.mock.calls[1][1].get("file")).toBe(file);
 
   const conversationFile = new File(["conversation"], "conversation.pdf", { type: "application/pdf" });
   const sourceFile = new File(["ordinance"], "ordinance.pdf", { type: "application/pdf" });
   await persistBassettTestRun({ conversation_attachment: conversationFile, attachments: [sourceFile], scenario_id: "scenario-1" }, createApi);
-  const separatedPayload = createApi.post.mock.calls[1][1];
-  expect(separatedPayload.getAll("files")).toEqual([conversationFile, sourceFile]);
-  expect(JSON.parse(separatedPayload.get("payload"))).not.toHaveProperty("conversation_attachment");
+  expect(createApi.post.mock.calls[2]).toEqual([
+    "/bassett/issues/workflow-json",
+    expect.objectContaining({
+      scenario_id: "scenario-1",
+      pending_attachment_count: 2,
+      pending_conversation_attachment: true,
+    }),
+  ]);
+  expect(createApi.post.mock.calls[2][1]).not.toHaveProperty("conversation_attachment");
+  expect(createApi.post.mock.calls[3][1].get("file")).toBe(conversationFile);
+  expect(createApi.post.mock.calls[4][1].get("file")).toBe(sourceFile);
 
   const failure = { response: { status: 400, data: { detail: "Finding turn linkage is invalid" } } };
   await expect(persistBassettTestRun({ id: "run-3", create_finding: true }, {
@@ -176,6 +191,8 @@ test("save orchestration persists findings and sends new-run files atomically", 
     post: jest.fn(() => Promise.reject(failure)),
   })).rejects.toBe(failure);
   expect(actionError(failure, "Unable to save test run")).toBe("Finding turn linkage is invalid");
+  expect(actionError({ response: { status: 500, data: {} } }, "Unable to save test run")).toContain("entries are still open");
+  expect(actionError({}, "Unable to save test run")).toContain("server could not be reached");
 });
 
 test("editing preserves concurrency fields and does not upload existing attachment metadata", async () => {
