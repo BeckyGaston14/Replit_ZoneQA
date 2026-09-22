@@ -163,6 +163,13 @@ test("save orchestration persists findings and sends new-run files atomically", 
   expect(workflowPayload).toBeInstanceOf(FormData);
   expect(workflowPayload.get("files")).toBe(file);
 
+  const conversationFile = new File(["conversation"], "conversation.pdf", { type: "application/pdf" });
+  const sourceFile = new File(["ordinance"], "ordinance.pdf", { type: "application/pdf" });
+  await persistBassettTestRun({ conversation_attachment: conversationFile, attachments: [sourceFile], scenario_id: "scenario-1" }, createApi);
+  const separatedPayload = createApi.post.mock.calls[1][1];
+  expect(separatedPayload.getAll("files")).toEqual([conversationFile, sourceFile]);
+  expect(JSON.parse(separatedPayload.get("payload"))).not.toHaveProperty("conversation_attachment");
+
   const failure = { response: { status: 400, data: { detail: "Finding turn linkage is invalid" } } };
   await expect(persistBassettTestRun({ id: "run-3", create_finding: true }, {
     put: jest.fn(() => Promise.resolve({ data: {} })),

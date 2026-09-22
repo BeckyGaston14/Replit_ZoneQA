@@ -36,12 +36,17 @@ const defaultTestStatuses = ["Not Started", "In Review", "Engineering", "Closed 
 const DEFAULT_RUN_SORT = { key: "test_date", direction: "desc" };
 
 export async function persistBassettTestRun(form, apiClient = api) {
-  const files = (form.attachments || []).filter((file) => typeof File === "undefined" || file instanceof File);
+  const conversationFile = form.conversation_attachment;
+  const files = [
+    ...(conversationFile && (typeof File === "undefined" || conversationFile instanceof File) ? [conversationFile] : []),
+    ...(form.attachments || []).filter((file) => typeof File === "undefined" || file instanceof File),
+  ];
   let issueId = form.id;
   let createdData = null;
   if (form.id) {
     const body = { ...form };
     delete body.attachments;
+    delete body.conversation_attachment;
     body.pending_attachment_count = files.length;
     await apiClient.put(`/bassett/issues/${form.id}`, withExpectedVersion(form, body));
     if (form.create_finding && !form.finding_id) {
@@ -54,6 +59,7 @@ export async function persistBassettTestRun(form, apiClient = api) {
   } else {
     const body = { ...form };
     delete body.attachments;
+    delete body.conversation_attachment;
     const payload = new FormData();
     payload.append("payload", JSON.stringify(body));
     for (const file of files) payload.append("files", file);

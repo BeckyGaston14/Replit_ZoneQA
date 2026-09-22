@@ -148,3 +148,10 @@ test("wide forms retain a one-column mobile-width modal shell", () => {
   expect(container.querySelector(".grid").className).toContain("grid-cols-1");
   act(() => root.unmount());
 });
+
+test("FormModal can defer hidden-field validation to a guided form", () => {
+  const container = document.createElement("div"); const root = createRoot(container);
+  act(() => root.render(<FormModal open noValidate onOpenChange={jest.fn()} title="Guided" onSubmit={jest.fn()}><input required /></FormModal>));
+  expect(container.querySelector("form").noValidate).toBe(true);
+  act(() => root.unmount());
+});

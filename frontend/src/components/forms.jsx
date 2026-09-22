@@ -119,7 +119,7 @@ export function SelectOrAdd({ collection, valueField = "id", labelFn, value, onC
   );
 }
 
-export function FormModal({ open, onOpenChange, title, description = "Complete the form fields, then save your changes or cancel.", children, onSubmit, submitLabel = "Save", wide, submitDisabled = false, dirty = false, errors = {}, onFocusFirstError }) {
+export function FormModal({ open, onOpenChange, title, description = "Complete the form fields, then save your changes or cancel.", children, onSubmit, submitLabel = "Save", wide, submitDisabled = false, dirty = false, errors = {}, onFocusFirstError, noValidate = false }) {
   const [confirmClose, setConfirmClose] = useState(false);
   const submitGuard = useRef(false);
   const errorEntries = Object.entries(errors).filter(([, message]) => message);
@@ -151,7 +151,7 @@ export function FormModal({ open, onOpenChange, title, description = "Complete t
           <DialogTitle className="font-display text-[var(--navy)]">{title}</DialogTitle>
           <DialogDescription className="sr-only">{description}</DialogDescription>
         </DialogHeader>
-        <form className="space-y-4 py-2" onSubmit={handleSubmit} aria-busy={submitDisabled}>
+        <form className="space-y-4 py-2" onSubmit={handleSubmit} aria-busy={submitDisabled} noValidate={noValidate}>
            <p className="text-xs text-muted-foreground" data-testid="required-note">* Required</p>
           {errorEntries.length > 0 && <div role="alert" aria-live="assertive" tabIndex="-1" aria-label="Form errors" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
             <p className="font-semibold">Please fix {errorEntries.length === 1 ? "the highlighted field" : "the highlighted fields"} before saving.</p>

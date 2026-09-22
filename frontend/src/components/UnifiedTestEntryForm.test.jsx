@@ -321,7 +321,7 @@ test("both form modes expose all twelve plain-language scoring questions and one
   for (const mode of ["bassett", "comparison"]) {
     const view = renderForm(mode, { id: `${mode}-edit` });
     expectedQuestions.forEach((question) => expect(view.container.textContent).toContain(question));
-    for (const label of ["Prompt / Question", "Verified Answer / Gold Standard", "Bassett Response", "Test Result", "Severity", "Priority", mode === "bassett" ? "Finding Category" : "Comparison Category", "Evidence / Source Links", "Property / Address", "Bassett Score Rationale", "Owner / Assignee", "Notes / Reproduction Steps", "Documents / Images"]) {
+    for (const label of ["Prompt / Question", "Verified Answer / Gold Standard", "Bassett Response", "Test Result", "Severity", "Priority", mode === "bassett" ? "Finding Category" : "Comparison Category", "Evidence / Source Links", "Property / Address", "Bassett Score Rationale", "Owner / Assignee", "Test Notes and Reproduction Steps", "Supporting Source Documents / Images"]) {
       expect([...view.container.querySelectorAll("label")].some((node) => node.textContent.trim().startsWith(label))).toBe(true);
     }
     if (mode === "bassett") {
@@ -332,6 +332,19 @@ test("both form modes expose all twelve plain-language scoring questions and one
     expect(view.container.querySelector('button[type="submit"]').textContent).toBe("Save Changes");
     act(() => view.root.unmount());
   }
+});
+
+test("uploaded Bassett conversations keep the authoritative file separate from supporting source documents", () => {
+  const view = renderForm("bassett", {
+    id: "uploaded-edit",
+    conversation_source: "uploaded_conversation",
+    attachment_count: 1,
+  });
+  expect(view.container.querySelector('[data-testid="bassett-conversation-upload"]')).not.toBeNull();
+  expect([...view.container.querySelectorAll("label")].some((node) => node.textContent.includes("Supporting Source Documents / Images"))).toBe(true);
+  expect([...view.container.querySelectorAll("label")].filter((node) => node.textContent.trim().startsWith("Test Notes and Reproduction Steps"))).toHaveLength(1);
+  expect(view.container.querySelectorAll('input[type="file"]')).toHaveLength(2);
+  act(() => view.root.unmount());
 });
 
 test("both evaluation form modes keep score labels and the shared rubric without repeated helper sentences", () => {
@@ -431,7 +444,7 @@ test("multi-turn mode replaces single-prompt fields with an ordered turn builder
   expect(view.container.textContent).not.toContain("Exact Bassett answer");
   expect(view.container.querySelector('[aria-label="Turn 1 Test Scenario"]')).not.toBeNull();
   expect(view.container.querySelector('[aria-label="Turn 1 result"]')).not.toBeNull();
-  expect(view.container.textContent).toContain("Evaluator Notes (optional)");
+  expect(view.container.textContent).toContain("Turn-specific evaluator notes (optional)");
   const moveUp = view.container.querySelector('[aria-label="Move turn 2 up"]');
   act(() => moveUp.click());
   expect(view.latest().turns.map((turn) => turn.prompt)).toEqual(["Second prompt", "First prompt"]);
@@ -462,7 +475,7 @@ test("uploaded multi-turn turns keep stable IDs and support optional scenario, r
     turnResult.value = "Pass with Minor Issues";
     turnResult.dispatchEvent(new Event("change", { bubbles: true }));
   });
-  const notes = [...view.container.querySelectorAll("label")].find((node) => node.textContent.startsWith("Evaluator Notes"));
+  const notes = [...view.container.querySelectorAll("label")].find((node) => node.textContent.startsWith("Turn-specific evaluator notes"));
   act(() => {
     const input = notes.querySelector("textarea");
     Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set.call(

@@ -61,7 +61,7 @@ export const emptyBassettTestRun = {
   evaluation_scores: {}, selected_rubric_ids: [], rubric_revision: null,
   rubric_selection_initialized: false, rubric_scenario_ids: [], confirm_rubric_removal: false,
   create_finding: false, finding: {}, follow_up_action: "",
-  retest_target: "", retest_date: "", source_links: "", attachments: [],
+  retest_target: "", retest_date: "", source_links: "", conversation_attachment: null, attachments: [],
 };
 
 export function createBassettTestRunDraft(overrides = {}, timeZone, now = new Date()) {
@@ -102,6 +102,7 @@ export function serializeBassettTestRunDraft(form = {}) {
     // The uploaded conversation is the parent record's one authoritative
     // attachment. Keep its presence in the draft, never one copy per turn.
     ...(hasParentAttachment ? { attachment_count: 1 } : {}),
+    conversation_attachment: null,
     attachments: [],
   };
 }
@@ -416,7 +417,7 @@ function progressFor(form, mode) {
   const uploadedConversation = mode === "bassett" && form.conversation_source === "uploaded_conversation";
   const fields = mode === "bassett"
     ? [["scenario_id", form.scenario_id], ...(uploadedConversation
-      ? [["conversation_attachment", Boolean(form.attachment_count || form.attachments?.length)]]
+      ? [["conversation_attachment", Boolean(form.attachment_count || form.conversation_attachment)]]
       : form.test_type === "Multi-turn"
       ? [["turns", (form.turns || []).every((turn) => String(turn.prompt || "").trim() && String(turn.response || "").trim()) && (form.turns || []).length]]
       : [["question_asked", form.question_asked], ["exact_bassett_answer", form.exact_bassett_answer], ["verified_correct_answer", form.verified_correct_answer]]), ["test_date", form.test_date]]
@@ -431,7 +432,7 @@ function validate(form, mode) {
   if (mode === "bassett") {
     const versionError = bassettVersionRequirementMessage(form);
     if (form.conversation_source === "uploaded_conversation") {
-      if (!form.attachment_count && !form.attachments?.length) return "Upload at least one Bassett conversation file before saving.";
+      if (!form.attachment_count && !form.conversation_attachment) return "Upload at least one Bassett conversation file before saving.";
       if (!String(form.scenario_id || "").trim()) return "A Test Scenario is required";
       if (!String(form.test_date || "").trim()) return "The test date is required";
       if (hasScoredDimension(form.evaluation_scores) && String(form.score_rationale || "").trim().length < 20) return "Explain the Bassett scores in the Score rationale using at least 20 characters.";
@@ -582,7 +583,7 @@ function TurnBuilder({ turns = [], scenarios = [], uploadedConversation = false,
          <TurnScenarioSelector turn={turn} turnNumber={index + 1} scenarios={scenarios} disabled={disabled} onChange={(value) => updateScenario(turn.id, value)} />
          <Field label="Test Result" optional><select aria-label={`Turn ${index + 1} result`} className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={turn.result ?? turn.turn_result ?? ""} disabled={disabled} onChange={(e) => update(turn.id, "result", e.target.value)}><option value="">Not evaluated</option>{TURN_RESULT_OPTIONS.map((value) => <option key={value}>{value}</option>)}</select></Field>
         <Field label="Citations / source references" description="One URL, citation, or source reference per line."><Textarea rows={2} value={(turn.citations || []).join("\n")} disabled={disabled} onChange={(e) => update(turn.id, "citations", e.target.value.split("\n").map((item) => item.trim()).filter(Boolean))} /></Field>
-         <Field label="Evaluator Notes" optional><Textarea rows={2} value={turn.notes ?? turn.evaluator_notes ?? ""} disabled={disabled} onChange={(e) => onChange(ordered.map((item) => item.id === turn.id ? { ...item, notes: e.target.value, evaluator_notes: e.target.value } : item))} /></Field>
+         <Field label="Turn-specific evaluator notes" optional description="Use only for observations that apply to this turn. Add overall notes once in Sources, Documents & Notes."><Textarea rows={2} value={turn.notes ?? turn.evaluator_notes ?? ""} disabled={disabled} onChange={(e) => onChange(ordered.map((item) => item.id === turn.id ? { ...item, notes: e.target.value, evaluator_notes: e.target.value } : item))} /></Field>
       </div>
       {onFindingTurnChange && <label className="flex items-center gap-2 text-xs"><input type="radio" name="finding-turn" checked={findingTurnId === turn.id} disabled={disabled} onChange={() => onFindingTurnChange(turn.id)} /> Link the new finding to this turn</label>}
     </div>)}
@@ -660,6 +661,7 @@ export default function UnifiedTestEntryForm({
   const versionError = bassettVersionRequirementMessage(form);
   const progress = progressFor(form, mode);
   const uploadedConversation = !isComparison && form.conversation_source === "uploaded_conversation";
+  const hasConversationFile = Boolean(form.attachment_count || form.conversation_attachment);
   const [activeSection, setActiveSection] = useState(0);
   const [attemptedSections, setAttemptedSections] = useState(() => new Set());
   const [draftAvailable, setDraftAvailable] = useState(() => {
@@ -738,7 +740,7 @@ export default function UnifiedTestEntryForm({
     try {
       const saved = readLocalDraft(mode);
       if (!saved) { setDraftAvailable(false); return toast.error("This draft is no longer available"); }
-      setForm((current) => ({ ...current, ...saved, attachments: [], attachment_count: 0, submission_id: current.submission_id, _draftRecovered: true }));
+      setForm((current) => ({ ...current, ...saved, conversation_attachment: null, attachments: [], attachment_count: 0, submission_id: current.submission_id, _draftRecovered: true }));
       setDraftAvailable(false);
       setActiveSection(0);
       setAttemptedSections(new Set());
@@ -754,7 +756,7 @@ export default function UnifiedTestEntryForm({
     }
     if (index === 1) {
       if (!isComparison && form.conversation_source === "uploaded_conversation") {
-        if (!form.attachment_count && !form.attachments?.length) return "Upload the Bassett conversation file.";
+        if (!hasConversationFile) return "Upload the Bassett conversation file.";
         return null;
       }
       if (!isComparison && form.test_type === "Multi-turn") {
@@ -771,7 +773,7 @@ export default function UnifiedTestEntryForm({
     return null;
   };
   const sectionHasValue = (index) => {
-    if (!isComparison && index === 1 && form.conversation_source === "uploaded_conversation") return Boolean(form.attachment_count || form.attachments?.length);
+    if (!isComparison && index === 1 && form.conversation_source === "uploaded_conversation") return hasConversationFile;
     if (!isComparison && index === 1 && form.test_type === "Multi-turn") return Boolean(form.turns?.length);
     if (!isComparison && index === 2 && (form.test_type === "Multi-turn" || form.conversation_source === "uploaded_conversation")) return false;
     if (index === 3) return Object.values(evaluationFor("Bassett").scores || {}).some((value) => value !== null && value !== "");
@@ -814,7 +816,7 @@ export default function UnifiedTestEntryForm({
     ? `Edit ${isComparison ? "Model Comparison Test Case" : "Bassett Test Run"}`
     : isComparison ? "New Model Comparison Test Case" : "New Bassett Test Run";
   const submitLabel = form.id ? "Save Changes" : isComparison ? "Create Test Case" : "Create Test Run";
-  return <FormModal open onOpenChange={(open) => !open && onCancel()} title={formTitle} onSubmit={submit} submitLabel={submitLabel} wide submitDisabled={submitting}>
+  return <FormModal open onOpenChange={(open) => !open && onCancel()} title={formTitle} onSubmit={submit} submitLabel={submitLabel} wide submitDisabled={submitting} noValidate>
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--orange)] bg-orange-50 p-3">
       <div><div className="text-xs font-bold uppercase tracking-wide text-[var(--orange)]">Form mode</div><div className="text-lg font-semibold text-[var(--navy)]" data-testid="workflow-mode-label">{isComparison ? "Model comparison" : "Bassett-only test"}</div></div>
       <div className="text-right"><div className="text-xs font-semibold text-muted-foreground">Required completeness</div><div data-testid="workflow-completeness" className="font-semibold text-[var(--navy)]">{progress.complete}/{progress.total} required fields {progress.ready ? "· Ready" : "· In progress"}</div></div>
@@ -848,7 +850,7 @@ export default function UnifiedTestEntryForm({
       <Field label="Project"><QuickAdd label="Project" value={form.project_id} items={projects} onChange={(value) => update("project_id", value)} fields={[{ key: "name", label: "Project name" }]} disabled={lockedCommon} /></Field>
       <Field label="Municipality"><QuickAdd label="Municipality" value={form.municipality_id} items={municipalities} onChange={setMunicipality} fields={[{ key: "name", label: "Municipality name" }, { key: "state", label: "State" }]} disabled={lockedCommon} /></Field>
        <Field label="Property / Address"><QuickAdd label="Property" value={form.property_id} items={filteredProperties} defaults={{ municipality_id: form.municipality_id }} onChange={(value) => update("property_id", value)} fields={[{ key: "name", label: "Property name" }, { key: "address", label: "Address" }]} disabled={lockedCommon} /></Field>
-         {!isComparison && form.conversation_source === "uploaded_conversation" && <div className="sm:col-span-2 rounded-lg border border-[var(--orange)] bg-orange-50 p-3"><Field label="Bassett conversation file" required description={(form.attachment_count || form.attachments?.length) ? "One authoritative conversation file is attached to this parent test run." : "Upload one exported Bassett conversation. PDF, email, document, spreadsheet, text, and image formats are supported."}><Input data-testid="bassett-conversation-upload" type="file" required={!Boolean(form.attachment_count || form.attachments?.length)} accept=".pdf,.doc,.docx,.odt,.xls,.xlsx,.ods,.ppt,.pptx,.txt,.csv,.tsv,.md,.rtf,.html,.htm,.xml,.json,.eml,.msg,.png,.jpg,.jpeg,.gif,.webp,.tif,.tiff,.bmp" onChange={(e) => update("attachments", Array.from(e.target.files || []).slice(0, 1))} /></Field></div>}
+         {!isComparison && form.conversation_source === "uploaded_conversation" && <div className="sm:col-span-2 rounded-lg border border-[var(--orange)] bg-orange-50 p-3"><Field label="Bassett conversation file" required description={hasConversationFile ? "One authoritative conversation file is attached to this parent test run." : "Upload one exported Bassett conversation. PDF, email, document, spreadsheet, text, and image formats are supported."}><Input data-testid="bassett-conversation-upload" type="file" accept=".pdf,.doc,.docx,.odt,.xls,.xlsx,.ods,.ppt,.pptx,.txt,.csv,.tsv,.md,.rtf,.html,.htm,.xml,.json,.eml,.msg,.png,.jpg,.jpeg,.gif,.webp,.tif,.tiff,.bmp" onChange={(e) => update("conversation_attachment", Array.from(e.target.files || [])[0] || null)} /></Field></div>}
           {(!isComparison && form.test_type === "Multi-turn") ? <details className="sm:col-span-2" open={form.conversation_source !== "uploaded_conversation"}><summary className="cursor-pointer font-semibold text-[var(--navy)]">{uploadedConversation ? "Add or review structured transcript (optional; upload is authoritative)" : "Structured conversation"}</summary><div className="mt-3"><TurnBuilder turns={form.turns} scenarios={scenarios} uploadedConversation={uploadedConversation} disabled={lockedCommon} onChange={(turns) => setForm((current) => ({ ...current, turns, question_asked: turns[0]?.prompt || "", exact_bassett_answer: turns[0]?.response || "", transcript_status: turns.length ? "confirmed" : current.transcript_status }))} findingTurnId={form.finding_turn_id || ""} onFindingTurnChange={(value) => update("finding_turn_id", value)} /></div></details> : <><Field label="Prompt / Question" required={isComparison || !uploadedConversation} optional={uploadedConversation} description={uploadedConversation ? "Optional now; required before expanding to Model Comparison. The uploaded conversation is authoritative." : undefined} error={attemptedSections.has(1) && (isComparison || !uploadedConversation) && !String(form.question_asked || form.prompts?.[0]?.text || "").trim() ? "Prompt or Question is required." : undefined}><Textarea rows={3} value={form.question_asked || form.prompts?.[0]?.text || ""} disabled={lockedCommon} onChange={(e) => updatePrompt(e.target.value)} /></Field>
          <div className="sm:col-span-2"><Field label="Verified Answer / Gold Standard" required={isComparison || !uploadedConversation} optional={uploadedConversation} error={attemptedSections.has(1) && !uploadedConversation && !String(form.verified_correct_answer || form.gold_standard_answer || "").trim() ? "Verified Answer is required." : undefined}><Textarea rows={4} value={form.verified_correct_answer || form.gold_standard_answer || ""} disabled={lockedCommon} onChange={(e) => setForm((current) => ({ ...current, verified_correct_answer: e.target.value, gold_standard_answer: e.target.value }))} /></Field></div></>}
     </div></GuidedSection>
@@ -866,14 +868,14 @@ export default function UnifiedTestEntryForm({
 
     <GuidedSection index={4} title="5. Findings & Ownership" active={activeSection === 4} status={sectionStatus(4)} onActivate={activateSection}><div className="space-y-4">
       <label className="flex items-center gap-2 text-sm"><Checkbox aria-label="Create a linked Bassett finding" checked={Boolean(form.create_finding)} onCheckedChange={(checked) => update("create_finding", checked === true)} /> Create a linked Bassett finding</label>
-       {form.create_finding && <div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><Field label="Finding title" required error={attemptedSections.has(4) && !String(finding.title || "").trim() ? "Finding title is required." : undefined}><Input value={finding.title || ""} onChange={(e) => updateNested("finding", "title", e.target.value)} /></Field><Field label="Owner / Assignee"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.assignee_id || ""} onChange={(e) => update("assignee_id", e.target.value)}><option value="">Unassigned</option>{ownerOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field><Field label="Finding description"><Textarea rows={3} value={finding.description || ""} onChange={(e) => updateNested("finding", "description", e.target.value)} /></Field><Field label="Notes / Reproduction Steps"><Textarea rows={3} value={form.reproduction_steps || ""} onChange={(e) => update("reproduction_steps", e.target.value)} /></Field></div>}
+       {form.create_finding && <div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><Field label="Finding title" required error={attemptedSections.has(4) && !String(finding.title || "").trim() ? "Finding title is required." : undefined}><Input value={finding.title || ""} onChange={(e) => updateNested("finding", "title", e.target.value)} /></Field><Field label="Owner / Assignee"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.assignee_id || ""} onChange={(e) => update("assignee_id", e.target.value)}><option value="">Unassigned</option>{ownerOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field><Field label="Finding description" description="Describe the issue here. Put shared reproduction details and general observations in the single Test Notes field below."><Textarea rows={3} value={finding.description || ""} onChange={(e) => updateNested("finding", "description", e.target.value)} /></Field></div>}
       {!form.create_finding && <Field label="Owner / Assignee"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.assignee_id || ""} onChange={(e) => update("assignee_id", e.target.value)}><option value="">Unassigned</option>{ownerOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>}
     </div></GuidedSection>
 
     <GuidedSection index={5} title="6. Sources, Documents & Notes" active={activeSection === 5} status={sectionStatus(5)} onActivate={activateSection}><div className="space-y-4">
        <Field label="Evidence / Source Links"><Textarea rows={3} value={form.source_links || form.evidence || ""} onChange={(e) => update(isComparison ? "source_links" : "evidence", e.target.value)} placeholder="Citations, URLs, source context…" /></Field>
-       <Field label="Notes / Reproduction Steps"><Textarea rows={4} value={form.notes || ""} onChange={(e) => update("notes", e.target.value)} /></Field>
-       {(isComparison || form.conversation_source !== "uploaded_conversation") && <Field label="Documents / Images" description={form.attachments?.length ? `${form.attachments.length} file(s) selected` : "Files upload after the test record is saved; a failed upload will not discard the test."}><Input type="file" multiple accept=".pdf,.doc,.docx,.odt,.xls,.xlsx,.ods,.ppt,.pptx,.txt,.csv,.tsv,.md,.rtf,.html,.htm,.xml,.json,.eml,.msg,.png,.jpg,.jpeg,.gif,.webp,.tif,.tiff,.bmp" onChange={(e) => update("attachments", Array.from(e.target.files || []))} /></Field>}
+       <Field label="Test Notes and Reproduction Steps" description="Use this one field for overall observations, reproduction steps, and reviewer notes."><Textarea rows={4} value={form.notes || form.reproduction_steps || ""} onChange={(e) => setForm((current) => ({ ...current, notes: e.target.value, reproduction_steps: e.target.value }))} /></Field>
+       <Field label="Supporting Source Documents / Images" description={form.attachments?.length ? `${form.attachments.length} supporting file(s) selected` : "Attach ordinances, screenshots, emails, spreadsheets, PDFs, or other source evidence. These are separate from an uploaded Bassett conversation."}><Input type="file" multiple accept=".pdf,.doc,.docx,.odt,.xls,.xlsx,.ods,.ppt,.pptx,.txt,.csv,.tsv,.md,.rtf,.html,.htm,.xml,.json,.eml,.msg,.png,.jpg,.jpeg,.gif,.webp,.tif,.tiff,.bmp" onChange={(e) => update("attachments", Array.from(e.target.files || []))} /></Field>
     </div></GuidedSection>
 
     <GuidedSection index={6} title="7. Follow-up, Retesting & Regression" active={activeSection === 6} status={sectionStatus(6)} onActivate={activateSection}><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
