@@ -11,7 +11,7 @@ import { dashboardRecordPath } from "../lib/routePaths";
 import { MODEL_COLORS } from "../lib/modelColors";
 import { SEVERITY_LABELS } from "../lib/severity";
 import { evaluationScoreOrNull, formatEvaluationScore } from "../lib/evaluationScale";
-import { CURRENT_RUBRIC_CATEGORIES, REPORTING_GROUPS } from "../lib/scoringGroups";
+import { CURRENT_RUBRIC_CATEGORIES } from "../lib/scoringGroups";
 
 const queryDefaults = { retry: false, staleTime: 0, gcTime: 5 * 60_000, refetchOnMount: true };
 
@@ -144,16 +144,9 @@ function CategorySection({ query }) {
     return [...new Set([...CURRENT_RUBRIC_CATEGORIES.map((category) => category.label), ...evaluated.map((row) => row.name)])]
       .map((name) => byName.get(name) || { name, score: null, evaluated: 0 });
   }, [query.data]);
-  const groups = useMemo(() => {
-    const evaluated = performanceRows(query.data?.legacy_reporting_groups || query.data?.reporting_groups || []);
-    const byName = new Map(evaluated.map((row) => [row.name, row]));
-    return REPORTING_GROUPS.map((group) => byName.get(group.label) || { name: group.label, score: null, evaluated: 0 });
-  }, [query.data]);
   const visibleCategories = categories.filter((row) => showEmpty || Number(row.evaluated) > 0);
-  const visibleGroups = groups.filter((row) => row.score !== null);
-  return <section aria-labelledby="dashboard-categories" className="mb-5 rounded-xl border bg-card p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><h2 id="dashboard-categories" className="font-display font-semibold text-[var(--navy)]">Current Rubric Performance / Legacy History</h2><p className="text-xs text-muted-foreground">Current 2026-09-16 rubric scores are neutral-weight averages; missing, N/A, and unchecked criteria are excluded. Legacy12 groups are shown separately.</p></div><button type="button" className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)]" aria-pressed={showEmpty} onClick={() => setShowEmpty((value) => !value)}><SlidersHorizontal size={13} /> {showEmpty ? "Hide categories without results" : "Show categories without results"}</button></div>
-     {query.isLoading && !query.data ? <DashboardState compact title="Loading categories…" /> : query.isError ? <InlineError retry={query.refetch} /> : (visibleCategories.length === 0 && visibleGroups.length === 0) ? <EmptyCompact /> : <div className="mt-4 grid gap-x-8 gap-y-4 lg:grid-cols-2"><CompactBars title={`Current rubric categories · ${query.data?.rubric_revision || "2026-09-16"}`} rows={visibleCategories} /><CompactBars title="Legacy12 reporting groups" rows={visibleGroups} /></div>}
-     <details data-testid="dashboard-reporting-groups-methodology" className="mt-4 border-t pt-3 text-xs text-muted-foreground"><summary className="cursor-pointer font-semibold text-[var(--navy)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)]">About legacy12 reporting groups</summary><p className="mt-2">Legacy12 reporting groups consolidate the historical 12 stored scoring dimensions. They are never averaged with the current 2026-09-16 rubric categories.</p></details>
+  return <section aria-labelledby="dashboard-categories" className="mb-5 rounded-xl border bg-card p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><h2 id="dashboard-categories" className="font-display font-semibold text-[var(--navy)]">Current Rubric Performance</h2><p className="text-xs text-muted-foreground">Current rubric scores are neutral-weight averages; missing, N/A, and unchecked criteria are excluded.</p></div><button type="button" className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)]" aria-pressed={showEmpty} onClick={() => setShowEmpty((value) => !value)}><SlidersHorizontal size={13} /> {showEmpty ? "Hide categories without results" : "Show categories without results"}</button></div>
+     {query.isLoading && !query.data ? <DashboardState compact title="Loading categories…" /> : query.isError ? <InlineError retry={query.refetch} /> : visibleCategories.length === 0 ? <EmptyCompact /> : <div className="mt-4"><CompactBars title={`Rubric categories · ${query.data?.rubric_revision || "current"}`} rows={visibleCategories} /></div>}
   </section>;
 }
 

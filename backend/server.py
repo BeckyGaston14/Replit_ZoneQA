@@ -2689,6 +2689,7 @@ def _bassett_finding_document(body, testcase_id, user, timestamp):
         "id": finding.get("id") or new_id(), "testcase_id": testcase_id,
         "project_id": testcase.get("project_id"), "title": finding.get("title") or "Bassett finding",
         "description": finding.get("description") or "", "finding_type": finding.get("finding_type") or "Bassett error",
+        "expected_behavior": finding.get("expected_behavior") or testcase.get("verified_correct_answer") or "",
         "severity": severity, "criticality": criticality,
         "priority": finding.get("priority") or testcase.get("priority") or "Medium",
         "developer_status": finding.get("developer_status") or "New",

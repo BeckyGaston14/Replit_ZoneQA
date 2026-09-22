@@ -53,6 +53,7 @@ export async function persistBassettTestRun(form, apiClient = api) {
       await apiClient.post(`/bassett/issues/${form.id}/convert-to-finding`, {
         title: form.finding?.title,
         description: form.finding?.description,
+        expected_behavior: form.finding?.expected_behavior || form.verified_correct_answer,
         turn_id: form.finding_turn_id || undefined,
       });
     }
@@ -462,6 +463,7 @@ function actionError(error, fallback) {
 function BassettFindingDetail({ id, onClose, canWrite, refresh, embedded = false }) {
   const drawerRef = useFocusTrap(true, onClose);
   const [statusForm, setStatusForm] = useState(null);
+  const [editForm, setEditForm] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const { data: finding, isLoading, isError } = useQuery({
     queryKey: ["bassett-finding", id],
@@ -479,6 +481,22 @@ function BassettFindingDetail({ id, onClose, canWrite, refresh, embedded = false
       setStatusForm(null);
       refresh();
     } catch (error) { toast.error(actionError(error, "Unable to update status")); }
+    finally { setSubmitting(false); }
+  };
+  const saveFinding = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      const { data } = await api.put(`/findings/${id}`, withExpectedVersion(finding, {
+        title: editForm.title,
+        description: editForm.description,
+        expected_behavior: editForm.expected_behavior,
+      }));
+      toast.success("Finding updated");
+      setEditForm(null);
+      refresh();
+      return data;
+    } catch (error) { toast.error(actionError(error, "Unable to update finding")); }
     finally { setSubmitting(false); }
   };
   const startRetest = async () => {
@@ -499,7 +517,7 @@ function BassettFindingDetail({ id, onClose, canWrite, refresh, embedded = false
           <div className="text-xs uppercase tracking-wide text-muted-foreground">Bassett Finding Details</div>
           <h2 id="bassett-finding-detail-title" className="text-xl font-bold font-display text-[var(--navy)] mt-1 break-words">{finding?.title || "Finding"}</h2>
         </div>
-        <Button type="button" variant="ghost" size="icon" className="shrink-0" onClick={onClose} aria-label="Close Bassett Finding Details"><X size={18} /></Button>
+        <div className="flex shrink-0 gap-1">{canWrite && finding && <Button type="button" variant="ghost" size="icon" onClick={() => setEditForm({ title: finding.title || "", description: finding.description || "", expected_behavior: finding.expected_behavior || "" })} aria-label="Edit Bassett Finding"><Pencil size={16} /></Button>}<Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close Bassett Finding Details"><X size={18} /></Button></div>
       </div>
       {isLoading && <div className="text-sm text-muted-foreground">Loading Bassett Finding Details…</div>}
       {isError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">Unable to load this Bassett finding.</div>}
@@ -534,6 +552,11 @@ function BassettFindingDetail({ id, onClose, canWrite, refresh, embedded = false
       <Field label="Root Cause"><ListSelect options={config?.root_causes || []} value={statusForm.root_cause} onChange={(value) => setStatusForm({ ...statusForm, root_cause: value })} /></Field>
       <Field label="Resolution"><Textarea rows={3} value={statusForm.resolution} onChange={(event) => setStatusForm({ ...statusForm, resolution: event.target.value })} /></Field>
       <Field label="Note (added to history)"><Textarea rows={2} value={statusForm.note} onChange={(event) => setStatusForm({ ...statusForm, note: event.target.value })} /></Field>
+    </FormModal>}
+    {editForm && <FormModal open onOpenChange={(open) => !open && setEditForm(null)} title="Edit Bassett Finding" onSubmit={saveFinding} submitLabel={submitting ? "Saving…" : "Save Changes"}>
+      <Field label="Finding title" required><Input value={editForm.title} onChange={(event) => setEditForm({ ...editForm, title: event.target.value })} /></Field>
+      <Field label="Finding description" description="Describe what Bassett did or why this needs follow-up."><Textarea rows={3} value={editForm.description} onChange={(event) => setEditForm({ ...editForm, description: event.target.value })} /></Field>
+      <Field label="Expected behavior" description="Describe what Bassett should have done. Editing this does not change the linked test run."><Textarea rows={4} value={editForm.expected_behavior} onChange={(event) => setEditForm({ ...editForm, expected_behavior: event.target.value })} /></Field>
     </FormModal>}
   </div>;
 }

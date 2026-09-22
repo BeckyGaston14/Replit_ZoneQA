@@ -226,7 +226,7 @@ export default function Executive() {
 
       <div className="bg-card border rounded-xl p-5 mt-4">
          <h3 className="font-semibold font-display text-[var(--navy)] mb-3">Current Rubric Category Performance</h3>
-         <p className="text-xs text-muted-foreground mb-2">Revision {d.rubric_revision || "2026-09-16"} · neutral-weight averages of selected rubric criteria; zero is valid and missing, N/A, and unchecked criteria are excluded. Legacy12 groups are not mixed into this chart.</p>
+         <p className="text-xs text-muted-foreground mb-2">Revision {d.rubric_revision || "current"} · neutral-weight averages of selected rubric criteria; zero is valid and missing, N/A, and unchecked criteria are excluded.</p>
          {chartCategories.length === 0 ? <div role="status" className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">No scored evaluation dimensions are available for this report scope. Complete the evaluation category scores—not only the overall result—to populate this chart.</div> : <div ref={categoriesChartRef} data-testid="exec-categories-chart-render" className="min-w-0">
            <SafeResponsiveContainer height={Math.max(200, chartCategories.length * 44)} testId="exec-categories-responsive-chart">
               <BarChart data={chartCategories.map((item) => ({ ...item, category: item.label || item.category, avg_score: item.score ?? item.avg_score }))} layout="vertical" margin={{ left: 20 }}>
@@ -243,7 +243,7 @@ export default function Executive() {
       </div>
        <MethodologyDisclosure title="How executive metrics are calculated" testid="executive-methodology">
           <p>Executive KPIs and charts summarize persisted QA evaluations, separate High and Critical findings, and model comparisons for the displayed scope: {d.scope || "current reporting scope"}.</p>
-          <p>Pass rate is passing evaluated tests divided by evaluated tests. Current rubric category and overall scores use neutral arithmetic means of selected available 0–10 criteria; legacy12 dimension scores are reported separately and are never mixed into current-revision comparisons.</p>
+          <p>Pass rate is passing evaluated tests divided by evaluated tests. Rubric category and overall scores use neutral arithmetic means of selected available 0–10 criteria.</p>
          <p>Sample data follows the authenticated user's Show sample records preference. Missing scores are unavailable, not zero; stale Gold Standards are surfaced for reverification.</p>
        </MethodologyDisclosure>
     </div>
