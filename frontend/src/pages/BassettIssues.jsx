@@ -469,8 +469,14 @@ function BassettFindingDetail({ id, onClose, canWrite, refresh, embedded = false
     queryKey: ["bassett-finding", id],
     queryFn: async () => (await api.get(`/findings/${id}`)).data,
   });
+  const { data: availableRuns = [] } = useQuery({
+    queryKey: ["bassett-runs-for-finding-links"],
+    queryFn: async () => (await api.get("/bassett/issues", { params: { include_archived: true } })).data,
+  });
   const { data: config } = useQuery({ queryKey: ["config"], queryFn: async () => (await api.get("/config")).data });
   const sourceRun = finding?.bassett_issue_id;
+  const linkedRunIds = [...new Set([sourceRun, ...(finding?.linked_test_run_ids || [])].filter(Boolean))];
+  const linkedRuns = linkedRunIds.map((runId) => availableRuns.find((run) => run.id === runId) || { id: runId });
 
   const saveStatus = async () => {
     if (submitting) return;
@@ -491,6 +497,7 @@ function BassettFindingDetail({ id, onClose, canWrite, refresh, embedded = false
         title: editForm.title,
         description: editForm.description,
         expected_behavior: editForm.expected_behavior,
+        linked_test_run_ids: editForm.linked_test_run_ids,
       }));
       toast.success("Finding updated");
       setEditForm(null);
@@ -517,7 +524,7 @@ function BassettFindingDetail({ id, onClose, canWrite, refresh, embedded = false
           <div className="text-xs uppercase tracking-wide text-muted-foreground">Bassett Finding Details</div>
           <h2 id="bassett-finding-detail-title" className="text-xl font-bold font-display text-[var(--navy)] mt-1 break-words">{finding?.title || "Finding"}</h2>
         </div>
-        <div className="flex shrink-0 gap-1">{canWrite && finding && <Button type="button" variant="ghost" size="icon" onClick={() => setEditForm({ title: finding.title || "", description: finding.description || "", expected_behavior: finding.expected_behavior || "" })} aria-label="Edit Bassett Finding"><Pencil size={16} /></Button>}<Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close Bassett Finding Details"><X size={18} /></Button></div>
+        <div className="flex shrink-0 gap-1">{canWrite && finding && <Button type="button" variant="ghost" size="icon" onClick={() => setEditForm({ title: finding.title || "", description: finding.description || "", expected_behavior: finding.expected_behavior || "", linked_test_run_ids: linkedRunIds })} aria-label="Edit Bassett Finding"><Pencil size={16} /></Button>}<Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close Bassett Finding Details"><X size={18} /></Button></div>
       </div>
       {isLoading && <div className="text-sm text-muted-foreground">Loading Bassett Finding Details…</div>}
       {isError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">Unable to load this Bassett finding.</div>}
@@ -529,10 +536,9 @@ function BassettFindingDetail({ id, onClose, canWrite, refresh, embedded = false
         {finding.actual_behavior && <Info label="Actual Bassett behavior" value={finding.actual_behavior} />}
         {finding.bassett_turn_id && <Info label="Linked turn" value={finding.bassett_turn_id} />}
         <div className="rounded-xl border p-4">
-          <div className="font-semibold text-[var(--navy)] mb-2">Relationships</div>
-          {sourceRun
-            ? <Link to={`/bassett/issues?open=${encodeURIComponent(sourceRun)}`} className="font-semibold text-[var(--orange)] hover:underline">Open source Bassett Test Run →</Link>
-            : <span className="text-muted-foreground">No source Bassett Test Run is linked.</span>}
+          <div className="font-semibold text-[var(--navy)] mb-2">Linked Test Runs ({linkedRuns.length})</div>
+          {linkedRuns.length ? <div className="space-y-2">{linkedRuns.map((run, index) => <Link key={run.id} to={`/bassett/issues?open=${encodeURIComponent(run.id)}`} className="block rounded-lg border p-2 hover:border-[var(--orange)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)]"><div className="font-semibold text-[var(--orange)]">{run.title || run.question_asked || run.test_id || run.id}{index === 0 && <span className="ml-2 text-[10px] uppercase text-muted-foreground">Primary</span>}</div><div className="mt-1 text-xs text-muted-foreground">{run.result || "Not evaluated"} · {run.bassett_version || "Version not specified"} · {formatTestDate(run.test_date)}</div></Link>)}</div>
+            : <span className="text-muted-foreground">No Bassett Test Runs are linked.</span>}
         </div>
         <div className="rounded-xl border p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -557,6 +563,9 @@ function BassettFindingDetail({ id, onClose, canWrite, refresh, embedded = false
       <Field label="Finding title" required><Input value={editForm.title} onChange={(event) => setEditForm({ ...editForm, title: event.target.value })} /></Field>
       <Field label="Finding description" description="Describe what Bassett did or why this needs follow-up."><Textarea rows={3} value={editForm.description} onChange={(event) => setEditForm({ ...editForm, description: event.target.value })} /></Field>
       <Field label="Expected behavior" description="Describe what Bassett should have done. Editing this does not change the linked test run."><Textarea rows={4} value={editForm.expected_behavior} onChange={(event) => setEditForm({ ...editForm, expected_behavior: event.target.value })} /></Field>
+      <Field label="Related Test Runs" description="Select every test run that supports this finding. The original source remains the primary run.">
+        <div className="max-h-64 space-y-2 overflow-y-auto rounded-lg border p-3">{availableRuns.length ? availableRuns.map((run) => { const checked = editForm.linked_test_run_ids.includes(run.id); const primary = run.id === sourceRun; return <label key={run.id} className="flex items-start gap-2 rounded-md p-2 hover:bg-muted"><input type="checkbox" className="mt-1" checked={checked} disabled={primary} onChange={(event) => setEditForm((current) => ({ ...current, linked_test_run_ids: event.target.checked ? [...new Set([...current.linked_test_run_ids, run.id])] : current.linked_test_run_ids.filter((runId) => runId !== run.id) }))} /><span><span className="block font-medium text-[var(--navy)]">{run.title || run.question_asked || run.test_id || run.id}{primary ? " (Primary)" : ""}</span><span className="block text-xs text-muted-foreground">{run.result || "Not evaluated"} · {run.bassett_version || "Version not specified"} · {formatTestDate(run.test_date)}</span></span></label>; }) : <p className="text-sm text-muted-foreground">No Bassett Test Runs are available.</p>}</div>
+      </Field>
     </FormModal>}
   </div>;
 }

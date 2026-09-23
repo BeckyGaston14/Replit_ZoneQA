@@ -2005,6 +2005,16 @@ async def _validate_relationships(coll, doc):
     municipality = await _require_reference("municipalities", doc.get("municipality_id"), "Municipality")
     property_record = await _require_reference("properties", doc.get("property_id"), "Property")
     finding = await _require_reference("findings", doc.get("finding_id"), "Finding", allow_archived=True)
+    if coll == "findings":
+        linked_run_ids = doc.get("linked_test_run_ids") or []
+        if not isinstance(linked_run_ids, list):
+            raise HTTPException(400, "linked_test_run_ids must be a list")
+        for run_id in linked_run_ids:
+            run = await _require_reference("bassett_issues", run_id, "Related Bassett test run", allow_archived=True)
+            if run.get("finding_id") not in (None, "", doc.get("id")):
+                raise HTTPException(409, "A selected Bassett test run is already linked to another finding")
+        if doc.get("bassett_issue_id"):
+            await _require_reference("bassett_issues", doc["bassett_issue_id"], "Primary Bassett test run", allow_archived=True)
     await _require_reference("retests", doc.get("retest_id"), "Retest", allow_archived=True)
     await _require_reference("regression_runs", doc.get("regression_run_id"), "Regression run", allow_archived=True)
     if testcase and project and testcase.get("project_id") not in (None, "", project["id"]):
@@ -2143,6 +2153,11 @@ def _normalize_model(document, *, partial=False):
 
 async def crud_create(coll, body, user):
     doc = dict(body)
+    if coll == "findings":
+        primary_run_id = str(doc.get("bassett_issue_id") or "").strip()
+        doc["linked_test_run_ids"] = list(dict.fromkeys(
+            [run_id for run_id in [primary_run_id, *(doc.get("linked_test_run_ids") or [])] if run_id]
+        ))
     if coll == "municipalities":
         await _validate_unique_municipality(doc)
     if coll == "properties":
@@ -2302,6 +2317,12 @@ async def crud_update(coll, id, body, user):
         )
         body["severity"] = merged_severity
         body["criticality"] = merged_criticality
+    if coll == "findings" and ("linked_test_run_ids" in body or "bassett_issue_id" in body):
+        primary_run_id = str(body.get("bassett_issue_id", existing_for_references.get("bassett_issue_id")) or "").strip()
+        requested_links = body.get("linked_test_run_ids", existing_for_references.get("linked_test_run_ids") or [])
+        body["linked_test_run_ids"] = list(dict.fromkeys(
+            [run_id for run_id in [primary_run_id, *(requested_links or [])] if run_id]
+        ))
     _validate_resource_required_fields(coll, {**existing_for_references, **body})
     if coll == "models" and body.get("name") and await db.models.find_one({"id": {"$ne": id}, "name": body["name"]}):
         raise HTTPException(409, "A model with this display name already exists")
@@ -2414,6 +2435,22 @@ async def crud_update(coll, id, body, user):
             "current_updated_at": current.get("updated_at"),
             "current_revision": current.get("revision", 1),
         })
+    if coll == "findings" and "linked_test_run_ids" in body:
+        previous_ids = set(existing_for_references.get("linked_test_run_ids") or [])
+        if existing_for_references.get("bassett_issue_id"):
+            previous_ids.add(existing_for_references["bassett_issue_id"])
+        selected_ids = set(body["linked_test_run_ids"])
+        if selected_ids:
+            await db.bassett_issues.update_many(
+                {"id": {"$in": list(selected_ids)}},
+                {"$set": {"finding_id": id, "updated_at": now_iso()}},
+            )
+        removed_ids = previous_ids - selected_ids
+        if removed_ids:
+            await db.bassett_issues.update_many(
+                {"id": {"$in": list(removed_ids)}, "finding_id": id},
+                {"$unset": {"finding_id": ""}, "$set": {"updated_at": now_iso()}},
+            )
     await log_activity(coll, id, "updated", user)
     return clean(res)
 
@@ -4548,6 +4585,7 @@ async def _bassett_create_workflow_impl(
             "severity": finding_severity, "criticality": finding_criticality,
             "priority": finding_input.get("priority") or doc.get("priority", "Medium"),
             "bassett_issue_id": doc["id"] if doc.get("id") else None,
+            "linked_test_run_ids": [doc["id"]] if doc.get("id") else [],
             "scenario_id": doc.get("scenario_id"), "workflow_stage": doc.get("workflow_stage"),
             "test_type": doc.get("test_type"), "result": doc.get("result"),
             "version_found": doc.get("bassett_version"), "bassett_version": doc.get("bassett_version"),
@@ -4917,13 +4955,17 @@ async def bassett_link_finding(id: str, body: Dict[str, Any], user=Depends(get_c
     if issue.get("finding_id") and issue["finding_id"] != finding["id"]:
         raise HTTPException(409, "This issue is already linked to another finding")
     existing_issue_id = finding.get("bassett_issue_id")
-    if existing_issue_id and existing_issue_id != id:
-        raise HTTPException(409, "This finding is already linked to another Bassett issue")
+    linked_run_ids = list(dict.fromkeys([
+        run_id for run_id in [existing_issue_id, *(finding.get("linked_test_run_ids") or []), id] if run_id
+    ]))
     updated = await db.bassett_issues.find_one_and_update({"id": id}, {"$set": {
         "finding_id": finding["id"], "finding_turn_id": turn_id or None, "updated_at": now_iso()
     }}, return_document=True)
     await db.findings.update_one({"id": finding["id"]}, {"$set": {
-        "bassett_issue_id": id, "bassett_turn_id": turn_id or None, "updated_at": now_iso(),
+        "bassett_issue_id": existing_issue_id or id,
+        "linked_test_run_ids": linked_run_ids,
+        "bassett_turn_id": finding.get("bassett_turn_id") or turn_id or None,
+        "updated_at": now_iso(),
     }})
     await _bassett_history("issue", id, "linked_finding", user, {"finding_id": finding["id"]})
     return updated
@@ -4966,7 +5008,7 @@ async def bassett_convert_to_finding(id: str, body: Dict[str, Any] = None, user=
         "developer_status": "New", "finding_type": body.get("finding_type") or issue.get("issue_category") or "Bassett error",
         "severity": finding_severity, "criticality": finding_criticality,
         "priority": body.get("priority") or issue.get("priority", "Medium"),
-        "bassett_issue_id": id, "created_at": now_iso(), "created_by": user.get("name"),
+        "bassett_issue_id": id, "linked_test_run_ids": [id], "created_at": now_iso(), "created_by": user.get("name"),
         "bassett_turn_id": turn_id or None,
         "scenario_id": issue.get("scenario_id"), "workflow_stage": issue.get("workflow_stage"),
         "test_type": issue.get("test_type"), "result": issue.get("result"),
@@ -5306,11 +5348,14 @@ async def bassett_findings(
     execution_links = {run.get("finding_id"): run["id"] for run in executions if run.get("finding_id")}
     linked = []
     for finding in findings:
-        linked_issue = finding.get("bassett_issue_id") or issue_links.get(finding.get("id"))
+        linked_run_ids = list(dict.fromkeys([
+            run_id for run_id in [finding.get("bassett_issue_id"), *(finding.get("linked_test_run_ids") or []), issue_links.get(finding.get("id"))] if run_id
+        ]))
+        linked_issue = finding.get("bassett_issue_id") or (linked_run_ids[0] if linked_run_ids else None)
         linked_execution = finding.get("bassett_execution_id") or execution_links.get(finding.get("id"))
         if not linked_issue and not linked_execution:
             continue
-        if issue_id and linked_issue != issue_id:
+        if issue_id and issue_id not in linked_run_ids:
             continue
         if execution_id and linked_execution != execution_id:
             continue
@@ -5329,6 +5374,7 @@ async def bassett_findings(
         linked.append({
             **canonical_finding,
             "bassett_issue_id": linked_issue,
+            "linked_test_run_ids": linked_run_ids,
             "bassett_execution_id": linked_execution,
             "finding_type": finding.get("finding_type") or source.get("issue_category") or "Bassett error",
             "severity": severity, "criticality": criticality,
