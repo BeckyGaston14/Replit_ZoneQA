@@ -2010,9 +2010,7 @@ async def _validate_relationships(coll, doc):
         if not isinstance(linked_run_ids, list):
             raise HTTPException(400, "linked_test_run_ids must be a list")
         for run_id in linked_run_ids:
-            run = await _require_reference("bassett_issues", run_id, "Related Bassett test run", allow_archived=True)
-            if run.get("finding_id") not in (None, "", doc.get("id")):
-                raise HTTPException(409, "A selected Bassett test run is already linked to another finding")
+            await _require_reference("bassett_issues", run_id, "Related Bassett test run", allow_archived=True)
         if doc.get("bassett_issue_id"):
             await _require_reference("bassett_issues", doc["bassett_issue_id"], "Primary Bassett test run", allow_archived=True)
     await _require_reference("retests", doc.get("retest_id"), "Retest", allow_archived=True)
@@ -2440,17 +2438,30 @@ async def crud_update(coll, id, body, user):
         if existing_for_references.get("bassett_issue_id"):
             previous_ids.add(existing_for_references["bassett_issue_id"])
         selected_ids = set(body["linked_test_run_ids"])
-        if selected_ids:
-            await db.bassett_issues.update_many(
-                {"id": {"$in": list(selected_ids)}},
-                {"$set": {"finding_id": id, "updated_at": now_iso()}},
-            )
+        for run_id in selected_ids:
+            run = await db.bassett_issues.find_one({"id": run_id}, {"_id": 0})
+            if run:
+                finding_ids = list(dict.fromkeys([
+                    finding_id for finding_id in [run.get("finding_id"), *(run.get("finding_ids") or []), id] if finding_id
+                ]))
+                await db.bassett_issues.update_one({"id": run_id}, {"$set": {
+                    "finding_id": run.get("finding_id") or id,
+                    "finding_ids": finding_ids,
+                    "updated_at": now_iso(),
+                }})
         removed_ids = previous_ids - selected_ids
-        if removed_ids:
-            await db.bassett_issues.update_many(
-                {"id": {"$in": list(removed_ids)}, "finding_id": id},
-                {"$unset": {"finding_id": ""}, "$set": {"updated_at": now_iso()}},
-            )
+        for run_id in removed_ids:
+            run = await db.bassett_issues.find_one({"id": run_id}, {"_id": 0})
+            if run:
+                remaining_finding_ids = [finding_id for finding_id in (run.get("finding_ids") or []) if finding_id != id]
+                replacement_primary = run.get("finding_id")
+                if replacement_primary == id:
+                    replacement_primary = remaining_finding_ids[0] if remaining_finding_ids else None
+                await db.bassett_issues.update_one({"id": run_id}, {"$set": {
+                    "finding_id": replacement_primary,
+                    "finding_ids": remaining_finding_ids,
+                    "updated_at": now_iso(),
+                }})
     await log_activity(coll, id, "updated", user)
     return clean(res)
 
@@ -3338,7 +3349,7 @@ BASSETT_ISSUE_FIELDS = {
     "test_id", "title", "question_asked", "exact_bassett_answer", "verified_correct_answer",
     "test_type", "turns", "finding_turn_id",
     "issue_category", "severity", "criticality", "priority", "environment", "reported_date", "test_date",
-    "status", "assignee_id", "project_id", "testcase_id", "finding_id",
+    "status", "assignee_id", "project_id", "testcase_id", "finding_id", "finding_ids",
     "triaged_by", "triaged_by_name", "triaged_at",
     "scenario_id", "workflow_stage", "version_id", "bassett_version", "retest_id",
     "regression_run_id", "municipality_id", "property_id", "notes",
@@ -3848,6 +3859,11 @@ async def _validate_bassett_refs(doc, require_scenario=False):
     if project and testcase and testcase.get("project_id") and testcase["project_id"] != project["id"]:
         raise HTTPException(400, "Test case does not belong to the selected project")
     await _bassett_ref("findings", doc.get("finding_id"), "Finding")
+    finding_ids = doc.get("finding_ids") or []
+    if not isinstance(finding_ids, list):
+        raise HTTPException(400, "finding_ids must be a list")
+    for finding_id in finding_ids:
+        await _bassett_ref("findings", finding_id, "Finding")
     await _bassett_ref("retests", doc.get("retest_id"), "Retest")
     await _bassett_ref("regression_runs", doc.get("regression_run_id"), "Regression run")
     if doc.get("assignee_id"):
@@ -4024,10 +4040,18 @@ async def bassett_get_issue(id: str, user=Depends(get_current_user)):
         )
     if issue.get("definition_snapshot"):
         issue["definition_snapshot"] = _normalize_bassett_stage_record(issue["definition_snapshot"])
-    if issue.get("finding_id"):
-        issue["finding"] = await db.findings.find_one({"id": issue["finding_id"]}, {"_id": 0})
-        if issue["finding"]:
-            issue["finding"] = _canonicalize_finding_severity(issue["finding"])
+    finding_ids = list(dict.fromkeys([
+        finding_id for finding_id in [issue.get("finding_id"), *(issue.get("finding_ids") or [])] if finding_id
+    ]))
+    if finding_ids:
+        issue["findings"] = [
+            _canonicalize_finding_severity(finding)
+            for finding in await db.findings.find({"id": {"$in": finding_ids}}, {"_id": 0}).to_list(5000)
+        ]
+        issue["finding"] = next(
+            (finding for finding in issue["findings"] if finding["id"] == issue.get("finding_id")),
+            issue["findings"][0] if issue["findings"] else None,
+        )
     if issue.get("testcase_id"):
         testcase = await db.testcases.find_one({"id": issue["testcase_id"]}, {"_id": 0})
         if testcase:
@@ -4759,6 +4783,14 @@ async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_c
     _require_mutable_bassett_issue(existing)
     _require_fresh_version(existing, body)
     incoming = {key: value for key, value in body.items() if key in BASSETT_ISSUE_FIELDS}
+    if "finding_ids" in incoming or "finding_id" in incoming:
+        primary_finding_id = str(incoming.get("finding_id", existing.get("finding_id")) or "").strip()
+        requested_finding_ids = incoming.get("finding_ids", existing.get("finding_ids") or [])
+        if not isinstance(requested_finding_ids, list):
+            raise HTTPException(400, "finding_ids must be a list")
+        incoming["finding_ids"] = list(dict.fromkeys(
+            [finding_id for finding_id in [primary_finding_id, *requested_finding_ids] if finding_id]
+        ))
     if "general_subtype_ids" in incoming:
         incoming["general_subtype_ids"] = _normalize_general_subtype_ids(
             incoming.get("general_subtype_ids")
@@ -4902,6 +4934,34 @@ async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_c
             "current_revision": current.get("revision", 1),
             "current_updated_at": current.get("updated_at"),
         })
+    if "finding_ids" in incoming:
+        previous_finding_ids = set(existing.get("finding_ids") or [])
+        if existing.get("finding_id"):
+            previous_finding_ids.add(existing["finding_id"])
+        selected_finding_ids = set(incoming["finding_ids"])
+        for finding_id in selected_finding_ids:
+            finding = await db.findings.find_one({"id": finding_id}, {"_id": 0})
+            if finding:
+                linked_run_ids = list(dict.fromkeys([
+                    run_id for run_id in [finding.get("bassett_issue_id"), *(finding.get("linked_test_run_ids") or []), id] if run_id
+                ]))
+                await db.findings.update_one({"id": finding_id}, {"$set": {
+                    "bassett_issue_id": finding.get("bassett_issue_id") or id,
+                    "linked_test_run_ids": linked_run_ids,
+                    "updated_at": now_iso(),
+                }})
+        for finding_id in previous_finding_ids - selected_finding_ids:
+            finding = await db.findings.find_one({"id": finding_id}, {"_id": 0})
+            if finding:
+                remaining_run_ids = [run_id for run_id in (finding.get("linked_test_run_ids") or []) if run_id != id]
+                replacement_primary = finding.get("bassett_issue_id")
+                if replacement_primary == id:
+                    replacement_primary = remaining_run_ids[0] if remaining_run_ids else None
+                await db.findings.update_one({"id": finding_id}, {"$set": {
+                    "bassett_issue_id": replacement_primary,
+                    "linked_test_run_ids": remaining_run_ids,
+                    "updated_at": now_iso(),
+                }})
     if changed:
         await _bassett_history("issue", id, "updated", user, changed)
     return updated
@@ -4952,14 +5012,18 @@ async def bassett_link_finding(id: str, body: Dict[str, Any], user=Depends(get_c
         raise HTTPException(409, "Finding belongs to a different Project")
     await _validate_bassett_refs({"project_id": issue.get("project_id"), "testcase_id": issue.get("testcase_id"),
                                  "finding_id": finding["id"]})
-    if issue.get("finding_id") and issue["finding_id"] != finding["id"]:
-        raise HTTPException(409, "This issue is already linked to another finding")
+    existing_finding_ids = list(dict.fromkeys([
+        finding_id for finding_id in [issue.get("finding_id"), *(issue.get("finding_ids") or []), finding["id"]] if finding_id
+    ]))
     existing_issue_id = finding.get("bassett_issue_id")
     linked_run_ids = list(dict.fromkeys([
         run_id for run_id in [existing_issue_id, *(finding.get("linked_test_run_ids") or []), id] if run_id
     ]))
     updated = await db.bassett_issues.find_one_and_update({"id": id}, {"$set": {
-        "finding_id": finding["id"], "finding_turn_id": turn_id or None, "updated_at": now_iso()
+        "finding_id": issue.get("finding_id") or finding["id"],
+        "finding_ids": existing_finding_ids,
+        "finding_turn_id": issue.get("finding_turn_id") or turn_id or None,
+        "updated_at": now_iso()
     }}, return_document=True)
     await db.findings.update_one({"id": finding["id"]}, {"$set": {
         "bassett_issue_id": existing_issue_id or id,
@@ -5018,7 +5082,7 @@ async def bassett_convert_to_finding(id: str, body: Dict[str, Any] = None, user=
     }
     await db.findings.insert_one(finding)
     await db.bassett_issues.update_one({"id": id}, {"$set": {
-        "finding_id": finding["id"], "finding_turn_id": turn_id or None, "updated_at": now_iso()
+        "finding_id": finding["id"], "finding_ids": [finding["id"]], "finding_turn_id": turn_id or None, "updated_at": now_iso()
     }})
     await _bassett_history("issue", id, "converted_to_finding", user, {"finding_id": finding["id"]})
     return finding

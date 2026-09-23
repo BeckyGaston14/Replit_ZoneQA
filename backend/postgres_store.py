@@ -1790,6 +1790,7 @@ class PostgresDatabase:
                         stored["definition_snapshot"][field] = copy.deepcopy(scenario[field])
                 if finding:
                     stored["finding_id"] = finding["id"]
+                    stored["finding_ids"] = [finding["id"]]
                 await self._insert("bassett_issues", stored, connection)
                 if finding:
                     await self._insert("findings", finding, connection)
