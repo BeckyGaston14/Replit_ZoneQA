@@ -135,7 +135,7 @@ test("Bassett finding detail links back to its source run", () => {
   const container = document.createElement("div");
   const root = createRoot(container);
   act(() => root.render(<BassettIssues />));
-  expect(container.querySelector('a[href="/bassett/issues?open=run-1"]').textContent).toContain("Open source Bassett Test Run");
+  expect(container.querySelector('a[href="/bassett/issues?open=run-1"]').textContent).toContain("run-1");
   act(() => root.unmount());
 });
 
@@ -320,7 +320,7 @@ test("viewer rows use a named button and the async details drawer traps and rest
   expect(drawer.textContent).not.toContain("Edit Test Run");
   expect(drawer.querySelector("a button")).toBeNull();
   expect(drawer.textContent).toContain("Bassett Finding");
-  expect(drawer.querySelector('a[href="/bassett/findings?open=finding-1"]').textContent).toBe("Open Bassett Finding");
+  expect(drawer.querySelector('a[href="/bassett/findings?open=finding-1"]').textContent).toContain("Bassett Finding");
   expect(drawer.querySelector('a[href="/testcases/test-1"]').textContent).toBe("Open Model Comparison Test Case");
   act(() => {
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true }));

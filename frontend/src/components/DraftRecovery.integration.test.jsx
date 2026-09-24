@@ -22,13 +22,13 @@ test("real dialogs recover a draft and remain navigable without a blocking overl
   click("New Test"); click("Recover draft");
   expect(document.body.textContent).not.toContain("A saved Bassett draft is available");
   click("Next");
-  expect(document.body.textContent).toContain("Section 2 of 7");
+  expect(document.body.textContent).toContain("Section 2 of 6");
   expect([...document.body.querySelectorAll("textarea")].some((field) => field.value === "Recovered prompt")).toBe(true);
   click("Cancel");
   expect(document.body.querySelector('[role="dialog"]')).toBeNull();
   expect(document.body.style.pointerEvents).not.toBe("none");
   click("Drafts"); click("Recover Draft"); click("Next");
-  expect(document.body.textContent).toContain("Section 2 of 7");
+  expect(document.body.textContent).toContain("Section 2 of 6");
   expect(document.body.querySelectorAll('[role="dialog"]')).toHaveLength(1);
   act(() => root.unmount()); container.remove(); localStorage.clear();
 });

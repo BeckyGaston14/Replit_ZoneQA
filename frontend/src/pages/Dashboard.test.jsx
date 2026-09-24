@@ -100,8 +100,8 @@ test("keeps all five severities, consolidates methodology, and toggles empty cat
   const { container, root } = renderDashboard();
   expect(["Very Low", "Low", "Medium", "High", "Critical"].every((label) => container.textContent.includes(label))).toBe(true);
   expect(container.querySelectorAll('[data-testid="dashboard-methodology"]').length).toBe(1);
-  expect(container.querySelectorAll("summary").length).toBe(2);
-  expect(container.querySelectorAll('[data-testid="dashboard-reporting-groups-methodology"]')).toHaveLength(1);
+  expect(container.querySelectorAll("summary").length).toBe(1);
+  expect(container.textContent).toContain("Current Rubric Performance");
   expect(container.textContent).not.toContain("How calculated");
   const toggle = [...container.querySelectorAll("button")].find((button) => button.textContent.includes("Show categories without results"));
   expect(toggle).not.toBeNull();

@@ -323,7 +323,7 @@ test("both form modes expose all twelve plain-language scoring questions and one
   for (const mode of ["bassett", "comparison"]) {
     const view = renderForm(mode, { id: `${mode}-edit` });
     expectedQuestions.forEach((question) => expect(view.container.textContent).toContain(question));
-    for (const label of ["Prompt / Question", "Verified Answer / Gold Standard", "Bassett Response", "Test Result", "Severity", "Priority", mode === "bassett" ? "Finding Category" : "Comparison Category", "Evidence / Source Links", "Property / Address", "Bassett Score Rationale", "Owner / Assignee", "Test Notes and Reproduction Steps", "Supporting Source Documents / Images"]) {
+    for (const label of ["Prompt / Question", "Verified Answer / Gold Standard", "Bassett Response", "Test Result", "Severity", "Priority", mode === "bassett" ? "Finding Category" : "Comparison Category", "Evidence / Source Links", "Property / Address", "Bassett Score Rationale", "Owner / Assignee", "Evidence & Notes", "Supporting Source Documents / Images"]) {
       expect([...view.container.querySelectorAll("label")].some((node) => node.textContent.trim().startsWith(label))).toBe(true);
     }
     if (mode === "bassett") {
@@ -344,7 +344,7 @@ test("uploaded Bassett conversations keep the authoritative file separate from s
   });
   expect(view.container.querySelector('[data-testid="bassett-conversation-upload"]')).not.toBeNull();
   expect([...view.container.querySelectorAll("label")].some((node) => node.textContent.includes("Supporting Source Documents / Images"))).toBe(true);
-  expect([...view.container.querySelectorAll("label")].filter((node) => node.textContent.trim().startsWith("Test Notes and Reproduction Steps"))).toHaveLength(1);
+  expect([...view.container.querySelectorAll("label")].filter((node) => node.textContent.trim().startsWith("Evidence & Notes"))).toHaveLength(1);
   expect(view.container.querySelectorAll('input[type="file"]')).toHaveLength(2);
   act(() => view.root.unmount());
 });
@@ -521,8 +521,8 @@ test("uploaded Bassett conversations require a file while prompt and response be
   }, { onSubmit });
   expect(view.container.textContent).toContain("Use an uploaded Bassett conversation");
   expect(view.container.textContent).toContain("2. Linked Records & Conversation");
-  expect(view.container.querySelector('[data-testid="workflow-review-summary"]').textContent).toContain("Linked records & conversation");
-  expect(view.container.querySelector('[data-testid="workflow-review-summary"]').textContent).toContain("3. Bassett test result (Optional)");
+  expect(view.container.querySelector('[data-testid="workflow-review-summary"]')).toBeNull();
+  expect(view.container.textContent).toContain("Complete the remaining required fields before saving.");
   expect([...view.container.querySelectorAll("label")].find((node) => node.textContent.startsWith("Prompt / Question")).textContent).toContain("(optional)");
   expect(view.container.textContent).toContain("The uploaded conversation is authoritative");
   expect(view.container.querySelector('[data-testid="bassett-conversation-upload"]')).not.toBeNull();
