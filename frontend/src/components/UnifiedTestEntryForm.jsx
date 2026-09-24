@@ -431,7 +431,7 @@ function progressFor(form, mode) {
 function validate(form, mode) {
   if (mode === "bassett") {
     if (!String(form.scenario_id || "").trim()) return "A Test Scenario is required";
-    if (form.rubric_revision && form.rubric_revision !== LEGACY_RUBRIC_REVISION && !String(form.scoring_category || "").trim()) return "Select a Primary Scoring Category.";
+    if (form.rubric_revision && form.rubric_revision !== LEGACY_RUBRIC_REVISION && !String(form.scoring_category || "").trim()) return "Select a Primary Rubric Category.";
     if (form.create_finding && !String(form.finding?.title || "").trim()) return "Enter a finding title.";
     if (form.create_finding && !String(form.finding?.finding_type || form.issue_category || "").trim()) return "Select a Finding Category.";
     const versionError = bassettVersionRequirementMessage(form);
@@ -466,7 +466,7 @@ function validate(form, mode) {
     return null;
   }
   if (!String(form.scenario_id || "").trim()) return "A Test Scenario is required";
-  if (form.rubric_revision && form.rubric_revision !== LEGACY_RUBRIC_REVISION && !String(form.scoring_category || "").trim()) return "Select a Primary Scoring Category.";
+  if (form.rubric_revision && form.rubric_revision !== LEGACY_RUBRIC_REVISION && !String(form.scoring_category || "").trim()) return "Select a Primary Rubric Category.";
   for (const model of ["Bassett", "ChatGPT", "Claude"]) {
     const evaluation = form.evaluations?.[model];
     if (hasScoredDimension(evaluation?.scores) && String(evaluation?.rationale || "").trim().length < 20) return `Explain the ${model} scores in the Score rationale using at least 20 characters.`;
@@ -645,6 +645,7 @@ export default function UnifiedTestEntryForm({
   const hasConversationFile = Boolean(form.attachment_count || form.conversation_attachment);
   const [activeSection, setActiveSection] = useState(0);
   const [attemptedSections, setAttemptedSections] = useState(() => new Set());
+  const [submitError, setSubmitError] = useState("");
   const [draftAvailable, setDraftAvailable] = useState(() => {
     if (form._draftRecovered) return false;
     try { return Boolean(localStorage.getItem(DRAFT_KEYS[mode])); } catch { return false; }
@@ -655,6 +656,7 @@ export default function UnifiedTestEntryForm({
     if (!activeVersion) return;
     setForm((current) => current.version_id || current.bassett_version ? current : ({ ...current, version_id: activeVersion.id, bassett_version: activeVersion.name }));
   }, [form.id, selectedVersionId, setForm, versions]);
+  useEffect(() => { setSubmitError(""); }, [form]);
   useEffect(() => {
     if (isComparison || form.test_type !== "Multi-turn" || !Array.isArray(form.turns)) return;
     if (!form.turns.some((turn) => !turn.id)) return;
@@ -731,7 +733,7 @@ export default function UnifiedTestEntryForm({
   const sectionIssue = (index) => {
     if (index === 0) {
       if (!String(form.scenario_id || "").trim()) return "Select a Test Scenario.";
-      if (catalogActive && !form.scoring_category) return "Select a Primary Scoring Category.";
+      if (catalogActive && !form.scoring_category) return "Select a Primary Rubric Category.";
       if (isComparison && !String(form.name || "").trim()) return "Enter a test name.";
       if (!String(form.test_date || "").trim()) return "Enter a test date.";
     }
@@ -783,12 +785,14 @@ export default function UnifiedTestEntryForm({
   const submit = () => {
     const error = validate(form, mode);
     if (error) {
+      setSubmitError(error);
       const sectionCount = isComparison ? 11 : 7;
       setAttemptedSections(new Set(Array.from({ length: sectionCount }, (_, index) => index)));
       const firstInvalid = Array.from({ length: sectionCount }, (_, index) => index).find((index) => sectionIssue(index));
       if (firstInvalid !== undefined) activateSection(firstInvalid, false);
       return toast.error(error);
     }
+    setSubmitError("");
     onSubmit();
   };
   const ownerOptions = users.filter((item) => item.active !== false && !item.deleted_at);
@@ -824,6 +828,12 @@ export default function UnifiedTestEntryForm({
     ? `Edit ${isComparison ? "Model Comparison Test Case" : "Bassett Test Run"}`
     : isComparison ? "New Model Comparison Test Case" : "New Bassett Test Run";
   const submitLabel = form.id ? "Save Changes" : isComparison ? "Create Test Case" : "Create Test Run";
+  const reviewScenario = selectedScenario
+    ? `${selectedScenario.stable_id || "Scenario"} — ${selectedScenario.test_scenario || selectedScenario.title || "Selected scenario"}`
+    : "Not selected";
+  const reviewVersion = form.bassett_version || versions.find((version) => version.id === form.version_id)?.name || "Not specified";
+  const reviewProject = projects.find((project) => project.id === form.project_id)?.name || "Not linked";
+  const reviewFinding = form.create_finding ? (finding.title || "Finding will be created") : "No finding";
   return <FormModal open onOpenChange={(open) => !open && onCancel()} title={formTitle} onSubmit={submit} submitLabel={submitLabel} wide submitDisabled={submitting} noValidate>
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--orange)] bg-orange-50 p-3">
       <div><div className="text-xs font-bold uppercase tracking-wide text-[var(--orange)]">Form mode</div><div className="text-lg font-semibold text-[var(--navy)]" data-testid="workflow-mode-label">{isComparison ? "Model comparison" : "Bassett-only test"}</div></div>
@@ -834,6 +844,7 @@ export default function UnifiedTestEntryForm({
       <span className="text-xs text-muted-foreground">{sectionStatus(activeSection)}</span>
     </div>
     {conflictNotice}
+    {submitError && <div role="alert" aria-live="assertive" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"><p className="font-semibold">This test cannot be saved yet.</p><p className="mt-1">{submitError}</p></div>}
     {!form.id && draftAvailable && <div className="rounded-lg border border-[var(--orange)] bg-orange-50 p-3 text-sm flex flex-wrap items-center justify-between gap-3"><span>A saved {isComparison ? "comparison" : "Bassett"} draft is available.</span><div className="flex flex-wrap gap-2"><Button type="button" size="sm" variant="outline" onClick={recoverDraft}>Recover draft</Button><Button type="button" size="sm" variant="outline" onClick={() => { try { deleteLocalDraft(mode); setDraftAvailable(false); toast.success("Draft deleted"); } catch { toast.error("Draft could not be deleted"); } }}>Delete draft</Button></div></div>}
 
      <GuidedSection index={0} title="1. Test Setup" active={activeSection === 0} status={sectionStatus(0)} onActivate={activateSection}><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -847,7 +858,7 @@ export default function UnifiedTestEntryForm({
        <Field label="Test Date" required error={attemptedSections.has(0) && !String(form.test_date || "").trim() ? "Test Date is required." : undefined}><Input type="date" value={form.test_date || ""} disabled={lockedCommon} onChange={(e) => update("test_date", e.target.value)} /></Field>
       <Field label="Environment"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.environment || ""} disabled={lockedCommon} onChange={(e) => update("environment", e.target.value)}><option value="">Not specified</option>{[...new Set([...(config.environments || []), form.environment].filter(Boolean))].map((value) => <option key={value} value={value}>{value}</option>)}</select></Field>
         {!isComparison && <Field label="Conversation Format" description="Choose a single prompt or a multi-turn conversation."><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.test_type || "Single Prompt"} disabled={lockedCommon} onChange={(e) => update("test_type", e.target.value)}><option>Single Prompt</option><option>Multi-turn</option></select></Field>}
-        {catalogActive && <Field label="Primary Scoring Category" required description="The suggested category comes from the Test Bank and is editable."><Select required value={form.scoring_category || ""} disabled={lockedCommon} onValueChange={(value) => update("scoring_category", value)}><SelectTrigger aria-label="Primary Scoring Category" className="h-auto min-h-9 text-left [&>span]:line-clamp-none [&>span]:whitespace-normal [&>span]:break-words"><SelectValue placeholder="Select a scoring category" /></SelectTrigger><SelectContent className="max-w-[calc(100vw-2rem)]">{normalizedRubricCatalog.categories.map((category) => <SelectItem key={category.key} value={category.key} className="whitespace-normal break-words py-2">{category.name}</SelectItem>)}</SelectContent></Select></Field>}
+        {catalogActive && <Field label="Primary Rubric Category" required description="The suggested rubric category comes from the Test Bank and can be changed for this test."><Select required value={form.scoring_category || ""} disabled={lockedCommon} onValueChange={(value) => update("scoring_category", value)}><SelectTrigger aria-label="Primary Rubric Category" className="h-auto min-h-9 text-left [&>span]:line-clamp-none [&>span]:whitespace-normal [&>span]:break-words"><SelectValue placeholder="Select a rubric category" /></SelectTrigger><SelectContent className="max-w-[calc(100vw-2rem)]">{normalizedRubricCatalog.categories.map((category) => <SelectItem key={category.key} value={category.key} className="whitespace-normal break-words py-2">{category.name}</SelectItem>)}</SelectContent></Select></Field>}
        {!isComparison && <div className="sm:col-span-2"><Field label="How are you recording this Bassett interaction?" required description="The original upload remains the authoritative conversation record."><div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Bassett conversation source">
          {[['structured_text', 'Enter conversation in ZoneQA', 'Enter a single prompt or an ordered multi-turn conversation.'], ['uploaded_conversation', 'Use an uploaded Bassett conversation', 'Attach the exported conversation now; transcript entry is optional until comparison.']].map(([value, label, description]) => <label key={value} className={`cursor-pointer rounded-lg border p-3 ${(form.conversation_source || 'structured_text') === value ? 'border-[var(--orange)] bg-orange-50' : 'bg-background'}`}><span className="flex items-start gap-2"><input type="radio" name="conversation-source" value={value} checked={(form.conversation_source || 'structured_text') === value} disabled={lockedCommon} onChange={() => setForm((current) => ({ ...current, conversation_source: value, transcript_status: value === 'structured_text' ? 'not_needed' : (bassettTranscriptReady(current) ? 'confirmed' : 'needs_review') }))} /><span><span className="block font-semibold text-[var(--navy)]">{label}</span><span className="mt-1 block text-xs text-muted-foreground">{description}</span></span></span></label>)}
        </div></Field></div>}
@@ -872,7 +883,7 @@ export default function UnifiedTestEntryForm({
       {isComparison && <Field label="Comparison Category"><Input value={form.category || ""} onChange={(e) => update("category", e.target.value)} /></Field>}
     </div></GuidedSection>
 
-     <GuidedSection index={3} title="4. Canonical Evaluation" active={activeSection === 3} status={sectionStatus(3)} onActivate={activateSection}><p className="text-xs text-muted-foreground">Use the selected revision rubric. Blank dimensions and N/A remain unavailable and are excluded from the denominator; zero is a valid score.</p><div className="mt-4 space-y-4"><GeneralSubtypeGuidance subtypes={generalSubtypes} selectedIds={form.general_subtype_ids || []} />{rubricCatalog && catalogActive && <RubricCriteriaSelector catalog={normalizedRubricCatalog} mappedIds={mappedRubricIds} selectedIds={form.selected_rubric_ids || []} scores={rubricRemovalScores} disabled={lockedCommon} onChange={(ids, meta = {}) => setForm((current) => ({ ...current, selected_rubric_ids: ids, rubric_revision: normalizedRubricCatalog.revision, rubric_selection_initialized: true, confirm_rubric_removal: current.confirm_rubric_removal || meta.confirm_rubric_removal }))} />}<h4 className="font-semibold text-sm text-[var(--navy)]">Bassett evaluation · {form.rubric_revision || LEGACY_RUBRIC_REVISION} · calculated score</h4><EvaluationGrid model="Bassett" scores={evaluationFor("Bassett").scores} dimensions={dimensions} onChange={updateEvaluation} locked={lockedCommon} /><RubricScoreSummary catalog={normalizedRubricCatalog} scores={evaluationFor("Bassett").scores} selectedIds={form.selected_rubric_ids || []} /><Field label="Bassett Score Rationale" required={hasScoredDimension(evaluationFor("Bassett").scores)} description="Cite the specific answer evidence that supports the selected numbers (minimum 20 characters when scored)."><Textarea rows={3} value={evaluationFor("Bassett").rationale || form.score_rationale || ""} onChange={(e) => updateEvaluationRationale("Bassett", e.target.value)} /></Field></div></GuidedSection>
+     <GuidedSection index={3} title="4. Rubric Evaluation" active={activeSection === 3} status={sectionStatus(3)} onActivate={activateSection}><p className="text-xs text-muted-foreground">Score the applicable rubric items. Blank and N/A items are excluded from the score; zero remains a valid score.</p><div className="mt-4 space-y-4"><GeneralSubtypeGuidance subtypes={generalSubtypes} selectedIds={form.general_subtype_ids || []} />{rubricCatalog && catalogActive && <RubricCriteriaSelector catalog={normalizedRubricCatalog} mappedIds={mappedRubricIds} selectedIds={form.selected_rubric_ids || []} scores={rubricRemovalScores} disabled={lockedCommon} onChange={(ids, meta = {}) => setForm((current) => ({ ...current, selected_rubric_ids: ids, rubric_revision: normalizedRubricCatalog.revision, rubric_selection_initialized: true, confirm_rubric_removal: current.confirm_rubric_removal || meta.confirm_rubric_removal }))} />}<h4 className="font-semibold text-sm text-[var(--navy)]">Bassett evaluation · {form.rubric_revision || LEGACY_RUBRIC_REVISION} · calculated score</h4><EvaluationGrid model="Bassett" scores={evaluationFor("Bassett").scores} dimensions={dimensions} onChange={updateEvaluation} locked={lockedCommon} /><RubricScoreSummary catalog={normalizedRubricCatalog} scores={evaluationFor("Bassett").scores} selectedIds={form.selected_rubric_ids || []} /><Field label="Bassett Score Rationale" required={hasScoredDimension(evaluationFor("Bassett").scores)} description="Cite the specific answer evidence that supports the selected numbers (minimum 20 characters when scored)."><Textarea rows={3} value={evaluationFor("Bassett").rationale || form.score_rationale || ""} onChange={(e) => updateEvaluationRationale("Bassett", e.target.value)} /></Field></div></GuidedSection>
 
     <GuidedSection index={4} title="5. Findings & Ownership" active={activeSection === 4} status={sectionStatus(4)} onActivate={activateSection}><div className="space-y-4">
       <label className="flex items-center gap-2 text-sm"><Checkbox aria-label="Create a linked Bassett finding" checked={Boolean(form.create_finding)} onCheckedChange={(checked) => update("create_finding", checked === true)} /> Create a linked Bassett finding</label>
@@ -917,6 +928,17 @@ export default function UnifiedTestEntryForm({
      <GuidedSection index={9} title="Benchmark evaluations & canonical scores" active={activeSection === 9} status={sectionStatus(9)} onActivate={activateSection} comparisonOnly><div className="space-y-6">{["ChatGPT", "Claude"].map((model) => <div key={model} className="space-y-3"><div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end"><h4 className="font-semibold text-sm text-[var(--navy)]">{model} evaluation · {form.rubric_revision || LEGACY_RUBRIC_REVISION} · calculated score</h4><Field label={`${model} verdict`}><select className="h-9 w-full rounded-md border bg-background px-3 py-2 text-sm" value={normalizeEvaluationResult(evaluationFor(model).final_result)} onChange={(e) => updateEvaluationResult(model, e.target.value)}>{COMPARISON_RESULT_OPTIONS.map((value) => <option key={value}>{value}</option>)}</select></Field></div><EvaluationGrid model={model} scores={evaluationFor(model).scores} dimensions={dimensions} onChange={updateEvaluation} locked={lockedCommon} />{catalogActive && <RubricScoreSummary catalog={normalizedRubricCatalog} scores={evaluationFor(model).scores} selectedIds={form.selected_rubric_ids || []} />}<Field label={`${model} score rationale`} required={hasScoredDimension(evaluationFor(model).scores)} description="Cite specific evidence supporting the selected scores (minimum 20 characters when scored)."><Textarea rows={3} value={evaluationFor(model).rationale || ""} onChange={(e) => updateEvaluationRationale(model, e.target.value)} /></Field></div>)}</div></GuidedSection>
       <GuidedSection index={10} title="Benchmark result & competitive findings" active={activeSection === 10} status={sectionStatus(10)} onActivate={activateSection} comparisonOnly><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><Field label="Bassett-versus-benchmark result"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={comparison.comparison_result || "Incomplete"} onChange={(e) => updateNested("comparison", "comparison_result", e.target.value)}>{COMPARISON_RESULT_OPTIONS.map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Win / loss / tie / shared failure"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={comparison.comparison_classification || "Incomplete"} onChange={(e) => updateNested("comparison", "comparison_classification", e.target.value)}>{COMPARISON_CLASSIFICATIONS.map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Competitive advantage"><Textarea rows={3} value={comparison.competitive_advantage || ""} onChange={(e) => updateNested("comparison", "competitive_advantage", e.target.value)} /></Field><Field label="Competitive gap"><Textarea rows={3} value={comparison.competitive_gap || ""} onChange={(e) => updateNested("comparison", "competitive_gap", e.target.value)} /></Field><Field label="Comparison-specific findings"><Textarea rows={4} value={comparison.findings?.[0]?.description || ""} onChange={(e) => updateNested("comparison", "findings", [{ title: "Comparison finding", description: e.target.value }])} placeholder="Never mixed into Bassett-only findings." /></Field></div></GuidedSection>
      </div>}
+      {activeSection === totalSections - 1 && <div className="rounded-xl border bg-[var(--paper)] p-4" data-testid="test-run-review-summary">
+        <h3 className="font-semibold text-[var(--navy)]">Review before saving</h3>
+        <p className="mt-1 text-xs text-muted-foreground">Confirm the essential details below. Use Previous to correct anything before saving.</p>
+        <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+          <div className="sm:col-span-2"><dt className="text-xs font-semibold uppercase text-muted-foreground">Test scenario</dt><dd className="mt-0.5 text-[var(--navy)]">{reviewScenario}</dd></div>
+          <div><dt className="text-xs font-semibold uppercase text-muted-foreground">Bassett version</dt><dd className="mt-0.5 text-[var(--navy)]">{reviewVersion}</dd></div>
+          <div><dt className="text-xs font-semibold uppercase text-muted-foreground">Test result</dt><dd className="mt-0.5 text-[var(--navy)]">{normalizeEvaluationResult(form.result) || "Not Evaluated"}</dd></div>
+          <div><dt className="text-xs font-semibold uppercase text-muted-foreground">Testing project</dt><dd className="mt-0.5 text-[var(--navy)]">{reviewProject}</dd></div>
+          <div><dt className="text-xs font-semibold uppercase text-muted-foreground">Finding</dt><dd className="mt-0.5 text-[var(--navy)]">{reviewFinding}</dd></div>
+        </dl>
+      </div>}
       {!progress.ready && <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">Complete the remaining required fields before saving.</div>}
      <div className="sticky bottom-0 z-10 flex flex-wrap items-center gap-2 border-t bg-background/95 py-3">
       <Button type="button" variant="outline" disabled={activeSection === 0} onClick={() => activateSection(activeSection - 1)}>Previous</Button>

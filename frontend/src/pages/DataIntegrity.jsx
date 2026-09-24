@@ -223,7 +223,7 @@ export default function DataIntegrity() {
 
   return (
     <div>
-         <PageHeader title="Data Integrity" subtitle="Automated validation of relational consistency, historical snapshots and metric reconciliation. Safe issues offer a one-click repair with guided confirmation — substantive QA judgments always stay manual.">
+         <PageHeader title="Data Integrity" subtitle="Checks links between records, saved history, and dashboard totals. Safe repairs require confirmation; evaluation decisions always remain manual.">
           <div className="flex flex-wrap gap-2">
             <Button onClick={runIntegrityChecks} disabled={running} data-testid="run-integrity-btn" className="bg-[var(--navy)] hover:bg-[#232f73]">
               {running ? <Loader2 size={14} className="mr-1 animate-spin" /> : <ShieldCheck size={14} className="mr-1" />}

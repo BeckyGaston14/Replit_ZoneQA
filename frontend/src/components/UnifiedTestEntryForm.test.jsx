@@ -106,7 +106,7 @@ test("Bassett and comparison modes share the core section order while benchmarks
   const comparison = renderForm("comparison");
   const commonSections = [
     "1. Test Setup", "2. Linked Records & Prompt", "3. Bassett Test Result",
-    "4. Canonical Evaluation", "5. Findings & Ownership",
+    "4. Rubric Evaluation", "5. Findings & Ownership",
     "6. Sources, Documents & Notes",
   ];
   for (const section of commonSections) {
@@ -474,9 +474,31 @@ test("compact validation notice replaces the duplicated review summary while pre
   const view = renderForm("bassett", { question_asked: "Keep this question" });
   expect(view.container.querySelector('[data-testid="workflow-review-summary"]')).toBeNull();
   expect(view.container.textContent).toContain("Complete the remaining required fields before saving");
+  act(() => view.container.querySelector('[data-testid="submit"]').click());
+  expect(view.container.querySelector('[role="alert"]').textContent).toContain("This test cannot be saved yet");
+  expect(view.container.querySelector('[role="alert"]').textContent).toContain("exact Bassett answer");
   act(() => jest.advanceTimersByTime(500));
   expect(JSON.parse(localStorage.getItem("zoneqa:bassett-workflow-draft")).question_asked).toBe("Keep this question");
   jest.useRealTimers();
+  act(() => view.root.unmount());
+});
+
+test("final section shows a compact review of the essential test details", () => {
+  const view = renderForm("bassett", {
+    scenario_id: "scenario-1",
+    bassett_version: "Bassett v9.26",
+    result: "Pass",
+    project_id: "project-1",
+  }, { projects: [{ id: "project-1", name: "Use Testing" }] });
+  for (let index = 0; index < 5; index += 1) {
+    act(() => [...view.container.querySelectorAll("button")].find((button) => button.textContent === "Next").click());
+  }
+  const summary = view.container.querySelector('[data-testid="test-run-review-summary"]');
+  expect(summary).not.toBeNull();
+  expect(summary.textContent).toContain("Review before saving");
+  expect(summary.textContent).toContain("Bassett v9.26");
+  expect(summary.textContent).toContain("Use Testing");
+  expect(summary.textContent).toContain("No finding");
   act(() => view.root.unmount());
 });
 

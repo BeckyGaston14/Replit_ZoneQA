@@ -118,7 +118,7 @@ export default function BassettTestBank() {
     const errors = {
       ...validateScenarioDraft(form),
       ...(rubricCatalog && !String(form.scoring_category || "").trim()
-        ? { scoring_category: "Primary Scoring Category is required." } : {}),
+        ? { scoring_category: "Primary Rubric Category is required." } : {}),
     };
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
@@ -360,7 +360,7 @@ export default function BassettTestBank() {
         <legend className="px-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">Required scenario definition</legend>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
        <Field label="Workflow stage" required error={formErrors.workflow_stage}><select required data-testid="field-workflow_stage" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.workflow_stage} onChange={(e) => setScenarioField("workflow_stage", e.target.value)}><option value="">Select workflow stage</option>{stages.map((x) => <option key={x}>{x}</option>)}</select></Field>
-       <Field label="Primary Scoring Category" required><select required data-testid="field-scoring_category" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.scoring_category || ""} onChange={(e) => setScenarioField("scoring_category", e.target.value)}><option value="">Select scoring category</option>{(rubricCatalog?.categories || []).map((category) => <option key={category.key} value={category.key}>{category.name}</option>)}</select><p className="mt-1 text-xs text-muted-foreground">Distinct from workflow stage and Test Type.</p></Field>
+       <Field label="Primary Rubric Category" required><select required data-testid="field-scoring_category" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.scoring_category || ""} onChange={(e) => setScenarioField("scoring_category", e.target.value)}><option value="">Select rubric category</option>{(rubricCatalog?.categories || []).map((category) => <option key={category.key} value={category.key}>{category.name}</option>)}</select><p className="mt-1 text-xs text-muted-foreground">Used to group rubric results in dashboards and reports; separate from the Test Bank Category and Test Type.</p></Field>
        <Field label="Test Type" required><select required data-testid="field-test_type" className="h-9 w-full rounded-md border bg-background px-3 py-2 text-sm" value={form.test_type || "Analysis"} onChange={(e) => setScenarioField("test_type", e.target.value)}><option>Analysis</option><option>Document Handling</option><option>General Research</option></select></Field>
           <Field label="Complexity" required error={formErrors.complexity}><select data-testid="field-complexity" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.complexity} onChange={(e) => setScenarioField("complexity", e.target.value)}>{["Low", "Moderate", "Medium", "High", "Very High"].map((x) => <option key={x}>{x}</option>)}</select></Field>
           <div className="sm:col-span-2"><Field label="Test Scenario" required error={formErrors.test_scenario}><Textarea data-testid="field-test_scenario" rows={3} value={form.test_scenario} onChange={(e) => setScenarioField("test_scenario", e.target.value)} /></Field></div>

@@ -697,7 +697,7 @@ function CompleteRetestModal({ rt, setRt, onDone, applicationTimeZone }) {
         <Field label="New Score (0-10)"><ScoreSelect value={f.new_score} onChange={(value) => set("new_score", value ?? "")} testId="retest-score" ariaLabel="New retest score" /></Field>
         <Field label="New Result"><ListSelect options={["Pass", "Pass with Minor Issues", "Needs Improvement", "Fail", "Critical Fail"]} value={f.new_result} onChange={(v) => set("new_result", v)} /></Field>
       </div>
-      <Field label="Notes / Reproduction Steps"><Textarea rows={2} value={f.notes} onChange={(e) => set("notes", e.target.value)} /></Field>
+      <Field label="Notes"><Textarea rows={2} value={f.notes} onChange={(e) => set("notes", e.target.value)} /></Field>
     </FormModal>
   );
 }
