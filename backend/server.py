@@ -3270,6 +3270,11 @@ async def permanently_delete_resource(resource: str, id: str, body: Dict[str, An
 def register_crud(name, coll):
     @api.get(f"/{name}")
     async def _list(include_archived: bool = False, user=Depends(get_current_user)):
+        # Core comparison models are system dependencies. Recover a completely
+        # empty table (for example after an environment migration) without
+        # overwriting administrator edits or repopulating individual deletions.
+        if coll == "models" and not await db.models.count_documents({}):
+            await _ensure_default_models()
         return await crud_list(coll, include_archived=include_archived)
 
     @api.get(f"/{name}/{{id}}")

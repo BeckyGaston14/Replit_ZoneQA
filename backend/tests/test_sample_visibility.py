@@ -126,6 +126,15 @@ def test_startup_model_defaults_preserve_admin_models_and_repair_legacy_sample_f
     assert "sample_data" not in by_name["Bassett"]
 
 
+def test_default_model_recovery_populates_a_completely_empty_table(monkeypatch):
+    rows = {"models": []}
+    monkeypatch.setattr(server, "db", Db(rows))
+
+    asyncio.run(server._ensure_default_models())
+
+    assert {record["name"] for record in rows["models"]} == {"Bassett", "ChatGPT", "Claude"}
+
+
 def test_sample_visibility_preference_is_isolated_per_user(monkeypatch):
     db = Db({"saved_views": []})
     monkeypatch.setattr(server, "db", db)
