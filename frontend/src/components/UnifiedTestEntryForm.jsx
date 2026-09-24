@@ -61,7 +61,8 @@ export const emptyBassettTestRun = {
   evaluation_scores: {}, selected_rubric_ids: [], rubric_revision: null,
   rubric_selection_initialized: false, rubric_scenario_ids: [], confirm_rubric_removal: false,
   create_finding: false, finding: {}, follow_up_action: "",
-  retest_target: "", retest_date: "", source_links: "", conversation_attachment: null, attachments: [],
+  retest_target: "", retest_date: "", source_links: "", evidence_ids: [], create_evidence_from_uploads: false,
+  conversation_attachment: null, attachments: [],
 };
 
 export function createBassettTestRunDraft(overrides = {}, timeZone, now = new Date()) {
@@ -568,7 +569,7 @@ function TurnBuilder({ turns = [], scenarios = [], uploadedConversation = false,
 
 export default function UnifiedTestEntryForm({
   mode = "bassett", form, setForm, scenarios: suppliedScenarios = [], versions = [], projects = [],
-  municipalities = [], properties = [], users = [], generalSubtypes = [], rubricCatalog = null, config = {}, onSubmit, onCancel,
+  municipalities = [], properties = [], users = [], evidenceRecords = [], generalSubtypes = [], rubricCatalog = null, config = {}, onSubmit, onCancel,
   onSaveDraft, submitting = false, conflictNotice = null, lockedCommon = false,
 }) {
   const isComparison = mode === "comparison";
@@ -628,6 +629,11 @@ export default function UnifiedTestEntryForm({
      return { ...dimension, question: dimension.question || fallback?.[3] || `Was ${dimension.label || dimension.key} handled well?` };
    });
   const filteredProperties = useMemo(() => properties.filter((item) => !form.municipality_id || !item.municipality_id || item.municipality_id === form.municipality_id), [properties, form.municipality_id]);
+  const visibleEvidenceRecords = useMemo(() => evidenceRecords.filter((item) => {
+    const selected = (form.evidence_ids || []).includes(item.id);
+    const active = !item.archived && !item.archived_at;
+    return (active || selected) && (!form.municipality_id || item.municipality_id === form.municipality_id || selected);
+  }), [evidenceRecords, form.evidence_ids, form.municipality_id]);
   const selectedVersionId = form.version_id || versions.find((version) => version.name === form.bassett_version)?.id || "";
   const savedVersionUnavailable = Boolean(form.version_id && !versions.some((version) => version.id === form.version_id));
   const versionError = bassettVersionRequirementMessage(form);
@@ -750,7 +756,7 @@ export default function UnifiedTestEntryForm({
     if (!isComparison && index === 2 && (form.test_type === "Multi-turn" || form.conversation_source === "uploaded_conversation")) return false;
     if (index === 3) return Object.values(evaluationFor("Bassett").scores || {}).some((value) => value !== null && value !== "");
     if (index === 4) return Boolean(form.create_finding || form.assignee_id);
-    if (index === 5) return Boolean(form.source_links || form.evidence || form.notes || form.attachments?.length);
+    if (index === 5) return Boolean(form.source_links || form.evidence || form.notes || form.attachments?.length || form.evidence_ids?.length);
     if (index === 6) return Boolean(form.follow_up_action || form.retest_target || form.retest_date || form.regression_run_id);
     if (index === 7) return Boolean(responseFor("ChatGPT").response);
     if (index === 8) return Boolean(responseFor("Claude").response);
@@ -780,7 +786,16 @@ export default function UnifiedTestEntryForm({
     onSubmit();
   };
   const ownerOptions = users.filter((item) => item.active !== false && !item.deleted_at);
-  const setMunicipality = (value) => setForm((current) => ({ ...current, municipality_id: value, property_id: "" }));
+  const setMunicipality = (value) => {
+    const matchingEvidenceIds = new Set(evidenceRecords.filter((item) => item.municipality_id === value).map((item) => item.id));
+    setForm((current) => ({
+      ...current,
+      municipality_id: value,
+      property_id: "",
+      evidence_ids: (current.evidence_ids || []).filter((id) => matchingEvidenceIds.has(id)),
+      create_evidence_from_uploads: value ? current.create_evidence_from_uploads : false,
+    }));
+  };
   const finding = form.finding || {};
   const comparison = form.comparison || {};
   const showFollowUp = isComparison || form.create_finding || ["Needs Improvement", "Fail", "Critical Fail"].includes(normalizeEvaluationResult(form.result)) || Boolean(form.follow_up_action || form.retest_target || form.retest_date);
@@ -847,8 +862,17 @@ export default function UnifiedTestEntryForm({
 
     <GuidedSection index={5} title="6. Sources, Documents & Notes" active={activeSection === 5} status={sectionStatus(5)} onActivate={activateSection}><div className="space-y-4">
        <Field label="Evidence / Source Links"><Textarea rows={3} value={form.source_links || form.evidence || ""} onChange={(e) => update(isComparison ? "source_links" : "evidence", e.target.value)} placeholder="Citations, URLs, source context…" /></Field>
+       {!isComparison && <Field label="Linked Ordinance Evidence" description="Reuse authoritative ordinance records without uploading another copy. Selecting a municipality narrows this list.">
+         <div className="max-h-56 space-y-2 overflow-y-auto rounded-lg border p-3">
+           {visibleEvidenceRecords.length ? visibleEvidenceRecords.map((record) => {
+             const checked = (form.evidence_ids || []).includes(record.id);
+             return <label key={record.id} className="flex items-start gap-2 rounded-md p-2 hover:bg-muted"><Checkbox checked={checked} onCheckedChange={(value) => update("evidence_ids", value === true ? [...new Set([...(form.evidence_ids || []), record.id])] : (form.evidence_ids || []).filter((id) => id !== record.id))} /><span><span className="block font-medium text-[var(--navy)]">{record.document_name || record.id}</span><span className="block text-xs text-muted-foreground">{record.section || record.doc_type || "Ordinance Evidence"}{record.verification_status ? ` · ${record.verification_status}` : ""}</span></span></label>;
+           }) : <p className="text-sm text-muted-foreground">{form.municipality_id ? "No Ordinance Evidence records are available for this municipality." : "Select a municipality to see matching Ordinance Evidence records."}</p>}
+         </div>
+       </Field>}
        <Field label="Evidence & Notes" description="Add supporting facts, citations, limitations, reproduction details, or other context not already captured above."><Textarea rows={4} value={form.notes || form.reproduction_steps || ""} onChange={(e) => setForm((current) => ({ ...current, notes: e.target.value, reproduction_steps: e.target.value }))} /></Field>
        <Field label="Supporting Source Documents / Images" description={form.attachments?.length ? `${form.attachments.length} supporting file(s) selected` : "Attach ordinances, screenshots, emails, spreadsheets, PDFs, or other source evidence. These are separate from an uploaded Bassett conversation."}><Input type="file" multiple accept=".pdf,.doc,.docx,.odt,.xls,.xlsx,.ods,.ppt,.pptx,.txt,.csv,.tsv,.md,.rtf,.html,.htm,.xml,.json,.eml,.msg,.png,.jpg,.jpeg,.gif,.webp,.tif,.tiff,.bmp" onChange={(e) => update("attachments", Array.from(e.target.files || []))} /></Field>
+       {!isComparison && <label className="flex items-start gap-2 rounded-lg border bg-[var(--paper)] p-3 text-sm"><Checkbox checked={Boolean(form.create_evidence_from_uploads)} disabled={!form.municipality_id} onCheckedChange={(checked) => update("create_evidence_from_uploads", checked === true)} /><span><span className="block font-semibold text-[var(--navy)]">Create Ordinance Evidence records from these supporting files</span><span className="mt-1 block text-xs text-muted-foreground">Each file becomes one reusable Ordinance Evidence record and is linked to this test run. The file will not also be stored as a duplicate test-run attachment.{!form.municipality_id ? " Select a municipality first." : ""}</span></span></label>}
     </div></GuidedSection>
 
     {showFollowUp && <GuidedSection index={6} title="7. Follow-Up & Retesting" active={activeSection === 6} status={sectionStatus(6)} onActivate={activateSection}><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

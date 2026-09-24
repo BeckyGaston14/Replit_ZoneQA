@@ -2224,11 +2224,6 @@ async def crud_create(coll, body, user):
             raise HTTPException(400, "Version name and release number are required")
         doc["name"] = str(doc["name"]).strip()
         doc["release_number"] = str(doc["release_number"]).strip()
-        cfg = await db.config.find_one({"id": "global"}, {"_id": 0}) or DEFAULT_CONFIG
-        if doc.get("version_type") and doc["version_type"] not in cfg.get("version_types", []):
-            raise HTTPException(400, "Invalid Bassett version type")
-        if doc.get("release_channel") and doc["release_channel"] not in cfg.get("release_channels", []):
-            raise HTTPException(400, "Invalid release channel")
         duplicate = await db.versions.find_one({"$or": [{"name": doc.get("name")}, {"release_number": doc.get("release_number")}]})
         if duplicate:
             raise HTTPException(409, "A Bassett version with this name or release number already exists")
@@ -2277,11 +2272,6 @@ async def crud_update(coll, id, body, user):
     if coll == "versions" and user.get("role") not in ("admin", "qa_manager"):
         raise HTTPException(403, "Only administrators and QA managers can manage Bassett versions")
     if coll == "versions":
-        cfg = await db.config.find_one({"id": "global"}, {"_id": 0}) or DEFAULT_CONFIG
-        if body.get("version_type") and body["version_type"] not in cfg.get("version_types", []):
-            raise HTTPException(400, "Invalid Bassett version type")
-        if body.get("release_channel") and body["release_channel"] not in cfg.get("release_channels", []):
-            raise HTTPException(400, "Invalid release channel")
         duplicate_filters = []
         if body.get("name"):
             duplicate_filters.append({"name": body["name"]})
@@ -3353,7 +3343,7 @@ BASSETT_ISSUE_FIELDS = {
     "triaged_by", "triaged_by_name", "triaged_at",
     "scenario_id", "workflow_stage", "version_id", "bassett_version", "retest_id",
     "regression_run_id", "municipality_id", "property_id", "notes",
-    "resolution", "repro_steps", "evidence",
+    "resolution", "repro_steps", "evidence", "evidence_ids",
     "result", "verdict", "score", "evaluation_scores", "overall_score",
     "weighted_score", "system_recommended", "score_mode", "score_label",
     "weight_explanation", "follow_up_action", "retest_target", "retest_date",
@@ -3864,6 +3854,14 @@ async def _validate_bassett_refs(doc, require_scenario=False):
         raise HTTPException(400, "finding_ids must be a list")
     for finding_id in finding_ids:
         await _bassett_ref("findings", finding_id, "Finding")
+    evidence_ids = doc.get("evidence_ids") or []
+    if not isinstance(evidence_ids, list):
+        raise HTTPException(400, "evidence_ids must be a list")
+    doc["evidence_ids"] = list(dict.fromkeys(str(evidence_id) for evidence_id in evidence_ids if evidence_id))
+    for evidence_id in doc["evidence_ids"]:
+        evidence_record = await _bassett_ref("evidence", evidence_id, "Ordinance Evidence")
+        if doc.get("municipality_id") and evidence_record.get("municipality_id") != doc.get("municipality_id"):
+            raise HTTPException(400, "Ordinance Evidence must belong to the selected municipality")
     await _bassett_ref("retests", doc.get("retest_id"), "Retest")
     await _bassett_ref("regression_runs", doc.get("regression_run_id"), "Regression run")
     if doc.get("assignee_id"):
@@ -4052,6 +4050,10 @@ async def bassett_get_issue(id: str, user=Depends(get_current_user)):
             (finding for finding in issue["findings"] if finding["id"] == issue.get("finding_id")),
             issue["findings"][0] if issue["findings"] else None,
         )
+    if issue.get("evidence_ids"):
+        issue["evidence_records"] = await db.evidence.find(
+            {"id": {"$in": issue["evidence_ids"]}}, {"_id": 0}
+        ).to_list(5000)
     if issue.get("testcase_id"):
         testcase = await db.testcases.find_one({"id": issue["testcase_id"]}, {"_id": 0})
         if testcase:
@@ -4110,6 +4112,7 @@ async def bassett_expand_issue(id: str, user=Depends(get_current_user)):
         "source_bassett_issue_id": id, "source_issue_id": id,
         "comparison_mode": True, "revision": 1,
         "general_subtype_ids": list(issue.get("general_subtype_ids") or []),
+        "evidence_ids": list(issue.get("evidence_ids") or []),
         "source_definition_snapshot": dict(snapshot),
         "rubric_revision": issue.get("rubric_revision") or snapshot.get("catalog_revision"),
         "selected_rubric_ids": list(issue.get("selected_rubric_ids") or snapshot.get("rubric_ids") or []),
@@ -4157,7 +4160,7 @@ async def bassett_expand_issue(id: str, user=Depends(get_current_user)):
                 "weight_explanation", "follow_up_action", "retest_target", "retest_date",
                 "retest_id", "regression_run_id", "evidence", "notes", "repro_steps",
                 "source_links", "history_context", "finding_id", "finding_turn_id",
-                "creation_key", "test_type", "turns", "general_subtype_ids",
+                "creation_key", "test_type", "turns", "general_subtype_ids", "evidence_ids",
             ) if issue.get(key) is not None
         },
         "created_at": stamp, "updated_at": stamp, "created_by": user.get("name"),
@@ -8406,10 +8409,12 @@ async def analytics_executive(
     open_critical = len([f for f in open_findings if _finding_is_high_or_critical(f)])
     open_finding_severity = _finding_severity_counts(open_findings)
 
-    # top failure modes across findings
+    # Finding categories are the current classification. Legacy failure modes
+    # remain a read-only fallback so historical findings still appear in reports.
     fm_counts = {}
     for f in findings:
-        for fm in (f.get("failure_modes") or []):
+        categories_for_finding = [f.get("finding_type")] if f.get("finding_type") else (f.get("failure_modes") or [])
+        for fm in categories_for_finding:
             fm_counts[fm] = fm_counts.get(fm, 0) + 1
     failure_modes = sorted([{"mode": k, "count": v} for k, v in fm_counts.items()],
                            key=lambda x: -x["count"])[:8]
@@ -10040,7 +10045,6 @@ async def _run_data_integrity(user):
     evidence = await crud_list("evidence")
     runs = await crud_list("regression_runs")
     decisions = await db.release_decisions.find({}, {"_id": 0}).to_list(100)
-    versions = await crud_list("versions")
     scenarios = await crud_list("bassett_scenarios", include_archived=True)
 
     # Semantic duplicate detection deliberately runs over active records and
@@ -10126,16 +10130,6 @@ async def _run_data_integrity(user):
             add("evidence", evidence_record["id"], evidence_record.get("document_name", "?"),
                 "Ordinance evidence has no Issuing Authority", "low",
                 "Identify the government department or other authority that issued the source", "/evidence")
-
-    for version in versions:
-        missing_metadata = [
-            label for field, label in (("version_type", "Version Type"), ("release_channel", "Release Channel"))
-            if not (version.get(field) or "").strip()
-        ]
-        if missing_metadata:
-            add("version", version["id"], version.get("name", "?"),
-                f"Bassett version is missing: {', '.join(missing_metadata)}", "low",
-                "Edit the version and select the missing administrative values", "/admin")
 
     for scenario in scenarios:
         if scenario.get("archived") or scenario.get("archived_at"):
@@ -10778,8 +10772,6 @@ DEFAULT_CONFIG = {
     "roles": ["admin", "qa_manager", "tester", "developer", "viewer"],
     "environments": ["Production", "Staging", "Development", "Experimental"],
     "municipality_types": ["City", "County", "Town", "Village", "Township", "Borough", "Parish", "Unincorporated"],
-    "version_types": ["Major", "Minor", "Patch", "Hotfix", "Experimental"],
-    "release_channels": ["Production", "Staging", "Development", "Experimental"],
     "demo_statuses": ["Not Reviewed", "Potential Demo", "Needs Cleanup", "Approved", "Retired"],
     "bassett_workflow_stages": [
         {"name": "Research", "code": "R", "position": 1},
@@ -10886,12 +10878,8 @@ async def startup():
             patch["integrations"] = DEFAULT_CONFIG["integrations"]
         if "annotation_types" not in cfg:
             patch["annotation_types"] = DEFAULT_CONFIG["annotation_types"]
-        if "version_types" not in cfg:
-            patch["version_types"] = DEFAULT_CONFIG["version_types"]
         if "municipality_types" not in cfg:
             patch["municipality_types"] = DEFAULT_CONFIG["municipality_types"]
-        if "release_channels" not in cfg:
-            patch["release_channels"] = DEFAULT_CONFIG["release_channels"]
         if "bassett_workflow_statuses" not in cfg:
             patch["bassett_workflow_statuses"] = DEFAULT_CONFIG["bassett_workflow_statuses"]
         if "bassett_workflow_stages" not in cfg:

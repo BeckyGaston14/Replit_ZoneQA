@@ -362,11 +362,11 @@ export function renderExecutivePdf({ doc, data, chartImages = {}, generated = ne
       legend: includesComparison,
     },
     {
-      name: "Top Failure Modes",
-      title: "Top Failure Modes (all findings)",
-      note: "Each count is the number of findings tagged with that failure mode.",
+      name: "Top Finding Categories",
+      title: "Top Finding Categories (all findings)",
+      note: "Each count is the number of findings assigned to that category.",
       image: chartImages.failureModes,
-      table: { headers: ["Failure mode", "Count"], widths: [145, 37], rows: failureModes.map((item) => [item.mode, item.count]) },
+      table: { headers: ["Finding category", "Count"], widths: [145, 37], rows: failureModes.map((item) => [item.mode, item.count]) },
     },
     {
        // Keep the internal box name stable for layout/audit consumers; the

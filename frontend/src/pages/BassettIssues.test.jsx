@@ -214,6 +214,38 @@ test("editing preserves concurrency fields and does not upload existing attachme
   expect(existingApi.post).not.toHaveBeenCalled();
 });
 
+test("supporting uploads can become linked Ordinance Evidence without duplicate test-run attachments", async () => {
+  const file = new File(["ordinance"], "zoning-code.pdf", { type: "application/pdf" });
+  const apiClient = {
+    post: jest.fn((url) => {
+      if (url === "/bassett/issues/workflow-json") return Promise.resolve({ data: { issue: { id: "run-4", revision: 1, updated_at: "2026-09-24T12:00:00Z" } } });
+      if (url === "/evidence") return Promise.resolve({ data: { id: "evidence-4" } });
+      return Promise.resolve({ data: {} });
+    }),
+    put: jest.fn(() => Promise.resolve({ data: {} })),
+  };
+
+  const result = await persistBassettTestRun({
+    title: "Ordinance test",
+    scenario_id: "scenario-1",
+    municipality_id: "municipality-1",
+    evidence_ids: ["existing-evidence"],
+    attachments: [file],
+    create_evidence_from_uploads: true,
+  }, apiClient);
+
+  expect(result).toEqual(expect.objectContaining({ issueId: "run-4", uploadFailures: 0, evidenceFailures: 0 }));
+  expect(apiClient.post).toHaveBeenCalledWith("/evidence", expect.objectContaining({
+    document_name: "zoning-code.pdf", municipality_id: "municipality-1", verification_status: "Unverified",
+  }));
+  const uploads = apiClient.post.mock.calls.filter(([url]) => url === "/attachments/upload");
+  expect(uploads).toHaveLength(1);
+  expect(uploads[0][1].get("entity_type")).toBe("evidence");
+  expect(apiClient.put).toHaveBeenCalledWith("/bassett/issues/run-4", expect.objectContaining({
+    evidence_ids: ["existing-evidence", "evidence-4"],
+  }));
+});
+
 test("scenario selector searches and displays the full scenario identity", () => {
   const container = document.createElement("div");
   const root = createRoot(container);

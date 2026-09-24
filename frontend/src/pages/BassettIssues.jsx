@@ -37,18 +37,21 @@ const DEFAULT_RUN_SORT = { key: "test_date", direction: "desc" };
 
 export async function persistBassettTestRun(form, apiClient = api) {
   const conversationFile = form.conversation_attachment;
-  const files = [
-    ...(conversationFile && (typeof File === "undefined" || conversationFile instanceof File) ? [conversationFile] : []),
-    ...(form.attachments || []).filter((file) => typeof File === "undefined" || file instanceof File),
-  ];
+  const conversationFiles = conversationFile && (typeof File === "undefined" || conversationFile instanceof File) ? [conversationFile] : [];
+  const supportingFiles = (form.attachments || []).filter((file) => typeof File === "undefined" || file instanceof File);
+  const convertSupportingFiles = Boolean(form.create_evidence_from_uploads && supportingFiles.length);
+  const files = [...conversationFiles, ...(convertSupportingFiles ? [] : supportingFiles)];
   let issueId = form.id;
   let createdData = null;
+  let savedIssue = null;
   if (form.id) {
     const body = { ...form };
     delete body.attachments;
     delete body.conversation_attachment;
+    delete body.create_evidence_from_uploads;
     body.pending_attachment_count = files.length;
-    await apiClient.put(`/bassett/issues/${form.id}`, withExpectedVersion(form, body));
+    const { data } = await apiClient.put(`/bassett/issues/${form.id}`, withExpectedVersion(form, body));
+    savedIssue = data;
     if (form.create_finding && !form.finding_id) {
       await apiClient.post(`/bassett/issues/${form.id}/convert-to-finding`, {
         title: form.finding?.title,
@@ -61,6 +64,7 @@ export async function persistBassettTestRun(form, apiClient = api) {
     const body = { ...form };
     delete body.attachments;
     delete body.conversation_attachment;
+    delete body.create_evidence_from_uploads;
     // Persist the record before uploading binary files. A rejected multipart
     // request must never discard an otherwise complete test run.
     body.pending_attachment_count = files.length;
@@ -68,8 +72,10 @@ export async function persistBassettTestRun(form, apiClient = api) {
     const { data } = await apiClient.post("/bassett/issues/workflow-json", body);
     createdData = data;
     issueId = data.issue?.id || data.id;
+    savedIssue = data.issue || data;
   }
   let uploadFailures = 0;
+  let evidenceFailures = 0;
   for (const file of files) {
     const upload = new FormData();
     upload.append("entity_type", "bassett_issue");
@@ -81,7 +87,39 @@ export async function persistBassettTestRun(form, apiClient = api) {
       uploadFailures += 1;
     }
   }
-  return { issueId, uploadFailures, createdData };
+  const createdEvidenceIds = [];
+  if (convertSupportingFiles) {
+    for (const file of supportingFiles) {
+      try {
+        const { data: evidenceRecord } = await apiClient.post("/evidence", {
+          document_name: file.name,
+          municipality_id: form.municipality_id,
+          doc_type: "Other",
+          verification_status: "Unverified",
+          notes: `Created from Bassett Test Run ${form.title || form.test_id || issueId}.`,
+        });
+        const upload = new FormData();
+        upload.append("entity_type", "evidence");
+        upload.append("entity_id", evidenceRecord.id);
+        upload.append("file", file);
+        await apiClient.post("/attachments/upload", upload, { timeout: 15000 });
+        createdEvidenceIds.push(evidenceRecord.id);
+      } catch {
+        evidenceFailures += 1;
+        const fallback = new FormData();
+        fallback.append("entity_type", "bassett_issue");
+        fallback.append("entity_id", issueId);
+        fallback.append("file", file);
+        try { await apiClient.post("/attachments/upload", fallback, { timeout: 15000 }); }
+        catch { uploadFailures += 1; }
+      }
+    }
+  }
+  if (createdEvidenceIds.length) {
+    const evidenceIds = [...new Set([...(form.evidence_ids || []), ...createdEvidenceIds])];
+    await apiClient.put(`/bassett/issues/${issueId}`, withExpectedVersion(savedIssue || form, { evidence_ids: evidenceIds }));
+  }
+  return { issueId, uploadFailures, evidenceFailures, createdData };
 }
 
 function Pill({ children, tone = "slate" }) {
@@ -172,6 +210,7 @@ export default function BassettIssues() {
   const { data: properties = [] } = useQuery({ queryKey: ["properties"], queryFn: async () => (await api.get("/properties")).data, enabled: Boolean(form) });
   const { data: users = [] } = useQuery({ queryKey: ["users"], queryFn: async () => (await api.get("/users")).data, enabled: Boolean(form) });
   const { data: versions = [] } = useQuery({ queryKey: ["versions"], queryFn: async () => (await api.get("/versions")).data, enabled: Boolean(form) });
+  const { data: evidenceRecords = [] } = useQuery({ queryKey: ["evidence"], queryFn: async () => (await api.get("/evidence")).data, enabled: Boolean(form) });
   const { data: config } = useQuery({ queryKey: ["config"], queryFn: async () => (await api.get("/config")).data });
   const testStatuses = config?.bassett_workflow_statuses || defaultTestStatuses;
   useEffect(() => {
@@ -224,7 +263,7 @@ export default function BassettIssues() {
     if (showingFindings && filters.dateFrom && (!issue.test_date || issue.test_date < filters.dateFrom)) return false;
     if (showingFindings && filters.dateTo && (!issue.test_date || issue.test_date > filters.dateTo)) return false;
     const query = filters.search.trim().toLowerCase();
-    return !query || [issue.title, issue.description, issue.question_asked, issue.exact_bassett_answer, issue.issue_category, issue.finding_type, issue.root_cause, issue.version_found, issue.assignee_name, issue.scenario_id]
+    return !query || [issue.title, issue.description, issue.question_asked, issue.exact_bassett_answer, issue.issue_category, issue.finding_type, issue.version_found, issue.assignee_name, issue.scenario_id]
       .some((value) => String(value || "").toLowerCase().includes(query));
   }), runColumns, sort, [{ key: "test_date", direction: "desc" }, "title"]), [issues, filters, runColumns, sort, scenarioMap, showArchived, showingFindings]);
   const defaultSort = showingFindings ? { key: "severity", direction: "asc" } : DEFAULT_RUN_SORT;
@@ -242,13 +281,17 @@ export default function BassettIssues() {
     if (saving) return;
     setSaving(true);
     try {
-      const { issueId, uploadFailures } = await persistBassettTestRun(form);
+      const { issueId, uploadFailures, evidenceFailures } = await persistBassettTestRun(form);
       if (!form.id) {
         setSelected(issueId);
         localStorage.removeItem("zoneqa:bassett-workflow-draft");
       }
-      if (uploadFailures) {
-        toast.warning(`Test run saved, but ${uploadFailures} attachment${uploadFailures === 1 ? "" : "s"} could not be uploaded. Open the saved run to retry.`);
+      if (uploadFailures || evidenceFailures) {
+        const warnings = [
+          uploadFailures ? `${uploadFailures} attachment${uploadFailures === 1 ? "" : "s"} could not be uploaded` : "",
+          evidenceFailures ? `${evidenceFailures} file${evidenceFailures === 1 ? "" : "s"} could not be converted to Ordinance Evidence and remained with the test run` : "",
+        ].filter(Boolean).join("; ");
+        toast.warning(`Test run saved, but ${warnings}.`);
       } else {
         toast.success(form.id ? "Test run updated" : "Test run recorded");
       }
@@ -384,7 +427,7 @@ export default function BassettIssues() {
           className={`w-full text-left bg-card border rounded-xl p-4 card-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)] focus-visible:ring-offset-2 ${selected === finding.id ? "border-[var(--orange)] border-2" : ""}`}>
           <div className="flex flex-wrap items-center gap-2 mb-1"><Pill tone={severityLabel(finding.severity) === "Critical" ? "red" : severityLabel(finding.severity) === "High" ? "orange" : "slate"}>{severityLabel(finding.severity) || "Not rated"}</Pill><StatusBadge value={finding.developer_status || "New"} definitions={FINDING_STATUSES} /><span className="text-xs text-muted-foreground">{finding.finding_type || "Other"}</span></div>
           <div className="font-semibold text-[var(--navy)]">{finding.title || "Untitled finding"}</div>
-          <div className="text-xs text-muted-foreground mt-1">Root cause: {finding.root_cause || "—"} · Found {finding.version_found || "version not specified"}{finding.assignee_name ? ` · @${finding.assignee_name}` : ""}</div>
+          <div className="text-xs text-muted-foreground mt-1">Found {finding.version_found || "version not specified"}{finding.assignee_name ? ` · @${finding.assignee_name}` : ""}</div>
         </button>)}
         {!isLoading && !shown.length && <div className="border rounded-xl p-8 text-center text-sm text-muted-foreground">No Bassett findings match these filters.</div>}
       </div> : <>
@@ -419,7 +462,7 @@ export default function BassettIssues() {
      </MethodologyDisclosure>
 
      {selected && !showingFindings && <IssueDetail id={selected} onClose={() => setSelected(null)} onEdit={openEdit} onRestore={restore} canWrite={canWrite} canManage={canManage} refresh={() => qc.invalidateQueries()} />}
-    {form && <BassettTestRunForm form={form} setForm={setForm} scenarios={scenarios} rubricCatalog={rubricCatalog} generalSubtypes={generalSubtypes} versions={versions} projects={projects} municipalities={municipalities} properties={properties} users={users} config={config} onSubmit={save} onCancel={() => { setConflict(null); setForm(null); }} submitting={saving} conflictNotice={conflict && <div role="alert" className="col-span-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+    {form && <BassettTestRunForm form={form} setForm={setForm} scenarios={scenarios} rubricCatalog={rubricCatalog} generalSubtypes={generalSubtypes} versions={versions} projects={projects} municipalities={municipalities} properties={properties} users={users} evidenceRecords={evidenceRecords} config={config} onSubmit={save} onCancel={() => { setConflict(null); setForm(null); }} submitting={saving} conflictNotice={conflict && <div role="alert" className="col-span-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
       <p className="font-semibold">Someone else saved this test run first. Your entries are still open for review.</p>
       <div className="mt-2 flex gap-2">
         <Button type="button" size="sm" variant="outline" onClick={() => { setForm(conflict); setConflict(null); }}>Load latest values</Button>
@@ -633,7 +676,7 @@ function IssueDetail({ id, onClose, onEdit, onRestore, canWrite, canManage, refr
      <div className="flex items-start justify-between gap-4 mb-6"><div className="min-w-0"><div className="text-xs uppercase tracking-wide text-muted-foreground">Test Run Details</div><h2 id="bassett-issue-detail-title" className="text-xl font-bold font-display text-[var(--navy)] mt-1 break-words">{issue.title || issue.question_asked}</h2><div className="flex flex-wrap gap-3 mt-2 text-xs"><div><div className="font-semibold uppercase tracking-wide text-muted-foreground">Workflow Status</div><Pill>{issue.status}</Pill></div><div><div className="font-semibold uppercase tracking-wide text-muted-foreground">Test Result</div><Pill tone={canonicalResult === "Fail" || canonicalResult === "Critical Fail" ? "red" : "slate"}>{canonicalResult}</Pill></div><div><div className="font-semibold uppercase tracking-wide text-muted-foreground">Severity</div><Pill tone={severityLabel(issue.severity) === "Critical" ? "red" : severityLabel(issue.severity) === "High" ? "orange" : "slate"}>{severityLabel(issue.severity) || "Not rated"}</Pill></div></div></div><Button type="button" variant="ghost" className="shrink-0" onClick={onClose} aria-label="Close Test Run Details">Close</Button></div>
      <div className="space-y-5 text-sm"><Info label="Test type" value={issue.test_type || "Single Prompt"} /><Info label="Conversation record" value={issue.conversation_source === "uploaded_conversation" ? `Uploaded Bassett conversation · ${issue.transcript_status === "confirmed" ? "transcript confirmed" : "transcript review required before Model Comparison"}` : "Entered in ZoneQA"} />{issue.test_type === "Multi-turn" ? <div className="rounded-xl border p-4"><div className="font-semibold text-[var(--navy)] mb-3">Chronological conversation</div><div className="space-y-4">{(issue.turns || []).slice().sort((a, b) => Number(a.order || 0) - Number(b.order || 0)).map((turn, index) => <article key={turn.id} id={`bassett-turn-${turn.id}`} className={`rounded-lg border p-3 ${issue.finding_turn_id === turn.id ? "border-[var(--orange)] bg-orange-50/40" : ""}`}><div className="flex items-center justify-between gap-2"><h3 className="font-semibold text-[var(--navy)]">Turn {index + 1}</h3><span className="text-[11px] text-muted-foreground">ID: {turn.id}</span></div><Info label="Prompt / Question" value={turn.prompt} /><div className="mt-3"><Info label="Bassett Response" value={turn.response} /></div>{turn.citations?.length > 0 && <div className="mt-3"><Info label="Evidence / Source Links" value={turn.citations.join("\n")} /></div>}{turn.evaluator_notes && <div className="mt-3"><Info label="Notes / Reproduction Steps" value={turn.evaluator_notes} /></div>}{issue.finding_turn_id === turn.id && <div className="mt-2 text-xs font-semibold text-[var(--orange)]">Linked finding targets this turn</div>}</article>)}</div></div> : <><Info label="Prompt / Question" value={issue.question_asked || "Stored in the uploaded conversation"} /><Info label="Bassett Response" value={issue.exact_bassett_answer || "Stored in the uploaded conversation"} /></>}<Info label="Verified Answer / Gold Standard" value={issue.verified_correct_answer} /><Info label="Notes / Reproduction Steps" value={issue.resolution || issue.notes || "No resolution recorded yet."} />
        {issue.general_subtype_ids?.length > 0 && <div className="rounded-xl border p-4"><div className="font-semibold text-[var(--navy)] mb-3">General Test Subtype</div><div className="space-y-2">{generalSubtypes.filter((subtype) => issue.general_subtype_ids.includes(subtype.id)).map((subtype) => <div key={subtype.id} className="text-sm"><span className="font-semibold">{subtype.stable_id}</span> · {subtype.test_scenario}</div>)}</div></div>}
-       <div className="rounded-xl border p-4"><div className="font-semibold text-[var(--navy)] mb-3">Relationships</div><div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs"><Info label="Test Scenario" value={issue.scenario?.stable_id || "Not linked"} /><Info label={`Bassett Findings (${linkedFindings.length})`} value={linkedFindings.length ? <div className="space-y-1">{linkedFindings.map((finding) => <Link key={finding.id} to={`/bassett/findings?open=${encodeURIComponent(finding.id)}`} className="block font-semibold text-[var(--orange)] hover:underline">{finding.title || "Open Bassett Finding"}{finding.id === issue.finding_id ? " (Primary)" : ""}</Link>)}</div> : "Not linked"} /><Info label="Bassett version" value={issue.bassett_version || "Not specified"} /><Info label="Tested By" value={issue.reporter || "—"} /></div><div className="flex flex-wrap gap-2 mt-4">{canWrite && <Button size="sm" variant="outline" onClick={editFindingLinks}><ExternalLink size={14} /> Manage Linked Findings</Button>}{needsFollowUp && canWrite && !issue.finding_id && <Button size="sm" variant="outline" onClick={convert}><Flag size={14} /> Create Bassett Finding</Button>}{needsFollowUp && canWrite && issue.finding_id && <Button size="sm" variant="outline" onClick={sendForRetest}>Send for Retest</Button>}</div></div>
+        <div className="rounded-xl border p-4"><div className="font-semibold text-[var(--navy)] mb-3">Relationships</div><div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs"><Info label="Test Scenario" value={issue.scenario?.stable_id || "Not linked"} /><Info label={`Bassett Findings (${linkedFindings.length})`} value={linkedFindings.length ? <div className="space-y-1">{linkedFindings.map((finding) => <Link key={finding.id} to={`/bassett/findings?open=${encodeURIComponent(finding.id)}`} className="block font-semibold text-[var(--orange)] hover:underline">{finding.title || "Open Bassett Finding"}{finding.id === issue.finding_id ? " (Primary)" : ""}</Link>)}</div> : "Not linked"} /><Info label={`Ordinance Evidence (${issue.evidence_records?.length || 0})`} value={issue.evidence_records?.length ? <div className="space-y-1">{issue.evidence_records.map((record) => <Link key={record.id} to="/evidence" className="block font-semibold text-[var(--orange)] hover:underline">{record.document_name || record.id}{record.section ? ` · ${record.section}` : ""}</Link>)}</div> : "Not linked"} /><Info label="Bassett version" value={issue.bassett_version || "Not specified"} /><Info label="Tested By" value={issue.reporter || "—"} /></div><div className="flex flex-wrap gap-2 mt-4">{canWrite && <Button size="sm" variant="outline" onClick={editFindingLinks}><ExternalLink size={14} /> Manage Linked Findings</Button>}{needsFollowUp && canWrite && !issue.finding_id && <Button size="sm" variant="outline" onClick={convert}><Flag size={14} /> Create Bassett Finding</Button>}{needsFollowUp && canWrite && issue.finding_id && <Button size="sm" variant="outline" onClick={sendForRetest}>Send for Retest</Button>}</div></div>
       {issue.definition_snapshot || issue.scenario_snapshot ? <div className="rounded-xl border p-4"><div className="font-semibold text-[var(--navy)] mb-3">Scenario definition snapshot</div><ScenarioDefinition scenario={issue.definition_snapshot || issue.scenario_snapshot} /></div> : <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">Legacy execution—definition snapshot unavailable.</div>}
       <div className="rounded-xl border p-4"><div className="font-semibold text-[var(--navy)] mb-3">Model Comparison follow-up</div>{issue.testcase_id ? <Link to={`/testcases/${issue.testcase_id}`} className="inline-flex h-8 items-center justify-center rounded-md border border-input px-3 text-xs font-medium shadow-sm hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">Open Model Comparison Test Case</Link> : canWrite ? <><Button size="sm" onClick={expand}>{issue.conversation_source === "uploaded_conversation" && issue.transcript_status !== "confirmed" ? "Prepare Transcript for Model Comparison" : "Expand to Full Model Comparison"}</Button>{issue.conversation_source === "uploaded_conversation" && issue.transcript_status !== "confirmed" && <p className="mt-2 text-xs text-muted-foreground">Edit this run and enter the prompts and responses. The uploaded file remains attached as the authoritative source.</p>}</> : <span className="text-sm text-muted-foreground">No Model Comparison has been created. This Bassett Test Run remains unchanged.</span>}</div>
       <Attachments entityType="bassett_issue" entityId={issue.id} canWrite={canWrite && !issue.archived && issue.status !== "Archived"} />

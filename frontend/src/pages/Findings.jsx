@@ -157,7 +157,7 @@ export default function Findings() {
     (flt.type === ALL || f.finding_type === flt.type) &&
     (flt.retest === ALL || (f.retest_status || "Pending") === flt.retest) &&
     (flt.version === ALL || f.version_found === flt.version) &&
-    (!searchTerm || [f.title, f.description, f.root_cause, f.finding_type, f.version_found, f.assignee_name]
+    (!searchTerm || [f.title, f.description, f.finding_type, f.version_found, f.assignee_name]
       .some((value) => String(value || "").toLowerCase().includes(searchTerm))));
   const filtersActive = Object.values(flt).some((value) => value !== ALL) || Boolean(searchTerm) || testcaseFilter !== ALL || projectFilter !== ALL;
   const clearFilters = () => {
@@ -247,7 +247,7 @@ export default function Findings() {
                 <span className="text-xs text-muted-foreground">{f.finding_type}</span>
               </div>
               <div className="font-semibold text-[var(--navy)]">{f.title}</div>
-              <div className="text-xs text-muted-foreground mt-1">Root cause: {f.root_cause || "—"} · Found {f.version_found}{f.assignee_name ? <span> · <span className="font-semibold text-[var(--orange)]">@{f.assignee_name}</span></span> : ""}</div>
+              <div className="text-xs text-muted-foreground mt-1">Found {f.version_found || "version not specified"}{f.assignee_name ? <span> · <span className="font-semibold text-[var(--orange)]">@{f.assignee_name}</span></span> : ""}</div>
             </button>
             ))}
           </div>
@@ -280,13 +280,12 @@ export default function Findings() {
               <div className="mt-3 space-y-2 text-sm">
                 <div><span className="text-xs font-semibold uppercase text-muted-foreground">Description</span><p className="prose-response">{sel.description}</p></div>
                 {sel.actual_behavior && <div><span className="text-xs font-semibold uppercase text-muted-foreground">Actual Bassett Behavior</span><p className="prose-response">{sel.actual_behavior}</p></div>}
-                <div className="flex flex-wrap gap-1 mt-2">{(sel.failure_modes || []).map((m) => <span key={m} className="text-xs bg-red-50 text-red-700 px-2 py-0.5 rounded-full">{m}</span>)}</div>
               </div>
 
               <div className="mt-4 border-t pt-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-semibold uppercase text-muted-foreground">Developer Workflow</span>
-                  {user && user.role !== "viewer" && <Button size="sm" className="bg-[var(--orange)] hover:bg-[var(--orange-600)]" onClick={() => setStatusForm({ id: sel.id, status: sel.developer_status, root_cause: sel.root_cause, resolution: sel.resolution || "", note: "" })} data-testid="update-status-btn">Update Status</Button>}
+                  {user && user.role !== "viewer" && <Button size="sm" className="bg-[var(--orange)] hover:bg-[var(--orange-600)]" onClick={() => setStatusForm({ id: sel.id, status: sel.developer_status, resolution: sel.resolution || "", note: "" })} data-testid="update-status-btn">Update Status</Button>}
                 </div>
                 <div className="text-sm">Status: <b>{sel.developer_status}</b> · Retest: {sel.retest_status || "Pending"}</div>
                 {sel.resolution && <p className="text-sm mt-1 prose-response bg-[var(--paper)] p-2 rounded">{sel.resolution}</p>}
@@ -328,7 +327,7 @@ export default function Findings() {
 
       {retestForm && (
         <FormModal open onOpenChange={() => setRetestForm(null)} title="Start Retest" onSubmit={startRetest} submitLabel={submitting ? "Starting…" : "Start Retest"}>
-          <p className="text-xs text-muted-foreground -mt-1">Captures the original failing context (version, response, evaluation, failure modes) and opens a retest on the source test case.</p>
+          <p className="text-xs text-muted-foreground -mt-1">Captures the original failing context (version, response, and evaluation) and opens a retest on the source test case.</p>
           <Field label="Fix Description"><Textarea rows={2} value={retestForm.fix_description} onChange={(e) => setRetestForm({ ...retestForm, fix_description: e.target.value })} data-testid="retest-fix-desc" /></Field>
           <Field label="Expected Corrected Behavior"><Textarea rows={2} value={retestForm.expected_corrected_behavior} onChange={(e) => setRetestForm({ ...retestForm, expected_corrected_behavior: e.target.value })} /></Field>
           <Field label="New Bassett Version (if known)"><Input value={retestForm.new_bassett_version} onChange={(e) => setRetestForm({ ...retestForm, new_bassett_version: e.target.value })} placeholder="Bassett v2.0" /></Field>
@@ -338,7 +337,6 @@ export default function Findings() {
       {statusForm && (
         <FormModal open onOpenChange={() => setStatusForm(null)} title="Update Developer Status" onSubmit={saveStatus} submitLabel={submitting ? "Saving…" : "Save Status"}>
           <Field label="Status"><ListSelect options={config?.finding_statuses} value={statusForm.status} onChange={(v) => setStatusForm({ ...statusForm, status: v })} testid="status-select" /></Field>
-          <Field label="Root Cause"><ListSelect options={config?.root_causes} value={statusForm.root_cause} onChange={(v) => setStatusForm({ ...statusForm, root_cause: v })} /></Field>
           <Field label="Resolution"><Textarea rows={3} value={statusForm.resolution} onChange={(e) => setStatusForm({ ...statusForm, resolution: e.target.value })} /></Field>
           <Field label="Note (added to history)"><Textarea rows={2} value={statusForm.note} onChange={(e) => setStatusForm({ ...statusForm, note: e.target.value })} /></Field>
         </FormModal>

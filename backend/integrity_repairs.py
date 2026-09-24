@@ -21,11 +21,6 @@ SAMPLE_EVIDENCE_AUTHORITIES = {
     "Sterling Heights Setback Table": "City of Sterling Heights Office of Planning",
 }
 
-SAMPLE_VERSION_NAMES = frozenset({
-    "Bassett 8.26 (Sample)",
-    "Bassett 9.26 (Sample)",
-})
-
 COMPARISON_MODELS = frozenset({"Bassett", "ChatGPT", "Claude"})
 INTEGRITY_REPAIR_SCOPES = frozenset({"metadata", "sample_testcase_dates"})
 
@@ -236,43 +231,6 @@ async def preview_integrity_batch(database, scope: str = "metadata") -> dict:
                 "changes": {"issuing_authority": authority},
             })
 
-    versions = await _all(database.versions)
-    matching_versions = [
-        record for record in versions
-        if record.get("name") in SAMPLE_VERSION_NAMES and _is_sample_record(record)
-        and (_blank(record.get("version_type")) or _blank(record.get("release_channel")))
-    ]
-    for version in matching_versions:
-        changes = {}
-        if _blank(version.get("version_type")):
-            changes["version_type"] = "Sample"
-        if _blank(version.get("release_channel")):
-            changes["release_channel"] = "Sample"
-        if changes:
-            records.append({
-                "repair": "version_metadata",
-                "collection": "versions",
-                "id": version["id"],
-                "name": version.get("name", ""),
-                "changes": changes,
-            })
-
-    if matching_versions:
-        config = await database.config.find_one({"id": "global"}, {"_id": 0}) or {}
-        if "Sample" not in list(config.get("version_types") or []) or "Sample" not in list(config.get("release_channels") or []):
-            changes = {}
-            if "Sample" not in list(config.get("version_types") or []):
-                changes["version_types"] = "append Sample"
-            if "Sample" not in list(config.get("release_channels") or []):
-                changes["release_channels"] = "append Sample"
-            records.append({
-                "repair": "lookup_options",
-                "collection": "config",
-                "id": "global",
-                "name": "Global lookup options",
-                "changes": changes,
-            })
-
     return _preview_payload(scope, records, skipped)
 
 
@@ -318,14 +276,11 @@ async def repair_integrity_batch(database, scope: str = "metadata") -> dict:
             "project_owners": 0,
             "testcase_dates": 0,
             "evidence_authorities": 0,
-            "version_metadata": 0,
-            "lookup_options": 0,
         },
         "matched": {
             "legacy_sample_projects": 0,
             "sample_testcases_without_dates": 0,
             "sample_evidence": 0,
-            "sample_versions_with_missing_metadata": 0,
         },
         "skipped": [],
     }
@@ -444,47 +399,6 @@ async def repair_integrity_batch(database, scope: str = "metadata") -> dict:
         )
         if getattr(result, "modified_count", 1):
             report["changed"]["evidence_authorities"] += 1
-
-    versions = await _all(database.versions)
-    matching_versions = [
-        record for record in versions
-        if record.get("name") in SAMPLE_VERSION_NAMES and _is_sample_record(record)
-        and (_blank(record.get("version_type")) or _blank(record.get("release_channel")))
-    ]
-    report["matched"]["sample_versions_with_missing_metadata"] = len(matching_versions)
-    missing_sample_lookup = bool(matching_versions)
-    if missing_sample_lookup:
-        config = await database.config.find_one({"id": "global"}, {"_id": 0}) or {}
-        version_types = list(config.get("version_types") or [])
-        release_channels = list(config.get("release_channels") or [])
-        lookup_patch = {}
-        if "Sample" not in version_types:
-            lookup_patch["version_types"] = [*version_types, "Sample"]
-        if "Sample" not in release_channels:
-            lookup_patch["release_channels"] = [*release_channels, "Sample"]
-        if lookup_patch:
-            await database.config.update_one({"id": "global"}, {"$set": lookup_patch}, upsert=True)
-            report["changed"]["lookup_options"] = len(lookup_patch)
-
-    for version in matching_versions:
-        patch = {}
-        if _blank(version.get("version_type")):
-            patch["version_type"] = "Sample"
-        if _blank(version.get("release_channel")):
-            patch["release_channel"] = "Sample"
-        if not patch:
-            continue
-        result = await database.versions.update_one(
-            {
-                "id": version["id"],
-                "name": version["name"],
-                "version_type": version.get("version_type"),
-                "release_channel": version.get("release_channel"),
-            },
-            {"$set": patch},
-        )
-        if getattr(result, "modified_count", 1):
-            report["changed"]["version_metadata"] += 1
 
     report["changed_total"] = sum(report["changed"].values())
     return report

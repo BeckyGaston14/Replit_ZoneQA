@@ -95,7 +95,7 @@ test("renders a multi-section report into bounded, non-overlapping A4 pages", ()
 
   expect(result.pageCount).toBeGreaterThanOrEqual(2);
   expect(result.boxes.some((box) => box.name === "Executive Takeaways")).toBe(true);
-  expect(result.boxes.some((box) => box.name === "Top Failure Modes")).toBe(true);
+  expect(result.boxes.some((box) => box.name === "Top Finding Categories")).toBe(true);
   expect(result.boxes.some((box) => box.name === "Bassett Category Performance")).toBe(true);
   result.boxes.forEach((box) => {
     expect(Number.isFinite(box.x)).toBe(true);
@@ -119,7 +119,7 @@ test("renders a multi-section report into bounded, non-overlapping A4 pages", ()
     expect(box.height).toBeLessThanOrEqual(78);
     expect(box.width).toBeLessThanOrEqual(A4_PAGE.contentWidth);
   });
-  ["Quarterly Accuracy Trend", "Top Failure Modes", "Bassett Category Performance"].forEach((name) => {
+  ["Quarterly Accuracy Trend", "Top Finding Categories", "Bassett Category Performance"].forEach((name) => {
     const section = result.boxes.find((box) => box.name === name);
     const chartBox = result.boxes.find((box) => box.name === `${name} chart`);
     expect(chartBox.page).toBe(section.page);

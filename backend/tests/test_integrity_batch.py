@@ -113,10 +113,10 @@ async def test_batch_repairs_exact_sample_records_and_is_idempotent():
     )
 
     preview = await preview_integrity_batch(database)
-    assert len(preview["records"]) == 9
+    assert len(preview["records"]) == 7
     assert preview["preview_ids"] == [
         "projects:project-0", "projects:project-1", "projects:project-2", "projects:project-3",
-        "testcases:tc-date", "testcases:tc-created-date", "evidence:ev-1", "versions:v-8", "config:global",
+        "testcases:tc-date", "testcases:tc-created-date", "evidence:ev-1",
     ]
     assert preview["records"][4]["source_date"] == "2026-06-01"
     assert preview["records"][4]["source_date_kind"] == "evaluation Test Date"
@@ -130,8 +130,6 @@ async def test_batch_repairs_exact_sample_records_and_is_idempotent():
         "project_owners": 4,
         "testcase_dates": 2,
         "evidence_authorities": 1,
-        "version_metadata": 1,
-        "lookup_options": 2,
     }
     assert all(project.get("owner_user_id") == "admin-1" for project in projects[:4])
     assert projects[4].get("owner_user_id") is None
@@ -141,10 +139,8 @@ async def test_batch_repairs_exact_sample_records_and_is_idempotent():
     assert next(tc for tc in testcases if tc["id"] == "tc-existing")["test_date"] == "2026-01-01"
     assert database.evidence.records[0]["issuing_authority"] == "New York City Department of City Planning"
     assert database.evidence.records[1]["issuing_authority"] == ""
-    assert database.versions.records[0]["version_type"] == "Sample"
-    assert database.versions.records[0]["release_channel"] == "Sample"
-    assert "Sample" in database.config.records[0]["version_types"]
-    assert "Sample" in database.config.records[0]["release_channels"]
+    assert database.versions.records[0]["version_type"] == ""
+    assert database.versions.records[0]["release_channel"] is None
 
     second = await repair_integrity_batch(database)
     assert second["changed_total"] == 0

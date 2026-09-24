@@ -585,7 +585,7 @@ export default function TestCaseDetail() {
             {findings.map((f) => (
               <Link to={`/findings?id=${f.id}`} key={f.id} className="block bg-card border rounded-xl p-4 card-hover">
                 <div className="flex items-center gap-2"><CritBadge value={f.criticality} /><span className="font-semibold text-[var(--navy)]">{f.title}</span></div>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1 flex-wrap"><span>{f.finding_type}</span><StatusBadge value={f.developer_status} definitions={FINDING_STATUSES} compact /><span>· Root cause: {f.root_cause || "—"}</span></div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1 flex-wrap"><span>{f.finding_type}</span><StatusBadge value={f.developer_status} definitions={FINDING_STATUSES} compact /></div>
               </Link>
             ))}
           </div>
@@ -949,10 +949,9 @@ function FindingModal({ open, setOpen, tc, project, config, onDone }) {
   return (
     <FormModal open={open} onOpenChange={setOpen} title="Create Finding (context preserved)" onSubmit={save} wide>
       <Field label="Title"><Input value={f.title} onChange={(e) => set("title", e.target.value)} data-testid="finding-title" /></Field>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <Field label="Finding Type"><ListSelect options={config?.finding_types} value={f.finding_type} onChange={(v) => set("finding_type", v)} /></Field>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Field label="Finding Category"><ListSelect options={config?.finding_types} value={f.finding_type} onChange={(v) => set("finding_type", v)} /></Field>
         <Field label="Severity"><ListSelect options={SEVERITY_LABELS.map((label, index) => ({ value: String(index + 1), label }))} value={String(f.criticality)} onChange={(v) => set("criticality", Number(v))} /></Field>
-        <Field label="Failure Mode"><ListSelect options={config?.failure_modes} value={(f.failure_modes || [])[0]} onChange={(v) => set("failure_modes", [v])} /></Field>
       </div>
       <Field label="Description"><Textarea rows={3} value={f.description} onChange={(e) => set("description", e.target.value)} /></Field>
       <Field label="Expected vs Actual Bassett Behavior"><Textarea rows={2} value={f.actual_behavior || ""} onChange={(e) => set("actual_behavior", e.target.value)} placeholder="What Bassett actually did" /></Field>

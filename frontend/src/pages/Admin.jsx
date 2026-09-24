@@ -20,18 +20,14 @@ import { invalidateConfigQueries, invalidateVersionQueries } from "../lib/hooks"
 
 
 const LOOKUPS = [
-  ["categories", "Test Categories"], ["test_types", "Test Types"], ["failure_modes", "Failure Modes"],
-  ["root_causes", "Root Causes"], ["test_statuses", "Test Statuses"], ["finding_statuses", "Finding Statuses"],
+  ["test_statuses", "Test Statuses"], ["finding_statuses", "Finding Statuses"],
   ["bassett_workflow_statuses", "Bassett Test Run Workflow Statuses"],
-  ["pass_results", "Pass / Fail Results"], ["environments", "Environments"], ["demo_statuses", "Demo Statuses"],
-  ["municipality_types", "Municipality Types"],
-  ["finding_types", "Finding Types"], ["version_types", "Bassett Version Types"],
-  ["release_channels", "Release Channels"],
+  ["pass_results", "Evaluation Results"], ["environments", "Environments"],
+  ["municipality_types", "Municipality Types"], ["finding_types", "Finding Categories"],
 ];
 const MODEL_COLUMNS = [{ key: "name", label: "Model", type: "natural" }, { key: "provider", label: "Provider", type: "text" }, { key: "role_type", label: "Type", type: "text" }, { key: "active", label: "Active", type: "active" }];
 const VERSION_COLUMNS = [
   { key: "name", label: "Version", type: "version" }, { key: "release_number", label: "Release #", type: "version" },
-  { key: "version_type", label: "Type", type: "text" }, { key: "release_channel", label: "Channel", type: "text" },
   { key: "release_date", label: "Date", type: "date" }, { key: "environment", label: "Environment", type: "text" },
   { key: "active", label: "Active", type: "active" },
 ];
@@ -77,7 +73,7 @@ export default function Admin() {
   const [sampleDataBusy, setSampleDataBusy] = useState(false);
   const [passwordResetResult, setPasswordResetResult] = useState(null);
   const [copiedReset, setCopiedReset] = useState(false);
-  const emptyVersion = { name: "", release_number: "", release_date: "", environment: "Staging", version_type: "", release_channel: "", active: true };
+  const emptyVersion = { name: "", release_number: "", release_date: "", environment: "Staging", active: true };
   const [newVersion, setNewVersion] = useState(emptyVersion);
   const [modelSort, setModelSort] = usePersistentTableSort("admin-models", MODEL_COLUMNS, { key: "name", direction: "asc" });
   const [versionSort, setVersionSort] = usePersistentTableSort("admin-versions", VERSION_COLUMNS, { key: "name", direction: "desc" });
@@ -413,8 +409,6 @@ export default function Admin() {
                  <div><Label>Release Number <span className="text-red-700" aria-hidden="true"> *</span></Label><Input value={v.release_number || ""} onChange={(e) => setV({...v, release_number:e.target.value})} placeholder="2.1.0" required /></div>
                 <div><Label>Release date</Label><Input type="date" value={v.release_date || ""} onChange={(e) => setV({...v, release_date:e.target.value})} /></div>
                 <div><Label>Environment</Label><Select value={v.environment || "Staging"} onValueChange={(x) => setV({...v, environment:x})}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{(config.environments || []).map(x=><SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div>
-                <div><Label>Version type</Label><Select value={v.version_type || ""} onValueChange={(x) => setV({...v, version_type:x})}><SelectTrigger><SelectValue placeholder="Select version type" /></SelectTrigger><SelectContent>{(config.version_types || []).map(x=><SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div>
-                <div><Label>Release channel</Label><Select value={v.release_channel || ""} onValueChange={(x) => setV({...v, release_channel:x})}><SelectTrigger><SelectValue placeholder="Select release channel" /></SelectTrigger><SelectContent>{(config.release_channels || []).map(x=><SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></div>
                  <div className="flex items-end gap-2"><Button onClick={() => saveVersion(v, !editingVersion)}><Save size={14} className="mr-1"/>{editingVersion ? "Save Changes" : "Create Bassett Version"}</Button>{editingVersion && <Button variant="outline" onClick={()=>setEditingVersion(null)}>Cancel</Button>}</div>
               </div>;
             })()}
@@ -422,7 +416,7 @@ export default function Admin() {
           <TableSortControls columns={VERSION_COLUMNS} sort={versionSort} setSort={setVersionSort} defaultSort={{ key: "name", direction: "desc" }} className="mb-3" />
           <div className="bg-card border rounded-xl max-w-full overflow-x-auto overscroll-x-contain"><table className="w-full min-w-[820px] text-sm">
             <thead className="bg-[var(--paper)] text-left"><tr>{VERSION_COLUMNS.map((column) => <SortableTableHeader key={column.key} column={column} sort={versionSort} onSort={(key) => setVersionSort((current) => nextSort(current, key))} />)}<th className="px-4 py-2 text-right text-[11px] uppercase tracking-wide text-muted-foreground">Actions</th></tr></thead>
-            <tbody>{sortTableRows(versions, VERSION_COLUMNS, versionSort, ["release_number", "name"]).map((v) => <tr key={v.id} className="border-t"><td className="px-4 py-2 font-semibold text-[var(--navy)]">{v.name}</td><td className="px-4 py-2">{v.release_number}</td><td className="px-4 py-2">{v.version_type || "—"}</td><td className="px-4 py-2">{v.release_channel || "—"}</td><td className="px-4 py-2">{v.release_date || "—"}</td><td className="px-4 py-2">{v.environment}</td><td className="px-4 py-2">{v.active ? "Yes" : "No"}</td><td className="px-4 py-2"><div className="flex gap-1"><Button size="sm" variant="outline" onClick={()=>setEditingVersion({...v})} aria-label={`Edit ${v.name}`}><Pencil size={14}/></Button><Button size="sm" variant="outline" onClick={()=>deleteVersion(v)} aria-label={`Delete ${v.name}`}><Trash2 size={14}/></Button></div></td></tr>)}</tbody>
+             <tbody>{sortTableRows(versions, VERSION_COLUMNS, versionSort, ["release_number", "name"]).map((v) => <tr key={v.id} className="border-t"><td className="px-4 py-2 font-semibold text-[var(--navy)]">{v.name}</td><td className="px-4 py-2">{v.release_number}</td><td className="px-4 py-2">{v.release_date || "—"}</td><td className="px-4 py-2">{v.environment}</td><td className="px-4 py-2">{v.active ? "Yes" : "No"}</td><td className="px-4 py-2"><div className="flex gap-1"><Button size="sm" variant="outline" onClick={()=>setEditingVersion({...v})} aria-label={`Edit ${v.name}`}><Pencil size={14}/></Button><Button size="sm" variant="outline" onClick={()=>deleteVersion(v)} aria-label={`Delete ${v.name}`}><Trash2 size={14}/></Button></div></td></tr>)}</tbody>
           </table></div>
         </TabsContent>
 

@@ -207,8 +207,8 @@ export default function Executive() {
         </div>
 
         <div className="bg-card border rounded-xl p-5">
-          <h3 className="font-semibold font-display text-[var(--navy)] mb-3">Top Failure Modes (all findings)</h3>
-          {failure_modes.length === 0 ? <p className="text-sm text-muted-foreground">No failure modes recorded yet.</p> : (
+          <h3 className="font-semibold font-display text-[var(--navy)] mb-3">Top Finding Categories (all findings)</h3>
+          {failure_modes.length === 0 ? <p className="text-sm text-muted-foreground">No finding categories recorded yet.</p> : (
             <div ref={failureModesChartRef} data-testid="exec-failure-modes-chart-render" className="min-w-0">
               <SafeResponsiveContainer height={Math.max(280, failure_modes.length * 44)} testId="exec-failure-responsive-chart">
                 <BarChart data={failure_modes} layout="vertical" margin={{ left: 20 }}>
@@ -220,7 +220,7 @@ export default function Executive() {
               </SafeResponsiveContainer>
             </div>
           )}
-          {failure_modes.length > 0 && <SrTable caption="Top failure modes across findings" columns={["Failure mode", "Count"]} rows={failure_modes.map((f) => [f.mode, f.count])} />}
+          {failure_modes.length > 0 && <SrTable caption="Top finding categories across findings" columns={["Finding category", "Count"]} rows={failure_modes.map((f) => [f.mode, f.count])} />}
         </div>
       </div>
 
