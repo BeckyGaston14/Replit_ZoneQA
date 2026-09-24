@@ -19,7 +19,7 @@ jest.mock("./forms", () => ({
 jest.mock("./ui/input", () => ({ Input: (props) => <input {...props} /> }));
 jest.mock("./ui/textarea", () => ({ Textarea: (props) => <textarea {...props} /> }));
 jest.mock("./ui/button", () => ({ Button: ({ children, ...props }) => <button {...props}>{children}</button> }));
-jest.mock("./ui/checkbox", () => ({ Checkbox: ({ checked, onCheckedChange }) => <input type="checkbox" checked={checked} onChange={(event) => onCheckedChange(event.target.checked)} /> }));
+jest.mock("./ui/checkbox", () => ({ Checkbox: ({ checked, onCheckedChange, ...props }) => <input {...props} type="checkbox" checked={checked} onChange={(event) => onCheckedChange(event.target.checked)} /> }));
 jest.mock("./ui/select", () => {
   const React = require("react");
   const Context = React.createContext({});
@@ -323,10 +323,11 @@ test("both form modes expose all twelve plain-language scoring questions and one
   for (const mode of ["bassett", "comparison"]) {
     const view = renderForm(mode, { id: `${mode}-edit` });
     expectedQuestions.forEach((question) => expect(view.container.textContent).toContain(question));
-    for (const label of ["Prompt / Question", "Verified Answer / Gold Standard", "Bassett Response", "Test Result", "Severity", "Priority", mode === "bassett" ? "Finding Category" : "Comparison Category", "Evidence / Source Links", "Property / Address", "Bassett Score Rationale", "Owner / Assignee", "Evidence & Notes", "Supporting Source Documents / Images"]) {
+    for (const label of ["Prompt / Question", "Verified Answer / Gold Standard", "Bassett Response", "Test Result", "Severity", "Priority", ...(mode === "comparison" ? ["Comparison Category"] : []), "Evidence / Source Links", "Property / Address", "Bassett Score Rationale", "Owner / Assignee", "Evidence & Notes", "Supporting Source Documents / Images"]) {
       expect([...view.container.querySelectorAll("label")].some((node) => node.textContent.trim().startsWith(label))).toBe(true);
     }
     if (mode === "bassett") {
+      expect(view.container.querySelector('select[aria-label="Finding Category"]')).toBeNull();
       expect(view.container.querySelector('select[aria-label="Test Scenario category"]')).not.toBeNull();
       expect(view.container.querySelector('select[aria-label="Test Scenario"]')).not.toBeNull();
     }
@@ -361,6 +362,39 @@ test("both evaluation form modes keep score labels and the shared rubric without
     expect(selects.every((select) => select.parentElement.querySelector("p") === null)).toBe(true);
     act(() => view.root.unmount());
   }
+});
+
+test("Bassett finding categories use the configured lookup only when a linked finding is created", () => {
+  const view = renderForm("bassett", { create_finding: false, issue_category: "" }, {
+    config: { finding_types: ["citation problem", "hallucination", "other"] },
+  });
+  expect(view.container.querySelector('select[aria-label="Finding Category"]')).toBeNull();
+  const toggle = view.container.querySelector('input[aria-label="Create a linked Bassett finding"]');
+  act(() => toggle.click());
+  const category = view.container.querySelector('select[aria-label="Finding Category"]');
+  expect(category).not.toBeNull();
+  expect([...category.options].map((option) => option.textContent)).toEqual([
+    "Select a finding category", "citation problem", "hallucination", "other",
+  ]);
+  act(() => {
+    category.value = "other";
+    category.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  expect(view.latest().issue_category).toBe("other");
+  expect(view.latest().finding.finding_type).toBe("other");
+  expect(view.container.textContent).toContain("Other category explanation");
+  act(() => view.root.unmount());
+});
+
+test("a historical finding category remains selectable after its lookup option is removed", () => {
+  const view = renderForm("bassett", {
+    id: "historical-run", create_finding: true, issue_category: "legacy category",
+    finding: { title: "Historical finding", finding_type: "legacy category" },
+  }, { config: { finding_types: ["citation problem", "other"] } });
+  const category = view.container.querySelector('select[aria-label="Finding Category"]');
+  expect(category.value).toBe("legacy category");
+  expect([...category.options].map((option) => option.value)).toContain("legacy category");
+  act(() => view.root.unmount());
 });
 
 test("both evaluation form modes show dimension names without exposing configured weights", () => {

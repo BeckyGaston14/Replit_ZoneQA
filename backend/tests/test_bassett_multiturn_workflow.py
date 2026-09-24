@@ -165,6 +165,8 @@ def test_three_turn_workflow_create_reopen_reorder_and_link_finding(monkeypatch)
         "finding": {
             "title": "Conversation finding",
             "description": "The response needs review.",
+            "finding_type": "other",
+            "finding_type_detail": "Conversation-specific behavior",
             "turn_id": "turn-1",
         },
     }
@@ -183,6 +185,8 @@ def test_three_turn_workflow_create_reopen_reorder_and_link_finding(monkeypatch)
         attachment_id = created["attachments"][0]["id"]
         assert created["issue"]["finding_id"] == finding_id
         assert database.records["findings"][0]["bassett_issue_id"] == issue_id
+        assert database.records["findings"][0]["finding_type"] == "other"
+        assert database.records["findings"][0]["finding_type_detail"] == "Conversation-specific behavior"
         assert created["attachments"][0]["original_filename"] == "evidence.txt"
         assert "storage_path" not in created["attachments"][0]
         assert len(storage.objects) == 1

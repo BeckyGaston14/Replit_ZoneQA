@@ -57,6 +57,8 @@ export async function persistBassettTestRun(form, apiClient = api) {
         title: form.finding?.title,
         description: form.finding?.description,
         expected_behavior: form.finding?.expected_behavior || form.verified_correct_answer,
+        finding_type: form.finding?.finding_type || form.issue_category,
+        finding_type_detail: form.finding?.finding_type_detail,
         turn_id: form.finding_turn_id || undefined,
       });
     }
@@ -534,12 +536,15 @@ function BassettFindingDetail({ id, onClose, canWrite, refresh, embedded = false
   };
   const saveFinding = async () => {
     if (submitting) return;
+    if (!String(editForm.finding_type || "").trim()) return toast.error("Select a Finding Category.");
     setSubmitting(true);
     try {
       const { data } = await api.put(`/findings/${id}`, withExpectedVersion(finding, {
         title: editForm.title,
         description: editForm.description,
         expected_behavior: editForm.expected_behavior,
+        finding_type: editForm.finding_type,
+        finding_type_detail: editForm.finding_type_detail,
         linked_test_run_ids: editForm.linked_test_run_ids,
       }));
       toast.success("Finding updated");
@@ -567,12 +572,13 @@ function BassettFindingDetail({ id, onClose, canWrite, refresh, embedded = false
           <div className="text-xs uppercase tracking-wide text-muted-foreground">Bassett Finding Details</div>
           <h2 id="bassett-finding-detail-title" className="text-xl font-bold font-display text-[var(--navy)] mt-1 break-words">{finding?.title || "Finding"}</h2>
         </div>
-        <div className="flex shrink-0 gap-1">{canWrite && finding && <Button type="button" variant="ghost" size="icon" onClick={() => setEditForm({ title: finding.title || "", description: finding.description || "", expected_behavior: finding.expected_behavior || "", linked_test_run_ids: linkedRunIds })} aria-label="Edit Bassett Finding"><Pencil size={16} /></Button>}<Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close Bassett Finding Details"><X size={18} /></Button></div>
+        <div className="flex shrink-0 gap-1">{canWrite && finding && <Button type="button" variant="ghost" size="icon" onClick={() => setEditForm({ title: finding.title || "", description: finding.description || "", expected_behavior: finding.expected_behavior || "", finding_type: finding.finding_type || "", finding_type_detail: finding.finding_type_detail || "", linked_test_run_ids: linkedRunIds })} aria-label="Edit Bassett Finding"><Pencil size={16} /></Button>}<Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close Bassett Finding Details"><X size={18} /></Button></div>
       </div>
       {isLoading && <div className="text-sm text-muted-foreground">Loading Bassett Finding Details…</div>}
       {isError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">Unable to load this Bassett finding.</div>}
       {finding && <div className="space-y-5 text-sm">
         <div className="flex flex-wrap gap-2"><Pill tone={severityLabel(finding.severity) === "Critical" ? "red" : severityLabel(finding.severity) === "High" ? "orange" : "slate"}>{severityLabel(finding.severity) || "Not rated"}</Pill><StatusBadge value={finding.developer_status || "New"} definitions={FINDING_STATUSES} /></div>
+        <Info label="Finding Category" value={`${finding.finding_type || "Other"}${finding.finding_type_detail ? ` · ${finding.finding_type_detail}` : ""}`} />
         <Info label="Description" value={finding.description || "—"} />
         <Info label="Expected behavior" value={finding.expected_behavior || "—"} />
         {finding.actual_behavior && <Info label="Actual Bassett behavior" value={finding.actual_behavior} />}
@@ -610,6 +616,8 @@ function BassettFindingDetail({ id, onClose, canWrite, refresh, embedded = false
     </FormModal>}
     {editForm && <FormModal open onOpenChange={(open) => !open && setEditForm(null)} title="Edit Bassett Finding" onSubmit={saveFinding} submitLabel={submitting ? "Saving…" : "Save Changes"}>
       <Field label="Finding title" required><Input value={editForm.title} onChange={(event) => setEditForm({ ...editForm, title: event.target.value })} /></Field>
+      <Field label="Finding Category" required description="Used by Bassett Findings filters and executive reporting."><select aria-label="Edit Finding Category" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={editForm.finding_type} onChange={(event) => setEditForm({ ...editForm, finding_type: event.target.value, ...(event.target.value.toLowerCase() === "other" ? {} : { finding_type_detail: "" }) })}><option value="">Select a finding category</option>{[...new Set([...(config?.finding_types || []), editForm.finding_type].filter(Boolean))].map((value) => <option key={value} value={value}>{value}</option>)}</select></Field>
+      {String(editForm.finding_type).toLowerCase() === "other" && <Field label="Other category explanation" optional><Input value={editForm.finding_type_detail} onChange={(event) => setEditForm({ ...editForm, finding_type_detail: event.target.value })} /></Field>}
       <Field label="Finding description" description="Describe what Bassett did or why this needs follow-up."><Textarea rows={3} value={editForm.description} onChange={(event) => setEditForm({ ...editForm, description: event.target.value })} /></Field>
       <Field label="Expected behavior" description="Describe what Bassett should have done. Editing this does not change the linked test run."><Textarea rows={4} value={editForm.expected_behavior} onChange={(event) => setEditForm({ ...editForm, expected_behavior: event.target.value })} /></Field>
       <Field label="Related Test Runs" description="Select every test run that supports this finding. The original source remains the primary run.">

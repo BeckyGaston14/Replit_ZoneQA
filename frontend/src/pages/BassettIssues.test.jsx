@@ -148,11 +148,13 @@ test("save orchestration persists the run before uploading new-run files", async
     id: "run-1",
     create_finding: true,
     finding_turn_id: "turn-2",
-    finding: { title: "Turn finding", description: "Needs review" },
+    issue_category: "citation problem",
+    finding: { title: "Turn finding", description: "Needs review", finding_type: "citation problem", finding_type_detail: "" },
   }, existingApi);
   expect(existingApi.put).toHaveBeenCalledWith("/bassett/issues/run-1", expect.any(Object));
   expect(existingApi.post).toHaveBeenCalledWith("/bassett/issues/run-1/convert-to-finding", {
-    title: "Turn finding", description: "Needs review", expected_behavior: undefined, turn_id: "turn-2",
+    title: "Turn finding", description: "Needs review", expected_behavior: undefined,
+    finding_type: "citation problem", finding_type_detail: "", turn_id: "turn-2",
   });
 
   const file = new File(["evidence"], "evidence.txt", { type: "text/plain" });

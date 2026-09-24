@@ -55,7 +55,7 @@ export const DEFAULT_DIMENSIONS = [
 export const emptyBassettTestRun = {
   title: "", question_asked: "", exact_bassett_answer: "", verified_correct_answer: "",
   test_type: "Single Prompt", turns: [], conversation_source: "structured_text", transcript_status: "not_needed",
-  issue_category: "General", severity: "Medium", priority: "Medium", environment: "",
+  issue_category: "", severity: "Medium", priority: "Medium", environment: "",
   test_date: "", scenario_id: "", general_subtype_ids: [], project_id: "", municipality_id: "", property_id: "",
   version_id: "", bassett_version: "", status: "Not Started", result: "Pass", score: "", notes: "", evidence: "",
   evaluation_scores: {}, selected_rubric_ids: [], rubric_revision: null,
@@ -431,6 +431,8 @@ function progressFor(form, mode) {
 function validate(form, mode) {
   if (form.rubric_revision && form.rubric_revision !== LEGACY_RUBRIC_REVISION && !String(form.scoring_category || "").trim()) return "Select a Primary Scoring Category.";
   if (mode === "bassett") {
+    if (form.create_finding && !String(form.finding?.title || "").trim()) return "Enter a finding title.";
+    if (form.create_finding && !String(form.finding?.finding_type || form.issue_category || "").trim()) return "Select a Finding Category.";
     const versionError = bassettVersionRequirementMessage(form);
     if (form.conversation_source === "uploaded_conversation") {
       if (!form.attachment_count && !form.conversation_attachment) return "Upload at least one Bassett conversation file before saving.";
@@ -747,7 +749,10 @@ export default function UnifiedTestEntryForm({
     if (index === 2 && (!isComparison && (form.test_type === "Multi-turn" || form.conversation_source === "uploaded_conversation") ? false : !String(form.exact_bassett_answer || responseFor("Bassett").response || "").trim())) {
       return isComparison ? "Enter the Bassett response." : "Enter the exact Bassett answer.";
     }
-    if (index === 4 && form.create_finding && !String(finding.title || "").trim()) return "Enter a finding title.";
+    if (index === 4 && form.create_finding) {
+      if (!String(finding.title || "").trim()) return "Enter a finding title.";
+      if (!String(finding.finding_type || form.issue_category || "").trim()) return "Select a Finding Category.";
+    }
     return null;
   };
   const sectionHasValue = (index) => {
@@ -786,6 +791,21 @@ export default function UnifiedTestEntryForm({
     onSubmit();
   };
   const ownerOptions = users.filter((item) => item.active !== false && !item.deleted_at);
+  const finding = form.finding || {};
+  const selectedFindingCategory = finding.finding_type || form.issue_category || "";
+  const findingCategories = [...new Set([
+    ...(config.finding_types || []),
+    selectedFindingCategory,
+  ].filter(Boolean))];
+  const updateFindingCategory = (value) => setForm((current) => ({
+    ...current,
+    issue_category: value,
+    finding: {
+      ...(current.finding || {}),
+      finding_type: value,
+      ...(String(value).toLowerCase() === "other" ? {} : { finding_type_detail: "" }),
+    },
+  }));
   const setMunicipality = (value) => {
     const matchingEvidenceIds = new Set(evidenceRecords.filter((item) => item.municipality_id === value).map((item) => item.id));
     setForm((current) => ({
@@ -796,7 +816,6 @@ export default function UnifiedTestEntryForm({
       create_evidence_from_uploads: value ? current.create_evidence_from_uploads : false,
     }));
   };
-  const finding = form.finding || {};
   const comparison = form.comparison || {};
   const showFollowUp = isComparison || form.create_finding || ["Needs Improvement", "Fail", "Critical Fail"].includes(normalizeEvaluationResult(form.result)) || Boolean(form.follow_up_action || form.retest_target || form.retest_date);
   const totalSections = isComparison ? 11 : showFollowUp ? 7 : 6;
@@ -849,14 +868,21 @@ export default function UnifiedTestEntryForm({
        <Field label="Test Result"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={normalizeEvaluationResult(form.result)} onChange={(e) => update("result", e.target.value)}>{(isComparison ? COMPARISON_RESULT_OPTIONS : BASSETT_RESULT_OPTIONS).map((value) => <option key={value}>{value}</option>)}</select></Field>
        <Field label="Severity"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={severityLabel(form.severity || form.criticality) || "Medium"} onChange={(e) => setForm((current) => ({ ...current, severity: e.target.value, criticality: severityNumber(e.target.value) }))}>{SEVERITY_LABELS.map((value) => <option key={value}>{value}</option>)}</select></Field>
       <Field label="Priority"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.priority || "Medium"} onChange={(e) => update("priority", e.target.value)}>{["Critical", "High", "Medium", "Low"].map((value) => <option key={value}>{value}</option>)}</select></Field>
-      <Field label={isComparison ? "Comparison Category" : "Finding Category"}><Input value={form.issue_category || form.category || ""} onChange={(e) => update(isComparison ? "category" : "issue_category", e.target.value)} /></Field>
+      {isComparison && <Field label="Comparison Category"><Input value={form.category || ""} onChange={(e) => update("category", e.target.value)} /></Field>}
     </div></GuidedSection>
 
      <GuidedSection index={3} title="4. Canonical Evaluation" active={activeSection === 3} status={sectionStatus(3)} onActivate={activateSection}><p className="text-xs text-muted-foreground">Use the selected revision rubric. Blank dimensions and N/A remain unavailable and are excluded from the denominator; zero is a valid score.</p><div className="mt-4 space-y-4"><GeneralSubtypeGuidance subtypes={generalSubtypes} selectedIds={form.general_subtype_ids || []} />{rubricCatalog && catalogActive && <RubricCriteriaSelector catalog={normalizedRubricCatalog} mappedIds={mappedRubricIds} selectedIds={form.selected_rubric_ids || []} scores={rubricRemovalScores} disabled={lockedCommon} onChange={(ids, meta = {}) => setForm((current) => ({ ...current, selected_rubric_ids: ids, rubric_revision: normalizedRubricCatalog.revision, rubric_selection_initialized: true, confirm_rubric_removal: current.confirm_rubric_removal || meta.confirm_rubric_removal }))} />}<h4 className="font-semibold text-sm text-[var(--navy)]">Bassett evaluation · {form.rubric_revision || LEGACY_RUBRIC_REVISION} · calculated score</h4><EvaluationGrid model="Bassett" scores={evaluationFor("Bassett").scores} dimensions={dimensions} onChange={updateEvaluation} locked={lockedCommon} /><RubricScoreSummary catalog={normalizedRubricCatalog} scores={evaluationFor("Bassett").scores} selectedIds={form.selected_rubric_ids || []} /><Field label="Bassett Score Rationale" required={hasScoredDimension(evaluationFor("Bassett").scores)} description="Cite the specific answer evidence that supports the selected numbers (minimum 20 characters when scored)."><Textarea rows={3} value={evaluationFor("Bassett").rationale || form.score_rationale || ""} onChange={(e) => updateEvaluationRationale("Bassett", e.target.value)} /></Field></div></GuidedSection>
 
     <GuidedSection index={4} title="5. Findings & Ownership" active={activeSection === 4} status={sectionStatus(4)} onActivate={activateSection}><div className="space-y-4">
       <label className="flex items-center gap-2 text-sm"><Checkbox aria-label="Create a linked Bassett finding" checked={Boolean(form.create_finding)} onCheckedChange={(checked) => update("create_finding", checked === true)} /> Create a linked Bassett finding</label>
-       {form.create_finding && <div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><Field label="Finding title" required error={attemptedSections.has(4) && !String(finding.title || "").trim() ? "Finding title is required." : undefined}><Input value={finding.title || ""} onChange={(e) => updateNested("finding", "title", e.target.value)} /></Field><Field label="Owner / Assignee"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.assignee_id || ""} onChange={(e) => update("assignee_id", e.target.value)}><option value="">Unassigned</option>{ownerOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field><Field label="Finding description" description="Describe what Bassett did or why this needs follow-up."><Textarea rows={3} value={finding.description || ""} onChange={(e) => updateNested("finding", "description", e.target.value)} /></Field><Field label="Expected behavior" description="Describe what Bassett should have done. This can be edited later without changing the source test run."><Textarea rows={3} value={finding.expected_behavior || form.verified_correct_answer || ""} onChange={(e) => updateNested("finding", "expected_behavior", e.target.value)} /></Field></div>}
+       {form.create_finding && <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+         <Field label="Finding title" required error={attemptedSections.has(4) && !String(finding.title || "").trim() ? "Finding title is required." : undefined}><Input value={finding.title || ""} onChange={(e) => updateNested("finding", "title", e.target.value)} /></Field>
+         <Field label="Finding Category" required description="Classifies the saved finding for filters and reports; it does not affect scoring." error={attemptedSections.has(4) && !selectedFindingCategory ? "Finding Category is required." : undefined}><select aria-label="Finding Category" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={selectedFindingCategory} onChange={(e) => updateFindingCategory(e.target.value)}><option value="">Select a finding category</option>{findingCategories.map((value) => <option key={value} value={value}>{value}</option>)}</select></Field>
+         {String(selectedFindingCategory).toLowerCase() === "other" && <div className="sm:col-span-2"><Field label="Other category explanation" optional description="Briefly explain the finding when none of the configured categories apply."><Input value={finding.finding_type_detail || ""} onChange={(e) => updateNested("finding", "finding_type_detail", e.target.value)} /></Field></div>}
+         <Field label="Owner / Assignee"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.assignee_id || ""} onChange={(e) => update("assignee_id", e.target.value)}><option value="">Unassigned</option>{ownerOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
+         <Field label="Finding description" description="Describe what Bassett did or why this needs follow-up."><Textarea rows={3} value={finding.description || ""} onChange={(e) => updateNested("finding", "description", e.target.value)} /></Field>
+         <Field label="Expected behavior" description="Describe what Bassett should have done. This can be edited later without changing the source test run."><Textarea rows={3} value={finding.expected_behavior || form.verified_correct_answer || ""} onChange={(e) => updateNested("finding", "expected_behavior", e.target.value)} /></Field>
+       </div>}
       {!form.create_finding && <Field label="Owner / Assignee"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.assignee_id || ""} onChange={(e) => update("assignee_id", e.target.value)}><option value="">Unassigned</option>{ownerOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>}
     </div></GuidedSection>
 
