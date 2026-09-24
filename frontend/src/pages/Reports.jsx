@@ -110,7 +110,7 @@ export default function Reports() {
           <div key={report.key} className="bg-card border rounded-xl p-5 card-hover">
             <div className="flex items-center gap-2 mb-2"><div className="rounded-lg p-2 bg-[var(--navy)]/10"><FileDown size={18} className="text-[var(--navy)]" /></div><h3 className="font-semibold font-display text-[var(--navy)]">{report.title}</h3></div>
             <p className="text-sm text-muted-foreground mb-3">{report.desc}</p>
-            <Button size="sm" variant="outline" onClick={() => exportData(report.key)} data-testid={`report-${report.key}`}>
+            <Button size="sm" variant="outline" onClick={() => exportData(report.key)} data-testid={`report-${report.key}`} aria-label={`Download ${report.title} as JSON`}>
               <FileDown size={14} className="mr-1" />
               <span data-testid={report.key === "qa_summary" ? "export-qa-data-json" : undefined}>Download JSON</span>
             </Button>

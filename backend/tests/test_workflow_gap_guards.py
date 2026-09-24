@@ -1004,6 +1004,27 @@ def test_coverage_counts_valid_bassett_only_evaluations(monkeypatch):
     assert result["criticality"][2]["evaluated"] == 1
 
 
+def test_coverage_does_not_count_unrepresented_buckets_as_gaps(monkeypatch):
+    rows = {
+        "testcases": [], "municipalities": [], "evaluations": [], "test_runs": [],
+        "config": [{"id": "global", "categories": ["Rules", "Documents"], "criticality": {}}],
+        "bassett_scenarios": [], "bassett_issues": [], "bassett_executions": [],
+    }
+    monkeypatch.setattr(server, "db", Db(rows))
+
+    async def fake_crud_list(collection, query=None):
+        return [dict(row) for row in rows.get(collection, [])]
+
+    monkeypatch.setattr(server, "crud_list", fake_crud_list)
+    result = asyncio.run(server.analytics_coverage(
+        {"id": "viewer", "role": "viewer"}, scope="both"
+    ))
+
+    assert result["population_counts"]["model_comparison"]["gap_count"] == 0
+    assert result["population_counts"]["bassett_only"]["gap_count"] == 0
+    assert result["summary"]["gap_count"] == 0
+
+
 def test_performance_and_coverage_scope_include_standalone_bassett_runs(monkeypatch):
     rows = {
         "testcases": [], "evaluations": [], "test_runs": [], "municipalities": [],

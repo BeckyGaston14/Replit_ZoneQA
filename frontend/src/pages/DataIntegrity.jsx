@@ -169,6 +169,8 @@ export default function DataIntegrity() {
     refetchOnMount: true,
     refetchOnWindowFocus: false,
   });
+  const resultAgeMs = d?.checked_at ? Date.now() - new Date(d.checked_at).getTime() : 0;
+  const resultIsStale = resultAgeMs > 24 * 60 * 60 * 1000;
 
   const runIntegrityChecks = async () => {
     if (running) return;
@@ -256,6 +258,7 @@ export default function DataIntegrity() {
        )}
        {d?.has_result && (
         <>
+      {resultIsStale && <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900" role="status" data-testid="integrity-stale-result">These results are more than 24 hours old. Run integrity checks before relying on the Clean status.</div>}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-6">
          <StatCard label="High Severity" value={d.counts.high} accent="#dc2626" icon={ShieldAlert} testid="integrity-high" />
         <StatCard label="Medium Severity" value={d.counts.medium} accent="#f59e0b" icon={AlertTriangle} testid="integrity-medium" />

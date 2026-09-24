@@ -19,7 +19,7 @@ export function LocalDrafts({ mode, onRecover }) {
   };
   return <>
     <Button variant="outline" onClick={show}>Drafts</Button>
-    {open && <FormModal open title="Saved Drafts" onOpenChange={setOpen} onSubmit={() => setOpen(false)} submitLabel="Done">
+    {open && <FormModal open title="Saved Drafts" description="Recover or delete the unfinished draft saved in this browser." onOpenChange={setOpen} onSubmit={() => setOpen(false)} submitLabel="Done">
       <p className="text-sm text-muted-foreground">One unfinished draft per testing section is saved on this device and browser. Uploaded files must be reselected after recovery.</p>
       {draft && <div className="rounded-lg border p-3 space-y-3">
         <h3 className="font-semibold">{draft.title || draft.name || "Untitled test"}</h3>
