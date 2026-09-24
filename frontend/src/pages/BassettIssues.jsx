@@ -529,8 +529,7 @@ function BassettFindingDetail({ id, onClose, canWrite, refresh, embedded = false
       {isLoading && <div className="text-sm text-muted-foreground">Loading Bassett Finding Details…</div>}
       {isError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">Unable to load this Bassett finding.</div>}
       {finding && <div className="space-y-5 text-sm">
-         <div className="flex flex-wrap gap-2"><Pill tone={severityLabel(finding.severity) === "Critical" ? "red" : severityLabel(finding.severity) === "High" ? "orange" : "slate"}>{severityLabel(finding.severity) || "Not rated"}</Pill><StatusBadge value={finding.developer_status || "New"} definitions={FINDING_STATUSES} /></div>
-        <AssigneePicker entityType="findings" entityId={finding.id} assigneeId={finding.assignee_id} assigneeName={finding.assignee_name} canWrite={canWrite} onChanged={refresh} />
+        <div className="flex flex-wrap gap-2"><Pill tone={severityLabel(finding.severity) === "Critical" ? "red" : severityLabel(finding.severity) === "High" ? "orange" : "slate"}>{severityLabel(finding.severity) || "Not rated"}</Pill><StatusBadge value={finding.developer_status || "New"} definitions={FINDING_STATUSES} /></div>
         <Info label="Description" value={finding.description || "—"} />
         <Info label="Expected behavior" value={finding.expected_behavior || "—"} />
         {finding.actual_behavior && <Info label="Actual Bassett behavior" value={finding.actual_behavior} />}
@@ -541,23 +540,30 @@ function BassettFindingDetail({ id, onClose, canWrite, refresh, embedded = false
             : <span className="text-muted-foreground">No Bassett Test Runs are linked.</span>}
         </div>
         <div className="rounded-xl border p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div><div className="font-semibold text-[var(--navy)]">Developer workflow</div><div className="text-xs text-muted-foreground mt-1">Retest: {finding.retest_status || "Pending"}</div></div>
-            {canWrite && <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => setStatusForm({ id, status: finding.developer_status || "New", root_cause: finding.root_cause || "", resolution: finding.resolution || "", note: "" })}>Update Status</Button>{sourceRun && !["Fixed", "Closed", "Won't Fix", "Duplicate"].includes(finding.developer_status) && <Button size="sm" variant="outline" onClick={startRetest} disabled={submitting}><RefreshCw size={13} /> Start Retest</Button>}</div>}
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div><div className="font-semibold text-[var(--navy)]">Follow-Up &amp; Retesting</div><div className="text-xs text-muted-foreground mt-1">Track internal review, ownership, and any validation needed after this finding.</div></div>
+            {canWrite && <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => setStatusForm({ id, status: finding.developer_status || "New", follow_up_action: finding.follow_up_action || "", retest_date: finding.retest_date || "", resolution: finding.resolution || "", note: "" })}>Update Follow-Up</Button>{sourceRun && !["Fixed", "Closed", "Won't Fix", "Duplicate"].includes(finding.developer_status) && <Button size="sm" variant="outline" onClick={startRetest} disabled={submitting}><RefreshCw size={13} /> Start Retest</Button>}</div>}
           </div>
-          {finding.root_cause && <div className="mt-3"><Info label="Root cause" value={finding.root_cause} /></div>}
-          {finding.resolution && <div className="mt-3"><Info label="Resolution" value={finding.resolution} /></div>}
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Info label="Workflow status" value={finding.developer_status || "New"} />
+            <Info label="Retest status" value={finding.retest_status || "Pending"} />
+            <div className="sm:col-span-2"><AssigneePicker entityType="findings" entityId={finding.id} assigneeId={finding.assignee_id} assigneeName={finding.assignee_name} canWrite={canWrite} onChanged={refresh} /></div>
+            <Info label="Follow-up action" value={finding.follow_up_action || "No follow-up action recorded."} />
+            <Info label="Target retest date" value={finding.retest_date ? formatTestDate(finding.retest_date) : "Not scheduled"} />
+          </div>
+          {finding.resolution && <div className="mt-4"><Info label="Resolution / follow-up notes" value={finding.resolution} /></div>}
         </div>
-        {(finding.status_history || []).length > 0 && <div className="rounded-xl border p-4"><div className="font-semibold text-[var(--navy)] mb-2">Status history</div><div className="space-y-1.5">{finding.status_history.map((item, index) => <div key={index} className="text-xs text-muted-foreground">{item.from || "—"} → <b className="text-[var(--navy)]">{item.to}</b> · {item.by || "Unknown"}{item.at ? ` · ${new Date(item.at).toLocaleDateString()}` : ""}{item.note ? ` · ${item.note}` : ""}</div>)}</div></div>}
+        {(finding.status_history || []).length > 0 && <div className="rounded-xl border p-4"><div className="font-semibold text-[var(--navy)] mb-2">Follow-up &amp; retest history</div><div className="space-y-1.5">{finding.status_history.map((item, index) => <div key={index} className="text-xs text-muted-foreground">{item.from || "—"} → <b className="text-[var(--navy)]">{item.to}</b> · {item.by || "Unknown"}{item.at ? ` · ${new Date(item.at).toLocaleDateString()}` : ""}{item.note ? ` · ${item.note}` : ""}</div>)}</div></div>}
         <div className="rounded-xl border p-4"><Attachments entityType="finding" entityId={finding.id} canWrite={canWrite} /></div>
         <div className="rounded-xl border p-4"><CommentsThread entityType="findings" entityId={finding.id} canWrite={canWrite} /></div>
       </div>}
     </aside>
-    {statusForm && <FormModal open onOpenChange={() => setStatusForm(null)} title="Update Developer Status" onSubmit={saveStatus} submitLabel={submitting ? "Saving…" : "Save Status"}>
-      <Field label="Status"><ListSelect options={config?.finding_statuses || []} value={statusForm.status} onChange={(value) => setStatusForm({ ...statusForm, status: value })} /></Field>
-      <Field label="Root Cause"><ListSelect options={config?.root_causes || []} value={statusForm.root_cause} onChange={(value) => setStatusForm({ ...statusForm, root_cause: value })} /></Field>
-      <Field label="Resolution"><Textarea rows={3} value={statusForm.resolution} onChange={(event) => setStatusForm({ ...statusForm, resolution: event.target.value })} /></Field>
-      <Field label="Note (added to history)"><Textarea rows={2} value={statusForm.note} onChange={(event) => setStatusForm({ ...statusForm, note: event.target.value })} /></Field>
+    {statusForm && <FormModal open onOpenChange={() => setStatusForm(null)} title="Update Follow-Up & Retesting" onSubmit={saveStatus} submitLabel={submitting ? "Saving…" : "Save follow-up"}>
+      <Field label="Workflow status"><ListSelect options={config?.finding_statuses || []} value={statusForm.status} onChange={(value) => setStatusForm({ ...statusForm, status: value })} /></Field>
+      <Field label="Follow-up action"><Textarea rows={3} value={statusForm.follow_up_action} onChange={(event) => setStatusForm({ ...statusForm, follow_up_action: event.target.value })} placeholder="Describe the internal review, monitoring, correction, or validation needed." /></Field>
+      <Field label="Target retest date"><Input type="date" value={statusForm.retest_date} onChange={(event) => setStatusForm({ ...statusForm, retest_date: event.target.value })} /></Field>
+      <Field label="Resolution / follow-up notes"><Textarea rows={3} value={statusForm.resolution} onChange={(event) => setStatusForm({ ...statusForm, resolution: event.target.value })} /></Field>
+      <Field label="History note"><Textarea rows={2} value={statusForm.note} onChange={(event) => setStatusForm({ ...statusForm, note: event.target.value })} placeholder="Optional note explaining this update." /></Field>
     </FormModal>}
     {editForm && <FormModal open onOpenChange={(open) => !open && setEditForm(null)} title="Edit Bassett Finding" onSubmit={saveFinding} submitLabel={submitting ? "Saving…" : "Save Changes"}>
       <Field label="Finding title" required><Input value={editForm.title} onChange={(event) => setEditForm({ ...editForm, title: event.target.value })} /></Field>

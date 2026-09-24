@@ -236,10 +236,14 @@ class TestFindingStatus:
         r = auth_client.post(f"{base_url}/api/findings/{fid}/status", json={
             "status": "Confirmed", "root_cause": "Reasoning",
             "resolution": "TEST_backend_resolution", "note": "TEST_backend note",
+            "follow_up_action": "Review internally and retest",
+            "retest_date": "2026-10-01",
         })
         assert r.status_code == 200
         after = r.json()
         assert after["developer_status"] == "Confirmed"
+        assert after["follow_up_action"] == "Review internally and retest"
+        assert after["retest_date"] == "2026-10-01"
         assert any(h.get("to") == "Confirmed" and h.get("note") == "TEST_backend note"
                    for h in after.get("status_history", []))
         # revert

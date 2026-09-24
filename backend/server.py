@@ -6308,11 +6308,19 @@ async def update_finding_status(id: str, body: Dict[str, Any], user=Depends(requ
     history = f.get("status_history", [])
     history.append({"from": f.get("developer_status"), "to": status,
                     "by": user["name"], "at": now_iso(), "note": body.get("note", "")})
-    await db.findings.update_one({"id": id}, {"$set": {
+    update_fields = {
         "developer_status": status, "status_history": history, "updated_at": now_iso(),
-        **({"resolution": body["resolution"]} if body.get("resolution") else {}),
-        **({"root_cause": body["root_cause"]} if body.get("root_cause") else {}),
-    }})
+        "follow_up_action": str(body.get("follow_up_action") or "").strip(),
+        "retest_date": _validate_test_date(
+            body.get("retest_date"), required=False, field_name="Target retest date"
+        ) if body.get("retest_date") else None,
+        "resolution": str(body.get("resolution") or "").strip(),
+    }
+    # Retain backwards compatibility for older clients without requiring root
+    # cause in the current internal follow-up workflow.
+    if body.get("root_cause"):
+        update_fields["root_cause"] = body["root_cause"]
+    await db.findings.update_one({"id": id}, {"$set": update_fields})
     await log_activity("findings", id, f"status → {status}", user)
     return await crud_get("findings", id)
 
