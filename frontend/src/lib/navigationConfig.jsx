@@ -33,14 +33,6 @@ export const NAV_SECTIONS = [
     ],
   },
   {
-    id: "findings-retesting", label: "Findings & Retesting",
-    description: "Review issues, retest fixes, compare regressions, and make release decisions.",
-    items: [
-      { to: ROUTES.regression, label: "Regression Testing", icon: RefreshCw },
-      { to: ROUTES.release, label: "Release Readiness", icon: Rocket },
-    ],
-  },
-  {
     id: "insights-reports", label: "Insights & Reports",
     description: "Analyze coverage and performance, then share the evidence.",
     items: [
@@ -53,14 +45,22 @@ export const NAV_SECTIONS = [
   },
   {
     id: "administration", label: "Administration",
-    description: "Manage reference data, schedules, demos, and restricted system controls.",
+    description: "Manage reference data and application settings.",
     items: [
       { to: ROUTES.municipalities, label: "Municipalities", icon: Building2 },
       { to: ROUTES.properties, label: "Properties", icon: MapPin },
       { to: ROUTES.evidence, label: "Ordinance Evidence", icon: FileText },
-      { to: ROUTES.demos, label: "Demo Library", icon: Star },
-      { to: ROUTES.calendar, label: "Calendar", icon: CalendarDays },
       { to: ROUTES.admin, label: "Administration", icon: Settings, roles: ["admin", "qa_manager"] },
+    ],
+  },
+  {
+    id: "advanced-tools", label: "Advanced Tools",
+    description: "Use specialized release, regression, scheduling, demo, and system-check tools when needed.",
+    items: [
+      { to: ROUTES.regression, label: "Regression Testing", icon: RefreshCw },
+      { to: ROUTES.release, label: "Release Readiness", icon: Rocket },
+      { to: ROUTES.calendar, label: "Calendar", icon: CalendarDays },
+      { to: ROUTES.demos, label: "Demo Library", icon: Star },
       { to: ROUTES.integrity, label: "Data Integrity", icon: ShieldCheck, roles: ["admin", "qa_manager"] },
     ],
   },

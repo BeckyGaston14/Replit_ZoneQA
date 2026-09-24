@@ -20,20 +20,17 @@ jest.mock("../components/ui/button", () => ({
 }));
 jest.mock("sonner", () => ({ toast: { success: jest.fn(), error: jest.fn() } }));
 
-test("offers truthful scoped exports and links to distinct live reports", () => {
+test("offers truthful scoped exports without duplicating application navigation", () => {
   const container = document.createElement("div");
   const root = createRoot(container);
   act(() => root.render(<Reports />));
 
   expect(container.querySelectorAll("[data-testid='export-qa-data-json']")).toHaveLength(1);
   expect(container.querySelectorAll("[data-testid^='report-']")).toHaveLength(6);
-  const links = [...container.querySelectorAll("a")].map((link) => link.getAttribute("href"));
-  expect(links).toEqual(expect.arrayContaining([
-    "/release", "/regression", "/comparison", "/findings", "/performance", "/executive",
-  ]));
+  expect(container.querySelectorAll("a")).toHaveLength(0);
   expect(container.textContent).toContain("Release Readiness Data");
   expect(container.textContent).toContain("Municipality Testing Data");
-  expect(container.textContent).toContain("Model Comparison Findings");
+  expect(container.textContent).not.toContain("Live reports");
   expect(container.querySelector("button").className).toContain("w-full");
   expect(container.querySelector("button").className).toContain("sm:w-auto");
   act(() => root.unmount());

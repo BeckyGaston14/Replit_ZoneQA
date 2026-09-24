@@ -219,7 +219,7 @@ test("scenario selector searches and displays the full scenario identity", () =>
   const root = createRoot(container);
   const onChange = jest.fn();
   act(() => {
-    root.render(<ScenarioSelector value="" onChange={onChange} scenarios={[
+    root.render(<ScenarioSelector value="" category="Research" onCategoryChange={jest.fn()} onChange={onChange} scenarios={[
       { id: "one", stable_id: "R-01", test_scenario: "Setback research", workflow_stage: "Research", priority: "High" },
       { id: "two", stable_id: "A-01", test_scenario: "Analysis review", workflow_stage: "Analysis", priority: "Low" },
     ]} />);
@@ -228,11 +228,11 @@ test("scenario selector searches and displays the full scenario identity", () =>
    const search = container.querySelector('input[aria-label="Search Test Scenario records"]');
   act(() => {
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
-    setter.call(search, "analysis");
+    setter.call(search, "setback");
     search.dispatchEvent(new Event("input", { bubbles: true }));
   });
-  expect(container.textContent).toContain("A-01 · Analysis review · Analysis · Low");
-  expect(container.textContent).not.toContain("R-01 · Setback research");
+  expect(container.textContent).toContain("R-01 · Setback research · Research · High");
+  expect(container.textContent).not.toContain("A-01 · Analysis review");
   act(() => root.unmount());
 });
 
@@ -320,7 +320,7 @@ test("viewer rows use a named button and the async details drawer traps and rest
   expect(drawer.textContent).not.toContain("Edit Test Run");
   expect(drawer.querySelector("a button")).toBeNull();
   expect(drawer.textContent).toContain("Bassett Finding");
-  expect(drawer.querySelector('a[href="/bassett/issues?view=findings&open=finding-1"]').textContent).toBe("Open Bassett Finding");
+  expect(drawer.querySelector('a[href="/bassett/findings?open=finding-1"]').textContent).toBe("Open Bassett Finding");
   expect(drawer.querySelector('a[href="/testcases/test-1"]').textContent).toBe("Open Model Comparison Test Case");
   act(() => {
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true }));

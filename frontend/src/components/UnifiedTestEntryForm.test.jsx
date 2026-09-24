@@ -107,12 +107,14 @@ test("Bassett and comparison modes share the core section order while benchmarks
   const commonSections = [
     "1. Test Setup", "2. Linked Records & Prompt", "3. Bassett Test Result",
     "4. Canonical Evaluation", "5. Findings & Ownership",
-    "6. Sources, Documents & Notes", "7. Follow-up, Retesting & Regression",
+    "6. Sources, Documents & Notes",
   ];
   for (const section of commonSections) {
     expect(bassett.container.textContent).toContain(section);
     expect(comparison.container.textContent).toContain(section);
   }
+  expect(bassett.container.textContent).not.toContain("7. Follow-Up & Retesting");
+  expect(comparison.container.textContent).toContain("7. Follow-Up & Retesting");
   expect(bassett.container.textContent).not.toContain("Comparison-only sections");
   expect(bassett.container.textContent).toContain("Workflow statusNot StartedIn ReviewEngineeringClosed / ResolvedReady for Retesting");
   expect(comparison.container.textContent).not.toContain("Workflow status");
@@ -208,7 +210,7 @@ test("guided workflow opens one section at a time and supports Previous and Next
   const view = renderForm("bassett");
   const sections = [...view.container.querySelectorAll("summary[data-guided-section]")]
     .map((summary) => summary.closest("details"));
-  expect(sections).toHaveLength(7);
+  expect(sections).toHaveLength(6);
   expect(sections.filter((section) => section.open)).toHaveLength(1);
   expect(sections[0].open).toBe(true);
 
@@ -418,12 +420,11 @@ test("comparison editor renders stale-save recovery controls supplied by its pag
   act(() => view.root.unmount());
 });
 
-test("review summary exposes required and optional sections while preserving autosaved draft content", () => {
+test("compact validation notice replaces the duplicated review summary while preserving autosaved draft content", () => {
   jest.useFakeTimers();
   const view = renderForm("bassett", { question_asked: "Keep this question" });
-  expect(view.container.querySelector('[data-testid="workflow-review-summary"]')).not.toBeNull();
-  expect(view.container.querySelector('[data-testid="workflow-review-summary"]').textContent).toContain("(Required)");
-  expect(view.container.querySelector('[data-testid="workflow-review-summary"]').textContent).toContain("(Optional)");
+  expect(view.container.querySelector('[data-testid="workflow-review-summary"]')).toBeNull();
+  expect(view.container.textContent).toContain("Complete the remaining required fields before saving");
   act(() => jest.advanceTimersByTime(500));
   expect(JSON.parse(localStorage.getItem("zoneqa:bassett-workflow-draft")).question_asked).toBe("Keep this question");
   jest.useRealTimers();

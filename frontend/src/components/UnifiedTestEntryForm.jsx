@@ -196,8 +196,8 @@ export function ScenarioSelector({ scenarios, value, onChange, category = "", on
   const categories = [...new Set(available.map(group).filter(Boolean))].sort();
   const selectedGroup = available.find((scenario) => scenario.id === value);
   const activeCategory = selectedGroup ? group(selectedGroup) : category;
-  const shown = available.filter((scenario) => (!activeCategory || group(scenario) === activeCategory) && [scenario.stable_id, scenario.test_scenario, scenario.priority]
-    .some((field) => String(field || "").toLowerCase().includes(query.toLowerCase())));
+  const shown = activeCategory ? available.filter((scenario) => group(scenario) === activeCategory && [scenario.stable_id, scenario.test_scenario, scenario.priority]
+    .some((field) => String(field || "").toLowerCase().includes(query.toLowerCase()))) : [];
   const errorId = `${id}-error`;
   return <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
     <Field label="Scenario Category" required controlId={`${id}-category`}>
@@ -471,34 +471,6 @@ function validate(form, mode) {
   const progress = progressFor(form, mode);
   if (!progress.ready) return "Complete the scenario, test name, prompt, Gold Standard, Bassett response, and test date.";
   return null;
-}
-
-function ReviewSummary({ mode, progress, sectionStatus, sectionIssue, activateSection, totalSections, sectionRequired = (index) => index < 3, conversationSource }) {
-  const labels = mode === "comparison"
-    ? ["Test setup", "Linked records & prompt", "Bassett test result", "Canonical evaluation", "Findings & ownership", "Sources, documents & notes", "Follow-up, retesting & regression", "ChatGPT response", "Claude response", "Benchmark evaluations", "Benchmark result"]
-    : ["Test setup", "Linked records & prompt", "Bassett test result", "Canonical evaluation", "Findings & ownership", "Sources, documents & notes", "Follow-up, retesting & regression"];
-  if (mode === "bassett" && conversationSource === "uploaded_conversation") labels[1] = "Linked records & conversation";
-  return <section className="rounded-xl border border-[var(--navy)]/20 bg-[var(--paper)] p-4" aria-labelledby="workflow-review-title" data-testid="workflow-review-summary">
-    <div className="flex flex-wrap items-start justify-between gap-2">
-      <div>
-        <h3 id="workflow-review-title" className="font-semibold text-[var(--navy)]">Review before saving</h3>
-        <p className="mt-1 text-xs text-muted-foreground">Required fields are checked before submit. Optional sections can stay blank and remain unavailable in reporting.</p>
-      </div>
-      <span className="text-xs font-semibold text-[var(--navy)]" aria-live="polite">{progress.complete}/{progress.total} required fields ready</span>
-    </div>
-    <ol className="mt-3 grid gap-1.5 sm:grid-cols-2">
-      {labels.slice(0, totalSections).map((label, index) => {
-        const issue = sectionIssue(index);
-        const status = sectionStatus(index);
-        return <li key={label}>
-          <button type="button" onClick={() => activateSection(index)} className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)]">
-             <span><span className="font-semibold">{index + 1}.</span> {label} <span className="text-muted-foreground">({sectionRequired(index) ? "Required" : "Optional"})</span></span>
-            <span className={issue ? "font-semibold text-red-700" : "text-muted-foreground"}>{issue ? "Needs attention" : (status === "Optional" ? "Not started" : status)}</span>
-          </button>
-        </li>;
-      })}
-    </ol>
-  </section>;
 }
 
 function newTurn(order) {
@@ -811,7 +783,8 @@ export default function UnifiedTestEntryForm({
   const setMunicipality = (value) => setForm((current) => ({ ...current, municipality_id: value, property_id: "" }));
   const finding = form.finding || {};
   const comparison = form.comparison || {};
-  const totalSections = isComparison ? 11 : 7;
+  const showFollowUp = isComparison || form.create_finding || ["Needs Improvement", "Fail", "Critical Fail"].includes(normalizeEvaluationResult(form.result)) || Boolean(form.follow_up_action || form.retest_target || form.retest_date);
+  const totalSections = isComparison ? 11 : showFollowUp ? 7 : 6;
   const formTitle = form.id
     ? `Edit ${isComparison ? "Model Comparison Test Case" : "Bassett Test Run"}`
     : isComparison ? "New Model Comparison Test Case" : "New Bassett Test Run";
@@ -874,16 +847,15 @@ export default function UnifiedTestEntryForm({
 
     <GuidedSection index={5} title="6. Sources, Documents & Notes" active={activeSection === 5} status={sectionStatus(5)} onActivate={activateSection}><div className="space-y-4">
        <Field label="Evidence / Source Links"><Textarea rows={3} value={form.source_links || form.evidence || ""} onChange={(e) => update(isComparison ? "source_links" : "evidence", e.target.value)} placeholder="Citations, URLs, source context…" /></Field>
-       <Field label="Test Notes and Reproduction Steps" description="Use this one field for overall observations, reproduction steps, and reviewer notes."><Textarea rows={4} value={form.notes || form.reproduction_steps || ""} onChange={(e) => setForm((current) => ({ ...current, notes: e.target.value, reproduction_steps: e.target.value }))} /></Field>
+       <Field label="Evidence & Notes" description="Add supporting facts, citations, limitations, reproduction details, or other context not already captured above."><Textarea rows={4} value={form.notes || form.reproduction_steps || ""} onChange={(e) => setForm((current) => ({ ...current, notes: e.target.value, reproduction_steps: e.target.value }))} /></Field>
        <Field label="Supporting Source Documents / Images" description={form.attachments?.length ? `${form.attachments.length} supporting file(s) selected` : "Attach ordinances, screenshots, emails, spreadsheets, PDFs, or other source evidence. These are separate from an uploaded Bassett conversation."}><Input type="file" multiple accept=".pdf,.doc,.docx,.odt,.xls,.xlsx,.ods,.ppt,.pptx,.txt,.csv,.tsv,.md,.rtf,.html,.htm,.xml,.json,.eml,.msg,.png,.jpg,.jpeg,.gif,.webp,.tif,.tiff,.bmp" onChange={(e) => update("attachments", Array.from(e.target.files || []))} /></Field>
     </div></GuidedSection>
 
-    <GuidedSection index={6} title="7. Follow-up, Retesting & Regression" active={activeSection === 6} status={sectionStatus(6)} onActivate={activateSection}><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    {showFollowUp && <GuidedSection index={6} title="7. Follow-Up & Retesting" active={activeSection === 6} status={sectionStatus(6)} onActivate={activateSection}><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <Field label="Follow-up action"><Textarea rows={3} value={form.follow_up_action || ""} onChange={(e) => update("follow_up_action", e.target.value)} /></Field>
       <Field label="Retest target"><Input value={form.retest_target || ""} onChange={(e) => update("retest_target", e.target.value)} /></Field>
       <Field label="Retest date"><Input type="date" value={form.retest_date || ""} onChange={(e) => update("retest_date", e.target.value)} /></Field>
-      <Field label="Regression linkage"><Input value={form.regression_run_id || ""} onChange={(e) => update("regression_run_id", e.target.value)} placeholder="Regression run ID (optional)" /></Field>
-    </div></GuidedSection>
+    </div></GuidedSection>}
 
     {isComparison && <div className="space-y-4 border-t-4 border-dashed border-[var(--orange)] pt-4">
       <div className="rounded-lg bg-[var(--paper)] p-3"><h3 className="font-semibold text-[var(--navy)]">Comparison-only sections</h3><p className="text-xs text-muted-foreground mt-1">These benchmark records and findings are separate from Bassett-only findings. Missing benchmark responses and scores are saved as unavailable and excluded from comparison metrics.</p></div>
@@ -894,7 +866,7 @@ export default function UnifiedTestEntryForm({
      <GuidedSection index={9} title="Benchmark evaluations & canonical scores" active={activeSection === 9} status={sectionStatus(9)} onActivate={activateSection} comparisonOnly><div className="space-y-6">{["ChatGPT", "Claude"].map((model) => <div key={model} className="space-y-3"><div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end"><h4 className="font-semibold text-sm text-[var(--navy)]">{model} evaluation · {form.rubric_revision || LEGACY_RUBRIC_REVISION} · calculated score</h4><Field label={`${model} verdict`}><select className="h-9 w-full rounded-md border bg-background px-3 py-2 text-sm" value={normalizeEvaluationResult(evaluationFor(model).final_result)} onChange={(e) => updateEvaluationResult(model, e.target.value)}>{COMPARISON_RESULT_OPTIONS.map((value) => <option key={value}>{value}</option>)}</select></Field></div><EvaluationGrid model={model} scores={evaluationFor(model).scores} dimensions={dimensions} onChange={updateEvaluation} locked={lockedCommon} />{catalogActive && <RubricScoreSummary catalog={normalizedRubricCatalog} scores={evaluationFor(model).scores} selectedIds={form.selected_rubric_ids || []} />}<Field label={`${model} score rationale`} required={hasScoredDimension(evaluationFor(model).scores)} description="Cite specific evidence supporting the selected scores (minimum 20 characters when scored)."><Textarea rows={3} value={evaluationFor(model).rationale || ""} onChange={(e) => updateEvaluationRationale(model, e.target.value)} /></Field></div>)}</div></GuidedSection>
       <GuidedSection index={10} title="Benchmark result & competitive findings" active={activeSection === 10} status={sectionStatus(10)} onActivate={activateSection} comparisonOnly><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><Field label="Bassett-versus-benchmark result"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={comparison.comparison_result || "Incomplete"} onChange={(e) => updateNested("comparison", "comparison_result", e.target.value)}>{COMPARISON_RESULT_OPTIONS.map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Win / loss / tie / shared failure"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={comparison.comparison_classification || "Incomplete"} onChange={(e) => updateNested("comparison", "comparison_classification", e.target.value)}>{COMPARISON_CLASSIFICATIONS.map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Competitive advantage"><Textarea rows={3} value={comparison.competitive_advantage || ""} onChange={(e) => updateNested("comparison", "competitive_advantage", e.target.value)} /></Field><Field label="Competitive gap"><Textarea rows={3} value={comparison.competitive_gap || ""} onChange={(e) => updateNested("comparison", "competitive_gap", e.target.value)} /></Field><Field label="Comparison-specific findings"><Textarea rows={4} value={comparison.findings?.[0]?.description || ""} onChange={(e) => updateNested("comparison", "findings", [{ title: "Comparison finding", description: e.target.value }])} placeholder="Never mixed into Bassett-only findings." /></Field></div></GuidedSection>
      </div>}
-      <ReviewSummary mode={mode} conversationSource={form.conversation_source} progress={progress} sectionStatus={sectionStatus} sectionIssue={sectionIssue} sectionRequired={sectionRequired} activateSection={activateSection} totalSections={totalSections} />
+      {!progress.ready && <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">Complete the remaining required fields before saving.</div>}
      <div className="sticky bottom-0 z-10 flex flex-wrap items-center gap-2 border-t bg-background/95 py-3">
       <Button type="button" variant="outline" disabled={activeSection === 0} onClick={() => activateSection(activeSection - 1)}>Previous</Button>
       {activeSection < totalSections - 1 && <Button type="button" onClick={() => activateSection(activeSection + 1)}>Next</Button>}

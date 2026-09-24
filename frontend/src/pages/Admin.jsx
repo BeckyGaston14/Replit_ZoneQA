@@ -28,7 +28,6 @@ const LOOKUPS = [
   ["finding_types", "Finding Types"], ["version_types", "Bassett Version Types"],
   ["release_channels", "Release Channels"],
 ];
-const DIMENSION_COLUMNS = [{ key: "label", label: "Dimension", type: "text" }, { key: "key", label: "Key", type: "natural" }, { key: "weight", label: "Weight", type: "number" }];
 const MODEL_COLUMNS = [{ key: "name", label: "Model", type: "natural" }, { key: "provider", label: "Provider", type: "text" }, { key: "role_type", label: "Type", type: "text" }, { key: "active", label: "Active", type: "active" }];
 const VERSION_COLUMNS = [
   { key: "name", label: "Version", type: "version" }, { key: "release_number", label: "Release #", type: "version" },
@@ -46,11 +45,12 @@ export default function Admin() {
   const { user: me } = useAuth();
   const isAdmin = me?.role === "admin";
   const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState("lookups");
   const { data: config, refetch } = useQuery({ queryKey: ["config"], queryFn: async () => (await api.get("/config")).data, enabled: isAdmin });
-  const { data: users = [], refetch: refetchUsers } = useQuery({ queryKey: ["users"], queryFn: async () => (await api.get("/users")).data, enabled: isAdmin });
-  const { data: emailStatus, refetch: refetchEmailStatus } = useQuery({ queryKey: ["admin-email-status"], queryFn: async () => (await api.get("/admin/email/status")).data, enabled: isAdmin });
-  const { data: models = [], refetch: refetchModels } = useQuery({ queryKey: ["models"], queryFn: async () => (await api.get("/models")).data, enabled: isAdmin });
-  const { data: versions = [], refetch: refetchVersions } = useQuery({ queryKey: ["versions"], queryFn: async () => (await api.get("/versions")).data, enabled: isAdmin });
+  const { data: users = [], refetch: refetchUsers } = useQuery({ queryKey: ["users"], queryFn: async () => (await api.get("/users")).data, enabled: isAdmin && activeTab === "users" });
+  const { data: emailStatus, refetch: refetchEmailStatus } = useQuery({ queryKey: ["admin-email-status"], queryFn: async () => (await api.get("/admin/email/status")).data, enabled: isAdmin && ["users", "integrations"].includes(activeTab) });
+  const { data: models = [], refetch: refetchModels } = useQuery({ queryKey: ["models"], queryFn: async () => (await api.get("/models")).data, enabled: isAdmin && ["models", "integrations"].includes(activeTab) });
+  const { data: versions = [], refetch: refetchVersions } = useQuery({ queryKey: ["versions"], queryFn: async () => (await api.get("/versions")).data, enabled: isAdmin && ["versions", "integrations"].includes(activeTab) });
   const [newItem, setNewItem] = useState({});
   const [lookupSearch, setLookupSearch] = useState("");
   const [integ, setInteg] = useState(null);
@@ -79,7 +79,6 @@ export default function Admin() {
   const [copiedReset, setCopiedReset] = useState(false);
   const emptyVersion = { name: "", release_number: "", release_date: "", environment: "Staging", version_type: "", release_channel: "", active: true };
   const [newVersion, setNewVersion] = useState(emptyVersion);
-  const [dimensionSort, setDimensionSort] = usePersistentTableSort("admin-dimensions", DIMENSION_COLUMNS, { key: "label", direction: "asc" });
   const [modelSort, setModelSort] = usePersistentTableSort("admin-models", MODEL_COLUMNS, { key: "name", direction: "asc" });
   const [versionSort, setVersionSort] = usePersistentTableSort("admin-versions", VERSION_COLUMNS, { key: "name", direction: "desc" });
   const [userSort, setUserSort] = usePersistentTableSort("admin-users", USER_COLUMNS, { key: "name", direction: "asc" });
@@ -344,9 +343,9 @@ export default function Admin() {
 
   return (
     <div>
-      <PageHeader title="Administration" subtitle="Configurable lookups, scoring, users, models & Bassett versions." />
-      <Tabs defaultValue="lookups">
-        <TabsList className="max-w-full justify-start overflow-x-auto"><TabsTrigger value="lookups">Lookups</TabsTrigger><TabsTrigger value="dimensions">Scoring Dimensions</TabsTrigger><TabsTrigger value="models">Models</TabsTrigger><TabsTrigger value="versions">Bassett Versions</TabsTrigger><TabsTrigger value="users">Users & Roles</TabsTrigger><TabsTrigger value="integrations" data-testid="tab-integrations">Integrations</TabsTrigger></TabsList>
+      <PageHeader title="Administration" subtitle="Configurable lookups, users, models & Bassett versions." />
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="max-w-full justify-start overflow-x-auto"><TabsTrigger value="lookups">Lookups</TabsTrigger><TabsTrigger value="models">Models</TabsTrigger><TabsTrigger value="versions">Bassett Versions</TabsTrigger><TabsTrigger value="users">Users & Roles</TabsTrigger><TabsTrigger value="integrations" data-testid="tab-integrations">Integrations</TabsTrigger></TabsList>
 
         <TabsContent value="lookups">
           <div className="mb-4 rounded-xl border bg-card p-4">
@@ -371,21 +370,6 @@ export default function Admin() {
                 </div>
               </details>
             ))}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="dimensions">
-          <div className="bg-card border rounded-xl p-5">
-            <h3 className="font-semibold font-display text-[var(--navy)] mb-3">Evaluation Dimensions & Weights</h3>
-            <TableSortControls columns={DIMENSION_COLUMNS} sort={dimensionSort} setSort={setDimensionSort} defaultSort={{ key: "label", direction: "asc" }} className="mb-2" />
-            <div className="max-w-full overflow-x-auto overscroll-x-contain"><table className="w-full min-w-[420px] text-sm">
-              <thead className="text-left text-xs uppercase text-muted-foreground"><tr>{DIMENSION_COLUMNS.map((column) => <SortableTableHeader key={column.key} column={column} sort={dimensionSort} onSort={(key) => setDimensionSort((current) => nextSort(current, key))} />)}</tr></thead>
-              <tbody>{sortTableRows(config.eval_dimensions || [], DIMENSION_COLUMNS, dimensionSort, ["label"]).map((d) => (
-                <tr key={d.key} className="border-t"><td className="py-2">{d.label}</td><td className="text-muted-foreground">{d.key}</td>
-                  <td><Input type="number" className="h-8 w-20" value={d.weight} onChange={(e) => { const dims = [...config.eval_dimensions]; const index = dims.findIndex((item) => item.key === d.key); dims[index] = { ...d, weight: Number(e.target.value) }; api.put("/config", { eval_dimensions: dims }).then(() => invalidateConfigQueries(queryClient)); }} /></td></tr>
-              ))}</tbody>
-            </table></div>
-            <p className="text-xs text-muted-foreground mt-3">Weights feed the Weighted Reward Score; raw component scores are always preserved.</p>
           </div>
         </TabsContent>
 

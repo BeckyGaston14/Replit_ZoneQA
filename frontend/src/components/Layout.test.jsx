@@ -192,16 +192,18 @@ test("no navigation section or rendered sidebar variant contains numeric count b
 
 test("navigation uses the requested workflow groups and preserves distinct destinations", () => {
   expect(SECTIONS.map((section) => section.label)).toEqual([
-    "Overview", "Bassett-Only Testing", "Model Comparison", "Findings & Retesting", "Insights & Reports", "Administration",
+    "Overview", "Bassett-Only Testing", "Model Comparison", "Insights & Reports", "Administration", "Advanced Tools",
   ]);
   const testing = SECTIONS.find((section) => section.id === "bassett-only-testing");
   const modelComparison = SECTIONS.find((section) => section.id === "model-comparison");
   const administration = SECTIONS.find((section) => section.id === "administration");
+  const advancedTools = SECTIONS.find((section) => section.id === "advanced-tools");
   expect(testing.items.find((item) => item.to === "/bassett/test-bank").label).toBe("Bassett Test Bank");
   expect(modelComparison.items.map((item) => item.label)).toEqual(["AI Comparison", "Model Comparison Test Cases", "Model Comparison Findings"]);
-  expect(administration.items).toEqual(expect.arrayContaining([
+  expect(advancedTools.items).toEqual(expect.arrayContaining([
     expect.objectContaining({ to: "/calendar", label: "Calendar" }),
   ]));
+  expect(administration.items.some((item) => item.to === "/calendar")).toBe(false);
 });
 
 test.each([
