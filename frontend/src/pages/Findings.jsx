@@ -44,7 +44,7 @@ export default function Findings() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const { data: config } = useConfig();
-  const findingsQuery = useQuery({ queryKey: ["findings"], queryFn: async () => (await api.get("/findings")).data });
+  const findingsQuery = useQuery({ queryKey: ["comparison-findings"], queryFn: async () => (await api.get("/comparison/findings")).data });
   const { data: findings = [] } = findingsQuery;
   const testcaseFilter = sp.get("testcase_id") || ALL;
   const projectFilter = sp.get("project_id") || ALL;
@@ -182,7 +182,7 @@ export default function Findings() {
     try {
       await api.post(`/findings/${statusForm.id}/status`, statusForm);
       toast.success("Status updated"); setStatusForm(null); qc.invalidateQueries();
-      const fresh = (await api.get("/findings")).data; setSel(fresh.find((f) => f.id === statusForm.id));
+      const fresh = (await api.get("/comparison/findings")).data; setSel(fresh.find((f) => f.id === statusForm.id));
     } catch (error) { toast.error(mutationMessage(error, "Unable to update status")); }
     finally { setSubmitting(false); }
   };

@@ -429,14 +429,14 @@ function progressFor(form, mode) {
 }
 
 function validate(form, mode) {
-  if (form.rubric_revision && form.rubric_revision !== LEGACY_RUBRIC_REVISION && !String(form.scoring_category || "").trim()) return "Select a Primary Scoring Category.";
   if (mode === "bassett") {
+    if (!String(form.scenario_id || "").trim()) return "A Test Scenario is required";
+    if (form.rubric_revision && form.rubric_revision !== LEGACY_RUBRIC_REVISION && !String(form.scoring_category || "").trim()) return "Select a Primary Scoring Category.";
     if (form.create_finding && !String(form.finding?.title || "").trim()) return "Enter a finding title.";
     if (form.create_finding && !String(form.finding?.finding_type || form.issue_category || "").trim()) return "Select a Finding Category.";
     const versionError = bassettVersionRequirementMessage(form);
     if (form.conversation_source === "uploaded_conversation") {
       if (!form.attachment_count && !form.conversation_attachment) return "Upload at least one Bassett conversation file before saving.";
-      if (!String(form.scenario_id || "").trim()) return "A Test Scenario is required";
       if (!String(form.test_date || "").trim()) return "The test date is required";
       if (hasScoredDimension(form.evaluation_scores) && String(form.score_rationale || "").trim().length < 20) return "Explain the Bassett scores in the Score rationale using at least 20 characters.";
       if (versionError) return versionError;
@@ -447,7 +447,6 @@ function validate(form, mode) {
         return "Add at least one complete multi-turn prompt and response.";
       }
       if (hasScoredDimension(form.evaluation_scores) && String(form.score_rationale || "").trim().length < 20) return "Explain the Bassett scores in the Score rationale using at least 20 characters.";
-      if (!String(form.scenario_id || "").trim()) return "A Test Scenario is required";
       if (!String(form.test_date || "").trim()) return "The test date is required";
       if (versionError) return versionError;
       return null;
@@ -466,6 +465,8 @@ function validate(form, mode) {
     if (versionError) return versionError;
     return null;
   }
+  if (!String(form.scenario_id || "").trim()) return "A Test Scenario is required";
+  if (form.rubric_revision && form.rubric_revision !== LEGACY_RUBRIC_REVISION && !String(form.scoring_category || "").trim()) return "Select a Primary Scoring Category.";
   for (const model of ["Bassett", "ChatGPT", "Claude"]) {
     const evaluation = form.evaluations?.[model];
     if (hasScoredDimension(evaluation?.scores) && String(evaluation?.rationale || "").trim().length < 20) return `Explain the ${model} scores in the Score rationale using at least 20 characters.`;
@@ -729,8 +730,8 @@ export default function UnifiedTestEntryForm({
   };
   const sectionIssue = (index) => {
     if (index === 0) {
-      if (catalogActive && !form.scoring_category) return "Select a Primary Scoring Category.";
       if (!String(form.scenario_id || "").trim()) return "Select a Test Scenario.";
+      if (catalogActive && !form.scoring_category) return "Select a Primary Scoring Category.";
       if (isComparison && !String(form.name || "").trim()) return "Enter a test name.";
       if (!String(form.test_date || "").trim()) return "Enter a test date.";
     }

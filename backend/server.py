@@ -308,6 +308,20 @@ def _finding_is_bassett(finding, linked_finding_ids=None):
     )
 
 
+def _finding_is_comparison(finding):
+    """Return only findings owned by the model-comparison workflow.
+
+    Explicit scope is authoritative.  A testcase link is retained as a
+    backwards-compatible signal for historical comparison findings that were
+    created before ``finding_scope`` was stored.
+    """
+    finding_scope = _finding_scope(finding)
+    return bool(
+        finding_scope == "comparison"
+        or (finding_scope is None and finding.get("testcase_id"))
+    )
+
+
 def _canonicalize_finding_severity(document):
     """Return a read-safe finding with matching severity and criticality."""
     normalized = dict(document)
@@ -5461,6 +5475,13 @@ async def bassett_findings(
             "test_date": finding.get("test_date") or source.get("test_date"),
         })
     return linked
+
+
+@api.get("/comparison/findings")
+async def comparison_findings(user=Depends(get_current_user)):
+    """Return findings belonging only to full model-comparison test cases."""
+    findings = await crud_list("findings")
+    return [finding for finding in findings if _finding_is_comparison(finding)]
 
 @api.post("/bassett/executions/{id}/create-finding")
 @api.post("/bassett/executions/{id}/findings")

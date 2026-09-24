@@ -448,6 +448,7 @@ def test_bassett_routes_do_not_replace_general_workflows():
     assert "/api/bassett/test-bank" in paths
     assert "/api/bassett/export/{resource}.csv" in paths
     assert "/api/bassett/findings" in paths
+    assert "/api/comparison/findings" in paths
     assert "/api/bassett/executions/{id}/create-finding" in paths
     assert "/api/bassett/issues/{id}/send-for-retest" in paths
     assert "/api/bassett/issues/{id}/triage" in paths

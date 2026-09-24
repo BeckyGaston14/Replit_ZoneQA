@@ -371,7 +371,7 @@ export default function BassettIssues() {
   };
 
   return <div>
-    <PageHeader title={showingFindings ? "Bassett Findings" : "Bassett Test Runs"} subtitle={showingFindings ? "Findings created from Bassett testing. General Findings and model-comparison findings remain separate." : "Record a Bassett test result, evidence, and follow-up. Passing test runs are not findings."}>
+    <PageHeader title={showingFindings ? "Bassett Findings" : "Bassett Test Runs"} subtitle={showingFindings ? "Findings created from Bassett-only testing. Model Comparison Findings remain separate." : "Record a Bassett test result, evidence, and follow-up. Passing test runs are not findings."}>
       {canManage && !showingFindings && <Button variant="outline" onClick={() => setShowImport(true)}><FileInput size={15} /> Import CSV</Button>}
       {canWrite && !showingFindings && <LocalDrafts mode="bassett" onRecover={(draft) => setForm(createBassettTestRunDraft(draft, config?.application_timezone))} />}
       {!showingFindings && <Button variant="outline" onClick={exportCsv}><FileOutput size={15} /> Export CSV</Button>}

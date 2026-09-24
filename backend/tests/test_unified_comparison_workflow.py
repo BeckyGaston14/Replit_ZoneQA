@@ -140,3 +140,6 @@ def test_finding_scopes_are_separate_and_ownership_is_preserved():
     assert comparison[0]["finding_scope"] == "comparison"
     assert comparison[0]["source"] == "model_comparison"
     assert comparison[0]["assignee_id"] == "owner-2"
+    assert server._finding_is_comparison(comparison[0]) is True
+    assert server._finding_is_comparison(bassett) is False
+    assert server._finding_is_comparison({"testcase_id": "legacy-tc"}) is True

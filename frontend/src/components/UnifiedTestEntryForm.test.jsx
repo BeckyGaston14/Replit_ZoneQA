@@ -233,6 +233,21 @@ test("invalid submission marks and opens the first incomplete section", () => {
   act(() => view.root.unmount());
 });
 
+test("blank current-rubric forms report missing fields in visible form order", () => {
+  const view = renderForm("bassett", {
+    scenario_id: "", workflow_stage: "", scoring_category: "", rubric_revision: "2026-09",
+  }, {
+    rubricCatalog: {
+      revision: "2026-09",
+      categories: [{ key: "property-zoning", name: "Property & Zoning Rules", rubric_ids: ["G-01"] }],
+      rubric_items: [{ rubric_id: "G-01", name: "Property identity" }],
+    },
+  });
+  act(() => view.container.querySelector('[data-testid="submit"]').click());
+  expect(toast.error).toHaveBeenCalledWith("A Test Scenario is required");
+  act(() => view.root.unmount());
+});
+
 test("existing completed versionless runs stay unassigned and warn before save", () => {
   const view = renderForm("bassett", {
     id: "legacy-run",
