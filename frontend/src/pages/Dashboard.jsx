@@ -72,7 +72,8 @@ export default function Dashboard() {
   const findings = m.findings || {};
   const bassett = m.bassett_only || {};
   const comparison = m.bassett_comparison || {};
-  const versionLabel = activeVersion || "No active version";
+  const versionLoading = versionsQuery.isLoading || metrics.isLoading;
+  const versionLabel = activeVersion || (versionLoading ? "Loading active version…" : "No active version");
   const sampleShown = sampleScopeIncludesData({ versions: versionsQuery.data || [], selectedVersion: activeVersion, records: [m, s, bassettMetrics.data] });
   const bassettWorkspace = bassettMetrics.data || {};
   const needsAttention = first(bassettWorkspace.test_runs?.attention, "N/A");
@@ -88,7 +89,7 @@ export default function Dashboard() {
     <div className="min-w-0">
       <PageHeader title="QA Dashboard" subtitle={`Scope: Active version: ${versionLabel} · Bassett dashboard scope · archived and unfinished records excluded.`} />
       <SampleDataBanner show={sampleShown} />
-      {!activeVersion && <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"><span><strong>Set an active Bassett version</strong> to calculate current-version metrics.</span><Button asChild size="sm"><Link to="/admin">Manage Bassett versions</Link></Button></div>}
+      {!versionLoading && !activeVersion && <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"><span><strong>Set an active Bassett version</strong> to calculate current-version metrics.</span><Button asChild size="sm"><Link to="/admin">Manage Bassett versions</Link></Button></div>}
 
       <section aria-labelledby="dashboard-kpis" className="mb-5">
         <h2 id="dashboard-kpis" className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Primary KPIs</h2>

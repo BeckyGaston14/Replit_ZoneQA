@@ -283,7 +283,7 @@ export default function BassettTestBank() {
   const scenarioDirty = Boolean(form && scenarioBaseline.current && JSON.stringify(form) !== JSON.stringify(scenarioBaseline.current));
 
   return <div>
-    <PageHeader title="Bassett Test Bank" subtitle="Bassett-only Research and Analysis scenarios with explicit success criteria and Bassett test run history. Pass test runs are not findings.">
+    <PageHeader title="Bassett Test Bank" subtitle="Bassett-only Research, Analysis, and Document Handling scenarios with explicit success criteria and Bassett test run history. Pass test runs are not findings.">
       {canManage && <Button variant="outline" onClick={() => setShowImport(true)}><FileInput /> Import CSV</Button>}
       <Button variant="outline" onClick={exportCsv}><FileOutput /> Export CSV</Button>
       <Button variant="outline" aria-pressed={showArchived} onClick={() => setShowArchived((value) => !value)}>{showArchived ? "Active scenarios" : "Archived scenarios"}</Button>
@@ -296,9 +296,9 @@ export default function BassettTestBank() {
       <StatCard label="Active scenarios" value={metrics?.scenarios.active ?? "—"} sub="Bassett Test Bank denominator" icon={FlaskConical} accent="#16215a" />
       <StatCard label="Scenario coverage" value={metrics?.test_runs.test_bank_coverage.covered ?? "—"} sub="active scenarios with a qualifying completed evaluation" icon={Activity} accent="#2563eb" />
       <StatCard label="Pass rate" value={metrics?.test_runs.pass_rate != null ? `${metrics.test_runs.pass_rate}%` : "—"} sub={metrics ? `${metrics.test_runs.passed}/${metrics.test_runs.eligible} eligible test runs` : "Pass or Pass with Notes ÷ eligible runs"} icon={CheckCircle2} accent="#16a34a" />
-      <StatCard label="Tests Needing Attention" value={metrics?.test_runs.attention ?? "—"} sub="Partial, Fail, or Blocked results" icon={XCircle} accent="#dc2626" />
+      <StatCard label="Tests Needing Attention" value={metrics?.test_runs.attention ?? "—"} sub="Needs Improvement, Fail, or Critical Fail results" icon={XCircle} accent="#dc2626" />
     </div>
-    <Section title="Scenario library" action={<span className="text-xs text-muted-foreground">{shown.length} active scenario(s)</span>}>
+    <Section title="Scenario library" action={<span className="text-xs text-muted-foreground">{shown.length} shown of {metrics?.scenarios.active ?? scenarios.length} active scenarios</span>}>
       <div className="flex flex-wrap gap-2 mb-4">
          <div className="relative flex-1 min-w-[240px]"><Search size={15} className="absolute left-3 top-2.5 text-muted-foreground" /><Input aria-label="Search Test Scenario records" className="pl-9" placeholder="Search ID, scenario, or purpose…" value={search} onChange={(e) => setViewFilter("search", e.target.value)} /></div>
          <select aria-label="Filter by category" className="h-9 rounded-md border bg-background px-3 text-sm" value={stage} onChange={(e) => setViewFilter("stage", e.target.value)}><option value="all">All categories</option>{stages.map((x) => <option key={x}>{x}</option>)}</select>
@@ -361,7 +361,7 @@ export default function BassettTestBank() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
        <Field label="Workflow stage" required error={formErrors.workflow_stage}><select required data-testid="field-workflow_stage" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.workflow_stage} onChange={(e) => setScenarioField("workflow_stage", e.target.value)}><option value="">Select workflow stage</option>{stages.map((x) => <option key={x}>{x}</option>)}</select></Field>
        <Field label="Primary Rubric Category" required><select required data-testid="field-scoring_category" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.scoring_category || ""} onChange={(e) => setScenarioField("scoring_category", e.target.value)}><option value="">Select rubric category</option>{(rubricCatalog?.categories || []).map((category) => <option key={category.key} value={category.key}>{category.name}</option>)}</select><p className="mt-1 text-xs text-muted-foreground">Used to group rubric results in dashboards and reports; separate from the Test Bank Category and Test Type.</p></Field>
-       <Field label="Test Type" required><select required data-testid="field-test_type" className="h-9 w-full rounded-md border bg-background px-3 py-2 text-sm" value={form.test_type || "Analysis"} onChange={(e) => setScenarioField("test_type", e.target.value)}><option>Analysis</option><option>Document Handling</option><option>General Research</option></select></Field>
+       <Field label="Test Type" required><select required data-testid="field-test_type" className="h-9 w-full rounded-md border bg-background px-3 py-2 text-sm" value={form.test_type || "Analysis"} onChange={(e) => setScenarioField("test_type", e.target.value)}><option>Analysis</option><option>Document Handling</option><option value="General Research">Research</option></select></Field>
           <Field label="Complexity" required error={formErrors.complexity}><select data-testid="field-complexity" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.complexity} onChange={(e) => setScenarioField("complexity", e.target.value)}>{["Low", "Moderate", "Medium", "High", "Very High"].map((x) => <option key={x}>{x}</option>)}</select></Field>
           <div className="sm:col-span-2"><Field label="Test Scenario" required error={formErrors.test_scenario}><Textarea data-testid="field-test_scenario" rows={3} value={form.test_scenario} onChange={(e) => setScenarioField("test_scenario", e.target.value)} /></Field></div>
           <div className="sm:col-span-2"><Field label="Why it matters" required error={formErrors.why_it_matters}><Textarea data-testid="field-why_it_matters" rows={2} value={form.why_it_matters} onChange={(e) => setScenarioField("why_it_matters", e.target.value)} /></Field></div>

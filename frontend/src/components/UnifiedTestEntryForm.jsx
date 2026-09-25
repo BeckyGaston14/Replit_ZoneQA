@@ -194,10 +194,14 @@ export function ScenarioSelector({ scenarios, value, onChange, category = "", on
   const [query, setQuery] = useState("");
   const [scenarioOpen, setScenarioOpen] = useState(false);
   const available = scenarios.filter((scenario) => (!scenario.archived && !scenario.archived_at) || scenario.id === value);
-  const group = (scenario) => scenario.catalog_revision ? (scenario.test_type || scenario.report_type || scenario.workflow_stage) : scenario.workflow_stage;
+  const group = (scenario) => {
+    const raw = scenario.catalog_revision ? (scenario.test_type || scenario.report_type || scenario.workflow_stage) : scenario.workflow_stage;
+    return raw === "General Research" ? "Research" : raw;
+  };
   const categories = [...new Set(available.map(group).filter(Boolean))].sort();
   const selectedGroup = available.find((scenario) => scenario.id === value);
-  const activeCategory = selectedGroup ? group(selectedGroup) : category;
+  const normalizedCategory = category === "General Research" ? "Research" : category;
+  const activeCategory = selectedGroup ? group(selectedGroup) : normalizedCategory;
   const selectedScenario = available.find((scenario) => scenario.id === value);
   const shown = activeCategory ? available.filter((scenario) => group(scenario) === activeCategory && [scenario.stable_id, scenario.test_scenario, scenario.priority]
     .some((field) => String(field || "").toLowerCase().includes(query.toLowerCase()))) : [];
@@ -251,7 +255,9 @@ export function ScenarioSelector({ scenarios, value, onChange, category = "", on
 
 export function ScenarioDefinition({ scenario }) {
   if (!scenario) return null;
-  const fields = [["Stable ID", scenario.stable_id], ["Scenario Category", scenario.catalog_revision ? (scenario.test_type || scenario.report_type || scenario.workflow_stage) : scenario.workflow_stage], ["Test Scenario", scenario.test_scenario], ["Complexity", scenario.complexity], ["Why it matters", scenario.why_it_matters], ["What Bassett should do", scenario.what_bassett_should_do], ["Success criteria", scenario.success_criteria], ["Priority", scenario.priority]];
+  const rawCategory = scenario.catalog_revision ? (scenario.test_type || scenario.report_type || scenario.workflow_stage) : scenario.workflow_stage;
+  const displayCategory = rawCategory === "General Research" ? "Research" : rawCategory;
+  const fields = [["Stable ID", scenario.stable_id], ["Scenario Category", displayCategory], ["Test Scenario", scenario.test_scenario], ["Complexity", scenario.complexity], ["Why it matters", scenario.why_it_matters], ["What Bassett should do", scenario.what_bassett_should_do], ["Success criteria", scenario.success_criteria], ["Priority", scenario.priority]];
   return <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">{fields.map(([label, value]) => <div key={label}><div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">{label}</div><div className="whitespace-pre-wrap">{value || "—"}</div></div>)}</div>;
 }
 
