@@ -345,7 +345,7 @@ test("both form modes expose all twelve plain-language scoring questions and one
     }
     if (mode === "bassett") {
       expect(view.container.querySelector('select[aria-label="Finding Category"]')).toBeNull();
-      expect(view.container.querySelector('select[aria-label="Test Scenario category"]')).not.toBeNull();
+      expect(view.container.querySelector('select[aria-label="Test Scenario type"]')).not.toBeNull();
       expect(view.container.querySelector('button[aria-label="Test Scenario"]')).not.toBeNull();
     }
     expect([...view.container.querySelectorAll('button[type="submit"]')]).toHaveLength(1);

@@ -1,4 +1,4 @@
-import { coverageStatusForCount } from "./Coverage";
+import { bassettCoverageTypes, coverageStatusForCount } from "./Coverage";
 
 jest.mock("react-router-dom", () => ({
   Link: ({ children }) => children,
@@ -13,4 +13,11 @@ test.each([
   [4, 4, "fully_evaluated"],
 ])("coverage status distinguishes %s definitions with %s evaluated", (tests, evaluated, expected) => {
   expect(coverageStatusForCount(tests, evaluated)).toBe(expected);
+});
+
+test("current Test Types take precedence over legacy workflow-stage groupings", () => {
+  const current = [{ value: "Research", tests: 46 }, { value: "Analysis", tests: 29 }, { value: "Document Handling", tests: 25 }];
+  const legacy = [{ value: "Research", tests: 46 }, { value: "Analysis", tests: 54 }];
+  expect(bassettCoverageTypes({ test_types: current, workflow_stages: legacy })).toEqual(current);
+  expect(bassettCoverageTypes({ workflow_stages: legacy })).toEqual(legacy);
 });

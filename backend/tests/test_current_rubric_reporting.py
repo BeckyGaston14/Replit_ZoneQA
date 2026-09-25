@@ -161,3 +161,58 @@ def test_comparison_read_model_rejects_mixed_scoring_system_triplet(monkeypatch)
     result = asyncio.run(server._complete_comparison_evaluations(evaluations))
 
     assert result == []
+
+
+def test_standalone_bassett_release_scoring_uses_current_rubric():
+    scored = server._authoritative_bassett_run_scoring({
+        "rubric_revision": server.CATALOG_REVISION,
+        "selected_rubric_ids": list(_current_scores()),
+        "rubric_scores": _current_scores(),
+        "evaluation_scores": {"accuracy": 99},
+    }, [{"key": "accuracy", "weight": 1}])
+
+    assert scored["overall_score"] == 5.8
+    assert scored["score_count"] == 6
+    assert scored["scoring_system"] == "current_rubric"
+    assert len(scored["category_scores"]) == 5
+
+
+def test_scenario_test_type_preserves_document_handling():
+    assert server._bassett_scenario_test_type({"test_type": "General Research"}) == "Research"
+    assert server._bassett_scenario_test_type({"test_type": "Analysis"}) == "Analysis"
+    assert server._bassett_scenario_test_type({"test_type": "Document Handling"}) == "Document Handling"
+
+
+def test_bassett_metrics_scope_cards_and_coverage_to_selected_project(monkeypatch):
+    rows = {
+        "bassett_scenarios": [
+            {"id": "scenario-a", "test_type": "Research", "archived": False},
+            {"id": "scenario-b", "test_type": "Document Handling", "archived": False},
+        ],
+        "bassett_issues": [
+            {
+                "id": "run-a", "project_id": "project-a", "scenario_id": "scenario-a",
+                "status": "Not Started", "result": "Critical Fail", "severity": "Critical",
+                "version_id": "v1", "bassett_version": "v1",
+            },
+            {
+                "id": "run-b", "project_id": "project-b", "scenario_id": "scenario-b",
+                "status": "In Review", "result": "Pass", "severity": "Medium",
+                "version_id": "v1", "bassett_version": "v1",
+            },
+        ],
+        "bassett_executions": [],
+        "versions": [{"id": "v1", "name": "v1", "active": True}],
+        "findings": [],
+    }
+    monkeypatch.setattr(server, "db", Db(rows))
+
+    result = asyncio.run(server.bassett_metrics(project_id="project-b", user={"id": "viewer"}))
+
+    assert result["issues"]["total"] == 1
+    assert result["issues"]["new"] == 0
+    assert result["issues"]["critical"] == 0
+    assert result["test_runs"]["attention"] == 0
+    assert result["test_runs"]["pass_rate"] == 100
+    assert result["test_runs"]["test_bank_coverage"] == {"total": 1, "covered": 1, "percent": 100.0}
+    assert result["scope"]["project_id"] == "project-b"

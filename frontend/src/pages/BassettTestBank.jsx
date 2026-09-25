@@ -39,6 +39,13 @@ const DEFAULT_TEST_BANK_VIEW = { filters: { search: "", stage: "all", complexity
 const PAGE_SIZE = 20;
 const displayResult = (value) => value === "Incomplete" ? "Legacy: Incomplete" : value;
 
+export function scenarioTestType(scenario = {}) {
+  const raw = scenario.catalog_revision
+    ? (scenario.test_type || scenario.report_type || scenario.workflow_stage)
+    : (scenario.test_type || scenario.workflow_stage);
+  return raw === "General Research" ? "Research" : (raw || "Unspecified");
+}
+
 export function ResultPill({ value }) {
   return <StatusBadge value={value || "Not Evaluated"} compact />;
 }
@@ -98,14 +105,15 @@ export default function BassettTestBank() {
   const { data: generalSubtypes = [] } = useGeneralSubtypes();
   const { data: rubricCatalog } = useRubricCatalog();
   const { data: workflowStages = [] } = useCollection("bassett/workflow-stages");
-  const testBankColumns = useMemo(() => TEST_BANK_SORT_COLUMNS.map((column) => column.key === "workflow_stage"
-    ? { ...column, type: "status", order: workflowStages.map((item) => typeof item === "string" ? item : item.name || item.workflow_stage).filter(Boolean) }
-    : column), [workflowStages]);
+  const testTypeOptions = [...new Set(scenarios.map(scenarioTestType).filter((value) => value !== "Unspecified"))].sort();
+  const testBankColumns = useMemo(() => TEST_BANK_SORT_COLUMNS.map((column) => column.key === "test_type"
+    ? { ...column, type: "status", order: ["Research", "Analysis", "Document Handling", "Unspecified"], getValue: scenarioTestType }
+    : column), []);
   const [sort, setSort] = usePersistentTableSort("bassett-test-bank", TEST_BANK_SORT_COLUMNS, { key: "stable_id", direction: "asc" });
   const stages = [...new Set([...workflowStages.map((stageDef) => typeof stageDef === "string" ? stageDef : stageDef.name || stageDef.workflow_stage), ...scenarios.map((s) => s.workflow_stage)].filter(Boolean))];
   const shown = useMemo(() => sortTableRows(scenarios.filter((scenario) => {
     const q = search.trim().toLowerCase();
-    return Boolean(scenario.archived) === showArchived && (stage === "all" || scenario.workflow_stage === stage) &&
+    return Boolean(scenario.archived) === showArchived && (stage === "all" || scenarioTestType(scenario) === stage) &&
       (complexity === "all" || scenario.complexity === complexity) && (priority === "all" || scenario.priority === priority) &&
       (!q || [scenario.stable_id, scenario.test_scenario, scenario.why_it_matters]
         .some((value) => String(value || "").toLowerCase().includes(q)));
@@ -295,13 +303,13 @@ export default function BassettTestBank() {
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
       <StatCard label="Active scenarios" value={metrics?.scenarios.active ?? "—"} sub="Bassett Test Bank denominator" icon={FlaskConical} accent="#16215a" />
       <StatCard label="Scenario coverage" value={metrics?.test_runs.test_bank_coverage.covered ?? "—"} sub="active scenarios with a qualifying completed evaluation" icon={Activity} accent="#2563eb" />
-      <StatCard label="Pass rate" value={metrics?.test_runs.pass_rate != null ? `${metrics.test_runs.pass_rate}%` : "—"} sub={metrics ? `${metrics.test_runs.passed}/${metrics.test_runs.eligible} eligible test runs` : "Pass or Pass with Notes ÷ eligible runs"} icon={CheckCircle2} accent="#16a34a" />
+      <StatCard label="Pass rate" value={metrics?.test_runs.pass_rate != null ? `${metrics.test_runs.pass_rate}%` : "—"} sub={metrics ? `${metrics.test_runs.passed}/${metrics.test_runs.eligible} eligible test runs` : "Pass or Pass with Minor Issues ÷ eligible runs"} icon={CheckCircle2} accent="#16a34a" />
       <StatCard label="Tests Needing Attention" value={metrics?.test_runs.attention ?? "—"} sub="Needs Improvement, Fail, or Critical Fail results" icon={XCircle} accent="#dc2626" />
     </div>
     <Section title="Scenario library" action={<span className="text-xs text-muted-foreground">{shown.length} shown of {metrics?.scenarios.active ?? scenarios.length} active scenarios</span>}>
       <div className="flex flex-wrap gap-2 mb-4">
          <div className="relative flex-1 min-w-[240px]"><Search size={15} className="absolute left-3 top-2.5 text-muted-foreground" /><Input aria-label="Search Test Scenario records" className="pl-9" placeholder="Search ID, scenario, or purpose…" value={search} onChange={(e) => setViewFilter("search", e.target.value)} /></div>
-         <select aria-label="Filter by category" className="h-9 rounded-md border bg-background px-3 text-sm" value={stage} onChange={(e) => setViewFilter("stage", e.target.value)}><option value="all">All categories</option>{stages.map((x) => <option key={x}>{x}</option>)}</select>
+         <select aria-label="Filter by test type" className="h-9 rounded-md border bg-background px-3 text-sm" value={stage} onChange={(e) => setViewFilter("stage", e.target.value)}><option value="all">All test types</option>{testTypeOptions.map((x) => <option key={x}>{x}</option>)}</select>
          <select aria-label="Filter by complexity" className="h-9 rounded-md border bg-background px-3 text-sm" value={complexity} onChange={(e) => setViewFilter("complexity", e.target.value)}><option value="all">All complexity</option>{[...new Set(scenarios.map((item) => item.complexity).filter(Boolean))].sort().map((x) => <option key={x}>{x}</option>)}</select>
          <select aria-label="Filter by priority" className="h-9 rounded-md border bg-background px-3 text-sm" value={priority} onChange={(e) => setViewFilter("priority", e.target.value)}><option value="all">All priorities</option>{[...new Set(scenarios.map((item) => item.priority).filter(Boolean))].sort().map((x) => <option key={x}>{x}</option>)}</select>
          {(search || stage !== "all" || complexity !== "all" || priority !== "all") && <Button type="button" size="sm" variant="outline" className="h-9 text-[var(--orange)]" onClick={() => { setPage(1); updateView(DEFAULT_TEST_BANK_VIEW); }} data-testid="test-bank-clear-filters"><X size={13} className="mr-1" /> Clear filters</Button>}
@@ -313,7 +321,7 @@ export default function BassettTestBank() {
         <th className="px-2.5 py-2 text-right text-[11px] uppercase tracking-wide text-muted-foreground">Actions</th>
       </tr></thead>
         <tbody>{isLoading ? <tr><td colSpan="7" className={TABLE_EMPTY_CELL_CLASS}>Loading Test Bank…</td></tr> : pageRows.map((scenario) => <tr key={scenario.id} className="border-t hover:bg-[var(--paper)]">
-          <td className={`${TABLE_CELL_CLASS} font-bold text-[var(--orange)]`}><button type="button" className="w-full text-left rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)] focus-visible:ring-offset-2" onClick={() => setSelected(scenario.id)} aria-label={`Open ${scenario.stable_id} Test Scenario`}>{scenario.stable_id}</button></td><td className={`${TABLE_CELL_CLASS} font-semibold`}>{scenario.workflow_stage}</td>
+          <td className={`${TABLE_CELL_CLASS} font-bold text-[var(--orange)]`}><button type="button" className="w-full text-left rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)] focus-visible:ring-offset-2" onClick={() => setSelected(scenario.id)} aria-label={`Open ${scenario.stable_id} Test Scenario`}>{scenario.stable_id}</button></td><td className={`${TABLE_CELL_CLASS} font-semibold`}>{scenarioTestType(scenario)}</td>
           <td className={`${TABLE_CELL_CLASS} min-w-[260px]`}><div className="font-semibold text-[var(--navy)]">{scenario.test_scenario}</div><div className="text-xs text-muted-foreground mt-1 line-clamp-1">{scenario.why_it_matters}</div></td>
           <td className={TABLE_CELL_CLASS}>{scenario.complexity}</td><td className={TABLE_CELL_CLASS}>{scenario.priority}</td><td className={TABLE_CELL_CLASS}>{scenario.execution_count} test run(s)</td>
             <td className={TABLE_ACTION_CELL_CLASS}>{scenario.archived
@@ -333,8 +341,8 @@ export default function BassettTestBank() {
     </Section>
      <MethodologyDisclosure title="How Bassett Test Bank metrics are calculated" testid="bassett-test-bank-methodology">
        <p>Bassett Test Bank metrics describe active reusable scenarios and their canonical Bassett-only executions.</p>
-       <p>Coverage counts active scenarios with at least one completed canonical result; pass rate is Pass or Pass with Notes divided by eligible completed runs.</p>
-       <p>Archived definitions are hidden from the active denominator; incomplete and blocked runs are not silently counted as passes.</p>
+       <p>Coverage counts active scenarios with at least one completed canonical result; pass rate is Pass or Pass with Minor Issues divided by eligible completed runs.</p>
+       <p>Archived definitions are hidden from the active denominator; incomplete and legacy Blocked runs are not silently counted as passes.</p>
      </MethodologyDisclosure>
 
     {selected && <ScenarioDetail id={selected} canManage={canManage} canExecute={canExecute} close={() => setSelected(null)} edit={(scenario) => { scenarioBaseline.current = scenario; setSelected(null); setConflict(null); setFormErrors({}); setScenarioError(""); setForm(scenario); }} run={(scenario) => { setSelected(null); setExecute(createBassettTestRunDraft({ scenario_id: scenario.id }, config?.application_timezone)); }} archive={setConfirmingArchive} restore={restore} />}

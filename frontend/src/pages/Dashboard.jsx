@@ -81,7 +81,7 @@ export default function Dashboard() {
   const kpis = [
     { label: "Bassett-Only Pass Rate", value: bassett.pass_rate == null ? "N/A" : `${bassett.pass_rate}%`, sub: `${first(bassett.label, "Bassett-only test runs")} · ${versionLabel}`, icon: CheckCircle2, accent: "#0f766e", to: dashboardRecordPath("bassett-only-pass-rate"), title: bassett.definition },
     { label: "Model Comparison Pass Rate", value: comparison.pass_rate == null ? "N/A" : `${comparison.pass_rate}%`, sub: `${first(comparison.label, "Model comparison runs")} · ${versionLabel}`, icon: CheckCircle2, accent: "#16a34a", to: dashboardRecordPath("model-comparison-pass-rate"), title: comparison.definition },
-    { label: "Tests Needing Attention", value: needsAttention, sub: "Needs Improvement, Fail, Critical Fail, or Blocked", icon: AlertTriangle, accent: "#c2410c", to: dashboardRecordPath("bassett-tests-needing-attention"), title: bassettWorkspace.test_runs?.definition },
+    { label: "Tests Needing Attention", value: needsAttention, sub: "Needs Improvement, Fail, Critical Fail, or legacy Blocked", icon: AlertTriangle, accent: "#c2410c", to: dashboardRecordPath("bassett-tests-needing-attention"), title: bassettWorkspace.test_runs?.definition },
     { label: "Scenario Coverage", value: coverage ? `${coverage.percent}%` : "N/A", sub: coverage ? `${coverage.covered}/${coverage.total} active scenarios evaluated` : "Active Test Bank scenarios", icon: ClipboardCheck, accent: "#2f3f96", to: dashboardRecordPath("scenario-coverage"), title: bassettWorkspace.test_runs?.definition },
   ];
   const loadingAny = metrics.isLoading || bassettMetrics.isLoading;

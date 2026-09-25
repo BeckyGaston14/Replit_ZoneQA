@@ -11,7 +11,7 @@ import {
 const rows = (ids) => ids.map((stable_id, index) => ({
   id: `scenario-${index}`,
   stable_id,
-  workflow_stage: stable_id?.toUpperCase().startsWith("A-") ? "Analysis" : "Research",
+  test_type: stable_id?.toUpperCase().startsWith("A-") ? "Analysis" : "Research",
   test_scenario: `Scenario ${index}`,
   complexity: "Medium",
   priority: "P2",
@@ -66,7 +66,7 @@ test("text, numeric values, blank values, and equal ties are predictable", () =>
 
 test("sort toggle selects ascending on a new column and alternates the active column", () => {
   expect(TEST_BANK_SORT_COLUMNS.map((column) => column.key)).toEqual([
-    "stable_id", "workflow_stage", "test_scenario",
+    "stable_id", "test_type", "test_scenario",
     "complexity", "priority", "execution_count",
   ]);
   expect(nextTestBankSort(DEFAULT_TEST_BANK_SORT, "priority")).toEqual({ key: "priority", direction: "asc" });

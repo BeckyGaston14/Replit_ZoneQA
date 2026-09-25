@@ -3429,6 +3429,19 @@ def _test_bank_category(record, scenarios_by_id):
     )
 
 
+def _bassett_scenario_test_type(scenario):
+    """Return the current scenario classification used by entry and coverage UI."""
+    if not isinstance(scenario, dict):
+        return "Unspecified"
+    raw = (
+        scenario.get("test_type")
+        or scenario.get("report_type")
+        or scenario.get("workflow_stage")
+        or "Unspecified"
+    )
+    return "Research" if raw == "General Research" else str(raw)
+
+
 def _normalize_general_subtype_ids(value):
     """Return a unique, ordered list of known General subtype IDs."""
     if value in (None, ""):
@@ -5572,6 +5585,7 @@ async def bassett_execution_create_finding(id: str, body: Dict[str, Any] = None,
 
 @api.get("/bassett/metrics")
 async def bassett_metrics(version_id: Optional[str] = None, environment: Optional[str] = None,
+                           project_id: Optional[str] = None,
                            user=Depends(get_current_user)):
     scenarios = _filter_sample_scope(
         "bassett_scenarios",
@@ -5590,6 +5604,16 @@ async def bassett_metrics(version_id: Optional[str] = None, environment: Optiona
     )
     issues = [_canonicalize_bassett_version_record(issue, versions) for issue in issues]
     executions = [_canonicalize_bassett_version_record(execution, versions) for execution in executions]
+    if project_id:
+        issues = [issue for issue in issues if issue.get("project_id") == project_id]
+        executions = [execution for execution in executions if execution.get("project_id") == project_id]
+        project_scenario_ids = {
+            run.get("scenario_id") for run in [*issues, *executions] if run.get("scenario_id")
+        }
+        scenarios = [
+            scenario for scenario in scenarios
+            if scenario.get("project_id") == project_id or scenario.get("id") in project_scenario_ids
+        ]
     # A linked legacy execution and canonical issue describe one run.  Never
     # allow the migration representation to inflate coverage or pass rates.
     metric_runs = _canonical_bassett_lineages(
@@ -5617,7 +5641,7 @@ async def bassett_metrics(version_id: Optional[str] = None, environment: Optiona
     completed_scenarios = {e.get("scenario_id") for e in completed if e.get("scenario_id") in active_scenario_ids}
     passed = passed_runs
     failure_breakdown = Counter(
-        (next((s.get("workflow_stage") for s in scenarios if s["id"] == e.get("scenario_id")), "Unclassified"))
+        (next((_bassett_scenario_test_type(s) for s in scenarios if s["id"] == e.get("scenario_id")), "Unclassified"))
         for e in attention_runs if _canonical_bassett_result(e.get("result")) in (*FAIL_SET, "Needs Improvement")
     )
     all_findings = await db.findings.find({}, {"_id": 0}).to_list(5000)
@@ -5686,7 +5710,7 @@ async def bassett_metrics(version_id: Optional[str] = None, environment: Optiona
             "definition": "Qualifying completed tests exclude Draft and Not Evaluated results. Workflow status does not remove a completed evaluation. Attention is Needs Improvement, Fail, Critical Fail, or legacy Blocked.",
         },
         "failure_breakdown": [{"label": key, "count": value} for key, value in failure_breakdown.most_common()],
-        "scope": {"version_id": version_id, "environment": environment},
+        "scope": {"version_id": version_id, "environment": environment, "project_id": project_id},
     }
 
 def _bassett_csv_rows(resource, docs):
@@ -6488,6 +6512,42 @@ def _metric_scoring_populations(evaluations, dimensions=None):
     }
 
 
+def _authoritative_bassett_run_scoring(run, dimensions):
+    """Calculate a standalone Bassett run with its stored scoring system."""
+    rubric_revision = run.get("rubric_revision") or run.get("bassett_rubric_revision")
+    if rubric_revision == CATALOG_REVISION:
+        selected_rubric_ids = normalize_rubric_ids(
+            run.get("selected_rubric_ids")
+            or run.get("bassett_selected_rubric_ids")
+            or []
+        )
+        rubric_scores = dict(
+            run.get("rubric_scores")
+            or run.get("bassett_rubric_scores")
+            or {}
+        )
+        rubric_result = score_rubrics(rubric_scores, selected_rubric_ids)
+        return {
+            "overall_score": rubric_result["overall_score"],
+            "weighted_score": rubric_result["overall_score"],
+            "score_mode": "rubric_average",
+            "score_label": "Rubric average",
+            "category_scores": rubric_result["category_scores"],
+            "score_count": rubric_result["score_count"],
+            "rubric_revision": CATALOG_REVISION,
+            "rubric_scores": rubric_scores,
+            "selected_rubric_ids": selected_rubric_ids,
+            "scoring_system": "current_rubric",
+        }
+    return {
+        **score_evaluation(
+            run.get("evaluation_scores") or run.get("scores") or {},
+            dimensions or [],
+        ),
+        "scoring_system": "legacy_dimensions",
+    }
+
+
 async def _authoritative_evaluation_read_model(evaluations):
     """Recalculate legacy records before any dashboard, export, or comparison read."""
     config = await db.config.find_one({"id": "global"}, {"_id": 0}) or DEFAULT_CONFIG
@@ -6835,34 +6895,11 @@ async def analytics_performance(user=Depends(get_current_user),
             or (date_to and run_date > date_to)
         ):
             continue
-        scores = run.get("evaluation_scores") or run.get("scores") or {}
-        rubric_revision = run.get("rubric_revision") or run.get("bassett_rubric_revision")
-        rubric_scores = dict(run.get("rubric_scores") or run.get("bassett_rubric_scores") or {})
-        selected_rubric_ids = normalize_rubric_ids(
-            run.get("selected_rubric_ids")
-            or run.get("bassett_selected_rubric_ids")
-            or []
-        )
         scenario = scenario_by_id.get(run.get("scenario_id"), {})
-        if rubric_revision == CATALOG_REVISION:
-            rubric_result = score_rubrics(rubric_scores, selected_rubric_ids)
-            authoritative = {
-                "overall_score": rubric_result["overall_score"],
-                "weighted_score": rubric_result["overall_score"],
-                "score_mode": "rubric_average",
-                "score_label": "Rubric average",
-                "category_scores": rubric_result["category_scores"],
-                "score_count": rubric_result["score_count"],
-                "rubric_revision": CATALOG_REVISION,
-                "rubric_scores": rubric_scores,
-                "selected_rubric_ids": selected_rubric_ids,
-                "scoring_system": "current_rubric",
-            }
-        else:
-            authoritative = {
-                **score_evaluation(scores, config.get("eval_dimensions", [])),
-                "scoring_system": "legacy_dimensions",
-            }
+        scores = run.get("evaluation_scores") or run.get("scores") or {}
+        authoritative = _authoritative_bassett_run_scoring(
+            run, config.get("eval_dimensions", [])
+        )
         candidate = {
             **run, **authoritative,
             "model": "Bassett", "scores": scores,
@@ -7643,11 +7680,10 @@ async def release_readiness(version: str, user=Depends(get_current_user), scope:
     dimensions = config.get("eval_dimensions", [])
     bassett_only_evals = []
     for run in populations["bassett_only"]["records"]:
-        scores = run.get("evaluation_scores") or run.get("scores") or {}
         result = _canonical_bassett_result(run.get("result"))
         bassett_only_evals.append({
             **run,
-            **score_evaluation(scores, dimensions),
+            **_authoritative_bassett_run_scoring(run, dimensions),
             "normalized_result": result,
             "final_result": result,
             "_release_source": "bassett_only",
@@ -7769,7 +7805,8 @@ async def release_readiness(version: str, user=Depends(get_current_user), scope:
     for e in critical_fails:
         testcase_id = e.get("testcase_id")
         tc = tcs.get(testcase_id, {})
-        blockers.append({"type": "Critical Fail Evaluation", "label": tc.get("name") or e.get("_release_label") or testcase_id or "Bassett-only test run", "detail": f"Score {e.get('overall_score', '—')} · Critical Fail", "link_id": testcase_id if testcase_id in tcs else "", "link_type": "testcase" if testcase_id in tcs else ""})
+        score = e.get("overall_score")
+        blockers.append({"type": "Critical Fail Evaluation", "label": tc.get("name") or e.get("_release_label") or testcase_id or "Bassett-only test run", "detail": f"Score {score if score is not None else 'Unavailable'} · Critical Fail", "link_id": testcase_id if testcase_id in tcs else "", "link_type": "testcase" if testcase_id in tcs else ""})
     if newly_failing:
         blockers.append({"type": "Regression", "label": f"{newly_failing} newly failing regression test(s)", "detail": f"Suite: {reg.get('suite_name', '')}", "link_id": "", "link_type": ""})
     if evaluated and pass_rate < 70:
@@ -8671,11 +8708,23 @@ async def analytics_coverage(user=Depends(get_current_user), scope: str = "both"
         } for value in values]
 
     workflow_stages = bassett_rows("workflow_stage", ["Research", "Analysis"])
+    test_types = [{
+        "value": value,
+        "tests": len([
+            scenario for scenario in scenarios
+            if _bassett_scenario_test_type(scenario) == value
+        ]),
+        "evaluated": len([
+            scenario for scenario in scenarios
+            if _bassett_scenario_test_type(scenario) == value
+            and scenario.get("id") in evaluated_scenarios
+        ]),
+    } for value in ["Research", "Analysis", "Document Handling"]]
     complexities = bassett_rows("complexity", ["Low", "Moderate", "High", "Very High"])
     priorities = bassett_rows("priority", ["P0 - Immediate", "P1 - High", "P2 - Medium", "P3 - Low"])
     bassett_gaps = sum(
         row["tests"] > 0 and row["evaluated"] == 0
-        for rows in (workflow_stages, complexities, priorities)
+        for rows in (test_types, complexities, priorities)
         for row in rows
     )
     comparison_summary = {
@@ -8691,7 +8740,8 @@ async def analytics_coverage(user=Depends(get_current_user), scope: str = "both"
     selected_gaps = bassett_summary["gap_count"] if scope == "bassett" else comparison_summary["gap_count"] if scope == "comparison" else bassett_summary["gap_count"] + comparison_summary["gap_count"]
     coverage_evidence = evidence_status(selected_evaluated)
     return {"municipalities": municipalities, "categories": categories, "criticality": criticality,
-            "workflow_stages": workflow_stages, "complexities": complexities, "priorities": priorities,
+            "workflow_stages": workflow_stages, "test_types": test_types,
+            "complexities": complexities, "priorities": priorities,
             "report_scope": scope, "population_counts": {"bassett_only": bassett_summary, "model_comparison": comparison_summary},
             "summary": {"total_tests": selected_total, "evaluated_tests": selected_evaluated,
                         "munis_covered": len(munis) - len(muni_gaps), "munis_total": len(munis),

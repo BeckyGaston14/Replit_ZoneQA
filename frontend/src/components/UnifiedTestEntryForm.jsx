@@ -207,14 +207,14 @@ export function ScenarioSelector({ scenarios, value, onChange, category = "", on
     .some((field) => String(field || "").toLowerCase().includes(query.toLowerCase()))) : [];
   const errorId = `${id}-error`;
   return <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-    <Field label="Scenario Category" required controlId={`${id}-category`}>
+    <Field label="Test Type" required controlId={`${id}-category`}>
       <Select required value={activeCategory || ""} onValueChange={(value) => { setQuery(""); onCategoryChange(value); }}>
-        <SelectTrigger id={`${id}-category`} aria-label="Test Scenario category" aria-required="true" className="h-auto min-h-9 w-full text-left [&>span]:line-clamp-none [&>span]:whitespace-normal [&>span]:break-words"><SelectValue placeholder="Select a category first" /></SelectTrigger>
-        <SelectContent className="max-w-[calc(100vw-2rem)]"><SelectItem value="__all" disabled>Select a category first</SelectItem>{categories.map((item) => <SelectItem key={item} value={item} className="whitespace-normal break-words py-2">{item}</SelectItem>)}</SelectContent>
+        <SelectTrigger id={`${id}-category`} aria-label="Test Scenario type" aria-required="true" className="h-auto min-h-9 w-full text-left [&>span]:line-clamp-none [&>span]:whitespace-normal [&>span]:break-words"><SelectValue placeholder="Select a test type first" /></SelectTrigger>
+        <SelectContent className="max-w-[calc(100vw-2rem)]"><SelectItem value="__all" disabled>Select a test type first</SelectItem>{categories.map((item) => <SelectItem key={item} value={item} className="whitespace-normal break-words py-2">{item}</SelectItem>)}</SelectContent>
       </Select>
     </Field>
     <Field label="Test Scenario" required controlId={`${id}-scenario`}>
-      <Input aria-label="Search Test Scenario records" placeholder={activeCategory ? `Search ${activeCategory} scenarios…` : "Select a category first"} value={query} onChange={(e) => { setQuery(e.target.value); setScenarioOpen(Boolean(activeCategory)); }} disabled={!activeCategory} />
+      <Input aria-label="Search Test Scenario records" placeholder={activeCategory ? `Search ${activeCategory} scenarios…` : "Select a test type first"} value={query} onChange={(e) => { setQuery(e.target.value); setScenarioOpen(Boolean(activeCategory)); }} disabled={!activeCategory} />
       <Button
         id={`${id}-scenario`}
         type="button"
@@ -229,7 +229,7 @@ export function ScenarioSelector({ scenarios, value, onChange, category = "", on
         onClick={() => setScenarioOpen((open) => !open)}
       >
         <span className="min-w-0 break-words">
-          {selectedScenario ? `${selectedScenario.stable_id} · ${selectedScenario.test_scenario}` : activeCategory ? `Select one of ${shown.length} ${activeCategory} scenarios` : "Select a category first"}
+          {selectedScenario ? `${selectedScenario.stable_id} · ${selectedScenario.test_scenario}` : activeCategory ? `Select one of ${shown.length} ${activeCategory} scenarios` : "Select a test type first"}
         </span>
         <span aria-hidden="true" className="ml-2 shrink-0">▾</span>
       </Button>
@@ -257,7 +257,7 @@ export function ScenarioDefinition({ scenario }) {
   if (!scenario) return null;
   const rawCategory = scenario.catalog_revision ? (scenario.test_type || scenario.report_type || scenario.workflow_stage) : scenario.workflow_stage;
   const displayCategory = rawCategory === "General Research" ? "Research" : rawCategory;
-  const fields = [["Stable ID", scenario.stable_id], ["Scenario Category", displayCategory], ["Test Scenario", scenario.test_scenario], ["Complexity", scenario.complexity], ["Why it matters", scenario.why_it_matters], ["What Bassett should do", scenario.what_bassett_should_do], ["Success criteria", scenario.success_criteria], ["Priority", scenario.priority]];
+  const fields = [["Stable ID", scenario.stable_id], ["Test Type", displayCategory], ["Test Scenario", scenario.test_scenario], ["Complexity", scenario.complexity], ["Why it matters", scenario.why_it_matters], ["What Bassett should do", scenario.what_bassett_should_do], ["Success criteria", scenario.success_criteria], ["Priority", scenario.priority]];
   return <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">{fields.map(([label, value]) => <div key={label}><div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">{label}</div><div className="whitespace-pre-wrap">{value || "—"}</div></div>)}</div>;
 }
 

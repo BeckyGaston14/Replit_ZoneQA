@@ -203,7 +203,11 @@ export default function BassettIssues() {
     queryKey: ["bassett-test-runs", showingFindings, showArchived, filters.status, filters.severity, filters.dateFrom, filters.dateTo],
     queryFn: async () => (await api.get(showingFindings ? "/bassett/findings" : "/bassett/issues", { params: { include_archived: !showingFindings, status: filters.status, severity: filters.severity, test_date_from: filters.dateFrom || undefined, test_date_to: filters.dateTo || undefined } })).data,
   });
-  const { data: metrics } = useQuery({ queryKey: ["bassett-metrics"], queryFn: async () => (await api.get("/bassett/metrics")).data });
+  const scopedProjectId = filters.project !== "all" ? filters.project : "";
+  const { data: metrics } = useQuery({
+    queryKey: ["bassett-metrics", scopedProjectId],
+    queryFn: async () => (await api.get("/bassett/metrics", { params: scopedProjectId ? { project_id: scopedProjectId } : {} })).data,
+  });
   const { data: scenarios = [] } = useQuery({ queryKey: ["bassett-scenarios"], queryFn: async () => (await api.get("/bassett/test-bank")).data });
   const { data: rubricCatalog } = useQuery({ queryKey: ["bassett-rubric-catalog"], queryFn: async () => (await api.get("/bassett/rubric-catalog")).data, staleTime: 30 * 60_000, enabled: Boolean(form) });
   const { data: generalSubtypes = [] } = useQuery({ queryKey: ["bassett-general-subtypes"], queryFn: async () => (await api.get("/bassett/general-subtypes")).data, staleTime: 30 * 60_000, enabled: Boolean(form || selected) });
@@ -384,7 +388,7 @@ export default function BassettIssues() {
     </PageHeader>
     <ProjectScopeNav projects={projects} />
      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3 mb-6">
-       <StatCard label={showingFindings ? "Open Findings" : "Tests Needing Attention"} value={showingFindings ? (metrics?.findings?.open ?? 0) : (metrics?.test_runs?.attention ?? "—")} sub={showingFindings ? "excludes fixed and closed findings" : "Needs Improvement, Fail, Critical Fail, or Blocked"} icon={Flag} accent="#f97316" />
+       <StatCard label={showingFindings ? "Open Findings" : "Tests Needing Attention"} value={showingFindings ? (metrics?.findings?.open ?? 0) : (metrics?.test_runs?.attention ?? "—")} sub={showingFindings ? "excludes fixed and closed findings" : "Needs Improvement, Fail, Critical Fail, or legacy Blocked"} icon={Flag} accent="#f97316" />
        <StatCard label={showingFindings ? "New Findings" : "Not Started Test Runs"} value={showingFindings ? (metrics?.findings?.new ?? 0) : (metrics?.issues?.new ?? "—")} sub={showingFindings ? "newly recorded findings" : "Workflow status is Not Started."} icon={AlertTriangle} accent="#2563eb" />
        {showingFindings
          ? <StatCard label="High + Critical findings total" value={metrics?.findings?.critical ?? 0} sub="High + Critical severity total" icon={ShieldAlert} accent="#b91c1c" />
@@ -456,7 +460,7 @@ export default function BassettIssues() {
          <><p>Finding counts reflect Bassett-only findings in the current visibility scope; fixed and closed findings are excluded from the open count. High and Critical counts are separate; the High + Critical findings total is their additive roll-up.</p><p>Project, version, severity, test result, category, test type, priority, environment, and test date come from the linked Bassett Test Run and Test Bank scenario when they are not stored directly on the finding.</p></>
        ) : (
          <>
-            <p>Tests Needing Attention includes Test result values of Needs Improvement, Fail, Critical Fail, or Blocked.</p>
+            <p>Tests Needing Attention includes Test result values of Needs Improvement, Fail, Critical Fail, or legacy Blocked.</p>
             <p>Scenario coverage is the percentage of active Test Bank scenarios with a qualifying completed evaluation. Draft and Not Evaluated runs are excluded; workflow status does not remove a completed result.</p>
          </>
        )}
