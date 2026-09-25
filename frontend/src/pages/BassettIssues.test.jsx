@@ -258,14 +258,17 @@ test("scenario selector searches and displays the full scenario identity", () =>
       { id: "two", stable_id: "A-01", test_scenario: "Analysis review", workflow_stage: "Analysis", priority: "Low" },
     ]} />);
   });
-  expect(container.textContent).toContain("R-01 · Setback research · Research · High");
-   const search = container.querySelector('input[aria-label="Search Test Scenario records"]');
+  const scenarioPicker = container.querySelector('button[aria-label="Test Scenario"]');
+  act(() => scenarioPicker.click());
+  expect(container.textContent).toContain("R-01 · Setback research");
+  expect(container.textContent).toContain("Research · High");
+  const search = container.querySelector('input[aria-label="Search Test Scenario records"]');
   act(() => {
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
     setter.call(search, "setback");
     search.dispatchEvent(new Event("input", { bubbles: true }));
   });
-  expect(container.textContent).toContain("R-01 · Setback research · Research · High");
+  expect(container.textContent).toContain("R-01 · Setback research");
   expect(container.textContent).not.toContain("A-01 · Analysis review");
   act(() => root.unmount());
 });

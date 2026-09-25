@@ -192,11 +192,13 @@ export function createComparisonEditDraft(full, timeZone, now = new Date()) {
 export function ScenarioSelector({ scenarios, value, onChange, category = "", onCategoryChange, error }) {
   const id = useId();
   const [query, setQuery] = useState("");
+  const [scenarioOpen, setScenarioOpen] = useState(false);
   const available = scenarios.filter((scenario) => (!scenario.archived && !scenario.archived_at) || scenario.id === value);
   const group = (scenario) => scenario.catalog_revision ? (scenario.test_type || scenario.report_type || scenario.workflow_stage) : scenario.workflow_stage;
   const categories = [...new Set(available.map(group).filter(Boolean))].sort();
   const selectedGroup = available.find((scenario) => scenario.id === value);
   const activeCategory = selectedGroup ? group(selectedGroup) : category;
+  const selectedScenario = available.find((scenario) => scenario.id === value);
   const shown = activeCategory ? available.filter((scenario) => group(scenario) === activeCategory && [scenario.stable_id, scenario.test_scenario, scenario.priority]
     .some((field) => String(field || "").toLowerCase().includes(query.toLowerCase()))) : [];
   const errorId = `${id}-error`;
@@ -208,11 +210,40 @@ export function ScenarioSelector({ scenarios, value, onChange, category = "", on
       </Select>
     </Field>
     <Field label="Test Scenario" required controlId={`${id}-scenario`}>
-      <Input aria-label="Search Test Scenario records" placeholder={category ? `Search ${category} scenarios…` : "Select a category first"} value={query} onChange={(e) => setQuery(e.target.value)} disabled={!category} />
-      <select required disabled={!category} aria-label="Test Scenario" aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} className="mt-2 h-9 w-full rounded-md border bg-background px-3 text-sm" value={value || ""} onChange={(e) => onChange(e.target.value)}>
-      <option value="">{category ? `Select one of ${shown.length} ${category} scenarios` : "Select a category first"}</option>
-      {shown.map((scenario) => <option key={scenario.id} value={scenario.id}>{scenario.stable_id} · {scenario.test_scenario} · {group(scenario)} · {scenario.priority}{scenario.archived ? " (archived)" : ""}</option>)}
-      </select>
+      <Input aria-label="Search Test Scenario records" placeholder={activeCategory ? `Search ${activeCategory} scenarios…` : "Select a category first"} value={query} onChange={(e) => { setQuery(e.target.value); setScenarioOpen(Boolean(activeCategory)); }} disabled={!activeCategory} />
+      <Button
+        id={`${id}-scenario`}
+        type="button"
+        variant="outline"
+        role="combobox"
+        aria-label="Test Scenario"
+        aria-expanded={scenarioOpen}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? errorId : undefined}
+        disabled={!activeCategory}
+        className="mt-2 h-auto min-h-9 w-full justify-between whitespace-normal text-left font-normal"
+        onClick={() => setScenarioOpen((open) => !open)}
+      >
+        <span className="min-w-0 break-words">
+          {selectedScenario ? `${selectedScenario.stable_id} · ${selectedScenario.test_scenario}` : activeCategory ? `Select one of ${shown.length} ${activeCategory} scenarios` : "Select a category first"}
+        </span>
+        <span aria-hidden="true" className="ml-2 shrink-0">▾</span>
+      </Button>
+      {scenarioOpen && activeCategory && <div role="listbox" aria-label="Test Scenario options" className="mt-2 max-h-80 w-full overflow-y-auto overflow-x-hidden rounded-md border bg-background p-1 shadow-sm">
+        {shown.map((scenario) => <button
+          key={scenario.id}
+          type="button"
+          role="option"
+          data-scenario-id={scenario.id}
+          aria-selected={scenario.id === value}
+          className={`block w-full rounded px-3 py-2 text-left text-sm leading-5 whitespace-normal break-words hover:bg-[var(--paper)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)] ${scenario.id === value ? "bg-orange-50 font-semibold" : ""}`}
+          onClick={() => { onChange(scenario.id); setScenarioOpen(false); }}
+        >
+          <span className="font-semibold text-[var(--navy)]">{scenario.stable_id}</span> · {scenario.test_scenario}
+          <span className="mt-1 block text-xs text-muted-foreground">{group(scenario)} · {scenario.priority}{scenario.archived ? " · Archived" : ""}</span>
+        </button>)}
+        {!shown.length && <p className="px-3 py-2 text-sm text-muted-foreground">No Test Scenario records match this search.</p>}
+      </div>}
       {error && <p id={errorId} role="alert" className="text-xs text-red-700">{error}</p>}
     </Field>
   </div>;

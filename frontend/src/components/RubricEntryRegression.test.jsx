@@ -21,10 +21,11 @@ test("new scenario picker excludes archived scenarios but preserves an existing 
   ];
   const render = (value) => act(() => root.render(<ScenarioSelector scenarios={scenarios} value={value} category="Research" onChange={() => {}} onCategoryChange={() => {}} />));
   render("");
-  expect(container.querySelector('option[value="old"]')).toBeNull();
-  expect(container.querySelector('option[value="new"]')).not.toBeNull();
+  act(() => container.querySelector('button[aria-label="Test Scenario"]').click());
+  expect(container.querySelector('[role="option"][data-scenario-id="old"]')).toBeNull();
+  expect(container.querySelector('[role="option"][data-scenario-id="new"]')).not.toBeNull();
   render("old");
-  expect(container.querySelector('option[value="old"]')).not.toBeNull();
+  expect(container.querySelector('button[aria-label="Test Scenario"]').textContent).toContain("Historical");
 });
 
 test.each([undefined, null, "", "N/A"])("unchecking an unscored criterion (%s) does not ask for confirmation", (score) => {

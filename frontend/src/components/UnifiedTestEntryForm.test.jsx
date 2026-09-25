@@ -181,7 +181,7 @@ test("category selection filters Test Bank scenarios before scenario selection",
   const analysisScenario = { ...scenario, id: "scenario-2", stable_id: "A-01", workflow_stage: "Analysis", test_scenario: "Analyze zoning" };
   const view = renderForm("bassett", { scenario_id: "", workflow_stage: "" }, { scenarios: [scenario, analysisScenario] });
   const category = view.container.querySelector('select[aria-label="Test Scenario category"]');
-  const scenarioSelect = view.container.querySelector('select[aria-label="Test Scenario"]');
+  const scenarioSelect = view.container.querySelector('button[aria-label="Test Scenario"]');
   expect(scenarioSelect.disabled).toBe(true);
   act(() => {
     const options = view.container.querySelector('select[data-testid="category-options"]');
@@ -189,8 +189,10 @@ test("category selection filters Test Bank scenarios before scenario selection",
     options.dispatchEvent(new Event("change", { bubbles: true }));
   });
   expect(scenarioSelect.disabled).toBe(false);
-  expect([...scenarioSelect.options].map((option) => option.textContent).join(" ")).toContain("A-01");
-  expect([...scenarioSelect.options].map((option) => option.textContent).join(" ")).not.toContain("R-01");
+  act(() => scenarioSelect.click());
+  const scenarioOptions = view.container.querySelector('[role="listbox"][aria-label="Test Scenario options"]');
+  expect(scenarioOptions.textContent).toContain("A-01");
+  expect(scenarioOptions.textContent).not.toContain("R-01");
   act(() => view.root.unmount());
 });
 
@@ -344,7 +346,7 @@ test("both form modes expose all twelve plain-language scoring questions and one
     if (mode === "bassett") {
       expect(view.container.querySelector('select[aria-label="Finding Category"]')).toBeNull();
       expect(view.container.querySelector('select[aria-label="Test Scenario category"]')).not.toBeNull();
-      expect(view.container.querySelector('select[aria-label="Test Scenario"]')).not.toBeNull();
+      expect(view.container.querySelector('button[aria-label="Test Scenario"]')).not.toBeNull();
     }
     expect([...view.container.querySelectorAll('button[type="submit"]')]).toHaveLength(1);
     expect(view.container.querySelector('button[type="submit"]').textContent).toBe("Save Changes");
