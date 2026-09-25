@@ -1051,6 +1051,8 @@ def test_performance_and_coverage_scope_include_standalone_bassett_runs(monkeypa
     assert performance["report_scope"] == "bassett"
     assert performance["population_counts"] == {"bassett_only": 1, "model_comparison": 0}
     assert performance["model_summary"][0]["avg_score"] == 9
+    assert performance["model_summary"][0]["passed"] == 1
+    assert performance["release_evidence"]["evaluated"] == 1
     assert coverage["population_counts"]["bassett_only"]["total_tests"] == 1
     assert coverage["population_counts"]["bassett_only"]["evaluated_tests"] == 1
     assert coverage["summary"]["total_tests"] == 1
