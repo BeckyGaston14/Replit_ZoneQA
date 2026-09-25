@@ -229,7 +229,7 @@ export function ScenarioSelector({ scenarios, value, onChange, category = "", on
         </span>
         <span aria-hidden="true" className="ml-2 shrink-0">▾</span>
       </Button>
-      {scenarioOpen && activeCategory && <div role="listbox" aria-label="Test Scenario options" className="mt-2 max-h-80 w-full overflow-y-auto overflow-x-hidden rounded-md border bg-background p-1 shadow-sm">
+      {scenarioOpen && activeCategory && <div role="listbox" aria-label="Test Scenario options" className="relative z-30 mt-2 max-h-80 w-full overflow-y-auto overflow-x-hidden rounded-md border bg-background p-1 shadow-sm">
         {shown.map((scenario) => <button
           key={scenario.id}
           type="button"
