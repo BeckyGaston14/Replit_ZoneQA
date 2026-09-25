@@ -10085,6 +10085,7 @@ async def _run_data_integrity(user):
     props = {p["id"]: p for p in await crud_list("properties", include_archived=True)}
     evidence = await crud_list("evidence")
     runs = await crud_list("regression_runs")
+    versions = await crud_list("versions", include_archived=True)
     decisions = await db.release_decisions.find({}, {"_id": 0}).to_list(100)
     scenarios = await crud_list("bassett_scenarios", include_archived=True)
 
