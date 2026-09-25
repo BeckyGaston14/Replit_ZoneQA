@@ -41,7 +41,7 @@ function indefiniteArticle(value = "") {
   return /^[aeiou]/i.test(value.trim()) ? "an" : "a";
 }
 
-export default function ResourceList({ title, subtitle, collection, columns, fields, initial = {}, rowLink, rowAction, attachable, singular, dataEndpoint, dateFilterColumn, exportFilename, exportLabel = "Export", newLabel = "New", emptyStateTitle, emptyStateDescription, emptyActionLabel, parentLifecycle = false, dateRanges = [], filterFields = [], renderCreateExtras, onCreateSuccess, onNewOpen }) {
+export default function ResourceList({ title, subtitle, collection, columns, fields, initial = {}, rowLink, rowAction, attachable, singular, dataEndpoint, dateFilterColumn, dateFilterLabel = "Last Tested", exportFilename, exportLabel = "Export", newLabel = "New", emptyStateTitle, emptyStateDescription, emptyActionLabel, parentLifecycle = false, dateRanges = [], filterFields = [], renderCreateExtras, onCreateSuccess, onNewOpen }) {
   const lifecycleEndpoint = `/resources/${collection}`;
   const listEndpoint = dataEndpoint || `/${collection}`;
   const defaultView = {
@@ -336,8 +336,8 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
       {viewError && <div role="alert" className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">{viewError} <button type="button" className="ml-2 font-semibold underline" onClick={retryView}>Retry saved view</button></div>}
       {dateFilterError && <div role="alert" className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{dateFilterError}</div>}
       {dateFilterColumn && <div className="flex items-center gap-2 mb-3 flex-wrap" aria-label={`${title} date filters`}>
-        <label className="text-xs text-muted-foreground">Last Tested from <Input type="date" value={view.filters.date_from} onChange={(event) => setDateFilter("date_from", event.target.value)} className="h-8 w-36 text-xs" aria-label="Last Tested Date from" aria-invalid={Boolean(dateFilterError)} /></label>
-        <label className="text-xs text-muted-foreground">to <Input type="date" value={view.filters.date_to} onChange={(event) => setDateFilter("date_to", event.target.value)} className="h-8 w-36 text-xs" aria-label="Last Tested Date to" aria-invalid={Boolean(dateFilterError)} /></label>
+        <label className="text-xs text-muted-foreground">{dateFilterLabel} from <Input type="date" value={view.filters.date_from} onChange={(event) => setDateFilter("date_from", event.target.value)} className="h-8 w-36 text-xs" aria-label={`${dateFilterLabel} Date from`} aria-invalid={Boolean(dateFilterError)} /></label>
+        <label className="text-xs text-muted-foreground">to <Input type="date" value={view.filters.date_to} onChange={(event) => setDateFilter("date_to", event.target.value)} className="h-8 w-36 text-xs" aria-label={`${dateFilterLabel} Date to`} aria-invalid={Boolean(dateFilterError)} /></label>
         {hasFilters && <Button type="button" size="sm" variant="outline" className="h-8 text-[var(--orange)]" onClick={clearFilters} data-testid={`${collection}-clear-filters`}><X size={13} className="mr-1" /> Clear filters</Button>}
         <span className="text-xs text-muted-foreground ml-auto">{filteredData.length} of {data.length} projects</span>
       </div>}
