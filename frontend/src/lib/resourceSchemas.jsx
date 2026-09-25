@@ -21,6 +21,7 @@ export const PROJECT_SCHEMA = {
   collection: "projects",
   dataEndpoint: "/list/projects-enriched",
   dateFilterColumn: "last_tested_date",
+  dateFilterLabel: "Last Qualifying Test",
   exportFilename: "zoneqa-projects.csv",
   exportLabel: "Export CSV",
   newLabel: "New Testing Project",
@@ -52,10 +53,10 @@ export const PROJECT_SCHEMA = {
     },
     {
       key: "last_tested_date",
-      label: "Last Tested Date",
+      label: "Last Qualifying Test",
       type: "date",
-      render: (row) => <time dateTime={row.last_tested_date || undefined} title={row.last_tested_scope}>{row.last_tested_date ? formatTestDate(row.last_tested_date) : "Not Yet Tested"}</time>,
-      exportValue: (row) => row.last_tested_date || "Not Yet Tested",
+      render: (row) => <time dateTime={row.last_tested_date || undefined} title={row.last_tested_scope || "Latest completed, qualifying test linked to this project."}>{row.last_tested_date ? formatTestDate(row.last_tested_date) : "No qualifying test"}</time>,
+      exportValue: (row) => row.last_tested_date || "No qualifying test",
     },
   ],
   fields: [

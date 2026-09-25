@@ -28,6 +28,8 @@ test("test-case descriptors retain persisted column keys and normalize legacy vi
 });
 
 test("resource schemas preserve required and relation-field contracts", () => {
+  expect(PROJECT_SCHEMA.dateFilterLabel).toBe("Last Qualifying Test");
+  expect(PROJECT_SCHEMA.columns.find(({ key }) => key === "last_tested_date").label).toBe("Last Qualifying Test");
   expect(PROJECT_SCHEMA.fields.find(({ key }) => key === "name").required).toBe(true);
   expect(PROJECT_SCHEMA.fields.find(({ key }) => key === "owner_id")).toEqual(expect.objectContaining({
     type: "relation",
