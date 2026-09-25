@@ -1,4 +1,4 @@
-import { formatTestDate } from "./testDates";
+import { formatTestDate, todayInTimeZone } from "./testDates";
 
 export const MUNICIPALITY_ADD_FIELDS = [
   { key: "name", label: "Municipality" },
@@ -215,7 +215,7 @@ export function createEvidenceSchema(municipalities = [], users = [], currentUse
       { key: "relevant_text", label: "Extracted Source Text", type: "textarea", col: 2, group: "content", groupLabel: "Evidence content" },
       { key: "notes", label: "Notes", type: "textarea", col: 2, group: "content", groupLabel: "Evidence content" },
     ],
-    initial: currentUser ? { verified_by: currentUser.name, verified_date: new Date().toISOString().slice(0, 10) } : {},
+    initial: currentUser ? { verified_by: currentUser.name, verified_date: todayInTimeZone() } : {},
     dateRanges: [{ start: "effective_date", end: "superseded_date", startLabel: "Effective Date", endLabel: "Superseded Date" }],
   };
 }

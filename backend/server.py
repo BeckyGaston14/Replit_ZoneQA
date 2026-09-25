@@ -2185,8 +2185,11 @@ async def crud_create(coll, body, user):
     if coll == "evidence":
         # Verification provenance is authoritative at creation time.  It may
         # be corrected later through the normal edit workflow.
+        config = await db.config.find_one({"id": "global"}, {"_id": 0}) or DEFAULT_CONFIG
         doc["verified_by"] = user["name"]
-        doc["verified_date"] = datetime.now(timezone.utc).date().isoformat()
+        doc["verified_date"] = datetime.now(
+            ZoneInfo(_application_timezone_name(config))
+        ).date().isoformat()
     if coll == "evaluations" and "final_result" in doc:
         doc["final_result"] = normalize_evaluation_result(doc.get("final_result"))
     if coll == "models":
