@@ -5,12 +5,12 @@ import { PageHeader, StatCard, WrapTick, SrTable, SampleDataBanner, sampleScopeI
 import { fmtPct, fmtPts, fmtScore, plural } from "../lib/format";
 import { Button } from "../components/ui/button";
 import { Target, Percent, Trophy, AlertTriangle, TrendingUp, FileDown, Loader2 } from "lucide-react";
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, Cell, CartesianGrid } from "recharts";
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, CartesianGrid } from "recharts";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { toast } from "sonner";
 import { EVALUATION_SCORE_DOMAIN, EVALUATION_SCORE_TICKS, evaluationScoreOrNull, formatEvaluationScore } from "../lib/evaluationScale";
-import { MODEL_COLORS } from "../lib/modelColors";
+import { MODEL_COLORS, MODEL_ORDER } from "../lib/modelColors";
 import { captureExecutiveChart, renderExecutivePdf } from "../lib/executivePdf";
 import { QueryState } from "../components/PageState";
 import { SafeResponsiveContainer } from "../components/SafeResponsiveContainer";
@@ -192,17 +192,24 @@ export default function Executive() {
           <p className="text-xs text-muted-foreground mb-2">Scale: 0–10. Missing values appear as gaps.</p>
           <div ref={trendChartRef} data-testid="exec-trend-chart-render" className="min-w-0">
             <SafeResponsiveContainer height={280} testId="exec-trend-responsive-chart">
-              <LineChart data={trend} margin={{ top: 8, right: 16 }}>
+              <LineChart data={trend} margin={{ top: 8, right: 20, bottom: 8, left: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis dataKey="quarter" tick={{ fontSize: 12 }} />
                 <YAxis domain={EVALUATION_SCORE_DOMAIN} ticks={EVALUATION_SCORE_TICKS} tick={{ fontSize: 12 }} />
                 <Tooltip formatter={(value) => [formatEvaluationScore(value), "Score (0–10)"]} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
                 {Object.entries(MODEL_COLORS).filter(([model]) => includesComparison || model === "Bassett").map(([m, c]) => (
                   <Line key={m} type="monotone" dataKey={m} stroke={c} strokeWidth={2.5} dot={{ r: 5, fill: c }} connectNulls={false} />
                 ))}
               </LineChart>
             </SafeResponsiveContainer>
+          </div>
+          <div className="mt-2 flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs" aria-label="Model comparison chart legend" data-testid="exec-trend-model-legend">
+            {MODEL_ORDER.filter((model) => includesComparison || model === "Bassett").map((model) => (
+              <span key={model} className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: MODEL_COLORS[model] }} aria-hidden="true" />
+                {model}
+              </span>
+            ))}
           </div>
         </div>
 

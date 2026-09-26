@@ -359,9 +359,9 @@ export function renderExecutivePdf({ doc, data, chartImages = {}, generated = ne
       note: "Scale: 0–10. Missing values appear as gaps.",
       image: chartImages.trend,
       table: null,
-      // The captured chart includes its own model legend. Drawing a second PDF
-      // legend repeats the same information and wastes vertical space.
-      legend: false,
+      // Draw the model labels as native PDF text instead of relying on the
+      // chart library's rasterized legend, which can be clipped during capture.
+      legend: true,
     },
     {
       name: "Top Finding Categories",

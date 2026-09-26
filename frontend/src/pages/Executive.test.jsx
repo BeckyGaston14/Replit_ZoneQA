@@ -190,6 +190,17 @@ test("offers Bassett-only, Model Comparison, and combined executive scopes", () 
   view.unmount();
 });
 
+test("renders the complete model legend outside the chart capture area", () => {
+  const view = renderPage();
+  const legend = view.container.querySelector('[data-testid="exec-trend-model-legend"]');
+  const captureArea = view.container.querySelector('[data-testid="exec-trend-chart-render"]');
+  expect(legend.textContent).toContain("Bassett");
+  expect(legend.textContent).toContain("ChatGPT");
+  expect(legend.textContent).toContain("Claude");
+  expect(captureArea.contains(legend)).toBe(false);
+  view.unmount();
+});
+
 test("shows a consistent limited-data warning for a small evaluated population", () => {
   useQuery.mockReturnValue({
     isLoading: false,
