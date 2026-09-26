@@ -9582,6 +9582,11 @@ async def dashboard_metric_records(metric: str, user=Depends(get_current_user)):
         "bassett_scenarios",
         await db.bassett_scenarios.find({"archived": {"$ne": True}}, {"_id": 0}).to_list(5000),
     )
+    scenario_by_id = {
+        scenario.get("id"): scenario
+        for scenario in bassett_scenarios
+        if scenario.get("id")
+    }
     bassett_issues = _filter_sample_scope(
         "bassett_issues",
         await db.bassett_issues.find({"archived": {"$ne": True}}, {"_id": 0}).to_list(5000),
