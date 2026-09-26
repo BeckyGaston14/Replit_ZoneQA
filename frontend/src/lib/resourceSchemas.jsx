@@ -17,7 +17,7 @@ const nameCell = (value) => <span className="font-semibold text-[var(--navy)]">{
 export const PROJECT_SCHEMA = {
   title: "Testing Projects",
   singular: "Testing Project",
-  subtitle: "Groups of related test cases.",
+  subtitle: "Organize related Bassett Test Runs and Model Comparison Test Cases.",
   collection: "projects",
   dataEndpoint: "/list/projects-enriched",
   dateFilterColumn: "last_tested_date",

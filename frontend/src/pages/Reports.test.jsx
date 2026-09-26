@@ -31,6 +31,8 @@ test("offers truthful scoped exports without duplicating application navigation"
   expect(container.textContent).toContain("Release Readiness Data");
   expect(container.textContent).toContain("Municipality Testing Data");
   expect(container.textContent).not.toContain("Live reports");
+  expect(container.textContent).toContain("Import Model Comparison Test Cases");
+  expect(container.textContent).toContain("Export Model Comparison Test Cases");
   expect(container.querySelector("button").className).toContain("w-full");
   expect(container.querySelector("button").className).toContain("sm:w-auto");
   act(() => root.unmount());

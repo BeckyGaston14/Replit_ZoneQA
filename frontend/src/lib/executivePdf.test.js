@@ -130,6 +130,8 @@ test("renders a multi-section report into bounded, non-overlapping A4 pages", ()
   expect(kpiBoxes).toHaveLength(7);
   expect(new Set(kpiBoxes.map((box) => box.y)).size).toBe(2);
   expect(kpiBoxes.every((box) => box.width > 40)).toBe(true);
+  expect(result.boxes.some((box) => box.name === "Quarterly Accuracy Trend legend")).toBe(false);
+  expect(Array.from({ length: result.pageCount }, (_, index) => doc.internal.pages[index + 1].join(" ")).join(" ")).not.toContain("Legacy12");
   if (process.env.WRITE_PDF_ARTIFACT === "1") {
     const outputDir = path.resolve(process.cwd(), "../.agents/outputs");
     fs.mkdirSync(outputDir, { recursive: true });

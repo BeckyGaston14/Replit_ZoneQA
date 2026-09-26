@@ -8,7 +8,7 @@ jest.mock("react-router-dom", () => ({
   useSearchParams: () => [{ get: () => "" }],
 }), { virtual: true });
 jest.mock("@tanstack/react-query", () => ({
-  useQuery: () => ({ data: [] }),
+  useQuery: ({ queryKey } = {}) => ({ data: queryKey?.[0] === "regression_suites" ? [{ id: "suite-1", name: "Core Suite", testcase_ids: [] }] : [] }),
   useQueryClient: () => ({ invalidateQueries: jest.fn() }),
 }));
 jest.mock("../lib/api", () => ({ api: { get: jest.fn(() => Promise.resolve({ data: {} })), put: jest.fn() }, formatApiErrorDetail: () => "" }));

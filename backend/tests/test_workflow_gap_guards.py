@@ -444,8 +444,8 @@ def test_dashboard_pass_rate_populations_are_separate_and_reconcile_to_drilldown
         "versions": [{"id": "v1", "name": "v1", "active": True}],
         "bassett_scenarios": [
             {"id": "expanded-scenario", "bassett_version": "v1"},
-            {"id": "single-scenario", "bassett_version": "v1"},
-            {"id": "multi-scenario", "bassett_version": "v1"},
+            {"id": "single-scenario", "stable_id": "R-14", "bassett_version": "v1"},
+            {"id": "multi-scenario", "stable_id": "A-03", "bassett_version": "v1"},
             {"id": "draft-scenario", "bassett_version": "v1"},
             {"id": "retest-scenario", "bassett_version": "v1"},
             {"id": "old-version-scenario", "bassett_version": "v0"},
@@ -496,6 +496,7 @@ def test_dashboard_pass_rate_populations_are_separate_and_reconcile_to_drilldown
         "/bassett/issues?open=single-new", "/bassett/issues?open=multi-pass",
     }
     assert all(row["status"] in ("Pass", "Fail") for row in standalone_drilldown["records"])
+    assert {row["secondary"].split("Test Scenario ")[-1] for row in standalone_drilldown["records"]} == {"R-14", "A-03"}
 
 
 def test_dashboard_pass_rate_uses_na_when_a_population_has_no_denominator(monkeypatch):

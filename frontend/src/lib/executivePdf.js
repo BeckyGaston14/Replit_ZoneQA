@@ -72,9 +72,9 @@ function drawFooter(doc, pageNumber, totalPages, generated) {
   doc.line(A4_PAGE.marginX, 287, A4_PAGE.width - A4_PAGE.marginX, 287);
   setColor(doc, "setTextColor", COLORS.muted);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(7.5);
-  doc.text(`Generated ${generated} · QA report`, A4_PAGE.marginX, 292);
-  doc.text(`Page ${pageNumber} of ${totalPages}`, A4_PAGE.width - A4_PAGE.marginX, 292, { align: "right" });
+  doc.setFontSize(7);
+  doc.text(`Generated ${generated} · QA report`, A4_PAGE.marginX, 291);
+  doc.text(`Page ${pageNumber} of ${totalPages}`, A4_PAGE.width - A4_PAGE.marginX, 291, { align: "right" });
 }
 
 function drawSectionTitle(doc, title, y, subtitle) {
@@ -359,7 +359,9 @@ export function renderExecutivePdf({ doc, data, chartImages = {}, generated = ne
       note: "Scale: 0–10. Missing values appear as gaps.",
       image: chartImages.trend,
       table: null,
-      legend: includesComparison,
+      // The captured chart includes its own model legend. Drawing a second PDF
+      // legend repeats the same information and wastes vertical space.
+      legend: false,
     },
     {
       name: "Top Finding Categories",
@@ -373,7 +375,7 @@ export function renderExecutivePdf({ doc, data, chartImages = {}, generated = ne
        // visible title and table headers use the reporting-group terminology.
        name: "Bassett Category Performance",
        title: "Current Rubric Category Performance",
-       note: `Revision ${safeText(data?.rubric_revision, "2026-09-16")} · Scale: 0–10. Neutral-weight averages use selected scored criteria; missing, N/A, and unchecked criteria are excluded. Legacy12 groups are separate.`,
+       note: `Revision ${safeText(data?.rubric_revision, "2026-09-16")} · Scale: 0–10. Neutral-weight averages use selected scored criteria; missing, N/A, and unchecked criteria are excluded.`,
       image: chartImages.categories,
         table: { headers: ["Current rubric category", "Average score out of 10"], widths: [145, 37], rows: categories.map((item) => [item.label || item.category, formatEvaluationScore(item.score ?? item.avg_score)]) },
     },

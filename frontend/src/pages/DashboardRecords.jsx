@@ -25,7 +25,7 @@ export default function DashboardRecords() {
     <PageHeader title={data.title} subtitle={`${data.scope || `Active version: ${data.active_version || "No active version"}.`} ${data.population_label ? `Population: ${data.population_label}.` : ""}`} />
     <div className="flex items-center justify-between mb-3">
       {back}
-      <span className="text-sm text-muted-foreground">{data.count} canonical record{data.count === 1 ? "" : "s"}</span>
+      <span className="text-sm text-muted-foreground">{data.count} test result{data.count === 1 ? "" : "s"} included</span>
     </div>
     <div className={TABLE_FRAME_CLASS} data-testid="dashboard-records-table-scroll" role="region" aria-label={`${data.title} records table`} tabIndex="0">
       <table className={TABLE_CLASS}>

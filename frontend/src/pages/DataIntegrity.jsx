@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useSampleVisibility } from "../lib/hooks";
-import { PageHeader, StatCard, StatusBadge, HowCalculated } from "../components/shared";
+import { PageHeader, StatCard, StatusBadge, MethodologyDisclosure } from "../components/shared";
 import { INTEGRITY_CHECK_STATUSES, INTEGRITY_SEVERITIES } from "../lib/statusMaps";
 import { Button } from "../components/ui/button";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "../components/ui/alert-dialog";
@@ -235,15 +235,10 @@ export default function DataIntegrity() {
          </div>}
           </div>
        </PageHeader>
-       <HowCalculated
-         definition="Data Integrity counts are the number of currently detected consistency issues by severity."
-         calculation={{
-           formula: "Each persisted validation issue contributes once to its highest applicable severity bucket; clean means no issues were returned.",
-           scope: "Authorized administrator or QA manager integrity validation scope.",
-           treatment: "Automatic repair actions are limited to explicitly safe, previewed records. Manual-review issues and substantive QA judgments are never changed by these metrics.",
-         }}
-         className="mb-5"
-       />
+       <MethodologyDisclosure title="What integrity checks review" testid="integrity-methodology">
+         <p>Each detected record-link, saved-history, or dashboard-total inconsistency contributes once to its highest applicable severity bucket. Clean means the current check returned no issues.</p>
+         <p>Automatic repairs are limited to explicitly safe records that you preview and confirm. Manual-review issues and substantive QA decisions are never changed automatically.</p>
+       </MethodologyDisclosure>
        {isLoading && <div className="text-muted-foreground" role="status">Loading the latest integrity result…</div>}
       {isError && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">Failed to run integrity checks: {error?.response?.data?.detail || "Request failed."} <Button size="sm" variant="outline" className="ml-2" onClick={() => refetch()}>Retry</Button></div>}
        {running && <div className="mb-4 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900" role="status" aria-live="polite" data-testid="integrity-progress">

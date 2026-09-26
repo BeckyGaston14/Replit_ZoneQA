@@ -145,7 +145,7 @@ export function FormModal({ open, onOpenChange, title, description = "Complete t
     }
   };
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog modal open={open} onOpenChange={handleOpenChange}>
       <DialogContent className={wide ? "w-[calc(100%_-_1rem)] max-w-2xl max-h-[90vh] overflow-y-auto sm:w-full" : "w-[calc(100%_-_1rem)] max-h-[90vh] overflow-y-auto sm:w-full"}>
         <DialogHeader>
           <DialogTitle className="font-display text-[var(--navy)]">{title}</DialogTitle>

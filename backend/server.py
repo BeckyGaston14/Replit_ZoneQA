@@ -9730,6 +9730,8 @@ async def dashboard_metric_records(metric: str, user=Depends(get_current_user)):
         testcase = tc_by_id.get(record.get("testcase_id"))
         if metric == "bassett-only-pass-rate":
             scenario_name = record.get("title") or record.get("test_id") or record.get("scenario_id") or "Bassett Test Run"
+            scenario = scenario_by_id.get(record.get("scenario_id"), {})
+            scenario_label = scenario.get("stable_id") or record.get("scenario_stable_id") or "Not linked"
             issue_id = (
                 record.get("id") if record.get("_lineage_source") == "issue"
                 else record.get("issue_id") or record.get("bassett_issue_id") or record.get("source_issue_id") or record.get("id")
@@ -9741,7 +9743,7 @@ async def dashboard_metric_records(metric: str, user=Depends(get_current_user)):
                 "raw_status": record.get("result"),
                 "value": record.get("overall_score") if record.get("overall_score") is not None else record.get("score"),
                 "date": record.get("_dashboard_date") or record.get("test_date") or "",
-                "secondary": f"{record.get('bassett_version') or version} · Test Bank definition {record.get('scenario_id') or '—'}",
+                "secondary": f"{record.get('bassett_version') or version} · Test Scenario {scenario_label}",
                 "to": f"/bassett/issues?open={issue_id}",
             }
         if metric in ("bassett-pass-rate", "model-comparison-pass-rate", "bassett-failed", "bassett-score", "all-model-evaluations"):

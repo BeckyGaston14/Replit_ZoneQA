@@ -34,7 +34,7 @@ jest.mock("../components/shared", () => ({
   PageHeader: ({ title, children }) => <header><h1>{title}</h1>{children}</header>,
   StatCard: ({ label, value }) => <div>{label}: {value}</div>,
   StatusBadge: ({ value }) => <span>{value}</span>,
-  HowCalculated: () => null,
+  MethodologyDisclosure: ({ title, children }) => <details><summary>{title}</summary>{children}</details>,
 }));
 jest.mock("../components/ui/button", () => ({
   Button: ({ children, ...props }) => <button {...props}>{children}</button>,
@@ -81,6 +81,7 @@ test("loads the latest stored result on visit without running validation", () =>
   expect(mockApi.post).not.toHaveBeenCalled();
   expect(view.container.textContent).toContain("Last checked:");
   expect(view.container.textContent).toContain("Run integrity checks");
+  expect(view.container.textContent).toContain("What integrity checks review");
   view.unmount();
 });
 

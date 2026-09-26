@@ -3,10 +3,10 @@ import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { useCollection, useConfig, useSavedView } from "../lib/hooks";
-import { PageHeader, StatCard, WrapTick, SrTable, StatusBadge, SampleDataBanner, sampleScopeIncludesData, MethodologyDisclosure, EmptyState } from "../components/shared";
+import { PageHeader, StatCard, SrTable, StatusBadge, SampleDataBanner, sampleScopeIncludesData, MethodologyDisclosure, EmptyState } from "../components/shared";
 import { fmtScore } from "../lib/format";
 import { Trophy, TrendingDown, AlertOctagon, Target, FilterX } from "lucide-react";
-import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from "recharts";
+import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Tooltip } from "recharts";
 import { SortableTableHeader } from "../components/SortableTableHeader";
 import { TableSortControls } from "../components/TableSortControls";
 import { nextSort, sortTableRows, usePersistentTableSort } from "../lib/tableSorting";
@@ -101,8 +101,6 @@ export default function Performance() {
   const RADAR_SHORT = { accuracy: "Accuracy", citation_accuracy: "Citation", interpretation: "Interpret.", calculation: "Calc.", context: "Context", completeness: "Complete.", usefulness: "Useful.", current_code: "Current Code", missing_info: "Missing Info", followup: "Follow-Up", source_quality: "Source Qual.", guidance: "Guidance" };
   const dimensionRows = (perf?.rubric_categories || perf?.current_rubric_categories || CURRENT_RUBRIC_CATEGORIES.map((group) => ({ ...group, score: null }))).map((group) => ({ dim: group.label, full: group.label, score: evaluationScoreOrNull(group.score ?? group.avg_score), underlying: group.scored_value_count ?? group.scoredValueCount ?? group.count ?? 0 }));
   const radar = dimensionRows.filter((dimension) => dimension.score !== null);
-  const categoryRows = [...(perf?.by_category || [])].sort((a, b) => Number(b.avg_score ?? -1) - Number(a.avg_score ?? -1));
-  const cat = categoryRows.filter((category) => evaluationScoreOrNull(category.avg_score) !== null);
   const hasFilters = Object.keys(DEFAULT_FILTERS).some((key) => flt[key] !== DEFAULT_FILTERS[key]);
 
   const sel = (key, opts, label, testid) => (
@@ -160,7 +158,7 @@ export default function Performance() {
         <StatCard label="Shared Failures" value={perf.report_scope === "bassett" ? "—" : perf.shared_failures} sub={perf.report_scope === "bassett" ? "requires Model Comparison" : "all compared models failed"} accent="#64748b" icon={AlertOctagon} />
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-4 mb-4">
+      <div className="mb-4">
         <div className="bg-card border rounded-xl p-5">
            <h3 className="font-semibold font-display text-[var(--navy)] mb-3">Current Rubric Categories</h3>
             <p className="text-xs text-muted-foreground mb-2">Revision {perf.rubric_revision || "2026-09-16"} · {EVALUATION_SCALE_LABEL}. Neutral-weight averages of selected criteria; zero is valid and missing, N/A, and unchecked criteria are excluded.</p>
@@ -173,20 +171,6 @@ export default function Performance() {
             </RadarChart>
           </SafeResponsiveContainer>}
            <SrTable caption="Current rubric category averages. Scale: 0 to 10." columns={["Current category", "Average score out of 10", "Scored criteria"]} rows={dimensionRows.map((r) => [r.full, formatEvaluationScore(r.score), `${r.underlying} scored criteria`])} />
-        </div>
-        <div className="bg-card border rounded-xl p-5">
-          <h3 className="font-semibold font-display text-[var(--navy)] mb-3">Bassett Performance by Category</h3>
-          <SafeResponsiveContainer height={Math.max(220, cat.length * 44)} testId="performance-category-chart">
-            <BarChart data={cat} layout="vertical" margin={{ left: 0, right: 8 }}>
-              <XAxis type="number" domain={EVALUATION_SCORE_DOMAIN} ticks={EVALUATION_SCORE_TICKS} tick={{ fontSize: 11 }} />
-              <YAxis type="category" dataKey="category" width={190} tick={<WrapTick width={185} fontSize={10} />} interval={0} />
-              <Tooltip formatter={(v) => [formatEvaluationScore(v), "Avg score (0–10)"]} />
-              <Bar dataKey="avg_score" radius={[0, 6, 6, 0]}>
-                {cat.map((d, i) => <Cell key={i} fill={d.avg_score >= 7.5 ? "#16a34a" : d.avg_score >= 5 ? "#f59e0b" : "#dc2626"} />)}
-              </Bar>
-            </BarChart>
-          </SafeResponsiveContainer>
-          <SrTable caption="Bassett performance by category. Scale: 0 to 10." columns={["Category", "Average score out of 10", "Tests"]} rows={categoryRows.map((c) => [c.category, formatEvaluationScore(c.avg_score), c.count])} />
         </div>
       </div>
 

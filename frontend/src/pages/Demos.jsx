@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
-import { PageHeader, StatusBadge } from "../components/shared";
+import { EmptyState, PageHeader, StatusBadge } from "../components/shared";
 import { DEMO_STATUSES } from "../lib/statusMaps";
 import { QueryState } from "../components/PageState";
+import { Button } from "../components/ui/button";
 
 export default function Demos() {
   const demosQuery = useQuery({ queryKey: ["demos"], queryFn: async () => (await api.get("/demos")).data });
@@ -18,7 +19,12 @@ export default function Demos() {
       <PageHeader title="Demo Library" subtitle="Human-approved examples of Bassett at its strongest — curated for customer demos." />
       {(demosQuery.isLoading || testcasesQuery.isLoading) && <QueryState query={{ isLoading: true }} resource="demo library" testId="demos-query" />}
       {failedQuery && <QueryState query={failedQuery} resource="demo library" testId="demos-query" />}
-      {!demosQuery.isLoading && !testcasesQuery.isLoading && !failedQuery && demos.length === 0 && <p className="text-muted-foreground">No demo-approved tests yet.</p>}
+      {!demosQuery.isLoading && !testcasesQuery.isLoading && !failedQuery && demos.length === 0 && <EmptyState
+        title="No demo-approved tests yet"
+        description="Review a strong Model Comparison Test Case, then approve it for the Demo Library from its detail page."
+        action={<Button asChild size="sm"><Link to="/testcases">Review Model Comparison Test Cases</Link></Button>}
+        testid="demos-empty-state"
+      />}
       {!failedQuery && (
       <div className="grid md:grid-cols-2 gap-4">
         {demos.map((d) => { const tc = tcMap[d.testcase_id]; return (

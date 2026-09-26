@@ -181,7 +181,7 @@ export default function Regression() {
           </Button>
         )}
       </div>
-       {suites.length === 0 && <div className="bg-card border rounded-xl p-6 text-center text-sm text-muted-foreground mb-6">No regression suites have been created yet.</div>}
+       {suites.length === 0 && <div className="bg-card border rounded-xl p-6 text-center text-sm text-muted-foreground mb-6"><p className="font-semibold text-[var(--navy)]">No regression suites have been created yet.</p><p className="mt-1">Create a suite to choose the Model Comparison Test Cases that should be rerun together.</p>{canWrite && <Button size="sm" className="mt-3 bg-[var(--orange)] hover:bg-[var(--orange-600)]" onClick={() => setSuiteForm({ name: "", description: "", testcase_ids: [], search: "" })}><Plus size={14} className="mr-1" /> Create First Suite</Button>}</div>}
       {suites.map((s) => (
         <div key={s.id} className="bg-card border rounded-xl p-5 mb-4" data-testid="suite-card">
           <div className="flex items-start justify-between gap-3">
@@ -205,7 +205,7 @@ export default function Regression() {
         </div>
       ))}
 
-      <h2 className="font-semibold font-display text-[var(--navy)] mb-3 mt-6">Run History <span className="text-xs font-normal text-muted-foreground">— click a row to see the per-test baseline comparison</span></h2>
+      {suites.length > 0 && <><h2 className="font-semibold font-display text-[var(--navy)] mb-3 mt-6">Run History <span className="text-xs font-normal text-muted-foreground">— click a row to see the per-test baseline comparison</span></h2>
       <TableSortControls columns={RUN_COLUMNS} sort={runSort} setSort={setRunSort} defaultSort={defaultRunSort} className="mb-3" />
       <div className={TABLE_FRAME_CLASS} data-testid="regression-runs-table-scroll">
         <table className={TABLE_CLASS}>
@@ -218,6 +218,7 @@ export default function Regression() {
           </tbody>
         </table>
       </div>
+      </>}
       <MethodologyDisclosure title="How regression metrics are calculated" testid="regression-methodology">
         <p>Regression suites compare the latest Bassett evaluation for each selected Test Case with a locked historical baseline. The displayed version, suite, run date, and baseline columns define the comparison scope.</p>
         <p>Passed and failed counts come from the recorded snapshot. Improved, Regressed, Newly Failing, and Fixed are N/A when no baseline exists, never zero.</p>

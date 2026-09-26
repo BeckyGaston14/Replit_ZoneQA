@@ -85,8 +85,8 @@ export default function Reports() {
   return (
     <div>
       <PageHeader title="Reports & Exports" subtitle="Generated from persisted QA records — never static.">
-        <Button variant="outline" className="w-full sm:w-auto" onClick={() => setImportOpen(true)}><FileText size={15} className="mr-1" /> Import CSV</Button>
-        <Button variant="outline" className="w-full sm:w-auto" onClick={exportCSV}><FileDown size={15} className="mr-1" /> Export CSV</Button>
+        <Button variant="outline" className="w-full sm:w-auto" onClick={() => setImportOpen(true)}><FileText size={15} className="mr-1" /> Import Model Comparison Test Cases</Button>
+        <Button variant="outline" className="w-full sm:w-auto" onClick={exportCSV}><FileDown size={15} className="mr-1" /> Export Model Comparison Test Cases</Button>
       </PageHeader>
       <div className="flex flex-wrap items-end gap-3 mb-5">
         <label className="text-sm font-medium">Readiness version
