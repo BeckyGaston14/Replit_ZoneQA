@@ -2,7 +2,7 @@ import { formatTestDate, todayInTimeZone } from "./testDates";
 
 export const MUNICIPALITY_ADD_FIELDS = [
   { key: "name", label: "Municipality" },
-  { key: "state", label: "State" },
+  { key: "state", label: "State / Province", type: "select", configKey: "jurisdiction_regions" },
 ];
 
 const municipalityRelation = {
@@ -85,7 +85,7 @@ export const MUNICIPALITY_SCHEMA = {
   dateRanges: [{ start: "code_effective_date", end: "latest_amendment_date", startLabel: "Code Effective Date", endLabel: "Latest Known Amendment Date" }],
   columns: [
     { key: "name", label: "Municipality", type: "text", render: (row) => nameCell(row.name) },
-    { key: "state", label: "State" },
+    { key: "state", label: "State / Province" },
     { key: "county", label: "County" },
     { key: "muni_type", label: "Type" },
     { key: "primary_code", label: "Primary Code" },
@@ -94,7 +94,7 @@ export const MUNICIPALITY_SCHEMA = {
   ],
   fields: [
     { key: "name", label: "Municipality", required: true },
-    { key: "state", label: "State", required: true },
+    { key: "state", label: "State / Province", type: "select", configKey: "jurisdiction_regions", required: true },
     { key: "county", label: "County" },
     { key: "muni_type", label: "Type", type: "select", configKey: "municipality_types" },
     { key: "primary_code", label: "Primary Zoning Code", col: 2 },

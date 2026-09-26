@@ -340,7 +340,7 @@ test("both form modes expose all twelve plain-language scoring questions and one
   for (const mode of ["bassett", "comparison"]) {
     const view = renderForm(mode, { id: `${mode}-edit` });
     expectedQuestions.forEach((question) => expect(view.container.textContent).toContain(question));
-    for (const label of ["Prompt / Question", "Verified Answer / Gold Standard", "Bassett Response", "Test Result", "Severity", "Priority", ...(mode === "comparison" ? ["Comparison Category"] : []), "Evidence / Source Links", "Property / Address", "Bassett Score Rationale", "Owner / Assignee", "Evidence & Notes", "Supporting Source Documents / Images"]) {
+    for (const label of ["Prompt / Question", "Verified Answer / Gold Standard", "Bassett Response", "Test Result", "Severity", "Priority", "Source Links", "Property / Address", "Bassett Score Rationale", "Owner / Assignee", "Supporting Notes", "Supporting Source Documents / Images"]) {
       expect([...view.container.querySelectorAll("label")].some((node) => node.textContent.trim().startsWith(label))).toBe(true);
     }
     if (mode === "bassett") {
@@ -362,7 +362,7 @@ test("uploaded Bassett conversations keep the authoritative file separate from s
   });
   expect(view.container.querySelector('[data-testid="bassett-conversation-upload"]')).not.toBeNull();
   expect([...view.container.querySelectorAll("label")].some((node) => node.textContent.includes("Supporting Source Documents / Images"))).toBe(true);
-  expect([...view.container.querySelectorAll("label")].filter((node) => node.textContent.trim().startsWith("Evidence & Notes"))).toHaveLength(1);
+  expect([...view.container.querySelectorAll("label")].filter((node) => node.textContent.trim().startsWith("Supporting Notes"))).toHaveLength(1);
   expect(view.container.querySelectorAll('input[type="file"]')).toHaveLength(2);
   act(() => view.root.unmount());
 });
@@ -400,6 +400,42 @@ test("Bassett finding categories use the configured lookup only when a linked fi
   expect(view.latest().issue_category).toBe("other");
   expect(view.latest().finding.finding_type).toBe("other");
   expect(view.container.textContent).toContain("Other category explanation");
+  act(() => view.root.unmount());
+});
+
+test("a Bassett test run can link multiple existing findings while keeping new-finding creation available", () => {
+  const findings = [
+    { id: "finding-1", title: "Citation issue", finding_type: "citation problem", severity: "High", developer_status: "New" },
+    { id: "finding-2", title: "Use table issue", finding_type: "incorrect interpretation", severity: "Critical", developer_status: "In Review" },
+  ];
+  const view = renderForm("bassett", {}, { availableFindings: findings });
+  const first = view.container.querySelector('input[aria-label="Link finding Citation issue"]');
+  const second = view.container.querySelector('input[aria-label="Link finding Use table issue"]');
+  expect(first).not.toBeNull();
+  expect(second).not.toBeNull();
+  act(() => first.click());
+  act(() => second.click());
+  expect(view.latest().finding_ids).toEqual(["finding-1", "finding-2"]);
+  expect(view.latest().finding_id).toBe("finding-1");
+  expect(view.container.querySelector('input[aria-label="Create a linked Bassett finding"]')).not.toBeNull();
+  act(() => view.root.unmount());
+});
+
+test("Sources, Documents & Notes exposes a working evidence municipality selector", () => {
+  const view = renderForm("bassett", {}, {
+    municipalities: [{ id: "muni-1", name: "Milwaukee", state: "Wisconsin" }],
+    evidenceRecords: [{ id: "evidence-1", municipality_id: "muni-1", document_name: "Zoning Code", section: "295-503" }],
+  });
+  const municipality = view.container.querySelector('select[aria-label="Evidence Municipality"]');
+  expect(municipality).not.toBeNull();
+  act(() => {
+    municipality.value = "muni-1";
+    municipality.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  expect(view.latest().municipality_id).toBe("muni-1");
+  expect(view.container.textContent).toContain("Zoning Code");
+  expect(view.container.textContent).toContain("Supporting Notes");
+  expect(view.container.textContent).not.toContain("Evidence & Notes");
   act(() => view.root.unmount());
 });
 

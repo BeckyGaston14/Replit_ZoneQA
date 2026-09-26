@@ -60,7 +60,7 @@ export const emptyBassettTestRun = {
   version_id: "", bassett_version: "", status: "Not Started", result: "Pass", score: "", notes: "", evidence: "",
   evaluation_scores: {}, selected_rubric_ids: [], rubric_revision: null,
   rubric_selection_initialized: false, rubric_scenario_ids: [], confirm_rubric_removal: false,
-  create_finding: false, finding: {}, follow_up_action: "",
+  finding_id: "", finding_ids: [], create_finding: false, finding: {}, follow_up_action: "",
   retest_target: "", retest_date: "", source_links: "", evidence_ids: [], create_evidence_from_uploads: false,
   conversation_attachment: null, attachments: [],
 };
@@ -342,7 +342,7 @@ function QuickAdd({ label, value, items, onChange, fields, defaults = {}, disabl
     </div>
     {open && <div id={`${id}-quick-add`} className="rounded-lg border bg-[var(--paper)] p-3 space-y-2">
       <div className="text-xs font-semibold">Quick add {label}</div>
-      {fields.map((field) => <Field key={field.key} label={field.label} required><Input value={draft[field.key] || ""} onChange={(e) => setDraft({ ...draft, [field.key]: e.target.value })} /></Field>)}
+      {fields.map((field) => <Field key={field.key} label={field.label} required>{field.type === "select" ? <select aria-label={field.label} className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={draft[field.key] || ""} onChange={(e) => setDraft({ ...draft, [field.key]: e.target.value })}><option value="">Select {field.label.toLowerCase()}</option>{[...new Set([...(field.options || []), draft[field.key]].filter(Boolean))].map((option) => <option key={option} value={option}>{option}</option>)}</select> : <Input value={draft[field.key] || ""} onChange={(e) => setDraft({ ...draft, [field.key]: e.target.value })} />}</Field>)}
       <div className="flex gap-2"><Button type="button" size="sm" onClick={create}>Create</Button><Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button></div>
     </div>}
   </div>;
@@ -609,7 +609,7 @@ function TurnBuilder({ turns = [], scenarios = [], uploadedConversation = false,
 
 export default function UnifiedTestEntryForm({
   mode = "bassett", form, setForm, scenarios: suppliedScenarios = [], versions = [], projects = [],
-  municipalities = [], properties = [], users = [], evidenceRecords = [], generalSubtypes = [], rubricCatalog = null, config = {}, onSubmit, onCancel,
+  municipalities = [], properties = [], users = [], evidenceRecords = [], availableFindings = [], generalSubtypes = [], rubricCatalog = null, config = {}, onSubmit, onCancel,
   onSaveDraft, submitting = false, conflictNotice = null, lockedCommon = false,
 }) {
   const isComparison = mode === "comparison";
@@ -800,7 +800,7 @@ export default function UnifiedTestEntryForm({
     if (!isComparison && index === 1 && form.test_type === "Multi-turn") return Boolean(form.turns?.length);
     if (!isComparison && index === 2 && (form.test_type === "Multi-turn" || form.conversation_source === "uploaded_conversation")) return false;
     if (index === 3) return Object.values(evaluationFor("Bassett").scores || {}).some((value) => value !== null && value !== "");
-    if (index === 4) return Boolean(form.create_finding || form.assignee_id);
+    if (index === 4) return Boolean(form.create_finding || form.assignee_id || form.finding_id || form.finding_ids?.length);
     if (index === 5) return Boolean(form.source_links || form.evidence || form.notes || form.attachments?.length || form.evidence_ids?.length);
     if (index === 6) return Boolean(form.follow_up_action || form.retest_target || form.retest_date || form.regression_run_id);
     if (index === 7) return Boolean(responseFor("ChatGPT").response);
@@ -870,7 +870,14 @@ export default function UnifiedTestEntryForm({
     : "Not selected";
   const reviewVersion = form.bassett_version || versions.find((version) => version.id === form.version_id)?.name || "Not specified";
   const reviewProject = projects.find((project) => project.id === form.project_id)?.name || "Not linked";
-  const reviewFinding = form.create_finding ? (finding.title || "Finding will be created") : "No finding";
+  const linkedFindingIds = [...new Set([form.finding_id, ...(form.finding_ids || [])].filter(Boolean))];
+  const visibleFindings = availableFindings.filter((item) => (
+    (!item.archived && !item.archived_at) || linkedFindingIds.includes(item.id)
+  ));
+  const reviewFinding = [
+    linkedFindingIds.length ? `${linkedFindingIds.length} existing finding${linkedFindingIds.length === 1 ? "" : "s"}` : "",
+    form.create_finding ? (finding.title || "new finding") : "",
+  ].filter(Boolean).join(" + ") || "No finding";
   return <FormModal open onOpenChange={(open) => !open && onCancel()} title={formTitle} onSubmit={submit} submitLabel={submitLabel} wide submitDisabled={submitting} noValidate>
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--orange)] bg-orange-50 p-3">
       <div><div className="text-xs font-bold uppercase tracking-wide text-[var(--orange)]">Form mode</div><div className="text-lg font-semibold text-[var(--navy)]" data-testid="workflow-mode-label">{isComparison ? "Model comparison" : "Bassett-only test"}</div></div>
@@ -904,7 +911,7 @@ export default function UnifiedTestEntryForm({
 
       <GuidedSection index={1} title={`2. Linked Records & ${uploadedConversation ? "Conversation" : "Prompt"}`} active={activeSection === 1} status={sectionStatus(1)} onActivate={activateSection}><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <Field label="Project"><QuickAdd label="Project" value={form.project_id} items={projects} onChange={(value) => update("project_id", value)} fields={[{ key: "name", label: "Project name" }]} disabled={lockedCommon} /></Field>
-      <Field label="Municipality"><QuickAdd label="Municipality" value={form.municipality_id} items={municipalities} onChange={setMunicipality} fields={[{ key: "name", label: "Municipality name" }, { key: "state", label: "State" }]} disabled={lockedCommon} /></Field>
+      <Field label="Municipality"><QuickAdd label="Municipality" value={form.municipality_id} items={municipalities} onChange={setMunicipality} fields={[{ key: "name", label: "Municipality name" }, { key: "state", label: "State / Province", type: "select", options: config.jurisdiction_regions || [] }]} disabled={lockedCommon} /></Field>
        <Field label="Property / Address"><QuickAdd label="Property" value={form.property_id} items={filteredProperties} defaults={{ municipality_id: form.municipality_id }} onChange={(value) => update("property_id", value)} fields={[{ key: "name", label: "Property name" }, { key: "address", label: "Address" }]} disabled={lockedCommon} /></Field>
          {!isComparison && form.conversation_source === "uploaded_conversation" && <div className="sm:col-span-2 rounded-lg border border-[var(--orange)] bg-orange-50 p-3"><Field label="Bassett conversation file" required description={hasConversationFile ? "One authoritative conversation file is attached to this parent test run." : "Upload one exported Bassett conversation. PDF, email, document, spreadsheet, text, and image formats are supported."}><Input data-testid="bassett-conversation-upload" type="file" accept=".pdf,.doc,.docx,.odt,.xls,.xlsx,.ods,.ppt,.pptx,.txt,.csv,.tsv,.md,.rtf,.html,.htm,.xml,.json,.eml,.msg,.png,.jpg,.jpeg,.gif,.webp,.tif,.tiff,.bmp" onChange={(e) => update("conversation_attachment", Array.from(e.target.files || [])[0] || null)} /></Field></div>}
           {(!isComparison && form.test_type === "Multi-turn") ? <details className="sm:col-span-2" open={form.conversation_source !== "uploaded_conversation"}><summary className="cursor-pointer font-semibold text-[var(--navy)]">{uploadedConversation ? "Add or review structured transcript (optional; upload is authoritative)" : "Structured conversation"}</summary><div className="mt-3"><TurnBuilder turns={form.turns} scenarios={scenarios} uploadedConversation={uploadedConversation} disabled={lockedCommon} onChange={(turns) => setForm((current) => ({ ...current, turns, question_asked: turns[0]?.prompt || "", exact_bassett_answer: turns[0]?.response || "", transcript_status: turns.length ? "confirmed" : current.transcript_status }))} findingTurnId={form.finding_turn_id || ""} onFindingTurnChange={(value) => update("finding_turn_id", value)} /></div></details> : <><Field label="Prompt / Question" required={isComparison || !uploadedConversation} optional={uploadedConversation} description={uploadedConversation ? "Optional now; required before expanding to Model Comparison. The uploaded conversation is authoritative." : undefined} error={attemptedSections.has(1) && (isComparison || !uploadedConversation) && !String(form.question_asked || form.prompts?.[0]?.text || "").trim() ? "Prompt or Question is required." : undefined}><Textarea rows={3} value={form.question_asked || form.prompts?.[0]?.text || ""} disabled={lockedCommon} onChange={(e) => updatePrompt(e.target.value)} /></Field>
@@ -917,12 +924,27 @@ export default function UnifiedTestEntryForm({
        <Field label="Test Result"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={normalizeEvaluationResult(form.result)} onChange={(e) => update("result", e.target.value)}>{(isComparison ? COMPARISON_RESULT_OPTIONS : BASSETT_RESULT_OPTIONS).map((value) => <option key={value}>{value}</option>)}</select></Field>
        <Field label="Severity"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={severityLabel(form.severity || form.criticality) || "Medium"} onChange={(e) => setForm((current) => ({ ...current, severity: e.target.value, criticality: severityNumber(e.target.value) }))}>{SEVERITY_LABELS.map((value) => <option key={value}>{value}</option>)}</select></Field>
       <Field label="Priority"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.priority || "Medium"} onChange={(e) => update("priority", e.target.value)}>{["Critical", "High", "Medium", "Low"].map((value) => <option key={value}>{value}</option>)}</select></Field>
-      {isComparison && <Field label="Comparison Category"><Input value={form.category || ""} onChange={(e) => update("category", e.target.value)} /></Field>}
     </div></GuidedSection>
 
      <GuidedSection index={3} title="4. Rubric Evaluation" active={activeSection === 3} status={sectionStatus(3)} onActivate={activateSection}><p className="text-xs text-muted-foreground">Score the applicable rubric items. Blank and N/A items are excluded from the score; zero remains a valid score.</p><div className="mt-4 space-y-4"><GeneralSubtypeGuidance subtypes={generalSubtypes} selectedIds={form.general_subtype_ids || []} />{rubricCatalog && catalogActive && <RubricCriteriaSelector catalog={normalizedRubricCatalog} mappedIds={mappedRubricIds} selectedIds={form.selected_rubric_ids || []} scores={rubricRemovalScores} disabled={lockedCommon} onChange={(ids, meta = {}) => setForm((current) => ({ ...current, selected_rubric_ids: ids, rubric_revision: normalizedRubricCatalog.revision, rubric_selection_initialized: true, confirm_rubric_removal: current.confirm_rubric_removal || meta.confirm_rubric_removal }))} />}<h4 className="font-semibold text-sm text-[var(--navy)]">Bassett evaluation · {form.rubric_revision || LEGACY_RUBRIC_REVISION} · calculated score</h4><EvaluationGrid model="Bassett" scores={evaluationFor("Bassett").scores} dimensions={dimensions} onChange={updateEvaluation} locked={lockedCommon} /><RubricScoreSummary catalog={normalizedRubricCatalog} scores={evaluationFor("Bassett").scores} selectedIds={form.selected_rubric_ids || []} /><Field label="Bassett Score Rationale" required={hasScoredDimension(evaluationFor("Bassett").scores)} description="Cite the specific answer evidence that supports the selected numbers (minimum 20 characters when scored)."><Textarea rows={3} value={evaluationFor("Bassett").rationale || form.score_rationale || ""} onChange={(e) => updateEvaluationRationale("Bassett", e.target.value)} /></Field></div></GuidedSection>
 
     <GuidedSection index={4} title="5. Findings & Ownership" active={activeSection === 4} status={sectionStatus(4)} onActivate={activateSection}><div className="space-y-4">
+      {!isComparison && <Field label="Link existing Bassett findings" optional description="Select every existing finding supported by this test run. You can link more than one finding and may also create a new finding below.">
+        <div className="max-h-56 space-y-2 overflow-y-auto rounded-lg border p-3" data-testid="existing-bassett-findings">
+          {visibleFindings.length ? visibleFindings.map((item) => {
+            const checked = linkedFindingIds.includes(item.id);
+            const primary = item.id === form.finding_id;
+            return <label key={item.id} className="flex items-start gap-2 rounded-md p-2 hover:bg-muted">
+              <Checkbox aria-label={`Link finding ${item.title || item.id}`} checked={checked} disabled={primary && Boolean(form.id)} onCheckedChange={(value) => setForm((current) => {
+                const currentIds = [...new Set([current.finding_id, ...(current.finding_ids || [])].filter(Boolean))];
+                const nextIds = value === true ? [...new Set([...currentIds, item.id])] : currentIds.filter((id) => id !== item.id);
+                return { ...current, finding_ids: nextIds, finding_id: current.finding_id || nextIds[0] || "" };
+              })} />
+              <span><span className="block font-medium text-[var(--navy)]">{item.title || item.id}{primary ? " (Primary)" : ""}</span><span className="block text-xs text-muted-foreground">{item.finding_type || "Finding"} · {severityLabel(item.severity || item.criticality) || "Not rated"} · {item.developer_status || "New"}</span></span>
+            </label>;
+          }) : <p className="text-sm text-muted-foreground">No existing Bassett findings are available. You can create a new linked finding below.</p>}
+        </div>
+      </Field>}
       <label className="flex items-center gap-2 text-sm"><Checkbox aria-label="Create a linked Bassett finding" checked={Boolean(form.create_finding)} onCheckedChange={(checked) => update("create_finding", checked === true)} /> Create a linked Bassett finding</label>
        {form.create_finding && <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
          <Field label="Finding title" required error={attemptedSections.has(4) && !String(finding.title || "").trim() ? "Finding title is required." : undefined}><Input value={finding.title || ""} onChange={(e) => updateNested("finding", "title", e.target.value)} /></Field>
@@ -936,8 +958,9 @@ export default function UnifiedTestEntryForm({
     </div></GuidedSection>
 
     <GuidedSection index={5} title="6. Sources, Documents & Notes" active={activeSection === 5} status={sectionStatus(5)} onActivate={activateSection}><div className="space-y-4">
-       <Field label="Evidence / Source Links"><Textarea rows={3} value={form.source_links || form.evidence || ""} onChange={(e) => update(isComparison ? "source_links" : "evidence", e.target.value)} placeholder="Citations, URLs, source context…" /></Field>
-       {!isComparison && <Field label="Linked Ordinance Evidence" description="Reuse authoritative ordinance records without uploading another copy. Selecting a municipality narrows this list.">
+       <Field label="Source Links" description="Enter citations or URLs for sources that are not already stored as Ordinance Evidence records."><Textarea rows={3} value={form.source_links || form.evidence || ""} onChange={(e) => update("source_links", e.target.value)} placeholder="One citation or URL per line…" /></Field>
+       {!isComparison && <Field label="Evidence Municipality" description="Choose the municipality whose reusable Ordinance Evidence records you want to link."><select aria-label="Evidence Municipality" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.municipality_id || ""} onChange={(e) => setMunicipality(e.target.value)}><option value="">Select a municipality</option>{municipalities.map((municipality) => <option key={municipality.id} value={municipality.id}>{municipality.name}{municipality.state ? `, ${municipality.state}` : ""}</option>)}</select></Field>}
+       {!isComparison && <Field label="Linked Ordinance Evidence" description="Select one or more existing Ordinance Evidence records. The list is filtered by the Evidence Municipality above.">
          <div className="max-h-56 space-y-2 overflow-y-auto rounded-lg border p-3">
            {visibleEvidenceRecords.length ? visibleEvidenceRecords.map((record) => {
              const checked = (form.evidence_ids || []).includes(record.id);
@@ -945,7 +968,7 @@ export default function UnifiedTestEntryForm({
            }) : <p className="text-sm text-muted-foreground">{form.municipality_id ? "No Ordinance Evidence records are available for this municipality." : "Select a municipality to see matching Ordinance Evidence records."}</p>}
          </div>
        </Field>}
-       <Field label="Evidence & Notes" description="Add supporting facts, citations, limitations, reproduction details, or other context not already captured above."><Textarea rows={4} value={form.notes || form.reproduction_steps || ""} onChange={(e) => setForm((current) => ({ ...current, notes: e.target.value, reproduction_steps: e.target.value }))} /></Field>
+       <Field label="Supporting Notes" description="Add limitations, reproduction details, or other context that is not a source citation or uploaded document."><Textarea rows={4} value={form.notes || form.reproduction_steps || ""} onChange={(e) => setForm((current) => ({ ...current, notes: e.target.value, reproduction_steps: e.target.value }))} /></Field>
        <Field label="Supporting Source Documents / Images" description={form.attachments?.length ? `${form.attachments.length} supporting file(s) selected` : "Attach ordinances, screenshots, emails, spreadsheets, PDFs, or other source evidence. These are separate from an uploaded Bassett conversation."}><Input type="file" multiple accept=".pdf,.doc,.docx,.odt,.xls,.xlsx,.ods,.ppt,.pptx,.txt,.csv,.tsv,.md,.rtf,.html,.htm,.xml,.json,.eml,.msg,.png,.jpg,.jpeg,.gif,.webp,.tif,.tiff,.bmp" onChange={(e) => update("attachments", Array.from(e.target.files || []))} /></Field>
        {!isComparison && <label className="flex items-start gap-2 rounded-lg border bg-[var(--paper)] p-3 text-sm"><Checkbox checked={Boolean(form.create_evidence_from_uploads)} disabled={!form.municipality_id} onCheckedChange={(checked) => update("create_evidence_from_uploads", checked === true)} /><span><span className="block font-semibold text-[var(--navy)]">Create Ordinance Evidence records from these supporting files</span><span className="mt-1 block text-xs text-muted-foreground">Each file becomes one reusable Ordinance Evidence record and is linked to this test run. The file will not also be stored as a duplicate test-run attachment.{!form.municipality_id ? " Select a municipality first." : ""}</span></span></label>}
     </div></GuidedSection>

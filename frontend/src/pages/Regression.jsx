@@ -255,7 +255,7 @@ export default function Regression() {
             </div>
           )}
           <Field label="Bassett Version"><ListSelect options={versions.map((v) => v.name)} value={runForm.bassett_version} onChange={(v) => setRunForm({ ...runForm, bassett_version: v })} placeholder="Select version" testid="run-version-select" /></Field>
-          <Field label="Environment"><ListSelect options={["Production", "Staging", "Development"]} value={runForm.environment} onChange={(v) => setRunForm({ ...runForm, environment: v })} /></Field>
+          <Field label="Environment"><ListSelect options={config?.environments || []} value={runForm.environment} onChange={(v) => setRunForm({ ...runForm, environment: v })} placeholder="Select environment" /></Field>
           <Field label="Regression Run Date" description="The business date this regression suite represents. Recorded on is the system timestamp created when the run is saved."><Input required type="date" value={runForm.test_date} onChange={(e) => setRunForm({ ...runForm, test_date: e.target.value })} /></Field>
           <Field label="Baseline Run (defaults to latest snapshot)">
             <Select value={runForm.baseline_run_id || "__auto"} onValueChange={(v) => setRunForm({ ...runForm, baseline_run_id: v === "__auto" ? "" : v })}>

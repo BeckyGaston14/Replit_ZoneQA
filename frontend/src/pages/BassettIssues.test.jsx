@@ -125,7 +125,10 @@ test("Bassett findings view is explicitly labeled and stays in the Bassett-only 
   expect(contextualShortcut.querySelector("button")).toBeNull();
   expect(container.textContent).toContain("Select a Bassett finding to view its details.");
   const additionalFilters = container.querySelector("details");
-  expect(additionalFilters.querySelector('[aria-label="Filter by Workflow status"]')).not.toBeNull();
+  expect(additionalFilters.querySelector('[aria-label="Filter by finding status"]')).not.toBeNull();
+  expect(additionalFilters.querySelector('[aria-label="Filter by Test Bank type"]')).not.toBeNull();
+  expect(additionalFilters.querySelector('[aria-label="Filter by conversation format"]')).not.toBeNull();
+  expect(additionalFilters.querySelector('[aria-label="Filter by priority"]')).toBeNull();
   expect(additionalFilters.querySelector('[aria-label="Filter by retest status"]')).not.toBeNull();
   act(() => root.unmount());
 });

@@ -639,7 +639,7 @@ export default function TestCaseDetail() {
       {goldModal && <GoldModal open={goldModal} setOpen={setGoldModal} existing={gold_standard} tcId={id} evidence={evidence} onDone={refresh} />}
       {annotModal && <AnnotationModal data={annotModal} setData={setAnnotModal} tcId={id} config={config} onDone={refresh} />}
       {variantModal && <VariantModal tc={tc} setOpen={setVariantModal} nav={nav} />}
-      {retestModal && <CompleteRetestModal rt={retestModal} setRt={setRetestModal} versions={config?.__versions} applicationTimeZone={config?.application_timezone} onDone={refresh} />}
+      {retestModal && <CompleteRetestModal rt={retestModal} setRt={setRetestModal} environments={config?.environments || []} applicationTimeZone={config?.application_timezone} onDone={refresh} />}
       {runModal && <FormModal open onOpenChange={() => setRunModal(null)} title={`Run ${runModal.models.join(", ")}`} onSubmit={runModels} submitLabel={running ? "Running…" : "Run Models"}>
               <Field label="Test Date" required><Input type="date" value={runModal.test_date} onChange={(e) => setRunModal({ ...runModal, test_date: e.target.value })} /></Field>
         <p className="text-xs text-muted-foreground">One Test Date applies to every model response in this comparison.</p>
@@ -669,7 +669,7 @@ export default function TestCaseDetail() {
 
 const RETEST_VERDICTS = ["Fixed", "Partially Fixed", "Not Fixed", "Unable to Verify", "New Regression Introduced"];
 
-function CompleteRetestModal({ rt, setRt, onDone, applicationTimeZone }) {
+function CompleteRetestModal({ rt, setRt, onDone, environments, applicationTimeZone }) {
   const [f, setF] = useState({ verdict: "Fixed", test_date: todayInTimeZone(applicationTimeZone), new_bassett_version: rt.new_bassett_version || "", new_environment: rt.new_environment || "Staging", new_response: "", new_score: "", new_result: "Pass", notes: "" });
   const set = (k, v) => setF({ ...f, [k]: v });
   const [saving, setSaving] = useState(false);
@@ -689,7 +689,7 @@ function CompleteRetestModal({ rt, setRt, onDone, applicationTimeZone }) {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Field label="Verdict"><ListSelect options={RETEST_VERDICTS} value={f.verdict} onChange={(v) => set("verdict", v)} testid="retest-verdict" /></Field>
         <Field label="New Bassett Version"><Input value={f.new_bassett_version} onChange={(e) => set("new_bassett_version", e.target.value)} placeholder="Bassett v2.0" data-testid="retest-version" /></Field>
-        <Field label="Environment"><ListSelect options={["Production", "Staging", "Development"]} value={f.new_environment} onChange={(v) => set("new_environment", v)} /></Field>
+        <Field label="Environment"><ListSelect options={environments} value={f.new_environment} onChange={(v) => set("new_environment", v)} placeholder="Select environment" /></Field>
       </div>
       <Field label="Test Date" required><Input type="date" value={f.test_date} onChange={(e) => set("test_date", e.target.value)} /></Field>
       <Field label="Bassett Response"><Textarea rows={4} value={f.new_response} onChange={(e) => set("new_response", e.target.value)} data-testid="retest-response" /></Field>

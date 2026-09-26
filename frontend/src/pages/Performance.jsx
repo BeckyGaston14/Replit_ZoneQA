@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
-import { useCollection, useConfig, useSavedView } from "../lib/hooks";
+import { useCollection, useConfig, useSavedView, useTestBank } from "../lib/hooks";
 import { PageHeader, StatCard, SrTable, StatusBadge, SampleDataBanner, sampleScopeIncludesData, MethodologyDisclosure, EmptyState } from "../components/shared";
 import { fmtScore } from "../lib/format";
 import { Trophy, TrendingDown, AlertOctagon, Target, FilterX } from "lucide-react";
@@ -34,10 +34,12 @@ export default function Performance() {
   const versionsQuery = useCollection("versions");
   const projectsQuery = useCollection("projects");
   const munisQuery = useCollection("municipalities");
+  const scenariosQuery = useTestBank();
   const { data: config } = configQuery;
   const { data: versions = [] } = versionsQuery;
   const { data: projects = [] } = projectsQuery;
   const { data: munis = [] } = munisQuery;
+  const { data: scenarios = [] } = scenariosQuery;
   const [sp, setSp] = useSearchParams();
   const savedView = useSavedView("performance", { filters: DEFAULT_FILTERS }, (saved = {}) => ({ filters: { ...DEFAULT_FILTERS, ...(saved.filters || {}) } }));
   const savedFilters = savedView.state?.filters || DEFAULT_FILTERS;
@@ -93,7 +95,7 @@ export default function Performance() {
   const qs = Object.entries(flt).filter(([, v]) => v !== ALL && v !== "").map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&");
   const perfQuery = useQuery({ queryKey: ["perf", qs], queryFn: async ({ signal } = {}) => (await api.get(`/analytics/performance${qs ? `?${qs}` : ""}`, { signal })).data });
   const perf = perfQuery.data;
-  const supportingQueries = [configQuery, versionsQuery, projectsQuery, munisQuery];
+  const supportingQueries = [configQuery, versionsQuery, projectsQuery, munisQuery, scenariosQuery];
   const failed = supportingQueries.find((query) => query.isError) || (perfQuery.isError ? perfQuery : null);
   const loading = supportingQueries.some((query) => query.isLoading) || perfQuery.isLoading;
 
@@ -102,6 +104,10 @@ export default function Performance() {
   const dimensionRows = (perf?.rubric_categories || perf?.current_rubric_categories || CURRENT_RUBRIC_CATEGORIES.map((group) => ({ ...group, score: null }))).map((group) => ({ dim: group.label, full: group.label, score: evaluationScoreOrNull(group.score ?? group.avg_score), underlying: group.scored_value_count ?? group.scoredValueCount ?? group.count ?? 0 }));
   const radar = dimensionRows.filter((dimension) => dimension.score !== null);
   const hasFilters = Object.keys(DEFAULT_FILTERS).some((key) => flt[key] !== DEFAULT_FILTERS[key]);
+  const testBankTypes = [...new Set(scenarios.map((scenario) => {
+    const value = scenario.test_type || scenario.report_type || scenario.workflow_stage;
+    return value === "General Research" ? "Research" : value;
+  }).filter(Boolean))].sort();
 
   const sel = (key, opts, label, testid) => (
     <select key={key} value={flt[key]} onChange={(e) => setFilter(key, e.target.value)} aria-label={label} data-testid={testid}
@@ -127,10 +133,10 @@ export default function Performance() {
           <option value="both">Both</option>
         </select>
         {sel("version", versions.map((v) => v.name), "All Bassett versions", "perf-filter-version")}
-        {sel("environment", ["Production", "Staging", "Development"], "All environments", "perf-filter-environment")}
+        {sel("environment", config?.environments || [], "All environments", "perf-filter-environment")}
         {sel("project_id", projects.map((p) => ({ value: p.id, label: p.name })), "All projects", "perf-filter-project")}
         {sel("municipality_id", munis.map((m) => ({ value: m.id, label: `${m.name}, ${m.state}` })), "All municipalities", "perf-filter-municipality")}
-        {sel("category", flt.scope === "bassett" ? ["Research", "Analysis"] : config?.categories || [], "All categories", "perf-filter-category")}
+        {sel("category", testBankTypes, "All Test Bank types", "perf-filter-category")}
         {flt.scope !== "bassett" && sel("criticality", SEVERITY_LABELS.map((label, index) => ({ value: String(index + 1), label })), "All severity", "perf-filter-criticality")}
         {flt.scope !== "bassett" && sel("include_variants", [{ value: "true", label: "Variants included" }, { value: "false", label: "Variants excluded" }], "Variants included (default)", "perf-filter-variants")}
         <input type="date" value={flt.date_from} onChange={(e) => setFilter("date_from", e.target.value)} className="h-8 max-w-full text-xs border rounded-lg px-2 bg-card" data-testid="perf-filter-from" aria-label="Evaluated from date" title="Evaluated from date" />

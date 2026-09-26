@@ -38,7 +38,7 @@ export function Field({ label, children, required = false, optional = false, err
 }
 
 // Searchable select with inline "Add new" for relational records
-export function SelectOrAdd({ collection, valueField = "id", labelFn, value, onChange, placeholder, addFields, addDefaults = {}, requiredContext = [], testid, id, required = false, activeOnly = false, "aria-invalid": ariaInvalid, "aria-describedby": ariaDescribedby }) {
+export function SelectOrAdd({ collection, valueField = "id", labelFn, value, onChange, placeholder, addFields, addDefaults = {}, addConfig = {}, requiredContext = [], testid, id, required = false, activeOnly = false, "aria-invalid": ariaInvalid, "aria-describedby": ariaDescribedby }) {
   const qc = useQueryClient();
   const { data: items = [] } = useCollection(collection);
   const visibleItems = activeOnly ? items.filter((item) => item.active !== false && !item.deleted_at) : items;
@@ -101,10 +101,15 @@ export function SelectOrAdd({ collection, valueField = "id", labelFn, value, onC
               const fieldErrorId = `${fieldId}-error`;
              return <div key={f.key} className="space-y-1">
                   <label htmlFor={fieldId} className="text-xs font-semibold text-muted-foreground">{f.label}{f.required !== false && <span className="text-red-700" aria-hidden="true"> *</span>}</label>
-               <Input id={fieldId} placeholder={f.label} value={form[f.key] || ""}
+               {f.type === "select" ? <select id={fieldId} value={form[f.key] || ""}
                   onChange={(e) => { setForm({ ...form, [f.key]: e.target.value }); setFieldErrors((current) => ({ ...current, [f.key]: "" })); setError(""); }}
-                 onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); create(); } }}
-                   required={f.required !== false} aria-invalid={Boolean(fieldErrors[f.key])} aria-describedby={fieldErrors[f.key] ? fieldErrorId : undefined} disabled={pending} className="h-8 text-sm" />
+                  required={f.required !== false} aria-invalid={Boolean(fieldErrors[f.key])} aria-describedby={fieldErrors[f.key] ? fieldErrorId : undefined} disabled={pending} className="h-8 w-full rounded-md border bg-background px-3 text-sm">
+                  <option value="">Select {f.label.toLowerCase()}</option>
+                  {[...new Set([...(f.options || addConfig?.[f.configKey] || []), form[f.key]].filter(Boolean))].map((option) => <option key={option} value={option}>{option}</option>)}
+                </select> : <Input id={fieldId} placeholder={f.label} value={form[f.key] || ""}
+                  onChange={(e) => { setForm({ ...form, [f.key]: e.target.value }); setFieldErrors((current) => ({ ...current, [f.key]: "" })); setError(""); }}
+                  onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); create(); } }}
+                  required={f.required !== false} aria-invalid={Boolean(fieldErrors[f.key])} aria-describedby={fieldErrors[f.key] ? fieldErrorId : undefined} disabled={pending} className="h-8 text-sm" />}
                 {fieldErrors[f.key] && <p id={fieldErrorId} role="alert" className="text-xs text-red-700">{fieldErrors[f.key]}</p>}
              </div>;
            })}

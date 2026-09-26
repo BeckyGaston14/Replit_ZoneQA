@@ -23,7 +23,8 @@ const LOOKUPS = [
   ["test_statuses", "Test Statuses"], ["finding_statuses", "Finding Statuses"],
   ["bassett_workflow_statuses", "Bassett Test Run Workflow Statuses"],
   ["pass_results", "Evaluation Results"], ["environments", "Environments"],
-  ["municipality_types", "Municipality Types"], ["finding_types", "Finding Categories"],
+  ["municipality_types", "Municipality Types"], ["jurisdiction_regions", "States / Provinces"],
+  ["finding_types", "Finding Categories"],
 ];
 const MODEL_COLUMNS = [{ key: "name", label: "Model", type: "natural" }, { key: "provider", label: "Provider", type: "text" }, { key: "role_type", label: "Type", type: "text" }, { key: "active", label: "Active", type: "active" }];
 const VERSION_COLUMNS = [

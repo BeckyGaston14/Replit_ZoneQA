@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api, formatApiErrorDetail, withExpectedVersion, staleUpdateMessage } from "../lib/api";
@@ -65,6 +65,16 @@ export default function TestCases() {
   const { data: versions = [] } = useCollection("versions");
   const { data: generalSubtypes = [] } = useGeneralSubtypes();
   const { data: rubricCatalog } = useQuery({ queryKey: ["bassett-rubric-catalog"], queryFn: async () => (await api.get("/bassett/rubric-catalog")).data, staleTime: 30 * 60_000 });
+  const scenarioMap = useMemo(() => Object.fromEntries(scenarios.map((scenario) => [scenario.id, scenario])), [scenarios]);
+  const testBankTypeFor = (testcase) => {
+    const scenario = scenarioMap[testcase.scenario_id] || testcase.source_definition_snapshot || testcase.definition_snapshot || {};
+    const value = scenario.test_type || scenario.report_type || scenario.workflow_stage || testcase.category;
+    return value === "General Research" ? "Research" : value;
+  };
+  const testBankTypes = useMemo(() => [...new Set(scenarios.map((scenario) => {
+    const value = scenario.test_type || scenario.report_type || scenario.workflow_stage;
+    return value === "General Research" ? "Research" : value;
+  }).filter(Boolean))].sort(), [scenarios]);
   const save = useSave("testcases");
   const [open, setOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -244,7 +254,7 @@ export default function TestCases() {
     if (q && !searchable.includes(q)) return false;
     const fl = view.filters;
     if (fl.status !== ALL_TEST_CASES && t.status !== fl.status) return false;
-    if (fl.category !== ALL_TEST_CASES && t.category !== fl.category) return false;
+    if (fl.category !== ALL_TEST_CASES && testBankTypeFor(t) !== fl.category) return false;
     if (fl.criticality !== ALL_TEST_CASES && String(t.criticality) !== fl.criticality) return false;
     if (fl.project_id !== ALL_TEST_CASES && t.project_id !== fl.project_id) return false;
     if (fl.archived === "archived" && !t.archived) return false;
@@ -255,6 +265,7 @@ export default function TestCases() {
 
   const activeSortColumns = TEST_CASE_COLUMNS
     .map((column) => column.key === "status" ? { ...column, order: config?.test_statuses || [] } : column)
+    .map((column) => column.key === "category" ? { ...column, getValue: testBankTypeFor } : column)
     .filter((column) => column.key === "name" || view.cols[column.key]);
   const effectiveSort = activeSortColumns.some((column) => column.key === sort.key) ? sort : DEFAULT_TEST_CASE_SORT;
   const sortedRows = sortTableRows(rows, activeSortColumns, effectiveSort, ["name", "id"]);
@@ -287,7 +298,7 @@ export default function TestCases() {
         </Select>
         <Select value={view.filters.category} onValueChange={(v) => setFilter("category", v)}>
           <SelectTrigger className="h-8 w-48 text-xs" data-testid="filter-category"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectItem value={ALL_TEST_CASES}>All categories</SelectItem>{(config?.categories || []).map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+          <SelectContent><SelectItem value={ALL_TEST_CASES}>All Test Bank types</SelectItem>{testBankTypes.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
         </Select>
         <Select value={view.filters.criticality} onValueChange={(v) => setFilter("criticality", v)}>
           <SelectTrigger className="h-8 w-36 text-xs" data-testid="filter-criticality"><SelectValue /></SelectTrigger>
@@ -340,7 +351,7 @@ export default function TestCases() {
                 <td className={`${TABLE_CELL_CLASS} font-semibold text-[var(--navy)]`}><button type="button" className="w-full text-left rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)] focus-visible:ring-offset-2" onClick={() => nav(`/testcases/${t.id}`)} aria-label={`Open ${t.name}`}>{t.name}</button></td>
                 {view.cols.project && <td className={`${TABLE_CELL_CLASS} text-muted-foreground`}>{t.project_name || "—"}</td>}
                 {view.cols.municipality && <td className={TABLE_CELL_CLASS}>{t.municipality_name || "—"}</td>}
-                {view.cols.category && <td className={TABLE_CELL_CLASS}>{t.category || "—"}</td>}
+                {view.cols.category && <td className={TABLE_CELL_CLASS}>{testBankTypeFor(t) || "—"}</td>}
                 {view.cols.crit && <td className={TABLE_CELL_CLASS}><CritBadge value={t.criticality} /></td>}
                 {view.cols.status && <td className={TABLE_CELL_CLASS}>{t.status}</td>}
                 {view.cols.result && <td className={TABLE_CELL_CLASS}><ResultBadge value={t.bassett_result} /></td>}

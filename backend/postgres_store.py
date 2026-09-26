@@ -1801,10 +1801,36 @@ class PostgresDatabase:
                 ):
                     if field in scenario:
                         stored["definition_snapshot"][field] = copy.deepcopy(scenario[field])
+                selected_finding_ids = list(dict.fromkeys(
+                    str(finding_id) for finding_id in (stored.get("finding_ids") or []) if finding_id
+                ))
+                if stored.get("finding_id") and stored["finding_id"] not in selected_finding_ids:
+                    selected_finding_ids.insert(0, stored["finding_id"])
                 if finding:
                     stored["finding_id"] = finding["id"]
-                    stored["finding_ids"] = [finding["id"]]
+                    selected_finding_ids.append(finding["id"])
+                elif selected_finding_ids and not stored.get("finding_id"):
+                    stored["finding_id"] = selected_finding_ids[0]
+                stored["finding_ids"] = list(dict.fromkeys(selected_finding_ids))
                 await self._insert("bassett_issues", stored, connection)
+                for finding_id in stored["finding_ids"]:
+                    if finding and finding_id == finding["id"]:
+                        continue
+                    finding_row = await connection.fetchrow(
+                        'SELECT id, data FROM "findings" WHERE id = $1 FOR UPDATE',
+                        finding_id,
+                    )
+                    if not finding_row:
+                        continue
+                    linked_finding = copy.deepcopy(dict(finding_row["data"]))
+                    linked_finding.setdefault("id", finding_row["id"])
+                    linked_finding["bassett_issue_id"] = linked_finding.get("bassett_issue_id") or stored["id"]
+                    linked_finding["linked_test_run_ids"] = list(dict.fromkeys([
+                        *[str(run_id) for run_id in (linked_finding.get("linked_test_run_ids") or []) if run_id],
+                        stored["id"],
+                    ]))
+                    linked_finding["updated_at"] = stored.get("updated_at")
+                    await self._replace("findings", linked_finding, connection)
                 if finding:
                     await self._insert("findings", finding, connection)
                 for attachment in attachment_documents:

@@ -3416,13 +3416,19 @@ def _normalize_bassett_stage_record(record):
 
 
 def _test_bank_category(record, scenarios_by_id):
-    """Return the active Test Bank category, falling back only if unlinked."""
+    """Return the active Test Bank type, falling back only if unlinked."""
     scenario_id = record.get("scenario_id") if isinstance(record, dict) else None
     scenario = scenarios_by_id.get(scenario_id) if scenario_id else None
     if scenario is not None:
-        return _canonical_bassett_workflow_stage(
-            scenario.get("workflow_stage")
-        ) or "Uncategorized"
+        return _bassett_scenario_test_type(scenario) or "Uncategorized"
+    snapshot = (
+        record.get("source_definition_snapshot")
+        or record.get("definition_snapshot")
+        or record.get("scenario_snapshot")
+        or {}
+    ) if isinstance(record, dict) else {}
+    if snapshot:
+        return _bassett_scenario_test_type(snapshot) or "Uncategorized"
     return (
         (record.get("issue_category") or record.get("category") or "Uncategorized")
         if isinstance(record, dict) else "Uncategorized"
@@ -4164,7 +4170,7 @@ async def bassett_expand_issue(id: str, user=Depends(get_current_user)):
         "scenario": snapshot.get("test_scenario"), "purpose": snapshot.get("why_it_matters"),
         "context": issue.get("repro_steps") or issue.get("notes", ""),
         "notes": issue.get("notes", ""), "reproduction_steps": issue.get("repro_steps", ""),
-        "evidence_context": issue.get("evidence") or issue.get("evidence_context", ""),
+        "evidence_context": issue.get("source_links") or issue.get("evidence") or issue.get("evidence_context", ""),
         "test_date": issue.get("test_date"), "reported_date": issue.get("reported_date"),
         "environment": issue.get("environment"), "status": issue.get("status"),
         "priority": issue.get("priority"), "severity": issue.get("severity"),
@@ -4829,6 +4835,9 @@ async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_c
         requested_finding_ids = incoming.get("finding_ids", existing.get("finding_ids") or [])
         if not isinstance(requested_finding_ids, list):
             raise HTTPException(400, "finding_ids must be a list")
+        if not primary_finding_id and requested_finding_ids:
+            primary_finding_id = str(requested_finding_ids[0] or "").strip()
+        incoming["finding_id"] = primary_finding_id or None
         incoming["finding_ids"] = list(dict.fromkeys(
             [finding_id for finding_id in [primary_finding_id, *requested_finding_ids] if finding_id]
         ))
@@ -10871,6 +10880,15 @@ DEFAULT_CONFIG = {
     "roles": ["admin", "qa_manager", "tester", "developer", "viewer"],
     "environments": ["Production", "Staging", "Development", "Experimental"],
     "municipality_types": ["City", "County", "Town", "Village", "Township", "Borough", "Parish", "Unincorporated"],
+    "jurisdiction_regions": [
+        "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", "Delaware",
+        "District of Columbia", "Florida", "Georgia", "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa",
+        "Kansas", "Kentucky", "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota",
+        "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", "New Jersey",
+        "New Mexico", "New York", "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon",
+        "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota", "Tennessee", "Texas", "Utah",
+        "Vermont", "Virginia", "Washington", "West Virginia", "Wisconsin", "Wyoming",
+    ],
     "demo_statuses": ["Not Reviewed", "Potential Demo", "Needs Cleanup", "Approved", "Retired"],
     "bassett_workflow_stages": [
         {"name": "Research", "code": "R", "position": 1},
@@ -10979,6 +10997,8 @@ async def startup():
             patch["annotation_types"] = DEFAULT_CONFIG["annotation_types"]
         if "municipality_types" not in cfg:
             patch["municipality_types"] = DEFAULT_CONFIG["municipality_types"]
+        if "jurisdiction_regions" not in cfg:
+            patch["jurisdiction_regions"] = DEFAULT_CONFIG["jurisdiction_regions"]
         if "bassett_workflow_statuses" not in cfg:
             patch["bassett_workflow_statuses"] = DEFAULT_CONFIG["bassett_workflow_statuses"]
         if "bassett_workflow_stages" not in cfg:

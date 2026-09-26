@@ -176,7 +176,7 @@ export default function BassettIssues() {
   const [searchParams, setSearchParams] = useSearchParams();
   const qc = useQueryClient();
   const { user } = useAuth();
-  const [filters, setFilters] = useState(() => ({ status: "all", severity: "all", type: "all", retest: "all", project: searchParams.get("project_id") || "all", version: "all", result: "all", stage: "all", testType: "all", priority: "all", environment: "all", search: "", dateFrom: "", dateTo: "" }));
+  const [filters, setFilters] = useState(() => ({ status: "all", severity: "all", type: "all", retest: "all", project: searchParams.get("project_id") || "all", version: "all", result: "all", stage: "all", testType: "all", environment: "all", search: "", dateFrom: "", dateTo: "" }));
   const [form, setForm] = useState(null);
   const [conflict, setConflict] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -217,6 +217,7 @@ export default function BassettIssues() {
   const { data: users = [] } = useQuery({ queryKey: ["users"], queryFn: async () => (await api.get("/users")).data, enabled: Boolean(form) });
   const { data: versions = [] } = useQuery({ queryKey: ["versions"], queryFn: async () => (await api.get("/versions")).data, enabled: Boolean(form) });
   const { data: evidenceRecords = [] } = useQuery({ queryKey: ["evidence"], queryFn: async () => (await api.get("/evidence")).data, enabled: Boolean(form) });
+  const { data: availableFindings = [] } = useQuery({ queryKey: ["bassett-findings-for-entry-form"], queryFn: async () => (await api.get("/bassett/findings")).data, enabled: Boolean(form) });
   const { data: config } = useQuery({ queryKey: ["config"], queryFn: async () => (await api.get("/config")).data });
   const testStatuses = config?.bassett_workflow_statuses || defaultTestStatuses;
   useEffect(() => {
@@ -248,9 +249,12 @@ export default function BassettIssues() {
   const findingVersions = useMemo(() => [...new Set(issues.map((item) => item.version_found || item.bassett_version).filter(Boolean))].sort(), [issues]);
   const findingOptions = useMemo(() => ({
     results: [...new Set(issues.map((item) => item.result).filter(Boolean))].sort(),
-    stages: [...new Set(issues.map((item) => item.workflow_stage || scenarioMap[item.scenario_id]?.workflow_stage).filter(Boolean))].sort(),
+    stages: [...new Set(issues.map((item) => {
+      const scenario = scenarioMap[item.scenario_id] || item.definition_snapshot || item.scenario_snapshot || {};
+      const value = scenario.test_type || scenario.report_type || scenario.workflow_stage || item.workflow_stage;
+      return value === "General Research" ? "Research" : value;
+    }).filter(Boolean))].sort(),
     testTypes: [...new Set(issues.map((item) => item.test_type).filter(Boolean))].sort(),
-    priorities: [...new Set(issues.map((item) => item.priority).filter(Boolean))].sort(),
     environments: [...new Set(issues.map((item) => item.environment).filter(Boolean))].sort(),
   }), [issues, scenarioMap]);
   const shown = useMemo(() => sortTableRows(issues.filter((issue) => {
@@ -262,9 +266,12 @@ export default function BassettIssues() {
     if (filters.project !== "all" && issue.project_id !== filters.project) return false;
     if (showingFindings && filters.version !== "all" && (issue.version_found || issue.bassett_version) !== filters.version) return false;
     if (showingFindings && filters.result !== "all" && issue.result !== filters.result) return false;
-    if (showingFindings && filters.stage !== "all" && (issue.workflow_stage || scenarioMap[issue.scenario_id]?.workflow_stage) !== filters.stage) return false;
+    if (showingFindings && filters.stage !== "all") {
+      const scenario = scenarioMap[issue.scenario_id] || issue.definition_snapshot || issue.scenario_snapshot || {};
+      const testBankType = scenario.test_type || scenario.report_type || scenario.workflow_stage || issue.workflow_stage;
+      if ((testBankType === "General Research" ? "Research" : testBankType) !== filters.stage) return false;
+    }
     if (showingFindings && filters.testType !== "all" && issue.test_type !== filters.testType) return false;
-    if (showingFindings && filters.priority !== "all" && issue.priority !== filters.priority) return false;
     if (showingFindings && filters.environment !== "all" && issue.environment !== filters.environment) return false;
     if (showingFindings && filters.dateFrom && (!issue.test_date || issue.test_date < filters.dateFrom)) return false;
     if (showingFindings && filters.dateTo && (!issue.test_date || issue.test_date > filters.dateTo)) return false;
@@ -275,7 +282,7 @@ export default function BassettIssues() {
   const defaultSort = showingFindings ? { key: "severity", direction: "asc" } : DEFAULT_RUN_SORT;
   const filtersActive = Boolean(filters.search || filters.dateFrom || filters.dateTo || Object.entries(filters).some(([key, value]) => !["search", "dateFrom", "dateTo"].includes(key) && value !== "all"));
   const clearFilters = () => {
-    setFilters({ status: "all", severity: "all", type: "all", retest: "all", project: "all", version: "all", result: "all", stage: "all", testType: "all", priority: "all", environment: "all", search: "", dateFrom: "", dateTo: "" });
+    setFilters({ status: "all", severity: "all", type: "all", retest: "all", project: "all", version: "all", result: "all", stage: "all", testType: "all", environment: "all", search: "", dateFrom: "", dateTo: "" });
     if (searchParams.has("project_id")) {
       const next = new URLSearchParams(searchParams);
       next.delete("project_id");
@@ -406,7 +413,7 @@ export default function BassettIssues() {
             ? <select aria-label="Filter by severity" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.severity} onChange={(e) => setFilters({ ...filters, severity: e.target.value })}><option value="all">All severity</option>{SEVERITY_LABELS.map((x) => <option key={x}>{x}</option>)}</select>
             : <select aria-label="Filter by severity" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.severity} onChange={(e) => setFilters({ ...filters, severity: e.target.value })}><option value="all">All severity</option>{SEVERITY_LABELS.map((x) => <option key={x}>{x}</option>)}</select>}
         {showingFindings && <>
-          <select aria-label="Filter by finding category" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.type} onChange={(e) => setFilters({ ...filters, type: e.target.value })}><option value="all">All finding categories</option>{findingTypes.map((x) => <option key={x}>{x}</option>)}</select>
+          {findingTypes.length > 1 && <select aria-label="Filter by finding category" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.type} onChange={(e) => setFilters({ ...filters, type: e.target.value })}><option value="all">All finding categories</option>{findingTypes.map((x) => <option key={x}>{x}</option>)}</select>}
           {findingVersions.length > 0 && <select aria-label="Filter by Bassett version" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.version} onChange={(e) => setFilters({ ...filters, version: e.target.value })}><option value="all">All Bassett versions</option>{findingVersions.map((x) => <option key={x}>{x}</option>)}</select>}
         </>}
         <select aria-label="Filter by testing project" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.project} onChange={(e) => setFilters({ ...filters, project: e.target.value })}><option value="all">All testing projects</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select>
@@ -416,15 +423,14 @@ export default function BassettIssues() {
       {showingFindings && <details className="mb-4 rounded-lg border bg-[var(--paper)] px-3 py-2">
         <summary className="cursor-pointer text-sm font-semibold text-[var(--navy)]">Additional filters</summary>
         <div className="mt-3 flex flex-wrap gap-2">
-          <select aria-label="Filter by Workflow status" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}><option value="all">All workflow statuses</option>{(config?.finding_statuses || []).map((x) => <option key={x}>{x}</option>)}</select>
+          <select aria-label="Filter by finding status" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}><option value="all">All finding statuses</option>{(config?.finding_statuses || []).map((x) => <option key={x}>{x}</option>)}</select>
           <select aria-label="Filter by retest status" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.retest} onChange={(e) => setFilters({ ...filters, retest: e.target.value })}><option value="all">All retest states</option>{["Pending", "In Progress", "Fixed", "Partially Fixed", "Not Fixed"].map((x) => <option key={x}>{x}</option>)}</select>
           <select aria-label="Filter by test result" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.result} onChange={(e) => setFilters({ ...filters, result: e.target.value })}><option value="all">All test results</option>{findingOptions.results.map((x) => <option key={x}>{x}</option>)}</select>
-          <select aria-label="Filter by category" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.stage} onChange={(e) => setFilters({ ...filters, stage: e.target.value })}><option value="all">All categories</option>{findingOptions.stages.map((x) => <option key={x}>{x}</option>)}</select>
-          <select aria-label="Filter by test type" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.testType} onChange={(e) => setFilters({ ...filters, testType: e.target.value })}><option value="all">All test types</option>{findingOptions.testTypes.map((x) => <option key={x}>{x}</option>)}</select>
-          <select aria-label="Filter by priority" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.priority} onChange={(e) => setFilters({ ...filters, priority: e.target.value })}><option value="all">All priorities</option>{findingOptions.priorities.map((x) => <option key={x}>{x}</option>)}</select>
+          <select aria-label="Filter by Test Bank type" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.stage} onChange={(e) => setFilters({ ...filters, stage: e.target.value })}><option value="all">All Test Bank types</option>{findingOptions.stages.map((x) => <option key={x}>{x}</option>)}</select>
+          <select aria-label="Filter by conversation format" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.testType} onChange={(e) => setFilters({ ...filters, testType: e.target.value })}><option value="all">All conversation formats</option>{findingOptions.testTypes.map((x) => <option key={x}>{x}</option>)}</select>
           <select aria-label="Filter by environment" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.environment} onChange={(e) => setFilters({ ...filters, environment: e.target.value })}><option value="all">All environments</option>{findingOptions.environments.map((x) => <option key={x}>{x}</option>)}</select>
-          <Input aria-label="Finding Test Date from" title="Test Date from" type="date" className="w-auto" value={filters.dateFrom} onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })} />
-          <Input aria-label="Finding Test Date to" title="Test Date to" type="date" className="w-auto" value={filters.dateTo} onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })} />
+          <label className="text-xs text-muted-foreground">Test Date from <Input aria-label="Finding Test Date from" title="Test Date from" type="date" className="mt-1 w-auto" value={filters.dateFrom} onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })} /></label>
+          <label className="text-xs text-muted-foreground">to <Input aria-label="Finding Test Date to" title="Test Date to" type="date" className="mt-1 w-auto" value={filters.dateTo} onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })} /></label>
         </div>
       </details>}
       {showingFindings ? <div className="space-y-2" role="region" aria-label="Bassett findings list">
@@ -457,7 +463,7 @@ export default function BassettIssues() {
     </div>
      <MethodologyDisclosure title={showingFindings ? "How Bassett Finding metrics are calculated" : "How Bassett Test Run metrics are calculated"} testid="bassett-test-runs-methodology">
        {showingFindings ? (
-         <><p>Finding counts reflect Bassett-only findings in the current visibility scope; fixed and closed findings are excluded from the open count. High and Critical counts are separate; the High + Critical findings total is their additive roll-up.</p><p>Project, version, severity, test result, category, test type, priority, environment, and test date come from the linked Bassett Test Run and Test Bank scenario when they are not stored directly on the finding.</p></>
+         <><p>Finding counts reflect Bassett-only findings in the current visibility scope; fixed and closed findings are excluded from the open count. High and Critical counts are separate; the High + Critical findings total is their additive roll-up.</p><p>Project, version, severity, test result, Test Bank type, conversation format, environment, and test date come from the linked Bassett Test Run and Test Bank scenario when they are not stored directly on the finding.</p></>
        ) : (
          <>
             <p>Tests Needing Attention includes Test result values of Needs Improvement, Fail, Critical Fail, or legacy Blocked.</p>
@@ -468,7 +474,7 @@ export default function BassettIssues() {
      </MethodologyDisclosure>
 
      {selected && !showingFindings && <IssueDetail id={selected} onClose={() => setSelected(null)} onEdit={openEdit} onRestore={restore} canWrite={canWrite} canManage={canManage} refresh={() => qc.invalidateQueries()} />}
-    {form && <BassettTestRunForm form={form} setForm={setForm} scenarios={scenarios} rubricCatalog={rubricCatalog} generalSubtypes={generalSubtypes} versions={versions} projects={projects} municipalities={municipalities} properties={properties} users={users} evidenceRecords={evidenceRecords} config={config} onSubmit={save} onCancel={() => { setConflict(null); setForm(null); }} submitting={saving} conflictNotice={conflict && <div role="alert" className="col-span-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+    {form && <BassettTestRunForm form={form} setForm={setForm} scenarios={scenarios} rubricCatalog={rubricCatalog} generalSubtypes={generalSubtypes} versions={versions} projects={projects} municipalities={municipalities} properties={properties} users={users} evidenceRecords={evidenceRecords} availableFindings={availableFindings} config={config} onSubmit={save} onCancel={() => { setConflict(null); setForm(null); }} submitting={saving} conflictNotice={conflict && <div role="alert" className="col-span-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
       <p className="font-semibold">Someone else saved this test run first. Your entries are still open for review.</p>
       <div className="mt-2 flex gap-2">
         <Button type="button" size="sm" variant="outline" onClick={() => { setForm(conflict); setConflict(null); }}>Load latest values</Button>

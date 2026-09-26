@@ -5,7 +5,7 @@ export const TEST_CASE_COLUMNS = [
   { key: "name", label: "Test Name", type: "natural", alwaysVisible: true },
   { key: "project", label: "Project", type: "text", getValue: (row) => row.project_name },
   { key: "municipality", label: "Municipality", type: "text", getValue: (row) => row.municipality_name },
-  { key: "category", label: "Category", type: "text" },
+  { key: "category", label: "Test Bank Type", type: "text" },
   { key: "crit", label: "Crit", type: "criticality", getValue: (row) => row.criticality },
   { key: "status", label: "Status", type: "status" },
   { key: "result", label: "Bassett test result", type: "status", getValue: (row) => row.bassett_result, order: ["Pass", "Pass with Minor Issues", "Needs Improvement", "Fail", "Critical Fail", "Not Evaluated"] },

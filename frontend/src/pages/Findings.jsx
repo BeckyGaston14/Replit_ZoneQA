@@ -225,7 +225,7 @@ export default function Findings() {
           <details className="mb-4 rounded-lg border bg-[var(--paper)] px-3 py-2">
             <summary className="cursor-pointer text-sm font-semibold text-[var(--navy)]">Additional filters</summary>
             <div className="mt-3 flex flex-wrap gap-2">
-              {[["status", config?.finding_statuses, "All workflow statuses"], ["criticality", SEVERITY_LABELS.map((label, index) => ({ value: String(index + 1), label })), "All severity"], ["retest", ["Pending", "In Progress", "Fixed", "Partially Fixed", "Not Fixed"], "All retest states"]].map(([key, opts, label]) => (
+              {[["status", config?.finding_statuses, "All finding statuses"], ["criticality", SEVERITY_LABELS.map((label, index) => ({ value: String(index + 1), label })), "All severity"], ["retest", ["Pending", "In Progress", "Fixed", "Partially Fixed", "Not Fixed"], "All retest states"]].map(([key, opts, label]) => (
                 <select key={key} value={flt[key]} onChange={(event) => setFilter(key, event.target.value)} data-testid={`filter-${key}`} className="h-9 rounded-md border bg-background px-3 text-sm text-[var(--navy)]">
                   <option value={ALL}>{label}</option>
                   {(opts || []).map((option) => {
