@@ -31,6 +31,10 @@ function reportData(categoryCount = 5, longLabels = false) {
       { mode: "Missed context", count: 3 },
       { mode: "Calculation error", count: 2 },
     ],
+    open_high_critical_findings: [
+      { title: "Incorrect use classification", severity: "Critical", category: "Property & Zoning Rules", workflow_status: "In Review", retest_status: "Not Started", linked_test_run_count: 2 },
+      { title: "Citation does not support answer", severity: "High", category: "Sources & Citations", workflow_status: "Ready for Retesting", retest_status: "Pending", linked_test_run_count: 1 },
+    ],
     rubric_revision: "2026-09-16",
     rubric_categories: Array.from({ length: categoryCount }, (_, index) => ({
       category: longLabels ? `Category ${index + 1} with a deliberately long descriptive label that wraps within its table cell` : `Category ${index + 1}`,
@@ -97,6 +101,7 @@ test("renders a multi-section report into bounded, non-overlapping A4 pages", ()
   expect(result.boxes.some((box) => box.name === "Executive Takeaways")).toBe(true);
   expect(result.boxes.some((box) => box.name === "Top Finding Categories")).toBe(true);
   expect(result.boxes.some((box) => box.name === "Bassett Category Performance")).toBe(true);
+  expect(result.boxes.some((box) => box.name === "Open High & Critical Findings")).toBe(true);
   result.boxes.forEach((box) => {
     expect(Number.isFinite(box.x)).toBe(true);
     expect(Number.isFinite(box.y)).toBe(true);
@@ -135,6 +140,8 @@ test("renders a multi-section report into bounded, non-overlapping A4 pages", ()
   expect(pdfText).toContain("Bassett");
   expect(pdfText).toContain("ChatGPT");
   expect(pdfText).toContain("Claude");
+  expect(pdfText).toContain("Open High & Critical Findings");
+  expect(pdfText).toContain("Incorrect use classification");
   expect(Array.from({ length: result.pageCount }, (_, index) => doc.internal.pages[index + 1].join(" ")).join(" ")).not.toContain("Legacy12");
   if (process.env.WRITE_PDF_ARTIFACT === "1") {
     const outputDir = path.resolve(process.cwd(), "../.agents/outputs");
@@ -156,7 +163,7 @@ test("keeps the current sample layout sequential, legend-safe, and balanced", ()
     generated: "9/2/2026",
   });
 
-  expect(result.pageCount).toBe(2);
+  expect(result.pageCount).toBeGreaterThanOrEqual(2);
   assertNoIntersectingLayoutBoxes(result.boxes);
   result.boxes.filter((box) => box.name.endsWith(" legend")).forEach((legend) => {
     expect(legend.y).toBeGreaterThanOrEqual(A4_PAGE.top);

@@ -306,6 +306,7 @@ export function renderExecutivePdf({ doc, data, chartImages = {}, generated = ne
   const strongestCategory = rankedCategories[0];
   const weakestCategory = rankedCategories[rankedCategories.length - 1];
   const failureModes = data?.failure_modes || [];
+  const openHighCriticalFindings = data?.open_high_critical_findings || [];
   const includesComparison = data?.report_scope !== "bassett";
   const takeaways = [
     data?.insufficient_evidence
@@ -365,8 +366,8 @@ export function renderExecutivePdf({ doc, data, chartImages = {}, generated = ne
     },
     {
       name: "Top Finding Categories",
-      title: "Top Finding Categories (all findings)",
-      note: "Each count is the number of findings assigned to that category.",
+      title: "Top Finding Categories (selected scope)",
+      note: "Each count is the number of non-archived findings assigned to that category. Open and closed findings are included.",
       image: chartImages.failureModes,
       table: { headers: ["Finding category", "Count"], widths: [145, 37], rows: failureModes.map((item) => [item.mode, item.count]) },
     },
@@ -380,6 +381,50 @@ export function renderExecutivePdf({ doc, data, chartImages = {}, generated = ne
         table: { headers: ["Current rubric category", "Average score out of 10"], widths: [145, 37], rows: categories.map((item) => [item.label || item.category, formatEvaluationScore(item.score ?? item.avg_score)]) },
     },
   ];
+
+  if (openHighCriticalFindings.length) {
+    const appendix = {
+      headers: ["Finding", "Severity", "Category", "Workflow", "Retest", "Runs"],
+      widths: [61, 20, 35, 27, 27, 12],
+      rows: openHighCriticalFindings.map((finding) => [
+        safeText(finding.title, "Untitled finding"),
+        safeText(finding.severity),
+        safeText(finding.category, "Uncategorized"),
+        safeText(finding.workflow_status, "Not Started"),
+        safeText(finding.retest_status, "Not Started"),
+        safeText(finding.linked_test_run_count, "0"),
+      ]),
+    };
+    const titleHeight = 5.5 + 3.8 + 2;
+    const minimumHeight = titleHeight + 8 + tableRow(doc, appendix.rows[0], appendix.widths).height;
+    if (y + minimumHeight > A4_PAGE.bottom) y = newPage();
+    const start = y;
+    const startPage = doc.internal.getCurrentPageInfo().pageNumber;
+    y = drawSectionTitle(
+      doc,
+      "Open High & Critical Findings",
+      y,
+      "Actionable findings in the selected scope. Archived and closed findings are excluded.",
+    );
+    boxes.push({
+      page: startPage,
+      x: A4_PAGE.marginX,
+      y: start,
+      width: A4_PAGE.contentWidth,
+      height: y - start,
+      name: "Open High & Critical Findings",
+    });
+    y = drawTable(
+      doc,
+      appendix.headers,
+      appendix.rows,
+      y,
+      appendix.widths,
+      boxes,
+      "Open High & Critical Findings table",
+      newPage,
+    ) + SECTION_GAP;
+  }
 
   sections.forEach((section) => {
     const width = A4_PAGE.contentWidth;

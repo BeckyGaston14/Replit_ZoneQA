@@ -220,7 +220,7 @@ export default function Executive() {
         </div>
 
         <div className="bg-card border rounded-xl p-5">
-          <h3 className="font-semibold font-display text-[var(--navy)] mb-3">Top Finding Categories (all findings)</h3>
+          <h3 className="font-semibold font-display text-[var(--navy)] mb-3">Top Finding Categories (selected scope)</h3>
           {failure_modes.length === 0 ? <p className="text-sm text-muted-foreground">No finding categories recorded yet.</p> : (
             <div ref={failureModesChartRef} data-testid="exec-failure-modes-chart-render" className="min-w-0">
               <SafeResponsiveContainer height={Math.max(280, failure_modes.length * 44)} testId="exec-failure-responsive-chart">
@@ -233,7 +233,7 @@ export default function Executive() {
               </SafeResponsiveContainer>
             </div>
           )}
-          {failure_modes.length > 0 && <SrTable caption="Top finding categories across findings" columns={["Finding category", "Count"]} rows={failure_modes.map((f) => [f.mode, f.count])} />}
+          {failure_modes.length > 0 && <SrTable caption="Top finding categories across non-archived findings in the selected scope" columns={["Finding category", "Count"]} rows={failure_modes.map((f) => [f.mode, f.count])} />}
         </div>
       </div>
 

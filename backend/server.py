@@ -8500,6 +8500,32 @@ async def analytics_executive(
     open_findings = [f for f in findings if f.get("developer_status") not in CLOSED_FINDING]
     open_critical = len([f for f in open_findings if _finding_is_high_or_critical(f)])
     open_finding_severity = _finding_severity_counts(open_findings)
+    open_high_critical_findings = []
+    for finding in open_findings:
+        severity = _canonicalize_finding_severity(finding).get("severity")
+        if severity not in {"High", "Critical"}:
+            continue
+        linked_run_ids = list(dict.fromkeys([
+            run_id for run_id in [
+                finding.get("bassett_issue_id"),
+                *(finding.get("linked_test_run_ids") or []),
+            ] if run_id
+        ]))
+        open_high_critical_findings.append({
+            "id": finding.get("id"),
+            "title": finding.get("title") or finding.get("description") or "Untitled finding",
+            "severity": severity,
+            "category": finding.get("finding_type") or "Uncategorized",
+            "workflow_status": finding.get("developer_status") or "Not Started",
+            "retest_status": finding.get("retest_status") or "Not Started",
+            "linked_test_run_count": len(linked_run_ids),
+        })
+    open_high_critical_findings.sort(
+        key=lambda finding: (
+            0 if finding["severity"] == "Critical" else 1,
+            str(finding["title"]).lower(),
+        )
+    )
 
     # Finding categories are the current classification. Legacy failure modes
     # remain a read-only fallback so historical findings still appear in reports.
@@ -8564,7 +8590,9 @@ async def analytics_executive(
                      "limited_data": limited_data,
                      "benchmark_evaluated": benchmark_evaluated_count,
                      "total_findings": len(findings)},
-              "trend": trend, "failure_modes": failure_modes, "categories": categories,
+              "trend": trend, "failure_modes": failure_modes,
+              "open_high_critical_findings": open_high_critical_findings,
+              "categories": categories,
               "rubric_categories": categories if current_evals else [],
               "legacy_reporting_groups": reporting_groups,
               "reporting_groups": reporting_groups,
