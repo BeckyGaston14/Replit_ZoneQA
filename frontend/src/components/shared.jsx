@@ -106,7 +106,7 @@ export function LimitedDataWarning({ evaluated, className = "" }) {
   const amount = Number(count);
   return (
     <div role="status" data-testid="limited-data-warning" className={cn("mt-2 text-xs font-medium text-amber-700", className)}>
-      Limited data — {amount} evaluated record{amount === 1 ? "" : "s"}
+      {`Limited data — ${amount} evaluated ${amount === 1 ? "record" : "records"}`}
     </div>
   );
 }

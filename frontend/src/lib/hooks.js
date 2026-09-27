@@ -18,6 +18,17 @@ const LIVE_QUERY_OPTIONS = {
   refetchOnMount: true,
 };
 
+// Catalog pages are read frequently and change only through application
+// mutations, which already invalidate their query groups. Keeping a short
+// cache avoids repeating the two largest list requests whenever a user moves
+// between Test Bank, Test Runs, Coverage, and Comparison pages.
+const CATALOG_QUERY_OPTIONS = {
+  staleTime: 60_000,
+  gcTime: 15 * 60_000,
+  refetchOnWindowFocus: false,
+  refetchOnMount: false,
+};
+
 const BOUNDED_REFERENCE_COLLECTIONS = new Set(["versions"]);
 
 function invalidateQueryGroup(queryClient, group) {
@@ -122,14 +133,14 @@ export function useSampleVisibility() {
 export function useTestCases({ includeArchived = false, ...opts } = {}) {
   return useQuery({
     queryFn: async ({ signal } = {}) => (await api.get(`/list/testcases-enriched?include_archived=${includeArchived}`, { signal })).data,
-    ...useAuthQueryOptions(["tc-enriched", includeArchived ? "all" : "active"], opts),
+    ...useAuthQueryOptions(["tc-enriched", includeArchived ? "all" : "active"], opts, CATALOG_QUERY_OPTIONS),
   });
 }
 
 export function useTestBank({ includeArchived = false, ...opts } = {}) {
   return useQuery({
     queryFn: async ({ signal } = {}) => (await api.get(`/bassett/test-bank?include_archived=${includeArchived}`, { signal })).data,
-    ...useAuthQueryOptions(["bassett-scenarios", includeArchived ? "including-archived" : "active"], opts),
+    ...useAuthQueryOptions(["bassett-scenarios", includeArchived ? "including-archived" : "active"], opts, CATALOG_QUERY_OPTIONS),
   });
 }
 

@@ -33,7 +33,7 @@ export function GapRow({ label, sub, tests, evaluated, testid, bassett = false }
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2 text-xs sm:justify-end sm:text-right">
         <StatusBadge value={status} definitions={definitions} compact />
-        <span className="text-muted-foreground"><b className="text-[var(--navy)]">{evaluated} of {tests}</b> {noun}{tests === 1 ? "" : "s"} evaluated</span>
+        <span className="text-muted-foreground"><b className="text-[var(--navy)]">{evaluated} of {tests}</b>{` ${tests === 1 ? noun : `${noun}s`} evaluated`}</span>
       </div>
     </div>
   );
