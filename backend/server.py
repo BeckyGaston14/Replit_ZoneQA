@@ -7756,6 +7756,19 @@ async def release_readiness(version: str, user=Depends(get_current_user), scope:
         if f.get("version_found") == version
         and finding_in_scope(f)
     ]
+
+    def release_finding_scope(finding):
+        explicit_scope = _finding_scope(finding)
+        if explicit_scope:
+            return explicit_scope
+        testcase_id = finding.get("testcase_id")
+        if testcase_id in bassett_testcase_ids:
+            return "bassett"
+        if testcase_id in comparison_testcase_ids:
+            return "comparison"
+        if scope in {"bassett", "comparison"}:
+            return scope
+        return "comparison"
     open_crit5 = [f for f in version_findings if _finding_criticality(f) >= 5]
     open_crit4 = [f for f in version_findings if _finding_criticality(f) == 4]
 
@@ -7821,7 +7834,7 @@ async def release_readiness(version: str, user=Depends(get_current_user), scope:
                          "detail": f"Complete at least one qualifying Bassett-only or Model Comparison evaluation for {version} before making a release decision.",
                          "link_id": "", "link_type": ""})
     for f in open_crit5:
-        blockers.append({"type": "Critical Finding", "label": f.get("title", ""), "detail": f"Critical severity · {f.get('developer_status')}", "link_id": f["id"], "link_type": "finding"})
+        blockers.append({"type": "Critical Finding", "label": f.get("title", ""), "detail": f"Critical severity · {f.get('developer_status')}", "link_id": f["id"], "link_type": "finding", "finding_scope": release_finding_scope(f)})
     for e in critical_fails:
         testcase_id = e.get("testcase_id")
         tc = tcs.get(testcase_id, {})
@@ -7906,7 +7919,8 @@ async def release_readiness(version: str, user=Depends(get_current_user), scope:
             "regression": reg, "newly_failing": newly_failing, "blockers": blockers,
             "failed_tests": failed_tests,
              "open_finding_list": [{"id": f["id"], "title": f.get("title"), "criticality": _finding_criticality(f),
-                                   "developer_status": f.get("developer_status"), "finding_type": f.get("finding_type")}
+                                   "developer_status": f.get("developer_status"), "finding_type": f.get("finding_type"),
+                                   "finding_scope": release_finding_scope(f)}
                                    for f in sorted(version_findings, key=lambda x: -_finding_criticality(x))[:20]]}
 
 # ---------- Live model runs ----------

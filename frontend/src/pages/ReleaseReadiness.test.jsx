@@ -10,7 +10,7 @@ let mockReadinessPayload;
 let mockSearchParams = new URLSearchParams("version=v1");
 const mockSetSearchParams = jest.fn();
 jest.mock("react-router-dom", () => ({
-  Link: ({ children }) => <a>{children}</a>,
+  Link: ({ to, children }) => <a href={to}>{children}</a>,
   useSearchParams: () => [mockSearchParams, mockSetSearchParams],
 }), { virtual: true });
 jest.mock("@tanstack/react-query", () => ({
@@ -220,5 +220,25 @@ test("version and scope changes create distinct readiness requests and pass canc
   const signal = new AbortController().signal;
   await scopedOptions.queryFn({ signal });
   expect(api.get).toHaveBeenCalledWith("/release-readiness?version=v2&scope=comparison", { signal });
+  act(() => root.unmount());
+});
+
+test("routes Bassett and comparison findings to their matching finding pages", () => {
+  mockReadinessPayload = {
+    ...payload(50),
+    blockers: [
+      { type: "Critical Finding", label: "Bassett issue", detail: "Open", link_type: "finding", link_id: "b-1", finding_scope: "bassett" },
+      { type: "Critical Finding", label: "Comparison issue", detail: "Open", link_type: "finding", link_id: "c-1", finding_scope: "comparison" },
+    ],
+    open_finding_list: [
+      { id: "b-1", title: "Bassett issue", developer_status: "Open", criticality: 5, finding_scope: "bassett" },
+      { id: "c-1", title: "Comparison issue", developer_status: "Open", criticality: 5, finding_scope: "comparison" },
+    ],
+  };
+  const { container, root } = renderReadiness();
+  const hrefs = [...container.querySelectorAll("a")].map((link) => link.getAttribute("href"));
+
+  expect(hrefs).toContain("/bassett/findings?id=b-1");
+  expect(hrefs).toContain("/findings?id=c-1");
   act(() => root.unmount());
 });

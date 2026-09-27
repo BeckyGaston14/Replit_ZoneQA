@@ -137,3 +137,21 @@ test("renders retryable KPI and category errors instead of empty or N/A states",
   expect(container.textContent).not.toContain("No evaluated records yet");
   act(() => root.unmount());
 });
+
+test("shows loading labels without temporary zero or N/A performance values", () => {
+  useQuery.mockImplementation(({ queryKey }) => {
+    const result = queryResult(queryKey);
+    if (["metrics", "bassett-metrics", "perf"].includes(queryKey[0])) {
+      return { ...result, data: undefined, isLoading: true };
+    }
+    return result;
+  });
+  const { container, root } = renderDashboard();
+
+  expect(container.textContent).toContain("Loading primary metrics…");
+  expect(container.textContent.match(/Loading performance…/g)).toHaveLength(2);
+  expect(container.textContent).toContain("Loading finding metrics…");
+  expect(container.textContent).not.toContain("Average score (n=0)");
+  expect(container.textContent).not.toContain("No evaluated records yet");
+  act(() => root.unmount());
+});

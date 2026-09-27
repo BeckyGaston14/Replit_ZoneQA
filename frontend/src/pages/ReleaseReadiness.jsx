@@ -16,6 +16,11 @@ import { ConfirmActionDialog } from "../components/ConfirmActionDialog";
 import { QueryState } from "../components/PageState";
 import { fmtPct, fmtScore } from "../lib/format";
 
+function findingPath(finding) {
+  const route = finding?.finding_scope === "bassett" ? "/bassett/findings" : "/findings";
+  return `${route}?id=${encodeURIComponent(finding?.link_id || finding?.id || "")}`;
+}
+
 function DecisionPanel({ version, scope, recommendation, blockers = [], insufficientEvidence = false, minimumQualifyingTests, onSaved, openSignal }) {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
@@ -297,7 +302,7 @@ export default function ReleaseReadiness() {
                   <div key={i} className="border rounded-lg p-3 bg-red-50/50">
                     <div className="text-[10px] font-bold uppercase text-red-600">{b.type}</div>
                     {b.link_type === "finding" ? (
-                      <Link to={`/findings?id=${b.link_id}`} className="text-sm font-semibold text-[var(--navy)] hover:underline">{b.label}</Link>
+                      <Link to={findingPath(b)} className="text-sm font-semibold text-[var(--navy)] hover:underline">{b.label}</Link>
                     ) : b.link_type === "testcase" ? (
                       <Link to={`/testcases/${b.link_id}`} className="text-sm font-semibold text-[var(--navy)] hover:underline">{b.label}</Link>
                     ) : (
@@ -358,7 +363,7 @@ export default function ReleaseReadiness() {
                 {r.open_finding_list.length === 0 && <p className="text-sm text-muted-foreground">No open findings.</p>}
                 <div className="space-y-1.5">
                   {r.open_finding_list.map((f) => (
-                    <Link key={f.id} to={`/findings?id=${f.id}`} className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-[var(--paper)] text-sm">
+                    <Link key={f.id} to={findingPath(f)} className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-[var(--paper)] text-sm">
                       <span className="flex items-center gap-2"><CritBadge value={f.criticality} /><span className="font-medium text-[var(--navy)]">{f.title}</span></span>
                       <StatusBadge value={f.developer_status} definitions={FINDING_STATUSES} compact />
                     </Link>

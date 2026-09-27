@@ -157,7 +157,7 @@ export default function Executive() {
           {exportStatus === "generating" ? "Generating PDF…" : exportStatus === "saving" ? "Saving PDF…" : "Download PDF"}
         </Button>
       </PageHeader>
-      {d.insufficient_evidence && <div className="mb-4 rounded-xl border border-slate-300 bg-slate-50 p-4 text-sm text-slate-800" data-testid="executive-insufficient-evidence">Insufficient Evidence: this {d.report_scope || "selected"} report has {d.release_evidence?.evaluated || 0} of {d.minimum_qualifying_tests} qualifying tests completed. This report remains informational and will not emit a Go recommendation.</div>}
+      {d.insufficient_evidence && <div className="mb-4 rounded-xl border border-slate-300 bg-slate-50 p-4 text-sm text-slate-800" data-testid="executive-insufficient-evidence">Insufficient Evidence: this {d.report_scope === "both" ? "combined" : d.report_scope || "selected"} report has {d.release_evidence?.evaluated || 0} of {d.minimum_qualifying_tests} qualifying tests completed. This report remains informational and will not emit a Go recommendation.</div>}
       <SampleDataBanner show={sampleDataShown} />
       {limitedDataMessage && <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" data-testid="limited-data-warning">{limitedDataMessage}</div>}
       {exportError && (
