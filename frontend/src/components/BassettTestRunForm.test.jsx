@@ -63,7 +63,7 @@ test("shared run form shows every selected scenario definition field read-only",
    expect(view.container.textContent).toContain("Prompt / Question");
    expect(view.container.textContent).toContain("Bassett Response");
    expect(view.container.textContent).toContain("Verified Answer / Gold Standard");
-   expect(view.container.textContent).toContain("Evidence / Source Links");
+   expect(view.container.textContent).toContain("Source Links");
   expect(view.container.textContent).not.toContain("Score (0–100, optional)");
   act(() => view.root.unmount());
 });

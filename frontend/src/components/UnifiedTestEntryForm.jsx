@@ -290,6 +290,47 @@ export function GeneralSubtypeSelector({ subtypes = [], value = [], onChange, di
   </div>;
 }
 
+export function FindingMultiSelect({ findings = [], selectedIds = [], primaryId = "", editing = false, onToggle }) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const selected = new Set(selectedIds);
+  const normalizedQuery = query.trim().toLowerCase();
+  const shown = findings.filter((item) => [item.title, item.finding_type, item.severity, item.developer_status]
+    .some((field) => String(field || "").toLowerCase().includes(normalizedQuery)));
+  const selectedFindings = findings.filter((item) => selected.has(item.id));
+  return <div className="space-y-2" data-testid="existing-bassett-findings">
+    <Button
+      type="button"
+      variant="outline"
+      className="h-auto min-h-9 w-full justify-between whitespace-normal text-left"
+      aria-expanded={open}
+      aria-controls="existing-bassett-findings-options"
+      onClick={() => setOpen((current) => !current)}
+    >
+      <span>{selected.size ? `${selected.size} existing finding${selected.size === 1 ? "" : "s"} selected` : "Select existing findings"}</span>
+      <span aria-hidden="true" className="ml-2 shrink-0">{open ? "▴" : "▾"}</span>
+    </Button>
+    {selectedFindings.length > 0 && <div className="flex flex-wrap gap-2" aria-label="Selected findings">
+      {selectedFindings.slice(0, 2).map((item) => <span key={item.id} className="rounded-full border bg-[var(--paper)] px-2 py-1 text-xs text-[var(--navy)]">{item.title || item.id}{item.id === primaryId ? " · Primary" : ""}</span>)}
+      {selectedFindings.length > 2 && <span className="rounded-full border bg-[var(--paper)] px-2 py-1 text-xs text-muted-foreground">+{selectedFindings.length - 2} more</span>}
+    </div>}
+    {open && <div id="existing-bassett-findings-options" className="space-y-2 rounded-lg border bg-background p-3 shadow-sm">
+      <Input aria-label="Search existing Bassett findings" placeholder="Search title, category, severity, or status…" value={query} onChange={(event) => setQuery(event.target.value)} />
+      <div className="max-h-56 space-y-1 overflow-y-auto" role="group" aria-label="Existing Bassett findings">
+        {shown.length ? shown.map((item) => {
+          const checked = selected.has(item.id);
+          const primary = item.id === primaryId;
+          return <label key={item.id} className="flex cursor-pointer items-start gap-2 rounded-md p-2 hover:bg-muted">
+            <Checkbox aria-label={`Link finding ${item.title || item.id}`} checked={checked} disabled={primary && editing} onCheckedChange={(value) => onToggle(item, value === true)} />
+            <span><span className="block font-medium text-[var(--navy)]">{item.title || item.id}{primary ? " (Primary)" : ""}</span><span className="block text-xs text-muted-foreground">{item.finding_type || "Finding"} · {severityLabel(item.severity || item.criticality) || "Not rated"} · {item.developer_status || "New"}</span></span>
+          </label>;
+        }) : <p className="p-2 text-sm text-muted-foreground">No existing findings match this search.</p>}
+      </div>
+    </div>}
+    {!findings.length && <p className="text-sm text-muted-foreground">No existing Bassett findings are available. You can create a new linked finding below.</p>}
+  </div>;
+}
+
 function GeneralSubtypeGuidance({ subtypes = [], selectedIds = [] }) {
   const selected = subtypes.filter((subtype) => selectedIds.includes(subtype.id));
   if (!selected.length) return null;
@@ -930,20 +971,14 @@ export default function UnifiedTestEntryForm({
 
     <GuidedSection index={4} title="5. Findings & Ownership" active={activeSection === 4} status={sectionStatus(4)} onActivate={activateSection}><div className="space-y-4">
       {!isComparison && <Field label="Link existing Bassett findings" optional description="Select every existing finding supported by this test run. You can link more than one finding and may also create a new finding below.">
-        <div className="max-h-56 space-y-2 overflow-y-auto rounded-lg border p-3" data-testid="existing-bassett-findings">
-          {visibleFindings.length ? visibleFindings.map((item) => {
-            const checked = linkedFindingIds.includes(item.id);
-            const primary = item.id === form.finding_id;
-            return <label key={item.id} className="flex items-start gap-2 rounded-md p-2 hover:bg-muted">
-              <Checkbox aria-label={`Link finding ${item.title || item.id}`} checked={checked} disabled={primary && Boolean(form.id)} onCheckedChange={(value) => setForm((current) => {
-                const currentIds = [...new Set([current.finding_id, ...(current.finding_ids || [])].filter(Boolean))];
-                const nextIds = value === true ? [...new Set([...currentIds, item.id])] : currentIds.filter((id) => id !== item.id);
-                return { ...current, finding_ids: nextIds, finding_id: current.finding_id || nextIds[0] || "" };
-              })} />
-              <span><span className="block font-medium text-[var(--navy)]">{item.title || item.id}{primary ? " (Primary)" : ""}</span><span className="block text-xs text-muted-foreground">{item.finding_type || "Finding"} · {severityLabel(item.severity || item.criticality) || "Not rated"} · {item.developer_status || "New"}</span></span>
-            </label>;
-          }) : <p className="text-sm text-muted-foreground">No existing Bassett findings are available. You can create a new linked finding below.</p>}
-        </div>
+        <FindingMultiSelect findings={visibleFindings} selectedIds={linkedFindingIds} primaryId={form.finding_id} editing={Boolean(form.id)} onToggle={(item, checked) => setForm((current) => {
+          const currentIds = [...new Set([current.finding_id, ...(current.finding_ids || [])].filter(Boolean))];
+          const nextIds = checked ? [...new Set([...currentIds, item.id])] : currentIds.filter((id) => id !== item.id);
+          const nextPrimary = current.finding_id === item.id && !checked
+            ? (current.id ? current.finding_id : nextIds[0] || "")
+            : current.finding_id || nextIds[0] || "";
+          return { ...current, finding_ids: nextIds, finding_id: nextPrimary };
+        })} />
       </Field>}
       <label className="flex items-center gap-2 text-sm"><Checkbox aria-label="Create a linked Bassett finding" checked={Boolean(form.create_finding)} onCheckedChange={(checked) => update("create_finding", checked === true)} /> Create a linked Bassett finding</label>
        {form.create_finding && <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -954,7 +989,7 @@ export default function UnifiedTestEntryForm({
          <Field label="Finding description" description="Describe what Bassett did or why this needs follow-up."><Textarea rows={3} value={finding.description || ""} onChange={(e) => updateNested("finding", "description", e.target.value)} /></Field>
          <Field label="Expected behavior" description="Describe what Bassett should have done. This can be edited later without changing the source test run."><Textarea rows={3} value={finding.expected_behavior || form.verified_correct_answer || ""} onChange={(e) => updateNested("finding", "expected_behavior", e.target.value)} /></Field>
        </div>}
-      {!form.create_finding && <Field label="Owner / Assignee"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.assignee_id || ""} onChange={(e) => update("assignee_id", e.target.value)}><option value="">Unassigned</option>{ownerOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>}
+      {!form.create_finding && <Field label="Owner / Assignee" description="Assigns responsibility for this test run. Existing findings keep their current owners."><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.assignee_id || ""} onChange={(e) => update("assignee_id", e.target.value)}><option value="">Unassigned</option>{ownerOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>}
     </div></GuidedSection>
 
     <GuidedSection index={5} title="6. Sources, Documents & Notes" active={activeSection === 5} status={sectionStatus(5)} onActivate={activateSection}><div className="space-y-4">

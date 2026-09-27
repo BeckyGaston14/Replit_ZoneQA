@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
-import { PageHeader, StatCard, WrapTick, SrTable, SampleDataBanner, sampleScopeIncludesData, MethodologyDisclosure, LimitedDataWarning } from "../components/shared";
+import { PageHeader, StatCard, WrapTick, SrTable, SampleDataBanner, sampleScopeIncludesData, MethodologyDisclosure } from "../components/shared";
 import { fmtPct, fmtPts, fmtScore, plural } from "../lib/format";
 import { Button } from "../components/ui/button";
 import { Target, Percent, Trophy, AlertTriangle, TrendingUp, FileDown, Loader2 } from "lucide-react";
@@ -98,6 +98,13 @@ export default function Executive() {
   const openHigh = k.open_high ?? "—";
   const openCritical = k.open_critical_count ?? "—";
   const includesComparison = d.report_scope !== "bassett";
+  const selectedEvaluated = Number(k.limited_data?.evaluated ?? k.total_evaluated ?? 0);
+  const benchmarkEvaluated = Number(k.benchmark_evaluated ?? 0);
+  const limitedDataMessage = includesComparison
+    ? (selectedEvaluated < 5 || benchmarkEvaluated < 5
+      ? `Limited data — selected tests: ${selectedEvaluated} evaluated; benchmark model results: ${benchmarkEvaluated} evaluated.`
+      : "")
+    : (selectedEvaluated < 5 ? `Limited data — ${selectedEvaluated} evaluated ${selectedEvaluated === 1 ? "record" : "records"}.` : "");
   const edge = bassettAverage !== null && benchmarkAverage !== null
     ? Math.round((bassettAverage - benchmarkAverage) * 10) / 10
     : null;
@@ -149,8 +156,7 @@ export default function Executive() {
       </PageHeader>
       {d.insufficient_evidence && <div className="mb-4 rounded-xl border border-slate-300 bg-slate-50 p-4 text-sm text-slate-800" data-testid="executive-insufficient-evidence">Insufficient Evidence: this {d.report_scope || "selected"} report has {d.release_evidence?.evaluated || 0} of {d.minimum_qualifying_tests} qualifying tests completed. This report remains informational and will not emit a Go recommendation.</div>}
       <SampleDataBanner show={sampleDataShown} />
-      <LimitedDataWarning evaluated={k.limited_data || k.total_evaluated} className="mb-4" />
-      {includesComparison && <LimitedDataWarning evaluated={k.benchmark_evaluated} className="mb-4" />}
+      {limitedDataMessage && <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" data-testid="limited-data-warning">{limitedDataMessage}</div>}
       {exportError && (
         <div role="alert" data-testid="pdf-export-error" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           {exportError}

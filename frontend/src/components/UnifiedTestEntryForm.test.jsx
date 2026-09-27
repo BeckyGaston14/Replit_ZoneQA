@@ -409,6 +409,10 @@ test("a Bassett test run can link multiple existing findings while keeping new-f
     { id: "finding-2", title: "Use table issue", finding_type: "incorrect interpretation", severity: "Critical", developer_status: "In Review" },
   ];
   const view = renderForm("bassett", {}, { availableFindings: findings });
+  const selector = view.container.querySelector('button[aria-controls="existing-bassett-findings-options"]');
+  expect(selector).not.toBeNull();
+  expect(view.container.querySelector('input[aria-label="Link finding Citation issue"]')).toBeNull();
+  act(() => selector.click());
   const first = view.container.querySelector('input[aria-label="Link finding Citation issue"]');
   const second = view.container.querySelector('input[aria-label="Link finding Use table issue"]');
   expect(first).not.toBeNull();

@@ -296,7 +296,7 @@ export default function BassettTestBank() {
       <Button variant="outline" onClick={exportCsv}><FileOutput /> Export CSV</Button>
       <Button variant="outline" aria-pressed={showArchived} onClick={() => setShowArchived((value) => !value)}>{showArchived ? "Active scenarios" : "Archived scenarios"}</Button>
       {canManage && <Button variant="outline" onClick={() => setShowWorkflowManager(true)}>Manage categories & prefixes</Button>}
-      {canManage && <Button variant="outline" onClick={previewRubricMigration}>Preview rubric migration</Button>}
+      {canManage && <Button variant="outline" onClick={previewRubricMigration}>Review rubric updates</Button>}
         {canManage && <Button onClick={() => { const draft = { ...emptyScenario, scoring_category: rubricCatalog?.categories?.[0]?.key || "", catalog_revision: rubricCatalog?.revision || "" }; scenarioBaseline.current = draft; setFormErrors({}); setScenarioError(""); setConflict(null); setForm(draft); }} className="bg-[var(--orange)] hover:bg-[var(--orange-600)]"><Plus /> New Test Scenario</Button>}
     </PageHeader>
     {viewError && <div role="alert" className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">{viewError} <button type="button" className="ml-2 font-semibold underline" onClick={clearViewError}>Dismiss</button></div>}
@@ -391,11 +391,16 @@ export default function BassettTestBank() {
         </div>
       </details>
     </FormModal>}
-    {migrationPreview && <FormModal open onOpenChange={(open) => !open && setMigrationPreview(null)} title="Preview rubric migration" onSubmit={applyRubricMigration} submitLabel={migrationApplying ? "Applying…" : "Apply migration"} submitDisabled={migrationApplying}>
+    {migrationPreview && <FormModal open onOpenChange={(open) => !open && setMigrationPreview(null)} title="Review rubric updates" onSubmit={applyRubricMigration} submitLabel={migrationApplying ? "Applying…" : migrationPreview.already_applied ? "No updates needed" : "Apply updates"} submitDisabled={migrationApplying || migrationPreview.already_applied}>
       <div className="space-y-3 text-sm">
-        <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-900"><b>No changes have been made.</b> Review this preview and explicitly confirm Apply migration to update eligible legacy records. Historical records that cannot be safely converted remain unchanged.</p>
-        <pre className="max-h-64 overflow-auto rounded-lg bg-[var(--paper)] p-3 text-xs">{JSON.stringify(migrationPreview, null, 2)}</pre>
-        <label className="flex items-start gap-2"><input type="checkbox" required /> <span>I understand this is an explicit migration and want to apply the preview.</span></label>
+        <p className={`rounded-lg border p-3 ${migrationPreview.already_applied ? "border-green-200 bg-green-50 text-green-900" : "border-amber-300 bg-amber-50 text-amber-900"}`}><b>{migrationPreview.already_applied ? "Everything is current." : "No changes have been made yet."}</b> {migrationPreview.already_applied ? "The Test Bank already uses the latest rubric and guidance." : "Review the summary below before applying the updates. Historical records that cannot be converted safely will remain unchanged."}</p>
+        <dl className="grid grid-cols-2 gap-2 rounded-lg border bg-[var(--paper)] p-3 sm:grid-cols-3">
+          <div><dt className="text-xs text-muted-foreground">New scenarios</dt><dd className="text-lg font-semibold text-[var(--navy)]">{migrationPreview.would_insert ?? 0}</dd></div>
+          <div><dt className="text-xs text-muted-foreground">Guidance updates</dt><dd className="text-lg font-semibold text-[var(--navy)]">{migrationPreview.would_update_guidance ?? 0}</dd></div>
+          <div><dt className="text-xs text-muted-foreground">Older scenarios archived</dt><dd className="text-lg font-semibold text-[var(--navy)]">{migrationPreview.would_archive ?? 0}</dd></div>
+        </dl>
+        {!migrationPreview.already_applied && <label className="flex items-start gap-2"><input type="checkbox" required /> <span>I reviewed this summary and want to apply these Test Bank updates.</span></label>}
+        <details className="rounded-lg border p-3"><summary className="cursor-pointer font-medium text-[var(--navy)]">Technical details</summary><pre className="mt-2 max-h-48 overflow-auto text-xs">{JSON.stringify(migrationPreview, null, 2)}</pre></details>
       </div>
     </FormModal>}
     {execute && <BassettTestRunForm form={execute} setForm={setExecute} scenarios={scenarios} rubricCatalog={rubricCatalog} generalSubtypes={generalSubtypes} versions={versions} projects={projects} onSubmit={recordExecution} onCancel={() => setExecute(null)} submitting={savingRun} />}

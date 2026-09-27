@@ -208,7 +208,8 @@ test("shows a consistent limited-data warning for a small evaluated population",
     data: { ...data, kpis: { ...data.kpis, total_evaluated: 3, limited_data: { limited: true, evaluated: 3, threshold: 5 } } },
   });
   const view = renderPage();
-  expect(view.container.textContent).toContain("Limited data — 3 evaluated records");
+  expect(view.container.textContent).toContain("Limited data — selected tests: 3 evaluated; benchmark model results: 0 evaluated.");
+  expect(view.container.querySelectorAll('[data-testid="limited-data-warning"]')).toHaveLength(1);
   view.unmount();
 });
 
