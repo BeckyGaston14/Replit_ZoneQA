@@ -735,7 +735,7 @@ def test_release_readiness_critical_findings_are_version_scoped(monkeypatch):
             # Severity is authoritative when legacy numeric criticality
             # disagrees: old-c5 is Low/2, while new-c4 is High/4.
             {"id": "old-c5", "title": "Old blocker", "version_found": "v0", "severity": "Low", "criticality": 5, "developer_status": "Open"},
-            {"id": "new-c4", "title": "Current warning", "version_found": "v1", "severity": "High", "criticality": 1, "developer_status": "Open", "finding_scope": "bassett"},
+            {"id": "new-c4", "title": "Current warning", "version_found": "v1", "severity": "High", "criticality": 1, "developer_status": "Open", "bassett_issue_id": "run-1"},
         ],
         "regression_runs": [],
         "release_decisions": [],

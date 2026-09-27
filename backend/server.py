@@ -7761,6 +7761,8 @@ async def release_readiness(version: str, user=Depends(get_current_user), scope:
         explicit_scope = _finding_scope(finding)
         if explicit_scope:
             return explicit_scope
+        if _finding_is_bassett(finding):
+            return "bassett"
         testcase_id = finding.get("testcase_id")
         if testcase_id in bassett_testcase_ids:
             return "bassett"
