@@ -14,7 +14,11 @@ export function QueryState({ query, resource, onRetry, notFoundAction, testId = 
   if (!query?.isLoading && !query?.isError) return null;
   if (query.isLoading) {
     return <div role="status" aria-live="polite" data-testid={`${testId}-loading`} className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
-      <span className="sr-only">Loading {resource.toLowerCase()}…</span>
+      <div className="mb-3 flex items-center gap-2 font-medium text-foreground">
+        <RefreshCw size={15} className="animate-spin text-[var(--orange)]" aria-hidden="true" />
+        <span>Loading {resource.toLowerCase()}…</span>
+      </div>
+      <p className="mb-3 text-xs">This page may take a few seconds while ZoneQA calculates the latest results.</p>
       <div className="mb-3 h-4 w-40 animate-pulse rounded bg-muted" aria-hidden="true" />
       <div className="space-y-2" aria-hidden="true">
         <div className="h-3 w-full animate-pulse rounded bg-muted" />

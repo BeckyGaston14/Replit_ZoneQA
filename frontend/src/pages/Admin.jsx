@@ -17,6 +17,7 @@ import { TableSortControls } from "../components/TableSortControls";
 import { nextSort, sortTableRows, usePersistentTableSort } from "../lib/tableSorting";
 import { ConfirmActionDialog } from "../components/ConfirmActionDialog";
 import { invalidateConfigQueries, invalidateVersionQueries } from "../lib/hooks";
+import { QueryState } from "../components/PageState";
 
 
 const LOOKUPS = [
@@ -43,7 +44,8 @@ export default function Admin() {
   const isAdmin = me?.role === "admin";
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("lookups");
-  const { data: config, refetch } = useQuery({ queryKey: ["config"], queryFn: async () => (await api.get("/config")).data, enabled: isAdmin });
+  const configQuery = useQuery({ queryKey: ["config"], queryFn: async () => (await api.get("/config")).data, enabled: isAdmin });
+  const { data: config, refetch } = configQuery;
   const { data: users = [], refetch: refetchUsers } = useQuery({ queryKey: ["users"], queryFn: async () => (await api.get("/users")).data, enabled: isAdmin && activeTab === "users" });
   const { data: emailStatus, refetch: refetchEmailStatus } = useQuery({ queryKey: ["admin-email-status"], queryFn: async () => (await api.get("/admin/email/status")).data, enabled: isAdmin && ["users", "integrations"].includes(activeTab) });
   const { data: models = [], isLoading: modelsLoading, isError: modelsError, refetch: refetchModels } = useQuery({ queryKey: ["models"], queryFn: async () => (await api.get("/models")).data, enabled: isAdmin && ["models", "integrations"].includes(activeTab) });
@@ -327,7 +329,10 @@ export default function Admin() {
       </div>
     </div>
   );
-  if (!config) return <div className="text-muted-foreground">Loading…</div>;
+  if (!config) return <div>
+    <PageHeader title="Administration" subtitle="Configurable lookups, users, models & Bassett versions." />
+    <QueryState query={configQuery} resource="administration settings" testId="admin-config" />
+  </div>;
   const cfgInteg = integ || config.integrations || {};
   const confirmation = confirmingAction;
   const activeAdminCount = users.filter((user) => user.role === "admin" && user.active !== false && !user.deleted_at).length;
