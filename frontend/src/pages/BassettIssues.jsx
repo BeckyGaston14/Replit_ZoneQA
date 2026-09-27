@@ -216,7 +216,7 @@ export default function BassettIssues() {
     queryFn: async () => (await api.get(showingFindings ? "/bassett/findings" : "/bassett/issues", { params: { include_archived: !showingFindings, status: filters.status, severity: filters.severity, test_date_from: filters.dateFrom || undefined, test_date_to: filters.dateTo || undefined } })).data,
   });
   const scopedProjectId = filters.project !== "all" ? filters.project : "";
-  const { data: metrics } = useQuery({
+  const { data: metrics, isLoading: metricsLoading, isError: metricsError } = useQuery({
     queryKey: ["bassett-metrics", scopedProjectId],
     queryFn: async () => (await api.get("/bassett/metrics", { params: scopedProjectId ? { project_id: scopedProjectId } : {} })).data,
   });
@@ -422,6 +422,8 @@ export default function BassettIssues() {
       <Button type="button" size="sm" variant="outline" onClick={() => applyQuickView("retest")}>Ready to Retest</Button>
       {filtersActive && <Button type="button" size="sm" variant="ghost" onClick={clearFilters}>Show All</Button>}
     </div>
+    {metricsLoading && <div className="mb-3 rounded-lg border bg-[var(--paper)] px-4 py-3 text-sm text-muted-foreground" role="status" aria-live="polite">Calculating summary metrics… The records below are already available while ZoneQA finishes the totals.</div>}
+    {metricsError && <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="status">Summary metrics could not be loaded. The record list below is still available.</div>}
      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3 mb-6">
        <StatCard label={showingFindings ? "Open Findings" : "Tests Needing Attention"} value={showingFindings ? (metrics?.findings?.open ?? 0) : (metrics?.test_runs?.attention ?? "—")} sub={showingFindings ? "excludes fixed and closed findings" : "Needs Improvement, Fail, Critical Fail, or legacy Blocked"} icon={Flag} accent="#f97316" />
        <StatCard label={showingFindings ? "New Findings" : "Not Started Test Runs"} value={showingFindings ? (metrics?.findings?.new ?? 0) : (metrics?.issues?.new ?? "—")} sub={showingFindings ? "newly recorded findings" : "Workflow status is Not Started."} icon={AlertTriangle} accent="#2563eb" />

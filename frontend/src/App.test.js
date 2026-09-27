@@ -46,7 +46,8 @@ afterEach(() => {
 test("Protected exposes accessible loading feedback", async () => {
   mockAuth.loading = true;
   const view = await renderProtected();
-  expect(view.container.querySelector('[role="status"]').textContent).toContain("Loading");
+  expect(view.container.querySelector('[role="status"]').textContent).toContain("Opening ZoneQA");
+  expect(view.container.querySelector('[role="status"]').textContent).toContain("Confirming your session");
   view.unmount();
 });
 

@@ -6,6 +6,8 @@ import BassettTestBank, { ResultPill, ScenarioDetail } from "./BassettTestBank";
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 let mockIssues = [];
 let mockIssueLoading = false;
+let mockMetricsLoading = false;
+let mockMetricsError = false;
 let mockBassettSearchParams = new URLSearchParams();
 
 jest.mock("react-router-dom", () => ({
@@ -59,7 +61,8 @@ jest.mock("@tanstack/react-query", () => ({
       : queryKey[0] === "bassett-scenario"
         ? { id: "scenario-1", stable_id: "R-01", test_scenario: "Setback research", workflow_stage: "Research", report_type: "Property", complexity: "Medium", issues: [{ id: "run-1", result: "Partial", status: "New", test_date: "2025-01-01", question_asked: "Question" }], executions: [] }
         : [],
-    isLoading: queryKey[0] === "bassett-issue" ? mockIssueLoading : false,
+    isLoading: queryKey[0] === "bassett-issue" ? mockIssueLoading : queryKey[0] === "bassett-metrics" ? mockMetricsLoading : false,
+    isError: queryKey[0] === "bassett-metrics" ? mockMetricsError : false,
   }),
   useQueryClient: () => ({ invalidateQueries: jest.fn() }),
 }));
@@ -89,6 +92,8 @@ jest.mock("sonner", () => ({
 beforeEach(() => {
   mockIssues = [];
   mockIssueLoading = false;
+  mockMetricsLoading = false;
+  mockMetricsError = false;
   mockBassettSearchParams = new URLSearchParams();
 });
 
@@ -104,6 +109,26 @@ test("Bassett Test Runs page uses test-run terminology and no retired issue labe
   expect(container.textContent).toContain("Tests Needing Attention");
   expect(container.textContent).toContain("Workflow status");
   expect(container.textContent).not.toMatch(/issues to address|issue register|record issue|loading issues|bassett only tests/i);
+  act(() => root.unmount());
+});
+
+test("Bassett Test Runs explains delayed summary calculations while records remain available", () => {
+  mockMetricsLoading = true;
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  act(() => root.render(<BassettIssues />));
+  expect(container.querySelector('[role="status"]').textContent).toContain("Calculating summary metrics");
+  expect(container.textContent).toContain("Bassett test runs");
+  act(() => root.unmount());
+});
+
+test("Bassett Test Runs keeps records usable when summary calculations fail", () => {
+  mockMetricsError = true;
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  act(() => root.render(<BassettIssues />));
+  expect(container.querySelector('[role="status"]').textContent).toContain("Summary metrics could not be loaded");
+  expect(container.textContent).toContain("Bassett test runs");
   act(() => root.unmount());
 });
 

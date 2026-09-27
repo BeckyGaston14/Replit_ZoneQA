@@ -13,14 +13,26 @@ import { AuthQueryCacheBoundary } from "./lib/authQueryCache";
 
 const Layout = lazy(() => import("@/components/Layout"));
 
+function FullPageLoading({ title, detail }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center px-6 text-center" role="status" aria-live="polite">
+      <div className="max-w-sm">
+        <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-4 border-[var(--orange)] border-r-transparent" aria-hidden="true" />
+        <p className="font-semibold text-[var(--navy)]">{title}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{detail}</p>
+      </div>
+    </div>
+  );
+}
+
 export function Protected({ children, roles }) {
   const { user, loading } = useAuth();
   const location = useLocation();
-  if (loading) return <div className="min-h-screen flex items-center justify-center text-muted-foreground" role="status" aria-live="polite">Loading…</div>;
+  if (loading) return <FullPageLoading title="Opening ZoneQA…" detail="Confirming your session and loading your workspace." />;
   if (!user) return <Navigate to="/login" replace state={{ from: `${location.pathname}${location.search}${location.hash}` }} />;
   if (roles && !roles.includes(user.role)) return <Navigate to="/" replace />;
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-muted-foreground" role="status" aria-live="polite">Loading application…</div>}>
+    <Suspense fallback={<FullPageLoading title="Loading this page…" detail="ZoneQA is preparing the latest records and calculations." />}>
       <Layout>
         {children}
       </Layout>
