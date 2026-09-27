@@ -1,4 +1,4 @@
-export const DEFAULT_APPLICATION_TIMEZONE = "America/New_York";
+export const DEFAULT_APPLICATION_TIMEZONE = "America/Chicago";
 
 export function todayInTimeZone(timeZone = DEFAULT_APPLICATION_TIMEZONE, now = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", {

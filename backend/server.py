@@ -769,8 +769,12 @@ def _validate_execution_timestamps(started_at=None, completed_at=None):
     if completed < started:
         raise HTTPException(400, "Completed At cannot be before Started At")
 
+DEFAULT_APPLICATION_TIMEZONE = "America/Chicago"
+LEGACY_APPLICATION_TIMEZONE = "America/New_York"
+
+
 def _application_timezone_name(config=None):
-    configured = (config or {}).get("application_timezone") or os.environ.get("APP_TIMEZONE") or "America/New_York"
+    configured = (config or {}).get("application_timezone") or os.environ.get("APP_TIMEZONE") or DEFAULT_APPLICATION_TIMEZONE
     try:
         ZoneInfo(configured)
     except ZoneInfoNotFoundError:
@@ -10886,7 +10890,7 @@ app.add_middleware(
 # ---------- Startup ----------
 DEFAULT_CONFIG = {
     "id": "global",
-    "application_timezone": "America/New_York",
+    "application_timezone": DEFAULT_APPLICATION_TIMEZONE,
     "criticality": {"1": "Very Low", "2": "Low", "3": "Medium", "4": "High", "5": "Critical"},
     "difficulty": {"1": "Basic", "2": "Standard", "3": "Advanced", "4": "Complex", "5": "Expert"},
     "test_statuses": ["Draft", "Ready to Test", "Testing", "Awaiting Evidence", "Ready for Evaluation",
@@ -11046,6 +11050,11 @@ async def startup():
     else:
         cfg = await db.config.find_one({"id": "global"})
         patch = {}
+        # Earlier installations inherited New York time even though ZoneQA's
+        # operating timezone is Central. Migrate only that legacy default so a
+        # deliberately configured timezone remains untouched.
+        if cfg.get("application_timezone") in (None, "", LEGACY_APPLICATION_TIMEZONE):
+            patch["application_timezone"] = DEFAULT_APPLICATION_TIMEZONE
         if "integrations" not in cfg:
             patch["integrations"] = DEFAULT_CONFIG["integrations"]
         if "annotation_types" not in cfg:

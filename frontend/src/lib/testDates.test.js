@@ -7,6 +7,11 @@ describe("test dates", () => {
     expect(todayInTimeZone("Asia/Tokyo", instant)).toBe("2026-09-01");
   });
 
+  test("keeps late-evening Chicago test runs on the local calendar date", () => {
+    const instant = new Date("2026-09-27T04:30:00Z");
+    expect(todayInTimeZone("America/Chicago", instant)).toBe("2026-09-26");
+  });
+
   test("formats ISO dates without a timezone shift", () => {
     expect(formatTestDate("2024-02-29")).not.toBe("Not recorded");
   });
