@@ -46,7 +46,7 @@ export const PROJECT_SCHEMA = {
       render: (row) => (
         <span title="Active linked Model Comparison test cases and Bassett-only test runs; expanded comparisons are counted once.">
           <span className="font-semibold text-[var(--navy)]">{row.required_test_count ? `${row.linked_test_count} of ${row.required_test_count}` : row.linked_test_count}</span>
-          <span className="block text-[10px] text-muted-foreground">{row.required_test_count ? "tests linked" : "linked · set Required Tests"}</span>
+          <span className="block text-[10px] text-muted-foreground">{row.required_test_count ? "tests linked" : "linked · Ad hoc project (no target)"}</span>
         </span>
       ),
       exportValue: (row) => row.linked_test_status,
@@ -220,3 +220,4 @@ export function createEvidenceSchema(municipalities = [], users = [], currentUse
     dateRanges: [{ start: "effective_date", end: "superseded_date", startLabel: "Effective Date", endLabel: "Superseded Date" }],
   };
 }
+

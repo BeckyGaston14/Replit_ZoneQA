@@ -13,7 +13,7 @@ import { Input } from "../components/ui/input";
 import { FormModal, Field, ListSelect } from "../components/forms";
 import { Textarea } from "../components/ui/textarea";
 import { BassettTestRunForm, ScenarioDefinition, ScenarioSelector, createBassettTestRunDraft } from "../components/BassettTestRunForm";
-import { AlertTriangle, Archive, ArchiveRestore, CheckCircle2, ExternalLink, FileInput, FileOutput, Flag, Loader2, Pencil, Plus, RefreshCw, Search, ShieldAlert, X } from "lucide-react";
+import { AlertTriangle, Archive, ArchiveRestore, CheckCircle2, ClipboardCopy, ExternalLink, FileInput, FileOutput, Flag, Loader2, Pencil, Plus, RefreshCw, Search, ShieldAlert, X } from "lucide-react";
 import { toast } from "sonner";
 import { parseCsv } from "../lib/csv";
 import { SortableTableHeader } from "../components/SortableTableHeader";
@@ -33,6 +33,18 @@ import {
   TABLE_FRAME_CLASS, TABLE_HEAD_CLASS,
 } from "../lib/tableStyles";
 const defaultTestStatuses = ["Not Started", "In Review", "Engineering", "Closed / Resolved", "Ready for Retesting"];
+const PERSONAL_FINDING_STATUS_LABELS = {
+  New: "New",
+  Confirmed: "Reviewing",
+  "Needs Investigation": "Reviewing — more information needed",
+  Planned: "Reported to Development — planned",
+  "In Development": "Reported to Development — in progress",
+  "Ready for Retest": "Ready to Retest",
+  Fixed: "Resolved",
+  "Won't Fix": "Closed — won't fix",
+  Duplicate: "Closed — duplicate",
+  Closed: "Closed",
+};
 const DEFAULT_RUN_SORT = { key: "test_date", direction: "desc" };
 
 export async function persistBassettTestRun(form, apiClient = api) {
@@ -289,6 +301,14 @@ export default function BassettIssues() {
       setSearchParams(next, { replace: true });
     }
   };
+  const applyQuickView = (view) => {
+    const base = { status: "all", severity: "all", type: "all", retest: "all", project: "all", version: "all", result: "all", stage: "all", testType: "all", environment: "all", search: "", dateFrom: "", dateTo: "" };
+    if (view === "attention") setFilters({ ...base, search: "", result: "Critical Fail" });
+    else if (view === "not-started") setFilters({ ...base, status: "Not Started" });
+    else if (view === "reported") setFilters({ ...base, status: "Engineering" });
+    else if (view === "retest") setFilters({ ...base, status: showingFindings ? "Ready for Retest" : "Ready for Retesting" });
+    else setFilters(base);
+  };
 
   const save = async () => {
     if (saving) return;
@@ -394,6 +414,14 @@ export default function BassettIssues() {
       {canWrite && !showingFindings && <Button onClick={() => setForm(createBassettTestRunDraft({}, config?.application_timezone))} className="bg-[var(--orange)] hover:bg-[var(--orange-600)]"><Plus size={15} /> New Bassett Test Run</Button>}
     </PageHeader>
     <ProjectScopeNav projects={projects} />
+    <div className="mb-4 flex flex-wrap items-center gap-2" aria-label="Quick views">
+      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Quick views</span>
+      <Button type="button" size="sm" variant="outline" onClick={() => applyQuickView("attention")}>Needs My Attention</Button>
+      <Button type="button" size="sm" variant="outline" onClick={() => applyQuickView("not-started")}>Not Yet Reviewed</Button>
+      <Button type="button" size="sm" variant="outline" onClick={() => applyQuickView("reported")}>Reported to Development</Button>
+      <Button type="button" size="sm" variant="outline" onClick={() => applyQuickView("retest")}>Ready to Retest</Button>
+      {filtersActive && <Button type="button" size="sm" variant="ghost" onClick={clearFilters}>Show All</Button>}
+    </div>
      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3 mb-6">
        <StatCard label={showingFindings ? "Open Findings" : "Tests Needing Attention"} value={showingFindings ? (metrics?.findings?.open ?? 0) : (metrics?.test_runs?.attention ?? "—")} sub={showingFindings ? "excludes fixed and closed findings" : "Needs Improvement, Fail, Critical Fail, or legacy Blocked"} icon={Flag} accent="#f97316" />
        <StatCard label={showingFindings ? "New Findings" : "Not Started Test Runs"} value={showingFindings ? (metrics?.findings?.new ?? 0) : (metrics?.issues?.new ?? "—")} sub={showingFindings ? "newly recorded findings" : "Workflow status is Not Started."} icon={AlertTriangle} accent="#2563eb" />
@@ -423,7 +451,7 @@ export default function BassettIssues() {
       {showingFindings && <details className="mb-4 rounded-lg border bg-[var(--paper)] px-3 py-2">
         <summary className="cursor-pointer text-sm font-semibold text-[var(--navy)]">Additional filters</summary>
         <div className="mt-3 flex flex-wrap gap-2">
-          <select aria-label="Filter by finding status" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}><option value="all">All finding statuses</option>{(config?.finding_statuses || []).map((x) => <option key={x}>{x}</option>)}</select>
+          <select aria-label="Filter by finding status" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}><option value="all">All finding statuses</option>{(config?.finding_statuses || []).map((x) => <option key={x} value={x}>{PERSONAL_FINDING_STATUS_LABELS[x] || x}</option>)}</select>
           <select aria-label="Filter by retest status" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.retest} onChange={(e) => setFilters({ ...filters, retest: e.target.value })}><option value="all">All retest states</option>{["Pending", "In Progress", "Fixed", "Partially Fixed", "Not Fixed"].map((x) => <option key={x}>{x}</option>)}</select>
           <select aria-label="Filter by test result" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.result} onChange={(e) => setFilters({ ...filters, result: e.target.value })}><option value="all">All test results</option>{findingOptions.results.map((x) => <option key={x}>{x}</option>)}</select>
           <select aria-label="Filter by Test Bank type" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.stage} onChange={(e) => setFilters({ ...filters, stage: e.target.value })}><option value="all">All Test Bank types</option>{findingOptions.stages.map((x) => <option key={x}>{x}</option>)}</select>
@@ -533,6 +561,30 @@ function BassettFindingDetail({ id, onClose, canWrite, refresh, embedded = false
   const linkedRunIds = [...new Set([sourceRun, ...(finding?.linked_test_run_ids || [])].filter(Boolean))];
   const linkedRuns = linkedRunIds.map((runId) => availableRuns.find((run) => run.id === runId) || { id: runId });
 
+  const copyIssueSummary = async () => {
+    const runLines = linkedRuns.length
+      ? linkedRuns.map((run) => `- ${run.title || run.question_asked || run.test_id || run.id} | ${run.result || "Not evaluated"} | ${run.bassett_version || "Version not specified"} | ${formatTestDate(run.test_date)}`)
+      : ["- None linked"];
+    const summary = [
+      `Finding: ${finding.title || "Untitled finding"}`,
+      `Severity: ${severityLabel(finding.severity) || "Not rated"}`,
+      `Status: ${finding.developer_status || "New"}`,
+      `Category: ${finding.finding_type || "Other"}`,
+      `Description: ${finding.description || "Not recorded"}`,
+      `Expected behavior: ${finding.expected_behavior || "Not recorded"}`,
+      `Actual Bassett behavior: ${finding.actual_behavior || finding.description || "Not recorded"}`,
+      "Linked test runs:",
+      ...runLines,
+      `Follow-up: ${finding.follow_up_action || "Not recorded"}`,
+    ].join("\n");
+    try {
+      await navigator.clipboard.writeText(summary);
+      toast.success("Developer handoff copied");
+    } catch {
+      toast.error("Unable to copy the developer handoff");
+    }
+  };
+
   const saveStatus = async () => {
     if (submitting) return;
     setSubmitting(true);
@@ -582,7 +634,7 @@ function BassettFindingDetail({ id, onClose, canWrite, refresh, embedded = false
           <div className="text-xs uppercase tracking-wide text-muted-foreground">Bassett Finding Details</div>
           <h2 id="bassett-finding-detail-title" className="text-xl font-bold font-display text-[var(--navy)] mt-1 break-words">{finding?.title || "Finding"}</h2>
         </div>
-        <div className="flex shrink-0 gap-1">{canWrite && finding && <Button type="button" variant="ghost" size="icon" onClick={() => setEditForm({ title: finding.title || "", description: finding.description || "", expected_behavior: finding.expected_behavior || "", finding_type: finding.finding_type || "", finding_type_detail: finding.finding_type_detail || "", linked_test_run_ids: linkedRunIds })} aria-label="Edit Bassett Finding"><Pencil size={16} /></Button>}<Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close Bassett Finding Details"><X size={18} /></Button></div>
+        <div className="flex shrink-0 gap-1">{finding && <Button type="button" variant="ghost" size="icon" onClick={copyIssueSummary} aria-label="Copy developer handoff" title="Copy developer handoff"><ClipboardCopy size={16} /></Button>}{canWrite && finding && <Button type="button" variant="ghost" size="icon" onClick={() => setEditForm({ title: finding.title || "", description: finding.description || "", expected_behavior: finding.expected_behavior || "", finding_type: finding.finding_type || "", finding_type_detail: finding.finding_type_detail || "", linked_test_run_ids: linkedRunIds })} aria-label="Edit Bassett Finding"><Pencil size={16} /></Button>}<Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close Bassett Finding Details"><X size={18} /></Button></div>
       </div>
       {isLoading && <div className="text-sm text-muted-foreground">Loading Bassett Finding Details…</div>}
       {isError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">Unable to load this Bassett finding.</div>}
@@ -719,4 +771,5 @@ function IssueDetail({ id, onClose, onEdit, onRestore, canWrite, canManage, refr
 function Info({ label, value }) { return <div><div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">{label}</div><div className="whitespace-pre-wrap">{value}</div></div>; }
 
 export { ScenarioSelector, ScenarioDefinition, BassettFindingDetail, actionError, loadBassettTestRunForEdit };
+
 

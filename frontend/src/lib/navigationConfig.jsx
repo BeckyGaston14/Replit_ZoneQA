@@ -14,13 +14,13 @@ export const NAV_SECTIONS = [
     ],
   },
   {
-    id: "bassett-only-testing", label: "Bassett-Only Testing",
-    description: "Configure projects, select canonical scenarios, and run Bassett without other models.",
+    id: "bassett-only-testing", label: "My QA Workflow",
+    description: "Choose a scenario, record the test, track findings, and organize related work.",
     items: [
-      { to: ROUTES.projects, label: "Testing Projects", icon: FolderKanban },
       { to: ROUTES.bassettBank, label: "Bassett Test Bank", icon: Library },
       { to: ROUTES.bassettRuns, label: "Bassett Test Runs", icon: ListChecks, testId: "nav-bassett-only-tests", routeKey: "bassett-test-runs" },
       { to: ROUTES.bassettFindings, label: "Bassett Findings", icon: Flag, routeKey: "bassett-findings" },
+      { to: ROUTES.projects, label: "Testing Projects", icon: FolderKanban },
     ],
   },
   {
@@ -65,3 +65,4 @@ export const NAV_SECTIONS = [
     ],
   },
 ];
+

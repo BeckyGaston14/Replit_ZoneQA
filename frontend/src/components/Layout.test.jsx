@@ -75,7 +75,7 @@ test("section headings are native accessible controls and active routes stay exp
   expect(testingToggle.type).toBe("button");
   expect(testingToggle.getAttribute("aria-expanded")).toBe("true");
   expect(testingToggle.getAttribute("aria-controls")).toBe("nav-section-bassett-only-testing");
-  expect(testingToggle.getAttribute("aria-label")).toMatch(/Collapse Bassett-Only Testing/);
+  expect(testingToggle.getAttribute("aria-label")).toMatch(/Collapse My QA Workflow/);
   expect(testingRegion.getAttribute("aria-hidden")).toBe("false");
   expect(view.container.querySelector('[data-testid="nav-bassett-only-tests"]')).not.toBeNull();
   expect(view.container.textContent).not.toMatch(/issues to address/i);
@@ -90,8 +90,8 @@ test("toggling a non-active group persists and collapse all keeps the active gro
   const view = renderLayout("/testcases");
   const administrationToggle = view.container.querySelector('[data-testid="nav-section-toggle-administration"]');
   const testingToggle = view.container.querySelector('[data-testid="nav-section-toggle-bassett-only-testing"]');
-  expect(testingToggle.textContent).toContain("Bassett-Only Testing");
-  expect(testingToggle.getAttribute("aria-label")).toMatch(/Expand Bassett-Only Testing/);
+  expect(testingToggle.textContent).toContain("My QA Workflow");
+  expect(testingToggle.getAttribute("aria-label")).toMatch(/Expand My QA Workflow/);
   expect(view.container.querySelector("#nav-section-bassett-only-testing").getAttribute("aria-hidden")).toBe("true");
   expect(view.container.querySelector('[data-testid="nav-model-comparison-test-cases"]')).not.toBeNull();
   act(() => { administrationToggle.click(); });
@@ -157,7 +157,7 @@ test("workflow navigation excludes dashboard record helper routes while destinat
   const testing = SECTIONS.find((section) => section.id === "bassett-only-testing");
   expect(SECTIONS).toHaveLength(6);
   expect(overview.items.map((item) => item.label)).toEqual(["Dashboard"]);
-  expect(testing.items.map((item) => item.label)).toEqual(["Testing Projects", "Bassett Test Bank", "Bassett Test Runs", "Bassett Findings"]);
+  expect(testing.items.map((item) => item.label)).toEqual(["Bassett Test Bank", "Bassett Test Runs", "Bassett Findings", "Testing Projects"]);
   expect(SECTIONS.flatMap((section) => section.items).some((item) => item.to.startsWith("/dashboard/records/"))).toBe(false);
 
   const view = renderLayout("/bassett/issues", <div data-testid="destination-count">12 open findings</div>);
@@ -192,7 +192,7 @@ test("no navigation section or rendered sidebar variant contains numeric count b
 
 test("navigation uses the requested workflow groups and preserves distinct destinations", () => {
   expect(SECTIONS.map((section) => section.label)).toEqual([
-    "Overview", "Bassett-Only Testing", "Model Comparison", "Insights & Reports", "Administration", "Advanced Tools",
+    "Overview", "My QA Workflow", "Model Comparison", "Insights & Reports", "Administration", "Advanced Tools",
   ]);
   const testing = SECTIONS.find((section) => section.id === "bassett-only-testing");
   const modelComparison = SECTIONS.find((section) => section.id === "model-comparison");
@@ -228,3 +228,4 @@ test.each(["/dashboard/records/active-projects", "/dashboard/records/open-findin
     view.unmount();
   },
 );
+
