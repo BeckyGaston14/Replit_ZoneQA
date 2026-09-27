@@ -178,7 +178,20 @@ export default function Comparison() {
       </PageHeader>
       <SampleDataBanner show={sampleScopeIncludesData({ records: [selectedTestCase, data] })} />
       {(testsLoading || testsError) && <QueryState query={testsQuery} resource="comparison test cases" onRetry={refetchTests} testId="comparison-tests" />}
-      {!testsLoading && !testsError && tcs.length === 0 && <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"><span>No test cases are available for comparison yet.</span><Button size="sm" onClick={() => nav("/testcases?create=1&mode=comparison")}>Create Model Comparison Test Case</Button></div>}
+      {!testsLoading && !testsError && tcs.length === 0 && <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="font-semibold">No model comparison test cases are available yet.</p>
+            <p className="mt-1 text-sm">Set up one shared test, record each model's response, and then review the side-by-side results here.</p>
+          </div>
+          <Button size="sm" onClick={() => nav("/testcases?create=1&mode=comparison")}>Create Model Comparison Test Case</Button>
+        </div>
+        <ol className="mt-4 grid gap-2 text-sm sm:grid-cols-3" aria-label="How to create an AI comparison">
+          <li className="rounded-lg border border-amber-200 bg-white/70 p-3"><span className="font-bold">1. Create the test case</span><span className="mt-1 block text-xs">Enter the shared prompt and Gold Standard.</span></li>
+          <li className="rounded-lg border border-amber-200 bg-white/70 p-3"><span className="font-bold">2. Record model results</span><span className="mt-1 block text-xs">Add Bassett, ChatGPT, and Claude responses and evaluations.</span></li>
+          <li className="rounded-lg border border-amber-200 bg-white/70 p-3"><span className="font-bold">3. Review the comparison</span><span className="mt-1 block text-xs">Return here to compare scores, evidence, and findings.</span></li>
+        </ol>
+      </div>}
 
        {!!tcId && isLoading && <QueryState query={{ isLoading }} resource="comparison" testId="comparison" />}
        {isError && <QueryState query={{ isError, error, refetch }} resource="Comparison" onRetry={refetch} notFoundAction={() => selectTestCase("")} testId="comparison" />}
@@ -267,3 +280,4 @@ export default function Comparison() {
     </div>
   );
 }
+

@@ -472,7 +472,24 @@ export default function BassettIssues() {
         {!isLoading && !shown.length && <div className="border rounded-xl p-8 text-center text-sm text-muted-foreground">No Bassett findings match these filters.</div>}
       </div> : <>
       <TableSortControls columns={runColumns} sort={sort} setSort={setSort} defaultSort={defaultSort} className="mb-3" />
-       <div className={TABLE_FRAME_CLASS} role="region" aria-label="Bassett test runs table" tabIndex="0" data-testid="bassett-runs-table-scroll">
+       <div className="space-y-3 sm:hidden" role="list" aria-label="Bassett test runs">
+         {shown.map((issue) => <article key={issue.id} role="listitem" className="rounded-xl border bg-card p-4">
+           <button type="button" className="w-full text-left rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)]" onClick={() => setSelected(issue.id)} aria-label={`Open ${issue.title || issue.question_asked}`}>
+             <div className="flex flex-wrap items-center gap-2"><span className="text-xs font-semibold text-muted-foreground">{issue.test_id || "No Test ID"}</span><Pill tone={severityLabel(issue.severity) === "Critical" ? "red" : severityLabel(issue.severity) === "High" ? "orange" : "slate"}>{severityLabel(issue.severity) || "Not rated"}</Pill><StatusBadge value={issue.result || "Not Evaluated"} compact /></div>
+             <div className="mt-2 font-semibold text-[var(--navy)]">{issue.title || issue.question_asked}</div>
+             <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{issue.question_asked}</div>
+           </button>
+           <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t pt-3 text-xs">
+             <div><dt className="text-muted-foreground">Workflow</dt><dd className="font-medium">{issue.status || "—"}</dd></div>
+             <div><dt className="text-muted-foreground">Test date</dt><dd className="font-medium">{formatTestDate(issue.test_date)}</dd></div>
+             <div><dt className="text-muted-foreground">Bassett version</dt><dd className="font-medium">{issue.bassett_version || "Not specified"}</dd></div>
+             <div><dt className="text-muted-foreground">Environment</dt><dd className="font-medium">{issue.environment || "—"}</dd></div>
+           </dl>
+           <div className="mt-3 flex justify-end border-t pt-2"><BassettRunActions issue={issue} canWrite={canWrite} canManage={canManage} editing={loadingEditId === issue.id} onEdit={openEdit} onArchive={setConfirmingArchive} onRestore={restore} /></div>
+         </article>)}
+         {!isLoading && !shown.length && <div className="rounded-xl border p-8 text-center text-sm text-muted-foreground">No Bassett test runs match these filters.</div>}
+       </div>
+       <div className={`${TABLE_FRAME_CLASS} hidden sm:block`} role="region" aria-label="Bassett test runs table" tabIndex="0" data-testid="bassett-runs-table-scroll">
           <table className={TABLE_CLASS}><thead className={TABLE_HEAD_CLASS}><tr>{runColumns.map((column) => <SortableTableHeader key={column.key} column={column} sort={sort} onSort={(key) => setSort((current) => nextSort(current, key))} />)}<th className="px-2.5 py-2 text-right text-[11px] uppercase tracking-wide text-muted-foreground">Actions</th></tr></thead>
              <tbody>{isLoading ? <tr><td colSpan="10" className="p-8 text-center text-muted-foreground"><span className="inline-flex items-center gap-2"><span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent" aria-hidden="true" />Loading {showingFindings ? "Bassett findings" : "Bassett test runs"}… this may take a few seconds.</span></td></tr> : shown.map((issue) => <tr key={issue.id} className="border-t hover:bg-[var(--paper)]">
              <td className="px-3 py-3 text-xs font-semibold text-[var(--navy)]">{issue.test_id || "—"}</td><td className={`${TABLE_CELL_CLASS} min-w-[270px]`}><button type="button" className="w-full text-left rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)] focus-visible:ring-offset-2" onClick={() => setSelected(issue.id)} aria-label={`Open ${issue.title || issue.question_asked}`}><div className="font-semibold text-[var(--navy)]">{issue.title || issue.question_asked}</div><div className="text-xs text-muted-foreground line-clamp-1 mt-1">{issue.question_asked}</div></button></td>

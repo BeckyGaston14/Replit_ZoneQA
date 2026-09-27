@@ -28,25 +28,41 @@ export function GlobalSearch() {
   const [active, setActive] = useState(-1);
   const boxRef = useRef(null);
   const timer = useRef(null);
+  const requestSequence = useRef(0);
+  const activeRequest = useRef(null);
 
   const flat = useMemo(() => (data?.groups || []).flatMap((g) => g.items), [data]);
 
   const runSearch = async (query) => {
+    const requestId = ++requestSequence.current;
+    activeRequest.current?.abort();
+    const controller = new AbortController();
+    activeRequest.current = controller;
     setLoading(true); setError(false);
     try {
-      const { data: d } = await api.get(`/search?q=${encodeURIComponent(query)}`);
-      setData(d); setActive(-1);
-    } catch { setError(true); setData(null); }
-    finally { setLoading(false); }
+      const { data: d } = await api.get(`/search?q=${encodeURIComponent(query)}`, { signal: controller.signal });
+      if (requestId === requestSequence.current) { setData(d); setActive(-1); }
+    } catch (requestError) {
+      if (requestId === requestSequence.current && requestError?.name !== "CanceledError" && requestError?.name !== "AbortError") {
+        setError(true); setData(null);
+      }
+    } finally {
+      if (requestId === requestSequence.current) setLoading(false);
+    }
   };
 
   useEffect(() => {
     clearTimeout(timer.current);
-    if (q.trim().length < 2) { setData(null); setError(false); setLoading(false); return; }
+    setData(null);
+    setActive(-1);
+    activeRequest.current?.abort();
+    if (q.trim().length < 2) { requestSequence.current += 1; setError(false); setLoading(false); return; }
     setLoading(true);
     timer.current = setTimeout(() => runSearch(q.trim()), 300);
     return () => clearTimeout(timer.current);
   }, [q]);
+
+  useEffect(() => () => activeRequest.current?.abort(), []);
 
   useEffect(() => {
     const onClick = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false); };
@@ -90,7 +106,7 @@ export function GlobalSearch() {
           {!error && !loading && data && data.total === 0 && (
             <div className="p-4 text-sm text-muted-foreground" data-testid="search-no-results">No results found for “{q.trim()}”.</div>
           )}
-          {!error && data && (data.groups || []).map((g) => (
+          {!error && !loading && data && (data.groups || []).map((g) => (
             <div key={g.label}>
               <div className="px-3 pt-2.5 pb-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground bg-[var(--paper)]/60">{g.label}</div>
               {g.items.map((item) => {
@@ -119,3 +135,4 @@ export function GlobalSearch() {
     </div>
   );
 }
+
