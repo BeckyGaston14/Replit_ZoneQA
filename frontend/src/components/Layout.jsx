@@ -56,6 +56,16 @@ export default function Layout({ children }) {
       setExpandedGroups((current) => ({ ...current, [activeId]: true }));
     }
   }, [activeId, expandedGroups]);
+  useEffect(() => {
+    // Advanced tools should not remain visually prominent after the user
+    // returns to an everyday workflow. It can still be opened normally to
+    // choose a tool and remains open while an advanced destination is active.
+    if (activeId !== "advanced-tools") {
+      setExpandedGroups((current) => current["advanced-tools"]
+        ? { ...current, "advanced-tools": false }
+        : current);
+    }
+  }, [activeId, location.pathname, location.search]);
   useEffect(() => { closeMobileMenu(); }, [location.pathname, location.search]);
   useEffect(() => {
     const updateViewport = () => setMobileViewport(window.innerWidth < 1024);
@@ -164,3 +174,4 @@ export default function Layout({ children }) {
     </div>
   );
 }
+

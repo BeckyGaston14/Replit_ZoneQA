@@ -190,6 +190,18 @@ test("no navigation section or rendered sidebar variant contains numeric count b
   view.unmount();
 });
 
+test("a saved Advanced Tools expansion is cleared outside advanced routes", () => {
+  window.localStorage.setItem("zoneqa.sidebar.groups.viewer-1", JSON.stringify({
+    overview: false,
+    "advanced-tools": true,
+  }));
+  const view = renderLayout("/comparison");
+  const advancedToggle = view.container.querySelector('[data-testid="nav-section-toggle-advanced-tools"]');
+  expect(advancedToggle.getAttribute("aria-expanded")).toBe("false");
+  expect(JSON.parse(window.localStorage.getItem("zoneqa.sidebar.groups.viewer-1"))["advanced-tools"]).toBe(false);
+  view.unmount();
+});
+
 test("navigation uses the requested workflow groups and preserves distinct destinations", () => {
   expect(SECTIONS.map((section) => section.label)).toEqual([
     "Overview", "My QA Workflow", "Model Comparison", "Insights & Reports", "Administration", "Advanced Tools",
