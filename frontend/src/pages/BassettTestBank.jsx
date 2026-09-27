@@ -312,7 +312,7 @@ export default function BassettTestBank() {
       <StatCard label="Pass rate" value={metrics?.test_runs.pass_rate != null ? `${metrics.test_runs.pass_rate}%` : "—"} sub={metrics ? `${metrics.test_runs.passed}/${metrics.test_runs.eligible} eligible test runs` : "Pass or Pass with Minor Issues ÷ eligible runs"} icon={CheckCircle2} accent="#16a34a" />
       <StatCard label="Tests Needing Attention" value={metrics?.test_runs.attention ?? "—"} sub="Needs Improvement, Fail, or Critical Fail results" icon={XCircle} accent="#dc2626" />
     </div>
-    <Section title="Scenario library" action={<span className="text-xs text-muted-foreground">{shown.length} shown of {metrics?.scenarios.active ?? scenarios.length} active scenarios</span>}>
+    <Section title="Scenario library" action={<span className="text-xs text-muted-foreground">{isLoading ? "Loading scenarios…" : `${shown.length} shown of ${metrics?.scenarios.active ?? scenarios.length} active scenarios`}</span>}>
       <div className="flex flex-wrap gap-2 mb-4">
          <div className="relative flex-1 min-w-[240px]"><Search size={15} className="absolute left-3 top-2.5 text-muted-foreground" /><Input aria-label="Search Test Scenario records" className="pl-9" placeholder="Search ID, scenario, or purpose…" value={search} onChange={(e) => setViewFilter("search", e.target.value)} /></div>
          <select aria-label="Filter by test type" className="h-9 rounded-md border bg-background px-3 text-sm" value={stage} onChange={(e) => setViewFilter("stage", e.target.value)}><option value="all">All test types</option>{testTypeOptions.map((x) => <option key={x}>{x}</option>)}</select>
@@ -329,7 +329,7 @@ export default function BassettTestBank() {
         <tbody>{isLoading ? <tr><td colSpan="7" className={TABLE_EMPTY_CELL_CLASS}>Loading Test Bank…</td></tr> : pageRows.map((scenario) => <tr key={scenario.id} className="border-t hover:bg-[var(--paper)]">
           <td className={`${TABLE_CELL_CLASS} font-bold text-[var(--orange)]`}><button type="button" className="w-full text-left rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)] focus-visible:ring-offset-2" onClick={() => setSelected(scenario.id)} aria-label={`Open ${scenario.stable_id} Test Scenario`}>{scenario.stable_id}</button></td><td className={`${TABLE_CELL_CLASS} font-semibold`}>{scenarioTestType(scenario)}</td>
           <td className={`${TABLE_CELL_CLASS} min-w-[260px]`}><div className="font-semibold text-[var(--navy)]">{scenario.test_scenario}</div><div className="text-xs text-muted-foreground mt-1 line-clamp-1">{scenario.why_it_matters}</div></td>
-          <td className={TABLE_CELL_CLASS}>{scenario.complexity}</td><td className={TABLE_CELL_CLASS}>{scenario.priority}</td><td className={TABLE_CELL_CLASS}>{scenario.execution_count} test run(s)</td>
+          <td className={TABLE_CELL_CLASS}>{scenario.complexity}</td><td className={TABLE_CELL_CLASS}>{scenario.priority}</td><td className={TABLE_CELL_CLASS}>{scenario.execution_count} {Number(scenario.execution_count) === 1 ? "test run" : "test runs"}</td>
             <td className={TABLE_ACTION_CELL_CLASS}>{scenario.archived
              ? canManage && <Button size="sm" variant="outline" onClick={() => restore(scenario)}><ArchiveRestore size={14} /> Restore</Button>
               : <div className="flex items-center justify-end gap-1">

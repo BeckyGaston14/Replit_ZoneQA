@@ -46,7 +46,7 @@ export default function Admin() {
   const { data: config, refetch } = useQuery({ queryKey: ["config"], queryFn: async () => (await api.get("/config")).data, enabled: isAdmin });
   const { data: users = [], refetch: refetchUsers } = useQuery({ queryKey: ["users"], queryFn: async () => (await api.get("/users")).data, enabled: isAdmin && activeTab === "users" });
   const { data: emailStatus, refetch: refetchEmailStatus } = useQuery({ queryKey: ["admin-email-status"], queryFn: async () => (await api.get("/admin/email/status")).data, enabled: isAdmin && ["users", "integrations"].includes(activeTab) });
-  const { data: models = [], refetch: refetchModels } = useQuery({ queryKey: ["models"], queryFn: async () => (await api.get("/models")).data, enabled: isAdmin && ["models", "integrations"].includes(activeTab) });
+  const { data: models = [], isLoading: modelsLoading, isError: modelsError, refetch: refetchModels } = useQuery({ queryKey: ["models"], queryFn: async () => (await api.get("/models")).data, enabled: isAdmin && ["models", "integrations"].includes(activeTab) });
   const { data: versions = [], isLoading: versionsLoading, refetch: refetchVersions } = useQuery({ queryKey: ["versions"], queryFn: async () => (await api.get("/versions")).data, enabled: isAdmin && ["versions", "integrations"].includes(activeTab) });
   const [newItem, setNewItem] = useState({});
   const [lookupSearch, setLookupSearch] = useState("");
@@ -395,7 +395,9 @@ export default function Admin() {
             <thead className="bg-[var(--paper)] text-left"><tr>{MODEL_COLUMNS.map((column) => <SortableTableHeader key={column.key} column={column} sort={modelSort} onSort={(key) => setModelSort((current) => nextSort(current, key))} />)}<th className="px-4 py-2 text-right text-[11px] uppercase tracking-wide text-muted-foreground">Actions</th></tr></thead>
             <tbody>{sortTableRows(models, MODEL_COLUMNS, modelSort, ["name"]).map((m) => <tr key={m.id} className="border-t"><td className="px-4 py-2 font-semibold text-[var(--navy)]">{m.name}<div className="text-xs font-normal text-muted-foreground">{m.model_name || "No API identifier"}</div></td><td className="px-4 py-2">{m.provider || "—"}</td><td className="px-4 py-2">{m.role_type}</td><td className="px-4 py-2"><StatusBadge value={m.active === false ? "Inactive" : "Active"} definitions={ACTIVITY_STATUSES}/></td><td className="px-4 py-2"><div className="flex gap-1"><Button type="button" size="sm" variant="outline" onClick={()=>setEditingModel({...m})} aria-label={`Edit ${m.name}`}><Pencil size={14}/></Button><Button type="button" size="sm" variant="outline" onClick={()=>setConfirmingAction({type:"delete-model",model:m})} aria-label={`Delete ${m.name}`}><Trash2 size={14}/></Button></div></td></tr>)}</tbody>
           </table></div>
-          {!models.length && <div className="rounded-b-xl border border-t-0 bg-card p-5 text-center text-sm text-muted-foreground">No models have been added. Add Bassett as the Primary model and ChatGPT or Claude as Benchmark models.</div>}
+          {modelsLoading && <div role="status" className="rounded-b-xl border border-t-0 bg-card p-5 text-center text-sm text-muted-foreground">Loading models…</div>}
+          {modelsError && <div role="alert" className="rounded-b-xl border border-t-0 bg-card p-5 text-center text-sm text-red-700">Models could not be loaded. <Button type="button" size="sm" variant="outline" className="ml-2" onClick={() => refetchModels()}><RefreshCw size={14}/> Try again</Button></div>}
+          {!modelsLoading && !modelsError && !models.length && <div className="rounded-b-xl border border-t-0 bg-card p-5 text-center text-sm text-muted-foreground">No models have been added. Add Bassett as the Primary model and ChatGPT or Claude as Benchmark models.</div>}
         </TabsContent>
 
         <TabsContent value="versions">

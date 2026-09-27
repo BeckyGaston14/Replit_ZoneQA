@@ -57,7 +57,7 @@ export const emptyBassettTestRun = {
   test_type: "Single Prompt", turns: [], conversation_source: "structured_text", transcript_status: "not_needed",
   issue_category: "", severity: "Medium", priority: "Medium", environment: "",
   test_date: "", scenario_id: "", general_subtype_ids: [], project_id: "", municipality_id: "", property_id: "",
-  version_id: "", bassett_version: "", status: "Not Started", result: "Pass", score: "", notes: "", evidence: "",
+  version_id: "", bassett_version: "", status: "Not Started", result: "Not Evaluated", score: "", notes: "", evidence: "",
   evaluation_scores: {}, selected_rubric_ids: [], rubric_revision: null,
   rubric_selection_initialized: false, rubric_scenario_ids: [], confirm_rubric_removal: false,
   finding_id: "", finding_ids: [], create_finding: false, finding: {}, follow_up_action: "",

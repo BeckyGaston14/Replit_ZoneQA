@@ -66,6 +66,10 @@ afterEach(() => {
   jest.clearAllMocks();
 });
 
+test("new Bassett test runs begin unevaluated instead of assuming a pass", () => {
+  expect(createBassettTestRunDraft().result).toBe("Not Evaluated");
+});
+
 test("recovering a draft restores text, dismisses the notice, and leaves the form editable", () => {
   localStorage.setItem("zoneqa:bassett-workflow-draft", JSON.stringify({ question_asked: "Saved question", attachment_count: 1 }));
   const view = renderForm("bassett");

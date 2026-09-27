@@ -8,6 +8,8 @@ var mockApi;
 var mockEmailStatus;
 let mockUser = { id: "admin-1", role: "admin", name: "Admin User" };
 let mockModels = [];
+let mockModelsLoading = false;
+let mockModelsError = false;
 const mockInvalidateQueries = jest.fn();
 const users = [
   { id: "admin-1", name: "Admin User", email: "admin@example.com", role: "admin", active: true, revision: 1 },
@@ -87,6 +89,8 @@ jest.mock("@tanstack/react-query", () => ({
       : queryKey[0] === "models" ? mockModels
       : [],
     refetch: jest.fn(),
+    isLoading: queryKey[0] === "models" && mockModelsLoading,
+    isError: queryKey[0] === "models" && mockModelsError,
   }),
 }));
 jest.mock("sonner", () => ({ toast: { success: jest.fn(), error: jest.fn() } }));
@@ -119,7 +123,19 @@ afterEach(() => {
   mockUser = { id: "admin-1", role: "admin", name: "Admin User" };
   mockEmailStatus = { status: "connected", published_url_configured: true };
   mockModels = [];
+  mockModelsLoading = false;
+  mockModelsError = false;
   document.body.innerHTML = "";
+});
+
+test("Models tab does not report missing models while the request is still loading", () => {
+  mockModelsLoading = true;
+  const view = renderAdmin();
+  const tab = [...view.container.querySelectorAll('[role="tab"]')].find((item) => item.textContent === "Models");
+  act(() => tab.click());
+  expect(view.container.textContent).toContain("Loading models");
+  expect(view.container.textContent).not.toContain("No models have been added");
+  view.unmount();
 });
 
 test("administrators can add a model from the Models tab", async () => {
