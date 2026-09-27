@@ -519,7 +519,7 @@ export default function BassettIssues() {
      </MethodologyDisclosure>
 
      {selected && !showingFindings && <IssueDetail id={selected} onClose={() => setSelected(null)} onEdit={openEdit} onRestore={restore} canWrite={canWrite} canManage={canManage} refresh={() => qc.invalidateQueries()} />}
-    {form && <BassettTestRunForm form={form} setForm={setForm} scenarios={scenarios} rubricCatalog={rubricCatalog} generalSubtypes={generalSubtypes} versions={versions} projects={projects} municipalities={municipalities} properties={properties} users={users} evidenceRecords={evidenceRecords} availableFindings={availableFindings} config={config} onSubmit={save} onCancel={() => { setConflict(null); setForm(null); }} submitting={saving} conflictNotice={conflict && <div role="alert" className="col-span-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+    {form && <BassettTestRunForm key={`${form.id || form.submission_id || "new"}:${form._draftRecoveryNonce || "initial"}`} form={form} setForm={setForm} scenarios={scenarios} rubricCatalog={rubricCatalog} generalSubtypes={generalSubtypes} versions={versions} projects={projects} municipalities={municipalities} properties={properties} users={users} evidenceRecords={evidenceRecords} availableFindings={availableFindings} config={config} onSubmit={save} onCancel={() => { setConflict(null); setForm(null); }} submitting={saving} conflictNotice={conflict && <div role="alert" className="col-span-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
       <p className="font-semibold">Someone else saved this test run first. Your entries are still open for review.</p>
       <div className="mt-2 flex gap-2">
         <Button type="button" size="sm" variant="outline" onClick={() => { setForm(conflict); setConflict(null); }}>Load latest values</Button>
@@ -788,5 +788,4 @@ function IssueDetail({ id, onClose, onEdit, onRestore, canWrite, canManage, refr
 function Info({ label, value }) { return <div><div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">{label}</div><div className="whitespace-pre-wrap">{value}</div></div>; }
 
 export { ScenarioSelector, ScenarioDefinition, BassettFindingDetail, actionError, loadBassettTestRunForEdit };
-
 

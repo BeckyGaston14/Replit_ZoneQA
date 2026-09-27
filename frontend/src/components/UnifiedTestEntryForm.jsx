@@ -801,7 +801,16 @@ export default function UnifiedTestEntryForm({
     try {
       const saved = readLocalDraft(mode);
       if (!saved) { setDraftAvailable(false); return toast.error("This draft is no longer available"); }
-      setForm((current) => ({ ...current, ...saved, conversation_attachment: null, attachments: [], attachment_count: 0, submission_id: current.submission_id, _draftRecovered: true }));
+      setForm((current) => ({
+        ...current,
+        ...saved,
+        conversation_attachment: null,
+        attachments: [],
+        attachment_count: 0,
+        submission_id: current.submission_id,
+        _draftRecovered: true,
+        _draftRecoveryNonce: Date.now(),
+      }));
       setDraftAvailable(false);
       setActiveSection(0);
       setAttemptedSections(new Set());

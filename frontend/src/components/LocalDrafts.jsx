@@ -17,6 +17,16 @@ export function LocalDrafts({ mode, onRecover }) {
     try { deleteLocalDraft(mode); setDraft(null); setInvalid(false); toast.success("Draft deleted"); }
     catch { toast.error("Draft could not be deleted"); }
   };
+  const recover = () => {
+    const recovered = { ...draft, attachments: [], attachment_count: 0, _draftRecovered: true, _draftRecoveryNonce: Date.now() };
+    setOpen(false);
+    // Let Radix finish removing the Saved Drafts modal and its pointer lock
+    // before opening the test-entry modal. Opening both in one click can leave
+    // the recovered form visible but unable to receive clicks.
+    const openRecoveredDraft = () => onRecover(recovered);
+    if (typeof globalThis.requestAnimationFrame === "function") globalThis.requestAnimationFrame(openRecoveredDraft);
+    else globalThis.setTimeout(openRecoveredDraft, 0);
+  };
   return <>
     <Button variant="outline" onClick={show}>Drafts</Button>
     {open && <FormModal open title="Saved Drafts" description="Recover or delete the unfinished draft saved in this browser." onOpenChange={setOpen} onSubmit={() => setOpen(false)} submitLabel="Done">
@@ -26,7 +36,7 @@ export function LocalDrafts({ mode, onRecover }) {
         <p className="text-sm whitespace-pre-wrap break-words">{draft.question_asked || draft.prompts?.[0]?.text || "No prompt entered"}</p>
         <p className="text-sm">Test date: {draft.test_date || "Not entered"}</p>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" onClick={() => { setOpen(false); onRecover({ ...draft, attachments: [], attachment_count: 0, _draftRecovered: true }); }}>Recover Draft</Button>
+          <Button type="button" onClick={recover}>Recover Draft</Button>
           <Button type="button" variant="outline" onClick={remove}>Delete Draft</Button>
         </div>
       </div>}

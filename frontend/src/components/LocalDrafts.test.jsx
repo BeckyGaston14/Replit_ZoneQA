@@ -15,11 +15,12 @@ function view() {
   const click = (text) => act(() => [...container.querySelectorAll("button")].find((button) => button.textContent === text).click());
   return { container, root, onRecover, click };
 }
-test("Drafts lists the saved content and recovers it without retaining an overlay", () => {
+test("Drafts lists the saved content and recovers it without retaining an overlay", async () => {
   localStorage.setItem("zoneqa:bassett-workflow-draft", JSON.stringify({ title: "My draft", question_asked: "My prompt" }));
   const v = view(); v.click("Drafts");
   expect(v.container.textContent).toContain("My prompt");
   v.click("Recover Draft");
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
   expect(v.onRecover).toHaveBeenCalledWith(expect.objectContaining({ title: "My draft", _draftRecovered: true, attachments: [] }));
   expect(v.container.textContent).not.toContain("My prompt");
   act(() => v.root.unmount());
