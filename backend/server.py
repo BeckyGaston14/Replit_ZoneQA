@@ -3383,6 +3383,7 @@ BASSETT_SCENARIO_FIELDS = {
     "why_it_matters", "what_bassett_should_do", "success_criteria", "priority",
     "tags", "project_id", "testcase_id", "version_id", "bassett_version",
     "test_type", "scoring_category", "catalog_revision", "rubric_ids",
+    "finding_ids",
 }
 BASSETT_DEFINITION_SNAPSHOT_FIELDS = (
     "stable_id", "workflow_stage", "test_scenario", "complexity",
@@ -5279,6 +5280,16 @@ async def bassett_get_scenario(id: str, user=Depends(get_current_user)):
         await _bassett_ref("bassett_scenarios", id, "Bassett scenario")
     )
     scenario["issues"], scenario["executions"] = await _bassett_scenario_links(id)
+    finding_ids = list(dict.fromkeys(
+        str(finding_id) for finding_id in (scenario.get("finding_ids") or []) if finding_id
+    ))
+    scenario["finding_ids"] = finding_ids
+    scenario["findings"] = [
+        _canonicalize_finding_severity(finding)
+        for finding in await db.findings.find(
+            {"id": {"$in": finding_ids}}, {"_id": 0}
+        ).to_list(5000)
+    ] if finding_ids else []
     scenario["history"] = await db.bassett_history.find(
         {"entity_type": "scenario", "entity_id": id}, {"_id": 0}
     ).sort("created_at", -1).to_list(5000)

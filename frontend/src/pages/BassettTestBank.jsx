@@ -20,7 +20,7 @@ import {
   TEST_BANK_SORT_COLUMNS,
 } from "../lib/testBankSorting";
 import { BassettTestRunForm, createBassettTestRunDraft } from "../components/BassettTestRunForm";
-import { RubricAssociationEditor } from "../components/UnifiedTestEntryForm";
+import { FindingMultiSelect, RubricAssociationEditor } from "../components/UnifiedTestEntryForm";
 import { formatTestDate } from "../lib/testDates";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { TABLE_ACTION_CELL_CLASS, TABLE_CELL_CLASS, TABLE_CLASS, TABLE_EMPTY_CELL_CLASS, TABLE_HEAD_CLASS } from "../lib/tableStyles";
@@ -34,6 +34,7 @@ const emptyScenario = {
   complexity: "Medium", why_it_matters: "", what_bassett_should_do: "",
   success_criteria: "", priority: "Medium", test_type: "Analysis", scoring_category: "",
   project_id: "", testcase_id: "", version_id: "", catalog_revision: "",
+  finding_ids: [],
 };
 const DEFAULT_TEST_BANK_VIEW = { filters: { search: "", stage: "all", complexity: "all", priority: "all" } };
 const PAGE_SIZE = 20;
@@ -104,6 +105,11 @@ export default function BassettTestBank() {
   const { data: config } = useConfig();
   const { data: generalSubtypes = [] } = useGeneralSubtypes();
   const { data: rubricCatalog } = useRubricCatalog();
+  const { data: availableFindings = [] } = useQuery({
+    queryKey: ["bassett-findings-for-test-bank-entry"],
+    queryFn: async () => (await api.get("/bassett/findings")).data,
+    enabled: Boolean(form),
+  });
   const { data: workflowStages = [] } = useCollection("bassett/workflow-stages");
   const testTypeOptions = [...new Set(scenarios.map(scenarioTestType).filter((value) => value !== "Unspecified"))].sort();
   const testBankColumns = useMemo(() => TEST_BANK_SORT_COLUMNS.map((column) => column.key === "test_type"
@@ -388,6 +394,18 @@ export default function BassettTestBank() {
           <Field label="Bassett version"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.version_id} onChange={(e) => setScenarioField("version_id", e.target.value)}><option value="">Any version</option>{versions.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select></Field>
           <Field label="Project"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.project_id} onChange={(e) => setScenarioField("project_id", e.target.value)}><option value="">Not linked</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
           <Field label="General Test Subtype"><select aria-label="General Test Subtype" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.testcase_id} onChange={(e) => setScenarioField("testcase_id", e.target.value)}><option value="">Not linked</option>{testcases.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></Field>
+          <div className="sm:col-span-2">
+            <Field label="Linked Findings">
+              <p className="mb-2 text-xs text-muted-foreground">Optional. Link one or more existing Bassett findings that relate to this scenario.</p>
+              <FindingMultiSelect
+                findings={availableFindings}
+                selectedIds={form.finding_ids || []}
+                onToggle={(finding, checked) => setScenarioField("finding_ids", checked
+                  ? [...new Set([...(form.finding_ids || []), finding.id])]
+                  : (form.finding_ids || []).filter((findingId) => findingId !== finding.id))}
+              />
+            </Field>
+          </div>
         </div>
       </details>
     </FormModal>}
@@ -465,6 +483,7 @@ export function ScenarioDetail({ id, canManage, canExecute, close, edit, run, ar
   return <div className="fixed inset-0 z-40 bg-black/20 flex justify-end" onClick={(event) => event.target === event.currentTarget && close()} role="presentation"><aside ref={drawerRef} tabIndex="-1" role="dialog" aria-modal="true" aria-labelledby="bassett-scenario-detail-title" className="bg-card h-full w-full max-w-2xl overflow-y-auto p-6 shadow-xl">
      <div className="flex justify-between gap-4 mb-6"><div><div className="font-bold text-[var(--orange)]">{scenario.stable_id}</div><h2 id="bassett-scenario-detail-title" className="text-xl font-bold font-display text-[var(--navy)]">{scenario.test_scenario}</h2><div className="text-xs text-muted-foreground mt-2">{scenario.workflow_stage} · {scenario.complexity} complexity · {scenario.test_type || "Single Prompt"}</div><div className="mt-2 flex flex-wrap gap-2 text-xs"><span className="rounded bg-[var(--paper)] px-2 py-1">Primary scoring: {scenario.scoring_category || "Not assigned"}</span><span className="rounded bg-[var(--paper)] px-2 py-1">Rubric revision: {scenario.catalog_revision || "legacy12"}</span></div></div><Button type="button" variant="ghost" onClick={close} aria-label="Close Test Scenario details">Close</Button></div>
     <div className="space-y-5"><Detail label="Why it matters" value={scenario.why_it_matters} /><Detail label="What Bassett should do" value={scenario.what_bassett_should_do} /><Detail label="Success criteria" value={scenario.success_criteria} />
+      <div className="rounded-xl border p-4"><h3 className="font-semibold text-[var(--navy)] mb-3">Linked Findings ({scenario.findings?.length || 0})</h3>{scenario.findings?.length ? <div className="space-y-2">{scenario.findings.map((finding) => <Link key={finding.id} to={`/bassett/findings?open=${encodeURIComponent(finding.id)}`} className="block rounded-lg border px-3 py-2 text-sm hover:bg-[var(--paper)]"><span className="font-medium text-[var(--navy)]">{finding.title || finding.id}</span><span className="ml-2 text-xs text-muted-foreground">{finding.finding_type || "Finding"} · {finding.severity || "Not rated"}</span></Link>)}</div> : <p className="text-sm text-muted-foreground">No findings linked to this scenario.</p>}</div>
       <Attachments entityType="bassett_scenario" entityId={scenario.id} canWrite={canExecute && !scenario.archived} />
       <div className="rounded-xl border p-4"><h3 className="font-semibold text-[var(--navy)] mb-3">Canonical Bassett Test Runs ({scenario.issues?.length || 0})</h3>{scenario.issues?.length ? scenario.issues.map((issue) => <div key={issue.id} className="border-t first:border-0 py-3 text-sm flex items-start justify-between gap-3"><div><ResultPill value={issue.result || "Not Evaluated"} /><div className="font-medium mt-1">{issue.title || issue.question_asked}</div><div className="text-xs text-muted-foreground mt-1">Test Date: {formatTestDate(issue.test_date)} · {issue.status}</div></div><Link to={`/bassett/issues?open=${encodeURIComponent(issue.id)}`} className="inline-flex h-8 items-center justify-center rounded-md border border-input px-3 text-xs font-medium shadow-sm hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">Open Run</Link></div>) : <p className="text-sm text-muted-foreground">No canonical test runs linked.</p>}</div>
       {!!scenario.executions?.length && <div className="rounded-xl border p-4"><h3 className="font-semibold text-[var(--navy)] mb-3">Legacy Test Runs ({scenario.executions.length})</h3>{scenario.executions.map((execution) => <div key={execution.id} className="border-t first:border-0 py-3 flex justify-between gap-3 text-sm"><div><ResultPill value={execution.result} /><div className="text-xs text-muted-foreground mt-1">Tested By: {execution.executed_by} · Test Date: {new Date(execution.executed_at).toLocaleString()} · {execution.bassett_version || "version not specified"}</div>{["Partial", "Fail", "Blocked"].includes(execution.result) && <div className="flex gap-2 mt-2">{canExecute && <Button size="sm" variant="outline" onClick={() => createFinding(execution)}>Create Finding</Button>}{canExecute && <Button size="sm" variant="outline" onClick={() => sendForRetest(execution)}>Send for Retest</Button>}{canExecute && <Button size="sm" variant="outline" onClick={() => expand(execution)}>Expand to Full Model Comparison</Button>}</div>}</div><span className="font-semibold">{execution.score != null ? `${execution.score}/100` : ""}</span></div>)}</div>}
