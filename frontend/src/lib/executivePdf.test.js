@@ -142,12 +142,30 @@ test("renders a multi-section report into bounded, non-overlapping A4 pages", ()
   expect(pdfText).toContain("Claude");
   expect(pdfText).toContain("Open High & Critical Findings");
   expect(pdfText).toContain("Incorrect use classification");
+  expect(pdfText).toContain("Pass rate is 84.6% across 13 evaluated tests.");
   expect(Array.from({ length: result.pageCount }, (_, index) => doc.internal.pages[index + 1].join(" ")).join(" ")).not.toContain("Legacy12");
   if (process.env.WRITE_PDF_ARTIFACT === "1") {
     const outputDir = path.resolve(process.cwd(), "../.agents/outputs");
     fs.mkdirSync(outputDir, { recursive: true });
     fs.writeFileSync(path.join(outputDir, "executive-summary-regression.pdf"), Buffer.from(doc.output("arraybuffer")));
   }
+});
+
+test("uses singular test wording for one evaluated record", () => {
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  renderExecutivePdf({
+    doc,
+    data: { ...reportData(), kpis: { ...reportData().kpis, total_evaluated: 1 } },
+    chartImages: {
+      trend: chart(900, 300),
+      failureModes: chart(900, 280),
+      categories: chart(1000, 520),
+    },
+    generated: "9/26/2026",
+  });
+  const pdfText = Array.from({ length: doc.getNumberOfPages() }, (_, index) => doc.internal.pages[index + 1].join(" ")).join(" ");
+  expect(pdfText).toContain("Pass rate is 84.6% across 1 evaluated test.");
+  expect(pdfText).not.toContain("1 evaluated tests");
 });
 
 test("keeps the current sample layout sequential, legend-safe, and balanced", () => {

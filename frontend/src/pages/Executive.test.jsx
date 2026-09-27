@@ -1,7 +1,7 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { useQuery } from "@tanstack/react-query";
-import Executive from "./Executive";
+import Executive, { localDateStamp } from "./Executive";
 import jsPDF from "jspdf";
 import { captureExecutiveChart, renderExecutivePdf } from "../lib/executivePdf";
 import { toast } from "sonner";
@@ -68,6 +68,10 @@ beforeEach(() => {
   useQuery.mockReturnValue({ isLoading: false, isError: false, data });
   URL.createObjectURL = jest.fn(() => "blob:zoneqa-report");
   URL.revokeObjectURL = jest.fn();
+});
+
+test("uses the browser's local calendar date for PDF filenames", () => {
+  expect(localDateStamp(new Date(2026, 8, 26, 23, 59, 59))).toBe("2026-09-26");
 });
 
 test("labels wins for Bassett and exposes generating and saving states", async () => {

@@ -15,6 +15,9 @@ import { captureExecutiveChart, renderExecutivePdf } from "../lib/executivePdf";
 import { QueryState } from "../components/PageState";
 import { SafeResponsiveContainer } from "../components/SafeResponsiveContainer";
 
+export const localDateStamp = (date = new Date()) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
 export default function Executive() {
   const [reportScope, setReportScope] = useState("both");
   const query = useQuery({
@@ -61,7 +64,7 @@ export default function Executive() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `Bassett-Executive-Summary-${reportScope}-${new Date().toISOString().slice(0, 10)}.pdf`;
+      link.download = `Bassett-Executive-Summary-${reportScope}-${localDateStamp()}.pdf`;
       document.body.appendChild(link);
       link.click();
       window.setTimeout(() => {

@@ -317,7 +317,7 @@ export function renderExecutivePdf({ doc, data, chartImages = {}, generated = ne
       : "Competitive score comparison is unavailable until both sides have scored tests in the same scope.",
     kpis.pass_rate == null
       ? "Pass rate is unavailable because no evaluated tests are in scope."
-      : `Pass rate is ${fmtPct(kpis.pass_rate)} across ${safeText(kpis.total_evaluated, "0")} evaluated tests.`,
+      : `Pass rate is ${fmtPct(kpis.pass_rate)} across ${safeText(kpis.total_evaluated, "0")} evaluated ${Number(kpis.total_evaluated) === 1 ? "test" : "tests"}.`,
     !includesComparison ? null : (Number(kpis.wins || 0) || Number(kpis.losses || 0))
       ? `Head-to-head: Bassett won ${safeText(kpis.wins, "0")} tests outright against ChatGPT and Claude and lost ${safeText(kpis.losses, "0")}.`
       : Number(kpis.total_evaluated || 0) > 0
