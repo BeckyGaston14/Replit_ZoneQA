@@ -53,7 +53,7 @@ test("draft Test Date honors the configured timezone at a UTC boundary", () => {
 
 test("shared run form shows every selected scenario definition field read-only", () => {
   const view = renderForm();
-  expect(view.container.textContent).toContain("Read-only Test Bank definition");
+  expect(view.container.textContent).toContain("View Test Bank guidance for R-01");
   for (const value of [
     "R-01", "Research", "Property", "Setback research", "High",
     "Prevents incorrect advice", "Read the ordinance", "Quotes the controlling section", "P1 - High",

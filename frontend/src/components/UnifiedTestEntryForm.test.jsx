@@ -229,8 +229,9 @@ test("invalid submission marks and opens the first incomplete section", () => {
   const view = renderForm("bassett");
   act(() => view.container.querySelector('[data-testid="submit"]').click());
   const sections = [...view.container.querySelectorAll("details")];
-  expect(sections[1].open).toBe(true);
-  expect(sections[1].querySelector("summary").textContent).toContain("Needs attention");
+  const promptSection = sections.find((section) => section.querySelector("summary")?.textContent.includes("Linked Records"));
+  expect(promptSection.open).toBe(true);
+  expect(promptSection.querySelector("summary").textContent).toContain("Needs attention");
   expect(toast.error).toHaveBeenCalledWith("The question asked is required");
   act(() => view.root.unmount());
 });

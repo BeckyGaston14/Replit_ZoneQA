@@ -22,7 +22,7 @@ test("real dialogs recover a draft and remain navigable without a blocking overl
   click("New Test"); click("Recover draft");
   expect(document.body.textContent).not.toContain("A saved Bassett draft is available");
   click("Next");
-  expect(document.body.textContent).toContain("Section 2 of 6");
+  expect(document.body.textContent).toContain("Step 2 of 6: Records & prompt");
   expect([...document.body.querySelectorAll("textarea")].some((field) => field.value === "Recovered prompt")).toBe(true);
   click("Cancel");
   expect(document.body.querySelector('[role="dialog"]')).toBeNull();
@@ -30,7 +30,7 @@ test("real dialogs recover a draft and remain navigable without a blocking overl
   click("Drafts"); click("Recover Draft");
   await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
   click("Next");
-  expect(document.body.textContent).toContain("Section 2 of 6");
+  expect(document.body.textContent).toContain("Step 2 of 6: Records & prompt");
   expect(document.body.querySelectorAll('[role="dialog"]')).toHaveLength(1);
   act(() => root.unmount()); container.remove(); localStorage.clear();
 });
