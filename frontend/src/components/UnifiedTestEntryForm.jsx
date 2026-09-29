@@ -257,7 +257,8 @@ export function ScenarioDefinition({ scenario }) {
   if (!scenario) return null;
   const rawCategory = scenario.catalog_revision ? (scenario.test_type || scenario.report_type || scenario.workflow_stage) : scenario.workflow_stage;
   const displayCategory = rawCategory === "General Research" ? "Research" : rawCategory;
-  const fields = [["Stable ID", scenario.stable_id], ["Scenario Type", displayCategory], ["Test Scenario", scenario.test_scenario], ["Complexity", scenario.complexity], ["Why it matters", scenario.why_it_matters], ["What Bassett should do", scenario.what_bassett_should_do], ["Success criteria", scenario.success_criteria], ["Priority", scenario.priority]];
+  const mappedRubrics = (scenario.rubric_ids || []).join(", ");
+  const fields = [["Stable ID", scenario.stable_id], ["Scenario Type", displayCategory], ["Test Scenario", scenario.test_scenario], ["Complexity", scenario.complexity], ["Mapped rubric IDs", mappedRubrics], ["Why it matters", scenario.why_it_matters], ["What Bassett should do", scenario.what_bassett_should_do], ["Success criteria", scenario.success_criteria], ["Priority", scenario.priority]];
   return <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">{fields.map(([label, value]) => <div key={label}><div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">{label}</div><div className="whitespace-pre-wrap">{value || "—"}</div></div>)}</div>;
 }
 

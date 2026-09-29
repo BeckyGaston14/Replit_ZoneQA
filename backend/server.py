@@ -4062,6 +4062,103 @@ async def _seed_bassett_catalog():
             logger.error("Bassett canonical seed conflict for %s; existing row was not overwritten",
                          definition["stable_id"])
 
+    # Keep saved QA evidence connected to the same logical Test Bank item when
+    # a catalog revision replaces the scenario record. The prior scenario and
+    # rubric revision remain on the archived definition and evaluation data;
+    # only the live relationship is moved to the new canonical scenario ID.
+    await _relink_bassett_catalog_references()
+
+
+async def _bassett_catalog_reference_plan():
+    """Return legacy scenario IDs that have a current equivalent by Test ID."""
+    scenarios = await db.bassett_scenarios.find({}, {"_id": 0}).to_list(10000)
+    current_by_stable = {
+        row.get("stable_id"): row.get("id") for row in scenarios
+        if row.get("catalog_revision") == CATALOG_REVISION and row.get("id")
+    }
+    return {
+        row["id"]: current_by_stable[row.get("stable_id")]
+        for row in scenarios
+        if row.get("id") and row.get("catalog_revision") != CATALOG_REVISION
+        and current_by_stable.get(row.get("stable_id"))
+        and current_by_stable[row.get("stable_id")] != row["id"]
+    }
+
+
+async def _relink_bassett_catalog_references():
+    """Relink saved records to current scenarios without altering evaluations."""
+    replacements = await _bassett_catalog_reference_plan()
+    if not replacements:
+        return 0
+    updated = 0
+    for collection_name in ("bassett_issues", "bassett_executions", "bassett_findings", "testcases"):
+        collection = getattr(db, collection_name, None)
+        if collection is None:
+            continue
+        records = await collection.find({}, {"_id": 0}).to_list(10000)
+        for record in records:
+            if not record.get("id"):
+                continue
+            changes = {}
+            old_id = record.get("scenario_id")
+            if old_id in replacements:
+                history = list(record.get("scenario_reference_history") or [])
+                if old_id not in history:
+                    history.append(old_id)
+                changes.update({
+                    "scenario_id": replacements[old_id],
+                    "scenario_reference_history": history,
+                })
+            rubric_ids = list(record.get("rubric_scenario_ids") or [])
+            remapped_rubric_ids = [replacements.get(value, value) for value in rubric_ids]
+            if rubric_ids and remapped_rubric_ids != rubric_ids:
+                changes["rubric_scenario_ids"] = list(dict.fromkeys(remapped_rubric_ids))
+            turns = record.get("turns")
+            if isinstance(turns, list):
+                remapped_turns = []
+                changed_turn = False
+                for turn in turns:
+                    if not isinstance(turn, dict):
+                        remapped_turns.append(turn)
+                        continue
+                    turn_copy = dict(turn)
+                    turn_id = turn_copy.get("scenario_id")
+                    if turn_id in replacements:
+                        turn_copy["scenario_id"] = replacements[turn_id]
+                        changed_turn = True
+                    remapped_turns.append(turn_copy)
+                if changed_turn:
+                    changes["turns"] = remapped_turns
+            if changes:
+                changes["scenario_reference_updated_at"] = now_iso()
+                await collection.update_one({"id": record["id"]}, {"$set": changes})
+                updated += 1
+    return updated
+
+
+async def _count_legacy_bassett_catalog_references():
+    replacements = await _bassett_catalog_reference_plan()
+    if not replacements:
+        return 0
+    count = 0
+    legacy_ids = set(replacements)
+    for collection_name in ("bassett_issues", "bassett_executions", "bassett_findings", "testcases"):
+        collection = getattr(db, collection_name, None)
+        if collection is None:
+            continue
+        records = await collection.find({}, {"_id": 0}).to_list(10000)
+        for record in records:
+            if record.get("scenario_id") in legacy_ids:
+                count += 1
+                continue
+            if any(value in legacy_ids for value in (record.get("rubric_scenario_ids") or [])):
+                count += 1
+                continue
+            if any(isinstance(turn, dict) and turn.get("scenario_id") in legacy_ids
+                   for turn in (record.get("turns") or [])):
+                count += 1
+    return count
+
 async def _bassett_history(entity_type, entity_id, action, user, changes=None):
     entry = {
         "id": new_id(), "entity_type": entity_type, "entity_id": entity_id,
@@ -5270,6 +5367,7 @@ async def _catalog_revision_preview():
     guidance_revision = RUBRIC_CATALOG_REFERENCE.get("guidance_revision", CATALOG_REVISION)
     refresh = [stable_id for stable_id in stable_ids if stable_id in target_by_stable
                and target_by_stable[stable_id].get("guidance_revision") != guidance_revision]
+    legacy_reference_count = await _count_legacy_bassett_catalog_references()
     return {
         "revision": CATALOG_REVISION,
         "scenario_count": len(stable_ids),
@@ -5278,10 +5376,11 @@ async def _catalog_revision_preview():
         "would_archive": len(legacy),
         "would_insert": len(missing),
         "would_update_guidance": len(refresh),
+        "would_relink_records": legacy_reference_count,
         "guidance_revision": guidance_revision,
         "legacy_scenario_ids": [row.get("id") for row in legacy],
         "missing_stable_ids": sorted(missing),
-        "already_applied": not legacy and not missing and not refresh,
+        "already_applied": not legacy and not missing and not refresh and not legacy_reference_count,
     }
 
 
