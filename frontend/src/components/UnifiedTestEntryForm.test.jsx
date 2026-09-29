@@ -39,6 +39,7 @@ const scenario = {
   report_type: "Property", test_scenario: "Setback research", complexity: "High",
   why_it_matters: "Accuracy", what_bassett_should_do: "Read the ordinance",
   success_criteria: "Quote the controlling section", priority: "P1 - High",
+  rubric_ids: ["G-01", "G-02"],
 };
 
 function renderForm(mode, overrides = {}, props = {}) {
@@ -384,6 +385,41 @@ test("both evaluation form modes keep score labels and the shared rubric without
     expect(selects.every((select) => select.parentElement.querySelector("p") === null)).toBe(true);
     act(() => view.root.unmount());
   }
+});
+
+test("changing one Bassett rubric to N/A preserves every other saved score", () => {
+  const rubricCatalog = {
+    revision: "2026-09-16",
+    categories: [{ key: "property-zoning", name: "Property & Zoning Rules", rubric_ids: ["G-01", "G-02"] }],
+    rubric_items: [
+      { rubric_id: "G-01", category: "property-zoning", evaluation_criterion: "Property identity", expected_behavior: "Identify the property", passing_standard: "Correct property" },
+      { rubric_id: "G-02", category: "property-zoning", evaluation_criterion: "Jurisdiction", expected_behavior: "Identify the jurisdiction", passing_standard: "Correct jurisdiction" },
+    ],
+  };
+  const view = renderForm("bassett", {
+    id: "current-run",
+    rubric_revision: rubricCatalog.revision,
+    rubric_selection_initialized: true,
+    rubric_scenario_ids: [scenario.id],
+    selected_rubric_ids: ["G-01", "G-02"],
+    evaluation_scores: { "G-01": 8, "G-02": 9 },
+    rubric_scores: { "G-01": 8, "G-02": 9 },
+    evaluations: { Bassett: { scores: { "G-01": 2, "G-02": 3 } } },
+  }, { rubricCatalog });
+  act(() => view.container.querySelector('summary[data-guided-section="3"]').click());
+  const scoreSelects = [...view.container.querySelectorAll('select[aria-label$=" score"]')];
+  const first = scoreSelects.find((select) => select.getAttribute("aria-label").includes("G-01"));
+  expect(first).not.toBeNull();
+  act(() => {
+    first.value = "N/A";
+    first.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  expect(view.latest().evaluation_scores).toEqual({ "G-01": "N/A", "G-02": 9 });
+  expect(view.latest().rubric_scores).toEqual({ "G-01": "N/A", "G-02": 9 });
+  expect(view.latest().evaluations.Bassett.scores).toEqual({ "G-01": "N/A", "G-02": 9 });
+  expect([...view.container.querySelectorAll('select[aria-label$=" score"]')]
+    .find((select) => select.getAttribute("aria-label").includes("G-02")).value).toBe("9");
+  act(() => view.root.unmount());
 });
 
 test("Bassett finding categories use the configured lookup only when a linked finding is created", () => {
