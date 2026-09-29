@@ -41,6 +41,16 @@ export function normalizeRubricCatalog(catalog) {
   };
 }
 
+export function rubricCategoryKey(catalog, value) {
+  const category = normalizeRubricCatalog(catalog).categories.find((item) => item.key === value || item.name === value);
+  return category?.key || value || "";
+}
+
+export function rubricCategoryName(catalog, value) {
+  const category = normalizeRubricCatalog(catalog).categories.find((item) => item.key === value || item.name === value);
+  return category?.name || value || "Not assigned";
+}
+
 export function rubricItemsById(catalog) {
   return Object.fromEntries(normalizeRubricCatalog(catalog).rubric_items.map((item) => [item.rubric_id, item]));
 }

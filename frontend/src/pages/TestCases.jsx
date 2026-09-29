@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api, formatApiErrorDetail, withExpectedVersion, staleUpdateMessage } from "../lib/api";
-import { useConfig, useSave, useCollection, useGeneralSubtypes, useSavedView, useTestBank, useTestCases } from "../lib/hooks";
+import { useConfig, useSave, useCollection, useSavedView, useTestBank, useTestCases } from "../lib/hooks";
 import {
   ALL_TEST_CASES,
   DEFAULT_TEST_CASE_SORT,
@@ -63,7 +63,6 @@ export default function TestCases() {
   const { data: properties = [] } = useCollection("properties");
   const { data: users = [] } = useCollection("users");
   const { data: versions = [] } = useCollection("versions");
-  const { data: generalSubtypes = [] } = useGeneralSubtypes();
   const { data: rubricCatalog } = useQuery({ queryKey: ["bassett-rubric-catalog"], queryFn: async () => (await api.get("/bassett/rubric-catalog")).data, staleTime: 30 * 60_000 });
   const scenarioMap = useMemo(() => Object.fromEntries(scenarios.map((scenario) => [scenario.id, scenario])), [scenarios]);
   const testBankTypeFor = (testcase) => {
@@ -365,7 +364,7 @@ export default function TestCases() {
       </div>}
 
       {f && <UnifiedTestEntryForm
-        mode="comparison" form={f} setForm={setF} scenarios={scenarios} generalSubtypes={generalSubtypes} rubricCatalog={rubricCatalog} versions={versions}
+        mode="comparison" form={f} setForm={setF} scenarios={scenarios} rubricCatalog={rubricCatalog} versions={versions}
         projects={projects} municipalities={municipalities} properties={properties} users={users}
         config={config} onSubmit={submit} onCancel={() => { setConflict(null); setF(null); }}
         submitting={save.isPending || submitInFlight.current}

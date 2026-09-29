@@ -25,9 +25,10 @@ import { formatTestDate } from "../lib/testDates";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { TABLE_ACTION_CELL_CLASS, TABLE_CELL_CLASS, TABLE_CLASS, TABLE_EMPTY_CELL_CLASS, TABLE_HEAD_CLASS } from "../lib/tableStyles";
 import { ConfirmActionDialog } from "../components/ConfirmActionDialog";
-import { useCollection, useConfig, useGeneralSubtypes, useRubricCatalog, useSavedView, useTestBank } from "../lib/hooks";
+import { useCollection, useConfig, useRubricCatalog, useSavedView, useTestBank } from "../lib/hooks";
 import { focusFormError, validateScenarioDraft } from "../lib/formValidation";
 import { loadBassettScenarioForEdit } from "../lib/bassettEditLoaders";
+import { rubricCategoryKey, rubricCategoryName } from "../lib/rubricCatalog";
 
 const emptyScenario = {
   workflow_stage: "", test_scenario: "",
@@ -103,7 +104,6 @@ export default function BassettTestBank() {
   const { data: testcases = [] } = useCollection("testcases");
   const { data: versions = [] } = useCollection("versions");
   const { data: config } = useConfig();
-  const { data: generalSubtypes = [] } = useGeneralSubtypes();
   const { data: rubricCatalog } = useRubricCatalog();
   const { data: availableFindings = [] } = useQuery({
     queryKey: ["bassett-findings-for-test-bank-entry"],
@@ -169,11 +169,12 @@ export default function BassettTestBank() {
     setLoadingScenarioEditId(scenario.id);
     try {
       const data = await loadBassettScenarioForEdit(scenario);
-      scenarioBaseline.current = data;
+      const normalized = { ...data, scoring_category: rubricCategoryKey(rubricCatalog, data.scoring_category) };
+      scenarioBaseline.current = normalized;
       setConflict(null);
       setFormErrors({});
       setScenarioError("");
-      setForm(data);
+      setForm(normalized);
     } catch (error) {
       toast.error(importError(error, "Unable to open scenario for editing"));
     } finally {
@@ -351,7 +352,7 @@ export default function BassettTestBank() {
        <p>Archived definitions are hidden from the active denominator; incomplete and legacy Blocked runs are not silently counted as passes.</p>
      </MethodologyDisclosure>
 
-    {selected && <ScenarioDetail id={selected} canManage={canManage} canExecute={canExecute} close={() => setSelected(null)} edit={(scenario) => { scenarioBaseline.current = scenario; setSelected(null); setConflict(null); setFormErrors({}); setScenarioError(""); setForm(scenario); }} run={(scenario) => { setSelected(null); setExecute(createBassettTestRunDraft({ scenario_id: scenario.id }, config?.application_timezone)); }} archive={setConfirmingArchive} restore={restore} />}
+    {selected && <ScenarioDetail id={selected} rubricCatalog={rubricCatalog} canManage={canManage} canExecute={canExecute} close={() => setSelected(null)} edit={(scenario) => { const normalized = { ...scenario, scoring_category: rubricCategoryKey(rubricCatalog, scenario.scoring_category) }; scenarioBaseline.current = normalized; setSelected(null); setConflict(null); setFormErrors({}); setScenarioError(""); setForm(normalized); }} run={(scenario) => { setSelected(null); setExecute(createBassettTestRunDraft({ scenario_id: scenario.id }, config?.application_timezone)); }} archive={setConfirmingArchive} restore={restore} />}
     <ConfirmActionDialog
       open={!!confirmingArchive}
       onOpenChange={(open) => !open && setConfirmingArchive(null)}
@@ -393,7 +394,7 @@ export default function BassettTestBank() {
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Bassett version"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.version_id} onChange={(e) => setScenarioField("version_id", e.target.value)}><option value="">Any version</option>{versions.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select></Field>
           <Field label="Project"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.project_id} onChange={(e) => setScenarioField("project_id", e.target.value)}><option value="">Not linked</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
-          <Field label="General Test Subtype"><select aria-label="General Test Subtype" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.testcase_id} onChange={(e) => setScenarioField("testcase_id", e.target.value)}><option value="">Not linked</option>{testcases.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></Field>
+          <Field label="Linked Model Comparison Test Case"><select aria-label="Linked Model Comparison Test Case" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.testcase_id} onChange={(e) => setScenarioField("testcase_id", e.target.value)}><option value="">Not linked</option>{testcases.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></Field>
           <div className="sm:col-span-2">
             <Field label="Linked Findings">
               <p className="mb-2 text-xs text-muted-foreground">Optional. Link one or more existing Bassett findings that relate to this scenario.</p>
@@ -425,7 +426,7 @@ export default function BassettTestBank() {
         <details className="rounded-lg border p-3"><summary className="cursor-pointer font-medium text-[var(--navy)]">Technical details</summary><pre className="mt-2 max-h-48 overflow-auto text-xs">{JSON.stringify(migrationPreview, null, 2)}</pre></details>
       </div>
     </FormModal>}
-    {execute && <BassettTestRunForm form={execute} setForm={setExecute} scenarios={scenarios} rubricCatalog={rubricCatalog} generalSubtypes={generalSubtypes} versions={versions} projects={projects} onSubmit={recordExecution} onCancel={() => setExecute(null)} submitting={savingRun} />}
+    {execute && <BassettTestRunForm form={execute} setForm={setExecute} scenarios={scenarios} rubricCatalog={rubricCatalog} versions={versions} projects={projects} onSubmit={recordExecution} onCancel={() => setExecute(null)} submitting={savingRun} />}
     {showImport && <FormModal open onOpenChange={(open) => !open && setShowImport(false)} title="Review Spreadsheet Test Scenarios" onSubmit={preview ? commitImport : previewImport} submitLabel={importing ? "Importing…" : preview ? "Confirm Import Accepted Rows" : "Preview Rows"} wide>
       <p className="text-sm text-muted-foreground">Upload the Research/Analysis export as CSV. The preview validates stable IDs before any write. Re-importing the same IDs updates in place; startup never seeds them.</p>
       <Input aria-label="Choose Test Bank CSV" type="file" accept=".csv" onChange={loadCsv} />
@@ -462,7 +463,7 @@ function importError(error, fallback) {
   return formatApiErrorDetail(error?.response?.data?.detail) || fallback;
 }
 
-export function ScenarioDetail({ id, canManage, canExecute, close, edit, run, archive, restore }) {
+export function ScenarioDetail({ id, rubricCatalog, canManage, canExecute, close, edit, run, archive, restore }) {
   const qc = useQueryClient();
   const { data: scenario, isLoading } = useQuery({ queryKey: ["bassett-scenario", id], queryFn: async () => (await api.get(`/bassett/scenarios/${id}`)).data });
   const drawerRef = useFocusTrap(true, close);
@@ -484,8 +485,9 @@ export function ScenarioDetail({ id, canManage, canExecute, close, edit, run, ar
     }
     catch (error) { toast.error(formatApiErrorDetail(error.response?.data?.detail)); }
   };
+  const categoryName = rubricCategoryName(rubricCatalog, scenario.scoring_category);
   return <div className="fixed inset-0 z-40 bg-black/20 flex justify-end" onClick={(event) => event.target === event.currentTarget && close()} role="presentation"><aside ref={drawerRef} tabIndex="-1" role="dialog" aria-modal="true" aria-labelledby="bassett-scenario-detail-title" className="bg-card h-full w-full max-w-2xl overflow-y-auto p-6 shadow-xl">
-     <div className="flex justify-between gap-4 mb-6"><div><div className="font-bold text-[var(--orange)]">{scenario.stable_id}</div><h2 id="bassett-scenario-detail-title" className="text-xl font-bold font-display text-[var(--navy)]">{scenario.test_scenario}</h2><div className="text-xs text-muted-foreground mt-2">{scenario.workflow_stage} · {scenario.complexity} complexity · {scenario.test_type || "Single Prompt"}</div><div className="mt-2 flex flex-wrap gap-2 text-xs"><span className="rounded bg-[var(--paper)] px-2 py-1">Primary scoring: {scenario.scoring_category || "Not assigned"}</span><span className="rounded bg-[var(--paper)] px-2 py-1">Rubric revision: {scenario.catalog_revision || "legacy12"}</span></div></div><Button type="button" variant="ghost" onClick={close} aria-label="Close Test Scenario details">Close</Button></div>
+     <div className="flex justify-between gap-4 mb-6"><div><div className="font-bold text-[var(--orange)]">{scenario.stable_id}</div><h2 id="bassett-scenario-detail-title" className="text-xl font-bold font-display text-[var(--navy)]">{scenario.test_scenario}</h2><div className="text-xs text-muted-foreground mt-2">{scenario.workflow_stage} · {scenario.complexity} complexity · {scenario.test_type || "Single Prompt"}</div><div className="mt-2 flex flex-wrap gap-2 text-xs"><span className="rounded bg-[var(--paper)] px-2 py-1">Primary scoring: {categoryName}</span><span className="rounded bg-[var(--paper)] px-2 py-1">Rubric revision: {scenario.catalog_revision || "legacy12"}</span></div></div><Button type="button" variant="ghost" onClick={close} aria-label="Close Test Scenario details">Close</Button></div>
     <div className="space-y-5"><Detail label="Why it matters" value={scenario.why_it_matters} /><Detail label="What Bassett should do" value={scenario.what_bassett_should_do} /><Detail label="Success criteria" value={scenario.success_criteria} />
       <div className="rounded-xl border p-4">
         <h3 className="font-semibold text-[var(--navy)]">Mapped rubric IDs ({scenario.rubric_ids?.length || 0})</h3>

@@ -7,6 +7,8 @@ import {
   serializeComparisonPayload,
   removeRubricSelection,
   rubricDimensions,
+  rubricCategoryKey,
+  rubricCategoryName,
   unassociatedRubricItems,
 } from "./rubricCatalog";
 
@@ -49,6 +51,14 @@ test("scored removal requires confirmation and zero is treated as scored", () =>
 test("legacy revision is explicit", () => {
   expect(normalizeRubricCatalog(null).revision).toBeNull();
   expect(LEGACY_RUBRIC_REVISION).toBe("legacy12");
+});
+
+test("rubric category helpers accept stored keys and display names", () => {
+  expect(rubricCategoryKey(catalog, "Property & Zoning Rules")).toBe("property_zoning_rules");
+  expect(rubricCategoryKey(catalog, "property_zoning_rules")).toBe("property_zoning_rules");
+  expect(rubricCategoryName(catalog, "property_zoning_rules")).toBe("Property & Zoning Rules");
+  expect(rubricCategoryKey(catalog, "Custom category")).toBe("Custom category");
+  expect(rubricCategoryName(catalog, "")).toBe("Not assigned");
 });
 
 test("initialization is stable, new scenario mappings union, and unchecks survive", () => {

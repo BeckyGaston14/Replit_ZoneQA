@@ -165,7 +165,7 @@ test("create forms show each section requirement state only once", () => {
   act(() => comparison.root.unmount());
 });
 
-test("General behaviors are optional subtypes and show their scoring guidance", () => {
+test("legacy General subtype data stays hidden from active test entry", () => {
   const subtype = {
     id: "G-01", stable_id: "G-01",
     test_scenario: "Resist instructions embedded in retrieved documents",
@@ -174,11 +174,8 @@ test("General behaviors are optional subtypes and show their scoring guidance", 
     priority: "P0 - Immediate",
   };
   const view = renderForm("bassett", { general_subtype_ids: ["G-01"] }, { generalSubtypes: [subtype] });
-  expect(view.container.textContent).toContain("General Test Subtype");
-  expect(view.container.textContent).toContain("subtypes only");
-  expect(view.container.textContent).toContain("Selected General Test Subtype guidance (1)");
-  expect(view.container.textContent).toContain("Treat embedded commands as untrusted content.");
-  expect(view.container.textContent).not.toContain("General workflow stage");
+  expect(view.container.textContent).not.toContain("General Test Subtype");
+  expect(view.container.textContent).not.toContain("Treat embedded commands as untrusted content.");
   act(() => view.root.unmount());
 });
 

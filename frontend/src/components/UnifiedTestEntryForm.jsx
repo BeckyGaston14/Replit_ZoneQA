@@ -262,35 +262,6 @@ export function ScenarioDefinition({ scenario }) {
   return <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">{fields.map(([label, value]) => <div key={label}><div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">{label}</div><div className="whitespace-pre-wrap">{value || "—"}</div></div>)}</div>;
 }
 
-export function GeneralSubtypeSelector({ subtypes = [], value = [], onChange, disabled = false }) {
-  const [query, setQuery] = useState("");
-  const [open, setOpen] = useState(false);
-  const selected = new Set(Array.isArray(value) ? value : []);
-  const shown = subtypes.filter((subtype) => [subtype.stable_id, subtype.test_scenario, subtype.priority]
-    .some((field) => String(field || "").toLowerCase().includes(query.trim().toLowerCase())));
-  const toggle = (id) => onChange(selected.has(id) ? value.filter((item) => item !== id) : [...value, id]);
-  return <div className="rounded-lg border bg-background p-3" data-testid="general-subtype-selector">
-    <button type="button" className="flex w-full items-center justify-between text-left text-sm font-medium text-[var(--navy)]" aria-expanded={open} onClick={() => setOpen((current) => !current)}>
-       <span>General Test Subtype <span className="font-normal text-muted-foreground">(optional)</span> <span className="font-normal text-muted-foreground">· {selected.size} selected</span></span>
-      <span aria-hidden="true">{open ? "−" : "+"}</span>
-    </button>
-    <p className="mt-1 text-xs text-muted-foreground">These are subtypes only and do not change the category, test type, score, or pass-rate calculation.</p>
-    {open && <div className="mt-3 space-y-2">
-      <div>
-      <p className="mt-1 text-xs text-muted-foreground">Select every cross-cutting behavior this test covers.</p>
-      </div>
-     <Input aria-label="Search General Test Subtype" placeholder="Search subtype ID, behavior, or priority…" value={query} onChange={(event) => setQuery(event.target.value)} disabled={disabled} />
-     <div className="max-h-56 overflow-y-auto rounded-lg border bg-background p-2" role="group" aria-label="General Test Subtype">
-      {shown.map((subtype) => <label key={subtype.id} className="flex cursor-pointer items-start gap-2 rounded-md p-2 text-sm hover:bg-[var(--paper)]">
-        <Checkbox checked={selected.has(subtype.id)} disabled={disabled} onCheckedChange={() => toggle(subtype.id)} aria-label={`${subtype.stable_id} ${subtype.test_scenario}`} />
-        <span><span className="font-semibold text-[var(--navy)]">{subtype.stable_id}</span> · {subtype.test_scenario}<span className="ml-2 text-xs text-muted-foreground">{subtype.priority}</span></span>
-      </label>)}
-       {!shown.length && <p className="p-2 text-sm text-muted-foreground">No General Test Subtype records match this search.</p>}
-    </div>
-    </div>}
-  </div>;
-}
-
 export function FindingMultiSelect({ findings = [], selectedIds = [], primaryId = "", editing = false, onToggle }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -330,19 +301,6 @@ export function FindingMultiSelect({ findings = [], selectedIds = [], primaryId 
     </div>}
     {!findings.length && <p className="text-sm text-muted-foreground">No existing Bassett findings are available. You can create a new linked finding below.</p>}
   </div>;
-}
-
-function GeneralSubtypeGuidance({ subtypes = [], selectedIds = [] }) {
-  const selected = subtypes.filter((subtype) => selectedIds.includes(subtype.id));
-  if (!selected.length) return null;
-  return <details className="rounded-lg border border-blue-200 bg-blue-50 p-3" open>
-     <summary className="cursor-pointer text-sm font-semibold text-[var(--navy)]">Selected General Test Subtype guidance ({selected.length})</summary>
-    <div className="mt-3 space-y-3">{selected.map((subtype) => <div key={subtype.id} className="rounded-md bg-white/80 p-3 text-xs">
-      <div className="font-semibold text-[var(--navy)]">{subtype.stable_id} · {subtype.test_scenario}</div>
-      <p className="mt-1"><b>Evaluate whether Bassett:</b> {subtype.what_bassett_should_do}</p>
-      <p className="mt-1"><b>Success looks like:</b> {subtype.success_criteria}</p>
-    </div>)}</div>
-  </details>;
 }
 
 function QuickAdd({ label, value, items, onChange, fields, defaults = {}, disabled, id: controlId }) {
@@ -667,7 +625,7 @@ function TurnBuilder({ turns = [], scenarios = [], uploadedConversation = false,
 
 export default function UnifiedTestEntryForm({
   mode = "bassett", form, setForm, scenarios: suppliedScenarios = [], versions = [], projects = [],
-  municipalities = [], properties = [], users = [], evidenceRecords = [], availableFindings = [], generalSubtypes = [], rubricCatalog = null, config = {}, onSubmit, onCancel,
+  municipalities = [], properties = [], users = [], evidenceRecords = [], availableFindings = [], rubricCatalog = null, config = {}, onSubmit, onCancel,
   onSaveDraft, submitting = false, conflictNotice = null, lockedCommon = false,
 }) {
   const isComparison = mode === "comparison";
@@ -1012,7 +970,6 @@ export default function UnifiedTestEntryForm({
      <GuidedSection index={0} title="1. Test Setup" active={activeSection === 0} status={sectionStatus(0)} summary={sectionSummaries[0]} onActivate={activateSection}><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
        {!lockedCommon && <div className="sm:col-span-2"><ScenarioSelector scenarios={scenarios} category={form.workflow_stage || selectedScenario?.workflow_stage || ""} onCategoryChange={(category) => setForm((current) => ({ ...current, workflow_stage: category, scenario_id: "" }))} value={form.scenario_id} onChange={(value) => { const scenario = scenarios.find((item) => item.id === value); setForm((current) => ({ ...current, scenario_id: value, workflow_stage: scenario?.workflow_stage || current.workflow_stage })); }} error={attemptedSections.has(0) && !String(form.scenario_id || "").trim() ? "Test Scenario is required." : undefined} /></div>}
       {selectedScenario && <details className="sm:col-span-2 rounded-xl border bg-[var(--paper)] p-4"><summary className="cursor-pointer font-semibold text-[var(--navy)]">View Test Bank guidance for {selectedScenario.stable_id || "this scenario"}</summary><div className="mt-3"><ScenarioDefinition scenario={selectedScenario} /></div></details>}
-      {!catalogActive && <div className="sm:col-span-2"><GeneralSubtypeSelector subtypes={generalSubtypes} value={form.general_subtype_ids || []} onChange={(value) => update("general_subtype_ids", value)} disabled={lockedCommon} /></div>}
       <Field label="Sequential Test ID"><Input value={form.test_id || "Assigned on save"} readOnly className="bg-muted" /></Field>
        <Field label="Test Name" required={isComparison} error={attemptedSections.has(0) && isComparison && !String(form.name || "").trim() ? "Test Name is required." : undefined}><Input value={form.name || form.title || ""} disabled={lockedCommon} onChange={(e) => update(isComparison ? "name" : "title", e.target.value)} /></Field>
        <Field label="Bassett version" description="Required for completed tests and version-specific dashboard reporting."><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={selectedVersionId} disabled={lockedCommon} onChange={(e) => { const selected = versions.find((version) => version.id === e.target.value); setForm((current) => ({ ...current, version_id: selected?.id || "", bassett_version: selected?.name || "" })); }}><option value="">Not specified</option>{savedVersionUnavailable && <option value={form.version_id}>{form.bassett_version || "Saved version unavailable"}</option>}{versions.map((version) => <option key={version.id} value={version.id}>{version.name}{version.active === false ? " (inactive)" : ""}</option>)}</select></Field>
@@ -1046,7 +1003,7 @@ export default function UnifiedTestEntryForm({
       <Field label="Priority"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.priority || "Medium"} onChange={(e) => update("priority", e.target.value)}>{["Critical", "High", "Medium", "Low"].map((value) => <option key={value}>{value}</option>)}</select></Field>
     </div></GuidedSection>
 
-     <GuidedSection index={3} title="4. Rubric Evaluation" active={activeSection === 3} status={sectionStatus(3)} onActivate={activateSection}><p className="text-xs text-muted-foreground">Score the applicable rubric items. Blank and N/A items are excluded from the score; zero remains a valid score.</p><div className="mt-4 space-y-4"><GeneralSubtypeGuidance subtypes={generalSubtypes} selectedIds={form.general_subtype_ids || []} />{rubricCatalog && catalogActive && <RubricCriteriaSelector catalog={normalizedRubricCatalog} mappedIds={mappedRubricIds} selectedIds={form.selected_rubric_ids || []} scores={rubricRemovalScores} disabled={lockedCommon} onChange={(ids, meta = {}) => setForm((current) => ({ ...current, selected_rubric_ids: ids, rubric_revision: normalizedRubricCatalog.revision, rubric_selection_initialized: true, confirm_rubric_removal: current.confirm_rubric_removal || meta.confirm_rubric_removal }))} />}<h4 className="font-semibold text-sm text-[var(--navy)]">Bassett evaluation · {form.rubric_revision || LEGACY_RUBRIC_REVISION} · calculated score</h4><EvaluationGrid model="Bassett" scores={evaluationFor("Bassett").scores} dimensions={dimensions} onChange={updateEvaluation} locked={lockedCommon} /><RubricScoreSummary catalog={normalizedRubricCatalog} scores={evaluationFor("Bassett").scores} selectedIds={form.selected_rubric_ids || []} /><Field label="Bassett Score Rationale" required={hasScoredDimension(evaluationFor("Bassett").scores)} description="Cite the specific answer evidence that supports the selected numbers (minimum 20 characters when scored)."><Textarea rows={3} value={evaluationFor("Bassett").rationale || form.score_rationale || ""} onChange={(e) => updateEvaluationRationale("Bassett", e.target.value)} /></Field></div></GuidedSection>
+     <GuidedSection index={3} title="4. Rubric Evaluation" active={activeSection === 3} status={sectionStatus(3)} onActivate={activateSection}><p className="text-xs text-muted-foreground">Score the applicable rubric items. Blank and N/A items are excluded from the score; zero remains a valid score.</p><div className="mt-4 space-y-4">{rubricCatalog && catalogActive && <RubricCriteriaSelector catalog={normalizedRubricCatalog} mappedIds={mappedRubricIds} selectedIds={form.selected_rubric_ids || []} scores={rubricRemovalScores} disabled={lockedCommon} onChange={(ids, meta = {}) => setForm((current) => ({ ...current, selected_rubric_ids: ids, rubric_revision: normalizedRubricCatalog.revision, rubric_selection_initialized: true, confirm_rubric_removal: current.confirm_rubric_removal || meta.confirm_rubric_removal }))} />}<h4 className="font-semibold text-sm text-[var(--navy)]">Bassett evaluation · {form.rubric_revision || LEGACY_RUBRIC_REVISION} · calculated score</h4><EvaluationGrid model="Bassett" scores={evaluationFor("Bassett").scores} dimensions={dimensions} onChange={updateEvaluation} locked={lockedCommon} /><RubricScoreSummary catalog={normalizedRubricCatalog} scores={evaluationFor("Bassett").scores} selectedIds={form.selected_rubric_ids || []} /><Field label="Bassett Score Rationale" required={hasScoredDimension(evaluationFor("Bassett").scores)} description="Cite the specific answer evidence that supports the selected numbers (minimum 20 characters when scored)."><Textarea rows={3} value={evaluationFor("Bassett").rationale || form.score_rationale || ""} onChange={(e) => updateEvaluationRationale("Bassett", e.target.value)} /></Field></div></GuidedSection>
 
     <GuidedSection index={4} title="5. Findings & Ownership" active={activeSection === 4} status={sectionStatus(4)} summary={sectionSummaries[4]} onActivate={activateSection}><div className="space-y-4">
       {!isComparison && <Field label="Link existing Bassett findings" optional description="Select every existing finding supported by this test run. You can link more than one finding and may also create a new finding below.">

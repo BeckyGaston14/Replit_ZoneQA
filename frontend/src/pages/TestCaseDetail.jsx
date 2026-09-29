@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, formatApiErrorDetail, staleUpdateMessage, withExpectedVersion } from "../lib/api";
-import { useCollection, useConfig, useGeneralSubtypes } from "../lib/hooks";
+import { useCollection, useConfig } from "../lib/hooks";
 import { useAuth } from "../lib/auth";
 import { CritBadge, ResultBadge, ScorePill } from "../components/shared";
 import { AnnotatedResponse } from "../components/AnnotatedResponse";
@@ -76,7 +76,6 @@ export default function TestCaseDetail() {
   const { data: properties = [] } = useCollection("properties");
   const { data: users = [] } = useCollection("users");
   const { data: versions = [] } = useCollection("versions");
-  const { data: generalSubtypes = [] } = useGeneralSubtypes();
   const { data: rubricCatalog } = useQuery({ queryKey: ["bassett-rubric-catalog"], queryFn: async () => (await api.get("/bassett/rubric-catalog")).data, staleTime: 30 * 60_000 });
   const { data, isLoading, isError, error, refetch } = useQuery({ queryKey: ["tc-full", id], queryFn: async () => (await api.get(`/testcases/${id}/full`)).data });
   const [respModal, setRespModal] = useState(null);
@@ -649,7 +648,6 @@ export default function TestCaseDetail() {
         form={editForm}
         setForm={setEditForm}
         scenarios={scenarios}
-        generalSubtypes={generalSubtypes}
         rubricCatalog={rubricCatalog}
         versions={versions}
         projects={projects}
