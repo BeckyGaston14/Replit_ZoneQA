@@ -710,6 +710,15 @@ export default function UnifiedTestEntryForm({
       rubric_scenario_ids: reconciled.previousScenarioIds,
       confirm_rubric_removal: previous.confirm_rubric_removal || reconciled.confirm_rubric_removal,
       evaluation_scores: reconciled.scores,
+      rubric_scores: reconciled.scores,
+      evaluations: {
+        ...(previous.evaluations || {}),
+        Bassett: {
+          ...(previous.evaluations?.Bassett || {}),
+          scores: reconciled.scores,
+          rubric_scores: reconciled.scores,
+        },
+      },
     }));
   }, [activeScenarioIds, catalogActive, form.evaluation_scores, form.rubric_revision, form.rubric_scenario_ids, form.rubric_selection_initialized, form.selected_rubric_ids, normalizedRubricCatalog.revision, scenarios, setForm]);
   useEffect(() => {
@@ -787,21 +796,33 @@ export default function UnifiedTestEntryForm({
   const updateNested = (key, child, value) => setForm((current) => ({ ...current, [key]: { ...(current[key] || {}), [child]: value } }));
   const updatePrompt = (value) => setForm((current) => ({ ...current, question_asked: value, prompts: [{ turn: 1, text: value }] }));
   const updateResponse = (model, key, value) => setForm((current) => ({ ...current, responses: { ...(current.responses || {}), [model]: { ...(current.responses?.[model] || {}), [key]: value } }, ...(model === "Bassett" ? { exact_bassett_answer: key === "response" ? value : current.exact_bassett_answer } : {}) }));
-  const updateEvaluation = (model, key, value) => setForm((current) => ({
-    ...current,
-    evaluations: {
-      ...(current.evaluations || {}),
-      [model]: {
-        ...(current.evaluations?.[model] || {}),
-        scores: { ...(current.evaluations?.[model]?.scores || {}), [key]: value },
+  const updateEvaluation = (model, key, value) => setForm((current) => {
+    // Bassett-only runs historically carried the same rubric scores in three
+    // fields. Always merge from the authoritative evaluation_scores map, then
+    // keep the compatibility mirrors synchronized. This prevents changing one
+    // rubric (especially to N/A) from redrawing the other rubrics as unscored.
+    const currentScores = model === "Bassett" && !isComparison
+      ? (current.evaluation_scores || {})
+      : (current.evaluations?.[model]?.scores || {});
+    const nextScores = { ...currentScores, [key]: value };
+    return {
+      ...current,
+      evaluations: {
+        ...(current.evaluations || {}),
+        [model]: {
+          ...(current.evaluations?.[model] || {}),
+          scores: nextScores,
+          ...(model === "Bassett" && current.rubric_revision !== LEGACY_RUBRIC_REVISION
+            ? { rubric_scores: nextScores } : {}),
+        },
       },
-    },
-    ...(model === "Bassett" ? {
-      evaluation_scores: { ...(current.evaluation_scores || {}), [key]: value },
-      ...(current.rubric_revision && current.rubric_revision !== LEGACY_RUBRIC_REVISION
-        ? { rubric_scores: { ...(current.rubric_scores || {}), [key]: value } } : {}),
-    } : {}),
-  }));
+      ...(model === "Bassett" ? {
+        evaluation_scores: nextScores,
+        ...(current.rubric_revision && current.rubric_revision !== LEGACY_RUBRIC_REVISION
+          ? { rubric_scores: nextScores } : {}),
+      } : {}),
+    };
+  });
   const updateEvaluationResult = (model, value) => setForm((current) => ({
     ...current,
     evaluations: {
@@ -815,7 +836,13 @@ export default function UnifiedTestEntryForm({
     ...(model === "Bassett" ? { score_rationale: value } : {}),
   }));
   const responseFor = (model) => form.responses?.[model] || (model === "Bassett" ? { response: form.exact_bassett_answer } : {});
-  const evaluationFor = (model) => form.evaluations?.[model] || { scores: model === "Bassett" ? form.evaluation_scores : {} };
+  const evaluationFor = (model) => {
+    const evaluation = form.evaluations?.[model] || {};
+    if (model === "Bassett" && !isComparison) {
+      return { ...evaluation, scores: form.evaluation_scores || {} };
+    }
+    return evaluation.scores ? evaluation : { ...evaluation, scores: model === "Bassett" ? (form.evaluation_scores || {}) : {} };
+  };
   const saveDraft = () => {
     try {
       localStorage.setItem(DRAFT_KEYS[mode], JSON.stringify(serializeBassettTestRunDraft(form)));
