@@ -192,6 +192,7 @@ export default function BassettIssues() {
   const [form, setForm] = useState(null);
   const [conflict, setConflict] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [loadingEditId, setLoadingEditId] = useState(null);
   const [confirmingArchive, setConfirmingArchive] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
@@ -312,6 +313,7 @@ export default function BassettIssues() {
 
   const save = async () => {
     if (saving) return;
+    setSaveError("");
     setSaving(true);
     try {
       const { issueId, uploadFailures, evidenceFailures } = await persistBassettTestRun(form);
@@ -337,8 +339,14 @@ export default function BassettIssues() {
     } catch (error) {
       if (error?.response?.status === 409 && form.id) {
         try { setConflict((await api.get(`/bassett/issues/${form.id}`)).data); } catch { setConflict({ revision: error?.response?.data?.detail?.current_revision }); }
-        toast.error(staleUpdateMessage(error) || "This test run changed elsewhere. Review your entries before reapplying them.");
-      } else toast.error(actionError(error, "Unable to save test run"));
+        const message = staleUpdateMessage(error) || "This test run changed elsewhere. Review your entries before reapplying them.";
+        setSaveError(message);
+        toast.error(message);
+      } else {
+        const message = actionError(error, "Unable to save test run");
+        setSaveError(message);
+        toast.error(message);
+      }
     }
     finally { setSaving(false); }
   };
@@ -349,6 +357,7 @@ export default function BassettIssues() {
       const data = await loadBassettTestRunForEdit(issue);
       setSelected(null);
       setConflict(null);
+      setSaveError("");
       setForm(data);
     } catch (error) {
       toast.error(actionError(error, "Unable to open test run for editing"));
@@ -521,13 +530,16 @@ export default function BassettIssues() {
      </MethodologyDisclosure>
 
      {selected && !showingFindings && <IssueDetail id={selected} onClose={() => setSelected(null)} onEdit={openEdit} onRestore={restore} canWrite={canWrite} canManage={canManage} refresh={() => qc.invalidateQueries()} />}
-    {form && <BassettTestRunForm key={`${form.id || form.submission_id || "new"}:${form._draftRecoveryNonce || "initial"}`} form={form} setForm={setForm} scenarios={scenarios} rubricCatalog={rubricCatalog} generalSubtypes={generalSubtypes} versions={versions} projects={projects} municipalities={municipalities} properties={properties} users={users} evidenceRecords={evidenceRecords} availableFindings={availableFindings} config={config} onSubmit={save} onCancel={() => { setConflict(null); setForm(null); }} submitting={saving} conflictNotice={conflict && <div role="alert" className="col-span-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+    {form && <BassettTestRunForm key={`${form.id || form.submission_id || "new"}:${form._draftRecoveryNonce || "initial"}`} form={form} setForm={setForm} scenarios={scenarios} rubricCatalog={rubricCatalog} generalSubtypes={generalSubtypes} versions={versions} projects={projects} municipalities={municipalities} properties={properties} users={users} evidenceRecords={evidenceRecords} availableFindings={availableFindings} config={config} onSubmit={save} onCancel={() => { setConflict(null); setSaveError(""); setForm(null); }} submitting={saving} conflictNotice={<>
+      {saveError && <div role="alert" className="col-span-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"><p className="font-semibold">Your changes were not saved.</p><p className="mt-1">{saveError}</p></div>}
+      {conflict && <div role="alert" className="col-span-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
       <p className="font-semibold">Someone else saved this test run first. Your entries are still open for review.</p>
       <div className="mt-2 flex gap-2">
         <Button type="button" size="sm" variant="outline" onClick={() => { setForm(conflict); setConflict(null); }}>Load latest values</Button>
         <Button type="button" size="sm" onClick={() => { setForm((draft) => ({ ...draft, expected_revision: conflict.revision, expected_updated_at: conflict.updated_at })); setConflict(null); }}>Keep my entries and reapply</Button>
       </div>
-    </div>} />}
+    </div>}
+    </>} />}
     {showImport && <FormModal open onOpenChange={(open) => !open && setShowImport(false)} title="Review Bassett Test Run CSV" onSubmit={importPreview ? commitImport : previewImport} submitDisabled={importing || !importRows.length || Boolean(importPreview?.invalid)} submitLabel={importing ? "Importing…" : importPreview ? "Confirm Import Accepted Rows" : "Preview Rows"}>
       <p className="text-sm text-muted-foreground">Administrator-controlled import. Existing IDs are updated; no rows are written until validation succeeds.</p>
       <Input aria-label="Choose Bassett test run CSV" type="file" accept=".csv" onChange={loadCsv} />

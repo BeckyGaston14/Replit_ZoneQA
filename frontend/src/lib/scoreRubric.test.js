@@ -6,7 +6,7 @@ test("defines one behavioral reason for every integer score", () => {
 });
 
 test("describes selected scores and distinguishes missing evidence", () => {
-  expect(scoreRubricReason(8)).toContain("Substantively correct");
+  expect(scoreRubricReason(8)).toContain("One minor correction");
   expect(scoreRubricReason(null)).toContain("Not scored");
   expect(scoreRubricReason("N/A")).toContain("Not Applicable");
   expect(hasScoredDimension({ accuracy: null, usefulness: "" })).toBe(false);

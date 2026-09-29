@@ -538,7 +538,13 @@ function validate(form, mode) {
       ["verified_correct_answer", "The verified correct answer is required"],
       ["test_date", "The test date is required"],
     ];
-    const missing = required.find(([key]) => !String(form[key] || "").trim());
+    const missing = required.find(([key]) => {
+      if (String(form[key] || "").trim()) return false;
+      // Older saved runs may predate a required field. Permit unrelated edits
+      // without silently allowing a populated value to be cleared.
+      if (form.id && form._original_required_values?.[key] === false) return false;
+      return true;
+    });
     if (missing) return missing[1];
     if (!BASSETT_RESULT_OPTIONS.includes(normalizeEvaluationResult(form.result))) return "Select a valid test result";
     if (hasScoredDimension(form.evaluation_scores) && String(form.score_rationale || "").trim().length < 20) return "Explain the Bassett scores in the Score rationale using at least 20 characters.";
@@ -922,6 +928,13 @@ export default function UnifiedTestEntryForm({
   const sectionLabels = isComparison
     ? ["Setup", "Records & prompt", "Bassett result", "Rubric", "Findings", "Sources", "Follow-up", "ChatGPT", "Claude", "Benchmarks", "Comparison"]
     : ["Setup", uploadedConversation ? "Records & conversation" : "Records & prompt", "Bassett result", "Rubric", "Findings", "Sources", ...(showFollowUp ? ["Follow-up"] : [])];
+  const bassettPhases = [
+    { label: "Setup", sections: [0] },
+    { label: "Conversation & evidence", sections: [1, 5] },
+    { label: "Evaluation", sections: [2, 3] },
+    { label: "Findings & follow-up", sections: [4, ...(showFollowUp ? [6] : [])] },
+  ];
+  const activePhase = isComparison ? null : Math.max(0, bassettPhases.findIndex((phase) => phase.sections.includes(activeSection)));
   const formTitle = form.id
     ? `Edit ${isComparison ? "Model Comparison Test Case" : "Bassett Test Run"}`
     : isComparison ? "New Model Comparison Test Case" : "New Bassett Test Run";
@@ -954,8 +967,13 @@ export default function UnifiedTestEntryForm({
       <div className="text-right"><div className="text-xs font-semibold text-muted-foreground">Required completeness</div><div data-testid="workflow-completeness" className="font-semibold text-[var(--navy)]">{progress.complete}/{progress.total} required fields {progress.ready ? "· Ready" : "· In progress"}</div></div>
     </div>
     <div className="sticky top-0 z-20 -mx-1 rounded-lg border bg-background/95 p-2 shadow-sm backdrop-blur" aria-live="polite" data-testid="workflow-section-progress">
-      <div className="mb-2 flex items-center justify-between px-1 text-xs"><span className="font-semibold text-[var(--navy)]">Step {activeSection + 1} of {totalSections}: {sectionLabels[activeSection]}</span><span className="text-muted-foreground">{sectionStatus(activeSection)}</span></div>
-      <div className="flex gap-1 overflow-x-auto pb-1" aria-label="Test entry steps">{sectionLabels.map((label, index) => <button key={`${index}-${label}`} type="button" aria-current={activeSection === index ? "step" : undefined} aria-label={`Step ${index + 1}: ${label}`} title={label} onClick={() => activateSection(index)} className={`min-w-8 rounded-md border px-2 py-1 text-xs font-semibold ${activeSection === index ? "border-[var(--orange)] bg-orange-50 text-[var(--orange)]" : sectionStatus(index) === "Complete" ? "border-green-200 bg-green-50 text-green-800" : "bg-background text-muted-foreground"}`}>{index + 1}</button>)}</div>
+      {isComparison ? <>
+        <div className="mb-2 flex items-center justify-between px-1 text-xs"><span className="font-semibold text-[var(--navy)]">Step {activeSection + 1} of {totalSections}: {sectionLabels[activeSection]}</span><span className="text-muted-foreground">{sectionStatus(activeSection)}</span></div>
+        <div className="flex gap-1 overflow-x-auto pb-1" aria-label="Test entry steps">{sectionLabels.map((label, index) => <button key={`${index}-${label}`} type="button" aria-current={activeSection === index ? "step" : undefined} aria-label={`Step ${index + 1}: ${label}`} title={label} onClick={() => activateSection(index)} className={`min-w-8 rounded-md border px-2 py-1 text-xs font-semibold ${activeSection === index ? "border-[var(--orange)] bg-orange-50 text-[var(--orange)]" : sectionStatus(index) === "Complete" ? "border-green-200 bg-green-50 text-green-800" : "bg-background text-muted-foreground"}`}>{index + 1}</button>)}</div>
+      </> : <>
+        <div className="mb-2 flex items-center justify-between px-1 text-xs"><span className="font-semibold text-[var(--navy)]">Section {activePhase + 1} of 4: {bassettPhases[activePhase].label}</span><span className="text-muted-foreground">{sectionStatus(activeSection)}</span></div>
+        <div className="grid grid-cols-2 gap-1 sm:grid-cols-4" aria-label="Test entry sections">{bassettPhases.map((phase, index) => <button key={phase.label} type="button" aria-current={activePhase === index ? "step" : undefined} aria-label={`Section ${index + 1}: ${phase.label}`} onClick={() => activateSection(phase.sections[0])} className={`rounded-md border px-2 py-1 text-xs font-semibold ${activePhase === index ? "border-[var(--orange)] bg-orange-50 text-[var(--orange)]" : "bg-background text-muted-foreground"}`}>{index + 1}. {phase.label}</button>)}</div>
+      </>}
     </div>
     {conflictNotice}
     {submitError && <div role="alert" aria-live="assertive" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"><p className="font-semibold">This test cannot be saved yet.</p><p className="mt-1">{submitError}</p></div>}

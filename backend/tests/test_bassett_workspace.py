@@ -749,6 +749,29 @@ def test_new_runs_reject_legacy_results_and_invalid_scores():
         server._validate_bassett_run_result({"result": "Pass", "score": 101})
     assert score.value.status_code == 400
 
+
+def test_legacy_missing_required_values_do_not_block_unrelated_edits():
+    existing = {
+        "test_type": "Single Prompt", "conversation_source": "structured_text",
+        "question_asked": "Question", "exact_bassett_answer": "Answer",
+        "verified_correct_answer": "",
+    }
+    merged = {**existing, "notes": "Updated internal note"}
+    server._validate_issue_required_update(existing, merged)
+
+
+def test_existing_required_value_cannot_be_cleared_during_edit():
+    existing = {
+        "test_type": "Single Prompt", "conversation_source": "structured_text",
+        "question_asked": "Question", "exact_bassett_answer": "Answer",
+        "verified_correct_answer": "Verified answer",
+    }
+    with pytest.raises(HTTPException) as exc:
+        server._validate_issue_required_update(
+            existing, {**existing, "verified_correct_answer": ""}
+        )
+    assert "verified correct answer" in str(exc.value.detail).lower()
+
 def test_canonical_run_scenario_link_cannot_be_changed(monkeypatch):
     class ExistingRunDb(_RunDb):
         def __init__(self):

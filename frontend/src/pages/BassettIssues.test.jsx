@@ -429,7 +429,14 @@ test("row edit loads the complete current test run before opening the form", asy
   };
   const apiClient = { get: jest.fn(() => Promise.resolve({ data: complete })) };
 
-  await expect(loadBassettTestRunForEdit(issue, apiClient)).resolves.toBe(complete);
+  await expect(loadBassettTestRunForEdit(issue, apiClient)).resolves.toEqual(expect.objectContaining({
+    ...complete,
+    _original_required_values: {
+      question_asked: false,
+      exact_bassett_answer: false,
+      verified_correct_answer: false,
+    },
+  }));
   expect(apiClient.get).toHaveBeenCalledWith("/bassett/issues/run-615");
 });
 
