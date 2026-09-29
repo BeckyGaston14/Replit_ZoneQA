@@ -23,6 +23,15 @@ import { FindingsCrossNavigation } from "../components/FindingsCrossNavigation";
 
 const ALL = "__all";
 const DEFAULT_FILTERS = { status: ALL, criticality: ALL, type: ALL, retest: ALL, version: ALL };
+const PERSONAL_FINDING_STATUS_LABELS = {
+  New: "Not Yet Reviewed", Confirmed: "Reviewing", "Needs Investigation": "Reviewing",
+  Planned: "Reported to Development", "In Development": "Reported to Development",
+  "Ready for Retest": "Ready to Retest", Fixed: "Resolved", Closed: "Closed", "Won't Fix": "Closed", Duplicate: "Closed",
+};
+const PERSONAL_FINDING_STATUSES = Object.fromEntries(Object.entries(FINDING_STATUSES).map(([value, definition]) => [value, {
+  ...definition,
+  label: PERSONAL_FINDING_STATUS_LABELS[value] || value,
+}]));
 
 function normalizeFilters(saved = {}, config, findings) {
   const allowed = {
@@ -198,10 +207,9 @@ export default function Findings() {
       {(findingsQuery.isLoading || findingsQuery.isError) && <QueryState query={findingsQuery} resource="model comparison findings" testId="findings" />}
       {staleSelection && <div role="alert" className="mb-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950" data-testid="finding-not-found">That finding was not found or is no longer available. <Button size="sm" variant="outline" className="ml-3" onClick={closeFinding}>Return to findings</Button></div>}
       {!findingsQuery.isLoading && !findingsQuery.isError && <>
-       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3 mb-6">
+       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 mb-6">
         <StatCard label="Open Findings" value={openFindings} sub="excludes fixed and closed findings" icon={Flag} accent="#f97316" />
         <StatCard label="New Findings" value={newFindings} sub="newly recorded findings" icon={AlertTriangle} accent="#2563eb" />
-         <StatCard label="High + Critical findings total" value={highFindings + criticalFindings} sub="High + Critical severity total" icon={ShieldAlert} accent="#b91c1c" />
          <StatCard label="High Findings" value={highFindings} sub="High severity" icon={ShieldAlert} accent="#ea580c" />
          <StatCard label="Critical Findings" value={criticalFindings} sub="Critical severity" icon={ShieldAlert} accent="#dc2626" />
         <StatCard label="Total Findings" value={findings.length} sub="linked to model comparisons" icon={CheckCircle2} accent="#16a34a" />
@@ -213,11 +221,11 @@ export default function Findings() {
               <Search size={15} className="absolute left-3 top-2.5 text-muted-foreground" />
               <Input aria-label="Search model comparison findings" className="pl-9 h-9" placeholder="Search finding, type, version, assignee…" value={search} onChange={(event) => setSearch(event.target.value)} />
             </div>
-            {[["type", config?.finding_types, "All finding categories"], ["version", [...new Set(findings.map((finding) => finding.version_found).filter(Boolean))], "All Bassett versions"]].map(([key, opts, label]) => (
+            {[["status", config?.finding_statuses, "All finding statuses"], ["criticality", SEVERITY_LABELS.map((label, index) => ({ value: String(index + 1), label })), "All severity"]].map(([key, opts, label]) => (
               <select key={key} value={flt[key]} onChange={(e) => setFilter(key, e.target.value)} data-testid={`filter-${key}`}
                 className="h-9 text-sm border rounded-md px-3 bg-background text-[var(--navy)]">
                 <option value={ALL}>{label}</option>
-                {(opts || []).map((o) => <option key={o} value={o}>{o}</option>)}
+                {(opts || []).map((option) => { const value = typeof option === "object" ? option.value : option; return <option key={value} value={value}>{typeof option === "object" ? option.label : (key === "status" ? PERSONAL_FINDING_STATUS_LABELS[option] || option : option)}</option>; })}
               </select>
             ))}
             {filtersActive && <Button type="button" size="sm" variant="outline" className="h-9 text-[var(--orange)]" onClick={clearFilters} data-testid="findings-clear-filters"><X size={13} className="mr-1" /> Clear filters</Button>}
@@ -225,7 +233,7 @@ export default function Findings() {
           <details className="mb-4 rounded-lg border bg-[var(--paper)] px-3 py-2">
             <summary className="cursor-pointer text-sm font-semibold text-[var(--navy)]">Additional filters</summary>
             <div className="mt-3 flex flex-wrap gap-2">
-              {[["status", config?.finding_statuses, "All finding statuses"], ["criticality", SEVERITY_LABELS.map((label, index) => ({ value: String(index + 1), label })), "All severity"], ["retest", ["Pending", "In Progress", "Fixed", "Partially Fixed", "Not Fixed"], "All retest states"]].map(([key, opts, label]) => (
+              {[["type", config?.finding_types, "All finding categories"], ["version", [...new Set(findings.map((finding) => finding.version_found).filter(Boolean))], "All Bassett versions"], ["retest", ["Pending", "In Progress", "Fixed", "Partially Fixed", "Not Fixed"], "All retest states"]].map(([key, opts, label]) => (
                 <select key={key} value={flt[key]} onChange={(event) => setFilter(key, event.target.value)} data-testid={`filter-${key}`} className="h-9 rounded-md border bg-background px-3 text-sm text-[var(--navy)]">
                   <option value={ALL}>{label}</option>
                   {(opts || []).map((option) => {
@@ -243,7 +251,7 @@ export default function Findings() {
                aria-label={`View finding ${f.title}`} aria-pressed={sel?.id === f.id}
                className={`w-full text-left bg-card border rounded-xl p-4 card-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)] focus-visible:ring-offset-2 ${sel?.id === f.id ? "border-[var(--orange)] border-2" : ""}`}>
               <div className="flex items-center gap-2 mb-1"><CritBadge value={f.criticality} />
-                <StatusBadge value={f.developer_status} definitions={FINDING_STATUSES} />
+                <StatusBadge value={f.developer_status} definitions={PERSONAL_FINDING_STATUSES} />
                 <span className="text-xs text-muted-foreground">{f.finding_type}</span>
               </div>
               <div className="font-semibold text-[var(--navy)]">{f.title}</div>
@@ -287,7 +295,7 @@ export default function Findings() {
                   <span className="text-xs font-semibold uppercase text-muted-foreground">Developer Workflow</span>
                   {user && user.role !== "viewer" && <Button size="sm" className="bg-[var(--orange)] hover:bg-[var(--orange-600)]" onClick={() => setStatusForm({ id: sel.id, status: sel.developer_status, resolution: sel.resolution || "", note: "" })} data-testid="update-status-btn">Update Status</Button>}
                 </div>
-                <div className="text-sm">Status: <b>{sel.developer_status}</b> · Retest: {sel.retest_status || "Pending"}</div>
+                <div className="text-sm">Status: <b>{PERSONAL_FINDING_STATUS_LABELS[sel.developer_status] || sel.developer_status}</b> · Retest: {sel.retest_status || "Pending"}</div>
                 {sel.resolution && <p className="text-sm mt-1 prose-response bg-[var(--paper)] p-2 rounded">{sel.resolution}</p>}
                 {user && user.role !== "viewer" && !["Fixed", "Closed", "Won't Fix", "Duplicate"].includes(sel.developer_status) && sel.retest_status !== "In Progress" && (
                   <Button size="sm" variant="outline" className="mt-2 border-[var(--orange)] text-[var(--orange)] hover:bg-orange-50"

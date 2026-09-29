@@ -63,7 +63,8 @@ function renderDashboard() {
 
 test("renders the exact hierarchy with responsive KPI and panel classes", () => {
   const { container, root } = renderDashboard();
-  expect([...container.querySelectorAll("h2")].map((node) => node.textContent)).toEqual(["Primary KPIs", "Performance", "Current Rubric Performance", "Findings and action"]);
+  expect([...container.querySelectorAll("h2")].map((node) => node.textContent)).toEqual(["Primary KPIs", "What needs your attention", "Performance", "Current Rubric Performance", "Findings and action"]);
+  expect(container.textContent).toContain("View analytics and detailed breakdowns");
   expect(container.querySelector(".grid-cols-1.sm\\:grid-cols-2.xl\\:grid-cols-4")).not.toBeNull();
   expect(container.querySelector(".grid-cols-1.lg\\:grid-cols-2")).not.toBeNull();
   expect(container.querySelectorAll('a[data-testid^="stat-"]')).toHaveLength(4);

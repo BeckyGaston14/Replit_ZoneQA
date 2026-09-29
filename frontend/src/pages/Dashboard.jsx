@@ -96,6 +96,22 @@ export default function Dashboard() {
         {loadingAny && (!metrics.data || !bassettMetrics.data) ? <DashboardState title="Loading primary metrics…" /> : (metrics.isError || bassettMetrics.isError) ? <InlineError retry={() => Promise.all([metrics.refetch(), bassettMetrics.refetch()])} /> : <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">{kpis.map((card) => <StatCard key={card.label} {...card} showInfo={false} showCalculation={false} testid={`stat-${card.label.toLowerCase().replace(/\s+/g, "-")}`} />)}</div>}
       </section>
 
+      <section aria-labelledby="dashboard-actions" className="mb-5 rounded-xl border bg-card p-4">
+        <div className="mb-3">
+          <h2 id="dashboard-actions" className="font-display font-semibold text-[var(--navy)]">What needs your attention</h2>
+          <p className="text-xs text-muted-foreground">Use these shortcuts for the everyday QA workflow. Detailed performance reporting remains available below.</p>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <ActionLink to="/bassett/issues" label="Review test runs" value={needsAttention} help="Check incomplete or failing Bassett tests." />
+          <ActionLink to="/bassett/findings" label="Review open issues" value={first(findings.bassett_open, findings.open, 0)} help="Prepare and track issues for development." />
+          <ActionLink to="/bassett/findings" label="Ready to retest" value="View" help="Open findings and use the Ready to Retest quick view." />
+          <ActionLink to="/bassett/test-bank" label="Choose the next scenario" value={coverage ? `${coverage.covered}/${coverage.total}` : "View"} help="Start from the Test Bank so the result counts in coverage." />
+        </div>
+      </section>
+
+      <details className="mb-5 rounded-xl border bg-card p-4">
+        <summary className="cursor-pointer font-display font-semibold text-[var(--navy)]">View analytics and detailed breakdowns</summary>
+        <div className="mt-4">
       <section aria-labelledby="dashboard-performance" className="mb-5">
         <h2 id="dashboard-performance" className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Performance</h2>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -113,6 +129,8 @@ export default function Dashboard() {
           <FindingsPanel title="Model Comparison Findings" scope="comparison" findings={findings} total={first(findings.comparison_open, 0)} />
         </div>}
       </section>
+        </div>
+      </details>
 
       <MethodologyDisclosure title="How dashboard metrics are calculated" testid="dashboard-methodology">
         <p>Performance and action metrics use the active Bassett version and the current dashboard scope. Finding totals span unresolved findings across visible versions. Archived, unfinished, missing, and N/A records are excluded; missing scores are never treated as zero.</p>
@@ -120,6 +138,14 @@ export default function Dashboard() {
       </MethodologyDisclosure>
     </div>
   );
+}
+
+function ActionLink({ to, label, value, help }) {
+  return <Link to={to} className="rounded-lg border bg-[var(--paper)] p-3 transition-colors hover:border-[var(--orange)] hover:bg-orange-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)]">
+    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
+    <div className="mt-1 font-display text-xl font-bold text-[var(--navy)]">{value}</div>
+    <p className="mt-1 text-xs text-muted-foreground">{help}</p>
+  </Link>;
 }
 
 function PerformancePanel({ title, query, data, scope, version }) {

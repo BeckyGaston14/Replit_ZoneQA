@@ -34,17 +34,21 @@ import {
 } from "../lib/tableStyles";
 const defaultTestStatuses = ["Not Started", "In Review", "Engineering", "Closed / Resolved", "Ready for Retesting"];
 const PERSONAL_FINDING_STATUS_LABELS = {
-  New: "New",
+  New: "Not Yet Reviewed",
   Confirmed: "Reviewing",
-  "Needs Investigation": "Reviewing — more information needed",
-  Planned: "Reported to Development — planned",
-  "In Development": "Reported to Development — in progress",
+  "Needs Investigation": "Reviewing",
+  Planned: "Reported to Development",
+  "In Development": "Reported to Development",
   "Ready for Retest": "Ready to Retest",
   Fixed: "Resolved",
-  "Won't Fix": "Closed — won't fix",
-  Duplicate: "Closed — duplicate",
+  "Won't Fix": "Closed",
+  Duplicate: "Closed",
   Closed: "Closed",
 };
+const PERSONAL_FINDING_STATUSES = Object.fromEntries(Object.entries(FINDING_STATUSES).map(([value, definition]) => [value, {
+  ...definition,
+  label: PERSONAL_FINDING_STATUS_LABELS[value] || value,
+}]));
 const DEFAULT_RUN_SORT = { key: "test_date", direction: "desc" };
 
 export async function persistBassettTestRun(form, apiClient = api) {
@@ -189,6 +193,7 @@ export default function BassettIssues() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const [filters, setFilters] = useState(() => ({ status: "all", severity: "all", type: "all", retest: "all", project: searchParams.get("project_id") || "all", version: "all", result: "all", stage: "all", testType: "all", environment: "all", search: "", dateFrom: "", dateTo: "" }));
+  const [quickView, setQuickView] = useState("");
   const [form, setForm] = useState(null);
   const [conflict, setConflict] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -271,6 +276,10 @@ export default function BassettIssues() {
   }), [issues, scenarioMap]);
   const shown = useMemo(() => sortTableRows(issues.filter((issue) => {
     if (!showingFindings && Boolean(issue.archived || issue.status === "Archived") !== showArchived) return false;
+    if (showingFindings && quickView === "attention" && (!['New', 'Confirmed', 'Needs Investigation'].includes(issue.developer_status) || !['High', 'Critical'].includes(severityLabel(issue.severity)))) return false;
+    if (showingFindings && quickView === "not-started" && issue.developer_status !== "New") return false;
+    if (showingFindings && quickView === "reported" && !['Planned', 'In Development'].includes(issue.developer_status)) return false;
+    if (showingFindings && quickView === "retest" && issue.developer_status !== "Ready for Retest") return false;
     if (showingFindings && filters.status !== "all" && issue.developer_status !== filters.status) return false;
     if (showingFindings && filters.severity !== "all" && severityLabel(issue.severity) !== filters.severity) return false;
     if (showingFindings && filters.type !== "all" && issue.finding_type !== filters.type) return false;
@@ -290,10 +299,11 @@ export default function BassettIssues() {
     const query = filters.search.trim().toLowerCase();
     return !query || [issue.title, issue.description, issue.question_asked, issue.exact_bassett_answer, issue.issue_category, issue.finding_type, issue.version_found, issue.assignee_name, issue.scenario_id]
       .some((value) => String(value || "").toLowerCase().includes(query));
-  }), runColumns, sort, [{ key: "test_date", direction: "desc" }, "title"]), [issues, filters, runColumns, sort, scenarioMap, showArchived, showingFindings]);
+  }), runColumns, sort, [{ key: "test_date", direction: "desc" }, "title"]), [issues, filters, quickView, runColumns, sort, scenarioMap, showArchived, showingFindings]);
   const defaultSort = showingFindings ? { key: "severity", direction: "asc" } : DEFAULT_RUN_SORT;
-  const filtersActive = Boolean(filters.search || filters.dateFrom || filters.dateTo || Object.entries(filters).some(([key, value]) => !["search", "dateFrom", "dateTo"].includes(key) && value !== "all"));
+  const filtersActive = Boolean(quickView || filters.search || filters.dateFrom || filters.dateTo || Object.entries(filters).some(([key, value]) => !["search", "dateFrom", "dateTo"].includes(key) && value !== "all"));
   const clearFilters = () => {
+    setQuickView("");
     setFilters({ status: "all", severity: "all", type: "all", retest: "all", project: "all", version: "all", result: "all", stage: "all", testType: "all", environment: "all", search: "", dateFrom: "", dateTo: "" });
     if (searchParams.has("project_id")) {
       const next = new URLSearchParams(searchParams);
@@ -303,10 +313,12 @@ export default function BassettIssues() {
   };
   const applyQuickView = (view) => {
     const base = { status: "all", severity: "all", type: "all", retest: "all", project: "all", version: "all", result: "all", stage: "all", testType: "all", environment: "all", search: "", dateFrom: "", dateTo: "" };
-    if (view === "attention") setFilters({ ...base, search: "", result: "Critical Fail" });
+    setQuickView(showingFindings ? view : "");
+    if (showingFindings) setFilters(base);
+    else if (view === "attention") setFilters({ ...base, search: "", result: "Critical Fail" });
     else if (view === "not-started") setFilters({ ...base, status: "Not Started" });
     else if (view === "reported") setFilters({ ...base, status: "Engineering" });
-    else if (view === "retest") setFilters({ ...base, status: showingFindings ? "Ready for Retest" : "Ready for Retesting" });
+    else if (view === "retest") setFilters({ ...base, status: "Ready for Retesting" });
     else setFilters(base);
   };
 
@@ -432,12 +444,9 @@ export default function BassettIssues() {
     </div>
     {metricsLoading && <div className="mb-3 rounded-lg border bg-[var(--paper)] px-4 py-3 text-sm text-muted-foreground" role="status" aria-live="polite">Calculating summary metrics… The records below are already available while ZoneQA finishes the totals.</div>}
     {metricsError && <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="status">Summary metrics could not be loaded. The record list below is still available.</div>}
-     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3 mb-6">
+     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 mb-6">
        <StatCard label={showingFindings ? "Open Findings" : "Tests Needing Attention"} value={showingFindings ? (metrics?.findings?.open ?? 0) : (metrics?.test_runs?.attention ?? "—")} sub={showingFindings ? "excludes fixed and closed findings" : "Needs Improvement, Fail, Critical Fail, or legacy Blocked"} icon={Flag} accent="#f97316" />
        <StatCard label={showingFindings ? "New Findings" : "Not Started Test Runs"} value={showingFindings ? (metrics?.findings?.new ?? 0) : (metrics?.issues?.new ?? "—")} sub={showingFindings ? "newly recorded findings" : "Workflow status is Not Started."} icon={AlertTriangle} accent="#2563eb" />
-       {showingFindings
-         ? <StatCard label="High + Critical findings total" value={metrics?.findings?.critical ?? 0} sub="High + Critical severity total" icon={ShieldAlert} accent="#b91c1c" />
-         : <StatCard label="High + Critical severity total" value={metrics?.issues?.critical ?? "—"} sub="High + Critical severity total" icon={ShieldAlert} accent="#b91c1c" />}
        <StatCard label={showingFindings ? "High Findings" : "High Severity"} value={showingFindings ? (metrics?.findings?.high ?? 0) : (metrics?.issues?.high ?? "—")} sub="High severity" icon={ShieldAlert} accent="#ea580c" />
        <StatCard label={showingFindings ? "Critical Findings" : "Critical Severity"} value={showingFindings ? (metrics?.findings?.critical_count ?? 0) : (metrics?.issues?.critical_count ?? "—")} sub="Critical severity" icon={ShieldAlert} accent="#dc2626" />
        <StatCard label={showingFindings ? "Total Findings" : "Scenario coverage"} value={showingFindings ? (metrics?.findings?.total ?? 0) : (metrics ? `${metrics.test_runs.test_bank_coverage.percent}%` : "—")} sub={showingFindings ? "linked to Bassett-only testing" : (metrics ? `${metrics.test_runs.test_bank_coverage.covered}/${metrics.test_runs.test_bank_coverage.total} active scenarios with a qualifying completed evaluation` : "Draft and Not Evaluated runs are excluded")} icon={CheckCircle2} accent="#16a34a" />
@@ -447,21 +456,18 @@ export default function BassettIssues() {
       <div className="flex flex-wrap gap-2 mb-4">
         <div className="relative flex-1 min-w-[220px]"><Search size={15} className="absolute left-3 top-2.5 text-muted-foreground" /><Input aria-label={showingFindings ? "Search Bassett findings" : "Search Bassett test runs"} className="pl-9" placeholder={showingFindings ? "Search finding, test run, category, scenario…" : "Search question, response, category, scenario…"} value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} /></div>
          {!showingFindings && <select aria-label="Filter by Workflow status" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}><option value="all">All workflow statuses</option>{testStatuses.map((x) => <option key={x}>{x}</option>)}</select>}
-         {showingFindings
-            ? <select aria-label="Filter by severity" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.severity} onChange={(e) => setFilters({ ...filters, severity: e.target.value })}><option value="all">All severity</option>{SEVERITY_LABELS.map((x) => <option key={x}>{x}</option>)}</select>
-            : <select aria-label="Filter by severity" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.severity} onChange={(e) => setFilters({ ...filters, severity: e.target.value })}><option value="all">All severity</option>{SEVERITY_LABELS.map((x) => <option key={x}>{x}</option>)}</select>}
-        {showingFindings && <>
-          {findingTypes.length > 1 && <select aria-label="Filter by finding category" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.type} onChange={(e) => setFilters({ ...filters, type: e.target.value })}><option value="all">All finding categories</option>{findingTypes.map((x) => <option key={x}>{x}</option>)}</select>}
-          {findingVersions.length > 0 && <select aria-label="Filter by Bassett version" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.version} onChange={(e) => setFilters({ ...filters, version: e.target.value })}><option value="all">All Bassett versions</option>{findingVersions.map((x) => <option key={x}>{x}</option>)}</select>}
-        </>}
-        <select aria-label="Filter by testing project" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.project} onChange={(e) => setFilters({ ...filters, project: e.target.value })}><option value="all">All testing projects</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select>
+         <select aria-label="Filter by severity" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.severity} onChange={(e) => setFilters({ ...filters, severity: e.target.value })}><option value="all">All severity</option>{SEVERITY_LABELS.map((x) => <option key={x}>{x}</option>)}</select>
+        {showingFindings && <select aria-label="Filter by finding status" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}><option value="all">All finding statuses</option>{(config?.finding_statuses || []).map((x) => <option key={x} value={x}>{PERSONAL_FINDING_STATUS_LABELS[x] || x}</option>)}</select>}
+        {!showingFindings && <select aria-label="Filter by testing project" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.project} onChange={(e) => setFilters({ ...filters, project: e.target.value })}><option value="all">All testing projects</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select>}
          {!showingFindings && <><Input aria-label="Test Date from" title="Test Date from" type="date" className="w-auto" value={filters.dateFrom} onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })} /><Input aria-label="Test Date to" title="Test Date to" type="date" className="w-auto" value={filters.dateTo} onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })} /></>}
         {filtersActive && <Button type="button" size="sm" variant="outline" className="h-9 text-[var(--orange)]" onClick={clearFilters} data-testid="bassett-clear-filters"><X size={13} className="mr-1" /> Clear filters</Button>}
       </div>
       {showingFindings && <details className="mb-4 rounded-lg border bg-[var(--paper)] px-3 py-2">
         <summary className="cursor-pointer text-sm font-semibold text-[var(--navy)]">Additional filters</summary>
         <div className="mt-3 flex flex-wrap gap-2">
-          <select aria-label="Filter by finding status" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}><option value="all">All finding statuses</option>{(config?.finding_statuses || []).map((x) => <option key={x} value={x}>{PERSONAL_FINDING_STATUS_LABELS[x] || x}</option>)}</select>
+          {findingTypes.length > 1 && <select aria-label="Filter by finding category" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.type} onChange={(e) => setFilters({ ...filters, type: e.target.value })}><option value="all">All finding categories</option>{findingTypes.map((x) => <option key={x}>{x}</option>)}</select>}
+          {findingVersions.length > 0 && <select aria-label="Filter by Bassett version" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.version} onChange={(e) => setFilters({ ...filters, version: e.target.value })}><option value="all">All Bassett versions</option>{findingVersions.map((x) => <option key={x}>{x}</option>)}</select>}
+          <select aria-label="Filter by testing project" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.project} onChange={(e) => setFilters({ ...filters, project: e.target.value })}><option value="all">All testing projects</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select>
           <select aria-label="Filter by retest status" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.retest} onChange={(e) => setFilters({ ...filters, retest: e.target.value })}><option value="all">All retest states</option>{["Pending", "In Progress", "Fixed", "Partially Fixed", "Not Fixed"].map((x) => <option key={x}>{x}</option>)}</select>
           <select aria-label="Filter by test result" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.result} onChange={(e) => setFilters({ ...filters, result: e.target.value })}><option value="all">All test results</option>{findingOptions.results.map((x) => <option key={x}>{x}</option>)}</select>
           <select aria-label="Filter by Test Bank type" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.stage} onChange={(e) => setFilters({ ...filters, stage: e.target.value })}><option value="all">All Test Bank types</option>{findingOptions.stages.map((x) => <option key={x}>{x}</option>)}</select>
@@ -475,7 +481,7 @@ export default function BassettIssues() {
         {isLoading && <div className="border rounded-xl p-8 text-center text-sm text-muted-foreground">Loading Bassett findings… this may take a few seconds.</div>}
         {!isLoading && shown.map((finding) => <button type="button" key={finding.id} onClick={() => setSelected(finding.id)} aria-label={`View finding ${finding.title || "Untitled finding"}`} aria-pressed={selected === finding.id}
           className={`w-full text-left bg-card border rounded-xl p-4 card-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)] focus-visible:ring-offset-2 ${selected === finding.id ? "border-[var(--orange)] border-2" : ""}`}>
-          <div className="flex flex-wrap items-center gap-2 mb-1"><Pill tone={severityLabel(finding.severity) === "Critical" ? "red" : severityLabel(finding.severity) === "High" ? "orange" : "slate"}>{severityLabel(finding.severity) || "Not rated"}</Pill><StatusBadge value={finding.developer_status || "New"} definitions={FINDING_STATUSES} /><span className="text-xs text-muted-foreground">{finding.finding_type || "Other"}</span></div>
+          <div className="flex flex-wrap items-center gap-2 mb-1"><Pill tone={severityLabel(finding.severity) === "Critical" ? "red" : severityLabel(finding.severity) === "High" ? "orange" : "slate"}>{severityLabel(finding.severity) || "Not rated"}</Pill><StatusBadge value={finding.developer_status || "New"} definitions={PERSONAL_FINDING_STATUSES} /><span className="text-xs text-muted-foreground">{finding.finding_type || "Other"}</span></div>
           <div className="font-semibold text-[var(--navy)]">{finding.title || "Untitled finding"}</div>
           <div className="text-xs text-muted-foreground mt-1">Found {finding.version_found || "version not specified"}{finding.assignee_name ? ` · @${finding.assignee_name}` : ""}</div>
         </button>)}
@@ -669,7 +675,7 @@ function BassettFindingDetail({ id, onClose, canWrite, refresh, embedded = false
       {isLoading && <div className="text-sm text-muted-foreground">Loading Bassett Finding Details…</div>}
       {isError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">Unable to load this Bassett finding.</div>}
       {finding && <div className="space-y-5 text-sm">
-        <div className="flex flex-wrap gap-2"><Pill tone={severityLabel(finding.severity) === "Critical" ? "red" : severityLabel(finding.severity) === "High" ? "orange" : "slate"}>{severityLabel(finding.severity) || "Not rated"}</Pill><StatusBadge value={finding.developer_status || "New"} definitions={FINDING_STATUSES} /></div>
+        <div className="flex flex-wrap gap-2"><Pill tone={severityLabel(finding.severity) === "Critical" ? "red" : severityLabel(finding.severity) === "High" ? "orange" : "slate"}>{severityLabel(finding.severity) || "Not rated"}</Pill><StatusBadge value={finding.developer_status || "New"} definitions={PERSONAL_FINDING_STATUSES} /></div>
         <Info label="Finding Category" value={`${finding.finding_type || "Other"}${finding.finding_type_detail ? ` · ${finding.finding_type_detail}` : ""}`} />
         <Info label="Description" value={finding.description || "—"} />
         <Info label="Expected behavior" value={finding.expected_behavior || "—"} />

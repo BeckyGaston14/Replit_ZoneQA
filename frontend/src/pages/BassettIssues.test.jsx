@@ -150,11 +150,33 @@ test("Bassett findings view is explicitly labeled and stays in the Bassett-only 
   expect(contextualShortcut.querySelector("button")).toBeNull();
   expect(container.textContent).toContain("Select a Bassett finding to view its details.");
   const additionalFilters = container.querySelector("details");
-  expect(additionalFilters.querySelector('[aria-label="Filter by finding status"]')).not.toBeNull();
+  expect(container.querySelector('[aria-label="Filter by finding status"]')).not.toBeNull();
+  expect(additionalFilters.querySelector('[aria-label="Filter by finding status"]')).toBeNull();
+  expect(additionalFilters.querySelector('[aria-label="Filter by testing project"]')).not.toBeNull();
   expect(additionalFilters.querySelector('[aria-label="Filter by Test Bank type"]')).not.toBeNull();
   expect(additionalFilters.querySelector('[aria-label="Filter by conversation format"]')).not.toBeNull();
   expect(additionalFilters.querySelector('[aria-label="Filter by priority"]')).toBeNull();
   expect(additionalFilters.querySelector('[aria-label="Filter by retest status"]')).not.toBeNull();
+  act(() => root.unmount());
+});
+
+test("Bassett finding quick views use finding workflow statuses", () => {
+  mockBassettSearchParams = new URLSearchParams("view=findings");
+  mockIssues = [
+    { id: "new-1", title: "New issue", developer_status: "New", severity: "Critical" },
+    { id: "planned-1", title: "Planned issue", developer_status: "Planned", severity: "High" },
+    { id: "dev-1", title: "Development issue", developer_status: "In Development", severity: "High" },
+    { id: "fixed-1", title: "Fixed issue", developer_status: "Fixed", severity: "Critical" },
+  ];
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  act(() => root.render(<BassettIssues />));
+  const reported = [...container.querySelectorAll("button")].find((button) => button.textContent === "Reported to Development");
+  act(() => reported.click());
+  expect(container.textContent).toContain("Planned issue");
+  expect(container.textContent).toContain("Development issue");
+  expect(container.textContent).not.toContain("New issue");
+  expect(container.textContent).not.toContain("Fixed issue");
   act(() => root.unmount());
 });
 
