@@ -15,6 +15,14 @@ export async function loadBassettTestRunForEdit(issue, apiClient = api) {
     return {
       ...data,
       ...editMetadata,
+      // A persisted current-rubric run is already initialized. Without these
+      // markers the entry form treats it like a new run, re-applies only the
+      // scenario defaults, and can silently drop additional saved rubric
+      // selections before the user edits a single score.
+      rubric_selection_initialized: true,
+      rubric_scenario_ids: Array.isArray(data.rubric_scenario_ids)
+        ? [...data.rubric_scenario_ids]
+        : [data.scenario_id, ...(data.scenario_ids || [])].filter(Boolean),
       evaluation_scores: { ...data.rubric_scores },
       ...(data.evaluations?.Bassett ? {
         evaluations: {
