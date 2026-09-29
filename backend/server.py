@@ -3791,6 +3791,53 @@ def _validate_issue_required(doc, has_conversation_attachment=False):
             raise HTTPException(400, f"{label} is required")
 
 
+def _validate_issue_required_update(existing, merged, has_conversation_attachment=False):
+    """Validate an edit without making legacy omissions block unrelated work.
+
+    A populated required value still cannot be cleared. Records created before a
+    field became required may, however, be updated without inventing historical
+    content. New records continue to use the strict validator above.
+    """
+    conversation_source = str(
+        merged.get("conversation_source") or "structured_text"
+    ).strip()
+    if conversation_source not in ("structured_text", "uploaded_conversation"):
+        raise HTTPException(
+            400, "Conversation source must be structured text or uploaded conversation"
+        )
+    merged["conversation_source"] = conversation_source
+    if conversation_source == "uploaded_conversation":
+        if (
+            not has_conversation_attachment
+            and str(existing.get("conversation_source") or "").strip()
+            != "uploaded_conversation"
+        ):
+            raise HTTPException(
+                400, "Upload at least one Bassett conversation file before saving"
+            )
+        merged["transcript_status"] = (
+            "confirmed" if _bassett_has_structured_transcript(merged) else "needs_review"
+        )
+        return
+    if merged.get("test_type") == "Multi-turn":
+        try:
+            _normalize_bassett_turns(merged)
+        except HTTPException:
+            if existing.get("test_type") != "Multi-turn" or existing.get("turns") != merged.get("turns"):
+                raise
+        return
+    labels = {
+        "question_asked": "The question asked",
+        "exact_bassett_answer": "The exact Bassett answer",
+        "verified_correct_answer": "The verified correct answer",
+    }
+    for field, label in labels.items():
+        if str(merged.get(field) or "").strip():
+            continue
+        if str(existing.get(field) or "").strip():
+            raise HTTPException(400, f"{label} is required")
+
+
 def _bassett_version_is_required(doc):
     status = str(doc.get("status") or "").strip().casefold()
     return status != "draft" and _canonical_bassett_result(doc.get("result")) != "Not Evaluated"
@@ -4868,14 +4915,22 @@ async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_c
     if "assignee_id" in incoming and user.get("role") not in BASSETT_MANAGER_ROLES:
         raise HTTPException(403, "Only QA managers and administrators can assign issues")
     merged = {**existing, **incoming}
-    if "selected_rubric_ids" in incoming or any(
-        str(key).upper().startswith("G-")
-        for key in (incoming.get("evaluation_scores") or {})
+    incoming_g_scores = {
+        key: value for key, value in (incoming.get("evaluation_scores") or {}).items()
+        if str(key).upper().startswith("G-")
+    }
+    requested_selected = normalize_rubric_ids(
+        incoming.get("selected_rubric_ids", existing.get("selected_rubric_ids") or [])
+    )
+    existing_selected = normalize_rubric_ids(existing.get("selected_rubric_ids") or [])
+    rubric_selection_changed = requested_selected != existing_selected
+    rubric_scores_changed = any(
+        (existing.get("rubric_scores") or {}).get(key) != value
+        for key, value in incoming_g_scores.items()
+    )
+    if ("selected_rubric_ids" in incoming or incoming_g_scores) and (
+        rubric_selection_changed or rubric_scores_changed
     ):
-        incoming_g_scores = {
-            key: value for key, value in (incoming.get("evaluation_scores") or {}).items()
-            if str(key).upper().startswith("G-")
-        }
         if incoming_g_scores:
             incoming["rubric_scores"] = {
                 **(existing.get("rubric_scores") or {}),
@@ -4928,6 +4983,14 @@ async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_c
             "weighted_score": rubric_result["overall_score"],
             "score_mode": "rubric_average",
         })
+    elif existing.get("rubric_revision") != CATALOG_REVISION:
+        # The client sends the complete edit form. Do not reinterpret unchanged
+        # legacy rubric data as an attempted migration to the current catalog.
+        for field in (
+            "selected_rubric_ids", "rubric_revision", "rubric_definition_snapshot",
+            "additional_rubric_ids", "rubric_scores", "category_scores", "score_count",
+        ):
+            incoming.pop(field, None)
     merged["severity"], merged["criticality"] = _canonical_severity_pair(
         merged.get("severity"), merged.get("criticality"),
     )
@@ -4936,7 +4999,8 @@ async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_c
     existing_attachment_count = await db.attachments.count_documents({
         "entity_type": "bassett_issue", "entity_id": id, "is_deleted": {"$ne": True}
     })
-    _validate_issue_required(
+    _validate_issue_required_update(
+        existing,
         merged,
         has_conversation_attachment=bool(existing_attachment_count or body.get("pending_attachment_count")),
     )
@@ -4950,8 +5014,25 @@ async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_c
         incoming["test_type"] = "Single Prompt"
         incoming["turns"] = []
     _validate_bassett_run_result(merged, allow_legacy=True)
-    _validate_bassett_version_requirement(merged)
-    await _validate_configured_environment(merged)
+    try:
+        _validate_bassett_version_requirement(merged)
+    except HTTPException:
+        version_unchanged_and_missing = (
+            not str(existing.get("version_id") or existing.get("bassett_version") or "").strip()
+            and not str(merged.get("version_id") or merged.get("bassett_version") or "").strip()
+            and _canonical_bassett_result(existing.get("result"))
+                == _canonical_bassett_result(merged.get("result"))
+            and existing.get("status") == merged.get("status")
+        )
+        if not version_unchanged_and_missing:
+            raise
+    try:
+        await _validate_configured_environment(merged)
+    except HTTPException:
+        if str(existing.get("environment") or "").strip() != str(
+            merged.get("environment") or ""
+        ).strip():
+            raise
     if "environment" in incoming:
         incoming["environment"] = merged["environment"]
     if "result" in incoming:

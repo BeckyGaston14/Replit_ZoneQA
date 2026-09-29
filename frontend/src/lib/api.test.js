@@ -1,5 +1,5 @@
 import {
-  api, isDefinitiveAuthFailure, RESULT_COLORS, staleUpdateMessage, withExpectedVersion,
+  api, formatApiErrorDetail, isDefinitiveAuthFailure, RESULT_COLORS, staleUpdateMessage, withExpectedVersion,
 } from "./api";
 
 function interceptorError(status, detail, url = "/projects") {
@@ -50,6 +50,13 @@ test("stale update errors retain edits with an actionable message", () => {
   expect(staleUpdateMessage({ response: { status: 409 } }))
     .toContain("edits are still open");
   expect(staleUpdateMessage({ response: { status: 500 } })).toBe("");
+});
+
+test("structured API errors are readable instead of object placeholders", () => {
+  expect(formatApiErrorDetail({ message: "Select a Bassett version." }))
+    .toBe("Select a Bassett version.");
+  expect(formatApiErrorDetail({ general_subtype_ids: "Unknown subtype" }))
+    .toBe("general subtype ids: Unknown subtype");
 });
 
 test("Bassett result colors use green, yellow, and red status semantics", () => {

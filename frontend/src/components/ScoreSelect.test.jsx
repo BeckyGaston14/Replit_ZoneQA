@@ -14,8 +14,8 @@ test("shows every rubric reason in the score dropdown and returns a number", () 
   expect(select.options).toHaveLength(13);
   expect(select.options[0].textContent).toContain("Not scored");
   expect(select.options[1].textContent).toContain("N/A — Not Applicable");
-  expect(select.options[2].textContent).toContain("10 — Fully correct");
-  expect(select.options[12].textContent).toContain("0 — No usable answer");
+  expect(select.options[2].textContent).toContain("10 — Use as delivered");
+  expect(select.options[12].textContent).toContain("0 — Complete failure");
   expect(host.querySelector('[aria-live="polite"]')).toBeNull();
   expect(host.textContent).not.toContain("missing evidence");
 
@@ -40,13 +40,13 @@ test("keeps the dropdown labels and shared rubric text available without repeate
       <ScoreSelect value={10} onChange={jest.fn()} ariaLabel="Accuracy score" />
       <details open>
         <summary>View the shared 0–10 scoring rubric</summary>
-        <p>10 — Fully correct, complete, supported, and professionally usable; no meaningful change needed.</p>
+        <p>10 — Use as delivered — fully correct, complete, and supported; no substantive changes are needed.</p>
       </details>
     </div>,
   ));
 
   expect(host.querySelector('select[aria-label="Accuracy score"]').value).toBe("10");
-  expect(host.textContent).toContain("10 — Fully correct");
+  expect(host.textContent).toContain("10 — Use as delivered");
   expect(host.textContent).toContain("View the shared 0–10 scoring rubric");
   expect(host.querySelector('select[aria-label="Accuracy score"]').parentElement.querySelector("p")).toBeNull();
   expect(host.querySelector('[aria-live="polite"]')).toBeNull();

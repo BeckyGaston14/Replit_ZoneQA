@@ -28,7 +28,7 @@ test("reference hooks share stable keys and a bounded user-session cache window"
   expect(useQuery).toHaveBeenLastCalledWith(expect.objectContaining({ queryKey: ["config", "user-a"], staleTime: 300000 }));
 });
 
-test("mutable collections and record lists refetch on repeat navigation instead of serving bounded stale data", () => {
+test("mutable collections refetch while catalog lists use a short invalidation-backed cache", () => {
   mockAuthState = { loading: false, user: { id: "user-a" } };
   useCollection("projects");
   expect(useQuery).toHaveBeenLastCalledWith(expect.objectContaining({
@@ -37,9 +37,9 @@ test("mutable collections and record lists refetch on repeat navigation instead 
     refetchOnMount: true,
   }));
   useTestCases();
-  expect(useQuery).toHaveBeenLastCalledWith(expect.objectContaining({ staleTime: 0, refetchOnMount: true }));
+  expect(useQuery).toHaveBeenLastCalledWith(expect.objectContaining({ staleTime: 60000, refetchOnMount: false }));
   useTestBank();
-  expect(useQuery).toHaveBeenLastCalledWith(expect.objectContaining({ staleTime: 0, refetchOnMount: true }));
+  expect(useQuery).toHaveBeenLastCalledWith(expect.objectContaining({ staleTime: 60000, refetchOnMount: false }));
 });
 
 test("enriched records and Test Bank use predictable active/all cache keys", () => {
