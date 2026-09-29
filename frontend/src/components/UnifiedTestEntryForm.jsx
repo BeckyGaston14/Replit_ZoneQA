@@ -494,11 +494,19 @@ function bassettTranscriptReady(form) {
   return Boolean(String(form.question_asked || "").trim() && String(form.exact_bassett_answer || "").trim());
 }
 
+function hasConversationUpload(form) {
+  return Boolean(
+    form.attachment_count
+    || form.conversation_attachment
+    || (form.id && form._original_conversation_source === "uploaded_conversation")
+  );
+}
+
 function progressFor(form, mode) {
   const uploadedConversation = mode === "bassett" && form.conversation_source === "uploaded_conversation";
   const fields = mode === "bassett"
     ? [["scenario_id", form.scenario_id], ...(uploadedConversation
-      ? [["conversation_attachment", Boolean(form.attachment_count || form.conversation_attachment)]]
+      ? [["conversation_attachment", hasConversationUpload(form)]]
       : form.test_type === "Multi-turn"
       ? [["turns", (form.turns || []).every((turn) => String(turn.prompt || "").trim() && String(turn.response || "").trim()) && (form.turns || []).length]]
       : [["question_asked", form.question_asked], ["exact_bassett_answer", form.exact_bassett_answer], ["verified_correct_answer", form.verified_correct_answer]]), ["test_date", form.test_date]]
@@ -516,7 +524,7 @@ function validate(form, mode) {
     if (form.create_finding && !String(form.finding?.finding_type || form.issue_category || "").trim()) return "Select a Finding Category.";
     const versionError = bassettVersionRequirementMessage(form);
     if (form.conversation_source === "uploaded_conversation") {
-      if (!form.attachment_count && !form.conversation_attachment) return "Upload at least one Bassett conversation file before saving.";
+      if (!hasConversationUpload(form)) return "Upload at least one Bassett conversation file before saving.";
       if (!String(form.test_date || "").trim()) return "The test date is required";
       if (hasScoredDimension(form.evaluation_scores) && String(form.score_rationale || "").trim().length < 20) return "Explain the Bassett scores in the Score rationale using at least 20 characters.";
       if (versionError) return versionError;
@@ -728,7 +736,13 @@ export default function UnifiedTestEntryForm({
   const versionError = bassettVersionRequirementMessage(form);
   const progress = progressFor(form, mode);
   const uploadedConversation = !isComparison && form.conversation_source === "uploaded_conversation";
-  const hasConversationFile = Boolean(form.attachment_count || form.conversation_attachment);
+  const hasConversationFile = hasConversationUpload(form);
+  const savedUploadMissing = Boolean(
+    form.id
+    && form._original_conversation_source === "uploaded_conversation"
+    && !form.attachment_count
+    && !form.conversation_attachment
+  );
   const [activeSection, setActiveSection] = useState(0);
   const [attemptedSections, setAttemptedSections] = useState(() => new Set());
   const [submitError, setSubmitError] = useState("");
@@ -1003,7 +1017,7 @@ export default function UnifiedTestEntryForm({
       <Field label="Municipality"><QuickAdd label="Municipality" value={form.municipality_id} items={municipalities} onChange={setMunicipality} fields={[{ key: "name", label: "Municipality name" }, { key: "state", label: "State / Province", type: "select", options: config.jurisdiction_regions || [] }]} disabled={lockedCommon} /></Field>
        <Field label="Property / Address"><QuickAdd label="Property" value={form.property_id} items={filteredProperties} defaults={{ municipality_id: form.municipality_id }} onChange={(value) => update("property_id", value)} fields={[{ key: "name", label: "Property name" }, { key: "address", label: "Address" }]} disabled={lockedCommon} /></Field>
       </div></details>
-         {!isComparison && form.conversation_source === "uploaded_conversation" && <div className="sm:col-span-2 rounded-lg border border-[var(--orange)] bg-orange-50 p-3"><Field label="Bassett conversation file" required description={hasConversationFile ? "One authoritative conversation file is attached to this parent test run." : "Upload one exported Bassett conversation. PDF, email, document, spreadsheet, text, and image formats are supported."}><Input data-testid="bassett-conversation-upload" type="file" accept=".pdf,.doc,.docx,.odt,.xls,.xlsx,.ods,.ppt,.pptx,.txt,.csv,.tsv,.md,.rtf,.html,.htm,.xml,.json,.eml,.msg,.png,.jpg,.jpeg,.gif,.webp,.tif,.tiff,.bmp" onChange={(e) => update("conversation_attachment", Array.from(e.target.files || [])[0] || null)} /></Field></div>}
+         {!isComparison && form.conversation_source === "uploaded_conversation" && <div className="sm:col-span-2 rounded-lg border border-[var(--orange)] bg-orange-50 p-3"><Field label="Bassett conversation file" required description={form.conversation_attachment ? "A new conversation file is selected and will be attached when you save." : form.attachment_count ? "The existing authoritative conversation file remains attached to this test run." : savedUploadMissing ? "This saved run is marked as using an uploaded conversation, but no direct attachment is currently listed. You can save other changes; reattach the original file below when available." : "Upload one exported Bassett conversation. PDF, email, document, spreadsheet, text, and image formats are supported."}><Input data-testid="bassett-conversation-upload" type="file" accept=".pdf,.doc,.docx,.odt,.xls,.xlsx,.ods,.ppt,.pptx,.txt,.csv,.tsv,.md,.rtf,.html,.htm,.xml,.json,.eml,.msg,.png,.jpg,.jpeg,.gif,.webp,.tif,.tiff,.bmp" onChange={(e) => update("conversation_attachment", Array.from(e.target.files || [])[0] || null)} /></Field></div>}
           {(!isComparison && form.test_type === "Multi-turn") ? <details className="sm:col-span-2" open={form.conversation_source !== "uploaded_conversation"}><summary className="cursor-pointer font-semibold text-[var(--navy)]">{uploadedConversation ? "Add or review structured transcript (optional; upload is authoritative)" : "Structured conversation"}</summary><div className="mt-3"><TurnBuilder turns={form.turns} scenarios={scenarios} uploadedConversation={uploadedConversation} disabled={lockedCommon} onChange={(turns) => setForm((current) => ({ ...current, turns, question_asked: turns[0]?.prompt || "", exact_bassett_answer: turns[0]?.response || "", transcript_status: turns.length ? "confirmed" : current.transcript_status }))} findingTurnId={form.finding_turn_id || ""} onFindingTurnChange={(value) => update("finding_turn_id", value)} /></div></details> : <><Field label="Prompt / Question" required={isComparison || !uploadedConversation} optional={uploadedConversation} description={uploadedConversation ? "Optional now; required before expanding to Model Comparison. The uploaded conversation is authoritative." : undefined} error={attemptedSections.has(1) && (isComparison || !uploadedConversation) && !String(form.question_asked || form.prompts?.[0]?.text || "").trim() ? "Prompt or Question is required." : undefined}><Textarea rows={3} value={form.question_asked || form.prompts?.[0]?.text || ""} disabled={lockedCommon} onChange={(e) => updatePrompt(e.target.value)} /></Field>
          <div className="sm:col-span-2"><Field label="Verified Answer / Gold Standard" required={isComparison || !uploadedConversation} optional={uploadedConversation} error={attemptedSections.has(1) && !uploadedConversation && !String(form.verified_correct_answer || form.gold_standard_answer || "").trim() ? "Verified Answer is required." : undefined}><Textarea rows={4} value={form.verified_correct_answer || form.gold_standard_answer || ""} disabled={lockedCommon} onChange={(e) => setForm((current) => ({ ...current, verified_correct_answer: e.target.value, gold_standard_answer: e.target.value }))} /></Field></div></>}
     </div></GuidedSection>
@@ -1056,7 +1070,8 @@ export default function UnifiedTestEntryForm({
        </section>
        <section className="space-y-3 rounded-lg border p-3" aria-labelledby="supporting-notes-heading"><div><h4 id="supporting-notes-heading" className="font-semibold text-[var(--navy)]">Internal notes</h4><p className="text-xs text-muted-foreground">Record limitations or context that is not part of a source citation.</p></div><Field label="Supporting Notes"><Textarea rows={4} value={form.notes || form.reproduction_steps || ""} onChange={(e) => setForm((current) => ({ ...current, notes: e.target.value, reproduction_steps: e.target.value }))} /></Field></section>
        <section className="space-y-3 rounded-lg border p-3" aria-labelledby="supporting-documents-heading"><div><h4 id="supporting-documents-heading" className="font-semibold text-[var(--navy)]">Uploaded documents</h4><p className="text-xs text-muted-foreground">Attach ordinances, screenshots, emails, spreadsheets, PDFs, or other source files.</p></div>
-       <Field label="Supporting Source Documents / Images" description={form.attachments?.length ? `${form.attachments.length} supporting file(s) selected` : "Attach ordinances, screenshots, emails, spreadsheets, PDFs, or other source evidence. These are separate from an uploaded Bassett conversation."}><Input type="file" multiple accept=".pdf,.doc,.docx,.odt,.xls,.xlsx,.ods,.ppt,.pptx,.txt,.csv,.tsv,.md,.rtf,.html,.htm,.xml,.json,.eml,.msg,.png,.jpg,.jpeg,.gif,.webp,.tif,.tiff,.bmp" onChange={(e) => update("attachments", Array.from(e.target.files || []))} /></Field>
+       {form.id && <p className="rounded-md border bg-[var(--paper)] px-3 py-2 text-xs text-muted-foreground" data-testid="existing-upload-summary">Existing saved uploads are preserved when you edit this test run. {form.attachment_count ? `${form.attachment_count} direct test-run file${form.attachment_count === 1 ? " is" : "s are"} currently attached.` : "No direct test-run file is currently listed."}{form.evidence_ids?.length ? ` ${form.evidence_ids.length} linked Ordinance Evidence record${form.evidence_ids.length === 1 ? " is" : "s are"} shown above.` : ""}</p>}
+       <Field label="Supporting Source Documents / Images" description={form.attachments?.length ? `${form.attachments.length} new supporting file(s) selected` : "Add new ordinances, screenshots, emails, spreadsheets, PDFs, or other source evidence. Existing saved uploads are not replaced."}><Input type="file" multiple accept=".pdf,.doc,.docx,.odt,.xls,.xlsx,.ods,.ppt,.pptx,.txt,.csv,.tsv,.md,.rtf,.html,.htm,.xml,.json,.eml,.msg,.png,.jpg,.jpeg,.gif,.webp,.tif,.tiff,.bmp" onChange={(e) => update("attachments", Array.from(e.target.files || []))} /></Field>
        {!isComparison && <label className="flex items-start gap-2 rounded-lg border bg-[var(--paper)] p-3 text-sm"><Checkbox checked={Boolean(form.create_evidence_from_uploads)} disabled={!form.municipality_id} onCheckedChange={(checked) => update("create_evidence_from_uploads", checked === true)} /><span><span className="block font-semibold text-[var(--navy)]">Create Ordinance Evidence records from these supporting files</span><span className="mt-1 block text-xs text-muted-foreground">Each file becomes one reusable Ordinance Evidence record and is linked to this test run. The file will not also be stored as a duplicate test-run attachment.{!form.municipality_id ? " Select a municipality first." : ""}</span></span></label>}
        </section>
     </div></GuidedSection>

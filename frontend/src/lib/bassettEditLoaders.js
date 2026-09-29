@@ -4,6 +4,7 @@ import { LEGACY_RUBRIC_REVISION } from "./rubricCatalog";
 export async function loadBassettTestRunForEdit(issue, apiClient = api) {
   const { data } = await apiClient.get(`/bassett/issues/${issue.id}`);
   const editMetadata = {
+    _original_conversation_source: data?.conversation_source || "structured_text",
     _original_required_values: {
       question_asked: Boolean(String(data?.question_asked || "").trim()),
       exact_bassett_answer: Boolean(String(data?.exact_bassett_answer || "").trim()),

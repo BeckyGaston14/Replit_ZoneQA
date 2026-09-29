@@ -28,7 +28,9 @@ test("shows every rubric reason in the score dropdown and returns a number", () 
     select.value = "N/A";
     select.dispatchEvent(new Event("change", { bubbles: true }));
   });
-  expect(onChange).toHaveBeenLastCalledWith(null);
+  expect(onChange).toHaveBeenLastCalledWith("N/A");
+  act(() => root.render(<ScoreSelect value="N/A" onChange={onChange} ariaLabel="Accuracy score" />));
+  expect(host.querySelector('select[aria-label="Accuracy score"]').value).toBe("N/A");
   act(() => root.unmount());
 });
 

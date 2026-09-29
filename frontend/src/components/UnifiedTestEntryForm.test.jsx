@@ -664,6 +664,27 @@ test("uploaded Bassett conversations require a file while prompt and response be
   act(() => uploaded.root.unmount());
 });
 
+test("an existing uploaded-conversation run can save unrelated changes when its legacy direct upload is missing", () => {
+  const onSubmit = jest.fn();
+  const view = renderForm("bassett", {
+    id: "run-existing",
+    conversation_source: "uploaded_conversation",
+    _original_conversation_source: "uploaded_conversation",
+    attachment_count: 0,
+    question_asked: "",
+    exact_bassett_answer: "",
+    verified_correct_answer: "",
+    result: "Not Evaluated",
+  }, { onSubmit });
+
+  expect(view.container.textContent).toContain("no direct attachment is currently listed");
+  expect(view.container.querySelector('[data-testid="existing-upload-summary"]').textContent).toContain("Existing saved uploads are preserved");
+  act(() => view.container.querySelector('[data-testid="submit"]').click());
+  expect(toast.error).not.toHaveBeenCalledWith("Upload at least one Bassett conversation file before saving.");
+  expect(onSubmit).toHaveBeenCalled();
+  act(() => view.root.unmount());
+});
+
 test("current converted comparison evaluations reopen with rubric scores including zero", () => {
   const draft = createComparisonEditDraft({
     testcase: { id: "tc-current", rubric_revision: "2026-09-16", selected_rubric_ids: ["G-01"], prompts: [{ text: "Question" }] },

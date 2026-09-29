@@ -11,7 +11,10 @@ export function ScoreSelect({ value, onChange, disabled = false, id, testId, ari
         className="h-10 w-full rounded-md border bg-background px-3 text-sm"
         value={selected}
         disabled={disabled}
-        onChange={(event) => onChange(event.target.value === "" || event.target.value === "N/A" ? null : Number(event.target.value))}
+        onChange={(event) => {
+          const next = event.target.value;
+          onChange(next === "" ? null : next === "N/A" ? "N/A" : Number(next));
+        }}
       >
         <option value="">Not scored — insufficient evidence</option>
         <option value="N/A">N/A — Not Applicable (excluded from score)</option>
