@@ -230,6 +230,26 @@ test("guided workflow opens one section at a time and supports Previous and Next
   act(() => view.root.unmount());
 });
 
+test("Bassett progress navigation shows every actual form section", () => {
+  const create = renderForm("bassett");
+  const createNavigation = create.container.querySelector('[aria-label="Test entry sections"]');
+  expect(createNavigation).not.toBeNull();
+  expect([...createNavigation.querySelectorAll("button")].map((button) => button.textContent)).toEqual([
+    "1. Setup", "2. Records & prompt", "3. Bassett result", "4. Rubric", "5. Findings", "6. Sources",
+  ]);
+  expect(create.container.textContent).toContain("Section 1 of 6: Setup");
+
+  const edit = renderForm("bassett", { id: "run-1", result: "Critical Fail" });
+  const editNavigation = edit.container.querySelector('[aria-label="Test entry sections"]');
+  expect([...editNavigation.querySelectorAll("button")].map((button) => button.textContent)).toEqual([
+    "1. Setup", "2. Records & prompt", "3. Bassett result", "4. Rubric", "5. Findings", "6. Sources", "7. Follow-up",
+  ]);
+  expect(edit.container.textContent).toContain("Section 1 of 7: Setup");
+
+  act(() => create.root.unmount());
+  act(() => edit.root.unmount());
+});
+
 test("invalid submission marks and opens the first incomplete section", () => {
   const view = renderForm("bassett");
   act(() => view.container.querySelector('[data-testid="submit"]').click());

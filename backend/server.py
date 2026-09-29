@@ -8467,7 +8467,7 @@ async def analytics_executive(
         for value in (testcase.get("bassett_issue_id"), testcase.get("source_bassett_issue_id"))
         if value
     }
-    standalone_bassett = []
+    latest_standalone_bassett = {}
     for run in _canonical_bassett_lineages(
         issues, executions, active_scenario_ids=set(scenario_by_id),
     ):
@@ -8511,7 +8511,7 @@ async def analytics_executive(
                 "scoring_system": "legacy_dimensions",
             }
         result = _canonical_bassett_result(run.get("result"))
-        standalone_bassett.append({
+        candidate = {
             **run,
             "id": run.get("id"),
             "testcase_id": run.get("testcase_id") or f"bassett:{run.get('scenario_id') or run.get('id')}",
@@ -8523,7 +8523,18 @@ async def analytics_executive(
             "created_at": run.get("test_date") or run.get("created_at") or "",
             "_executive_source": "bassett_only",
             "_executive_category": _test_bank_category(run, scenario_by_id),
-        })
+        }
+        # Executive reporting follows the same canonical population rule as
+        # Dashboard, Performance, Coverage, and Release Readiness: only the
+        # latest qualifying Bassett-only run for each active Test Bank
+        # definition is included. Multiple runs of the same scenario remain in
+        # history, but cannot inflate executive counts or averages.
+        lineage_key = run.get("scenario_id") or run.get("test_id") or run.get("id")
+        current = latest_standalone_bassett.get(lineage_key)
+        if current is None or _dashboard_bassett_order(candidate) > _dashboard_bassett_order(current):
+            latest_standalone_bassett[lineage_key] = candidate
+
+    standalone_bassett = list(latest_standalone_bassett.values())
 
     evals = (
         standalone_bassett if report_scope == "bassett"

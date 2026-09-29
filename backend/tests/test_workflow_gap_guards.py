@@ -656,6 +656,53 @@ def test_all_metric_endpoints_reconcile_to_complete_comparisons(monkeypatch):
     )
 
 
+def test_executive_uses_latest_qualifying_bassett_run_per_scenario(monkeypatch):
+    rows = {
+        "testcases": [], "evaluations": [], "test_runs": [], "findings": [],
+        "versions": [{"id": "v1", "name": "Bassett v1", "active": True}],
+        "config": [{
+            "id": "global", "categories": [], "criticality": {},
+            "eval_dimensions": [{"key": "accuracy", "label": "Accuracy", "weight": 1}],
+        }],
+        "bassett_scenarios": [{
+            "id": "scenario-1", "stable_id": "R-01", "workflow_stage": "Research",
+        }],
+        "bassett_issues": [
+            {
+                "id": "run-old", "scenario_id": "scenario-1", "test_type": "Single Prompt",
+                "status": "In Review", "result": "Fail", "version_id": "v1",
+                "bassett_version": "Bassett v1", "test_date": "2026-09-01",
+                "evaluation_scores": {"accuracy": 2},
+            },
+            {
+                "id": "run-new", "scenario_id": "scenario-1", "test_type": "Single Prompt",
+                "status": "In Review", "result": "Pass", "version_id": "v1",
+                "bassett_version": "Bassett v1", "test_date": "2026-09-02",
+                "evaluation_scores": {"accuracy": 8},
+            },
+        ],
+        "bassett_executions": [],
+    }
+    monkeypatch.setattr(server, "db", Db(rows))
+
+    async def fake_crud_list(collection, query=None):
+        return [dict(row) for row in rows.get(collection, [])]
+
+    async def no_stale_gold():
+        return {}
+
+    monkeypatch.setattr(server, "crud_list", fake_crud_list)
+    monkeypatch.setattr(server, "compute_stale_gold_map", no_stale_gold)
+
+    executive = asyncio.run(server.analytics_executive(
+        {"id": "viewer", "role": "viewer"}, report_scope="bassett"
+    ))
+
+    assert executive["population_counts"] == {"bassett_only": 1, "model_comparison": 0}
+    assert executive["kpis"]["total_evaluated"] == 1
+    assert executive["kpis"]["bassett_avg"] == 8
+    assert executive["kpis"]["pass_rate"] == 100.0
+
 def test_dashboard_legacy_quality_fields_use_active_version_and_latest_regression(monkeypatch):
     evaluations = []
     for run_id, testcase_id, version, score, created_at in [
