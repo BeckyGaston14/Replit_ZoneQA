@@ -790,3 +790,30 @@ def test_canonical_run_scenario_link_cannot_be_changed(monkeypatch):
         ))
     assert exc.value.status_code == 409
     assert "immutable" in exc.value.detail
+
+
+def test_existing_runs_can_keep_archived_scenario_links_during_edits(monkeypatch):
+    """Catalog replacement must not make historical test runs uneditable."""
+    archived_scenario = _complete_scenario(archived=True, archived_at="2026-09-29T12:00:00Z")
+    fake_db = _RunDb(archived_scenario)
+    monkeypatch.setattr(server, "db", fake_db)
+
+    with pytest.raises(HTTPException) as new_link:
+        asyncio.run(server._validate_bassett_refs({"scenario_id": "scenario-1"}))
+    assert new_link.value.status_code == 400
+    assert "archived" in str(new_link.value.detail).lower()
+
+    document = {
+        "scenario_id": "scenario-1",
+        "test_type": "Multi-turn",
+        "turns": [{
+            "id": "turn-1", "order": 1, "prompt": "Question",
+            "response": "Answer", "scenario_id": "scenario-1",
+        }],
+    }
+    asyncio.run(server._validate_bassett_refs(
+        document, allow_archived_scenario=True,
+    ))
+    asyncio.run(server._validate_bassett_turn_refs(
+        document, allow_archived_scenarios=True,
+    ))

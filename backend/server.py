@@ -3742,7 +3742,7 @@ def _normalize_bassett_turns(doc):
     doc["exact_bassett_answer"] = normalized[0]["response"]
 
 
-async def _validate_bassett_turn_refs(doc):
+async def _validate_bassett_turn_refs(doc, *, allow_archived_scenarios=False):
     for index, turn in enumerate(doc.get("turns") or [], start=1):
         scenario_id = turn.get("scenario_id")
         if scenario_id:
@@ -3750,7 +3750,7 @@ async def _validate_bassett_turn_refs(doc):
                 "bassett_scenarios",
                 scenario_id,
                 f"Turn {index} Bassett scenario",
-                allow_archived=False,
+                allow_archived=allow_archived_scenarios,
             )
 
 def _bassett_has_structured_transcript(doc):
@@ -3938,7 +3938,9 @@ async def _bassett_ref(collection, identifier, label, allow_archived=True):
         raise HTTPException(400, f"{label} is archived")
     return record
 
-async def _validate_bassett_refs(doc, require_scenario=False):
+async def _validate_bassett_refs(
+    doc, require_scenario=False, *, allow_archived_scenario=False,
+):
     project = await _bassett_ref("projects", doc.get("project_id"), "Project")
     testcase = await _bassett_ref("testcases", doc.get("testcase_id"), "Test case", allow_archived=False)
     if project and testcase and testcase.get("project_id") and testcase["project_id"] != project["id"]:
@@ -3974,7 +3976,10 @@ async def _validate_bassett_refs(doc, require_scenario=False):
         if assignee.get("active") is False or assignee.get("deleted_at"):
             raise HTTPException(400, "Assignee must be an active user")
     if doc.get("scenario_id"):
-        await _bassett_ref("bassett_scenarios", doc["scenario_id"], "Bassett scenario", allow_archived=False)
+        await _bassett_ref(
+            "bassett_scenarios", doc["scenario_id"], "Bassett scenario",
+            allow_archived=allow_archived_scenario,
+        )
     elif require_scenario:
         raise HTTPException(400, "A Bassett scenario is required")
     version_id = str(doc.get("version_id") or "").strip()
@@ -5047,8 +5052,14 @@ async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_c
         incoming["triaged_by"] = user.get("id")
         incoming["triaged_by_name"] = user.get("name")
         incoming["triaged_at"] = now_iso()
-    await _validate_bassett_refs(merged)
-    await _validate_bassett_turn_refs(merged)
+    # The Test Bank is revisioned. Historical runs retain immutable links to
+    # the scenario definitions that were active when they were recorded, even
+    # after those definitions are archived by a later catalog release. The
+    # scenario link itself cannot be changed above, so allowing the unchanged
+    # archived references here preserves history without permitting a new run
+    # to select an inactive scenario.
+    await _validate_bassett_refs(merged, allow_archived_scenario=True)
+    await _validate_bassett_turn_refs(merged, allow_archived_scenarios=True)
     incoming["version_id"] = merged.get("version_id", "")
     incoming["bassett_version"] = merged.get("bassett_version", "")
     changed = {key: [existing.get(key), merged.get(key)] for key in incoming if existing.get(key) != merged.get(key)}
