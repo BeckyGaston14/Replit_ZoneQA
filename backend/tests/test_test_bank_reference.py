@@ -1,6 +1,6 @@
 """Validate the approved Test Bank.
 
-The guidance was refreshed from the approved Google Sheet on 2026-09-17.
+The catalog was refreshed from the approved Google Sheet on 2026-09-29.
 The pinned hash below verifies the checked-in JSON, not a Git commit.
 """
 import json
@@ -11,7 +11,7 @@ from pathlib import Path
 
 import server
 
-REFERENCE = json.loads((Path(__file__).parents[1] / "test_bank_reference_2026_09_16.json").read_text(encoding="utf-8"))
+REFERENCE = json.loads((Path(__file__).parents[1] / "test_bank_reference_2026_09_29.json").read_text(encoding="utf-8"))
 
 
 def test_reference_contains_all_unique_scenarios_and_rubric_items():
@@ -21,8 +21,8 @@ def test_reference_contains_all_unique_scenarios_and_rubric_items():
     assert Counter(row["test_type"] for row in scenarios) == {"Analysis": 29, "Document Handling": 25, "General Research": 46}
     assert {row["rubric_id"] for row in rubric} == {f"G-{index:02}" for index in range(1, 32)}
     assert hashlib.sha256(
-        (Path(__file__).parents[1] / "test_bank_reference_2026_09_16.json").read_bytes()
-    ).hexdigest() == "db11c6b979fe7ea8206c86e6bf65edc62a96e888769c611972bbf7b9c93edc31"
+        (Path(__file__).parents[1] / "test_bank_reference_2026_09_29.json").read_bytes()
+    ).hexdigest() == "2efa1c3433b7c827982d2c322be919aabf5edd1d05c89e12587a0ff79a62b216"
 
 
 def test_every_association_resolves_and_every_rubric_item_has_one_category():
@@ -45,6 +45,16 @@ def test_changed_ids_use_current_source_meaning_not_legacy_subtype_meaning():
     assert items["G-01"]["evaluation_criterion"] == "Verify the property and governing jurisdiction"
     assert items["G-30"]["evaluation_criterion"] == "Search municipal permit records carefully"
     assert items["G-31"]["category"] == "documents_municipal_records"
+
+
+def test_simplified_scenarios_are_the_user_facing_catalog_labels():
+    from test_bank_catalog import scenario_definition
+
+    for source in REFERENCE["scenarios"]:
+        definition = scenario_definition(source)
+        assert source["simplified_scenario"].strip()
+        assert definition["test_scenario"] == source["simplified_scenario"]
+        assert definition["detailed_scenario"] == source["test_scenario"]
 
 
 def test_rubric_union_defaults_and_neutral_score_math():
@@ -127,7 +137,7 @@ def test_catalog_reconciliation_archives_legacy_and_is_idempotent(monkeypatch):
         if row.get("catalog_revision") == server.CATALOG_REVISION
         and row.get("stable_id") == "R-01"
     )
-    assert fresh["id"] == "bassett-catalog-2026-09-16-R-01"
+    assert fresh["id"] == "bassett-catalog-2026-09-29-R-01"
     snapshot = [dict(row) for row in db.rows]
     asyncio.run(server._seed_bassett_catalog())
     assert db.rows == snapshot

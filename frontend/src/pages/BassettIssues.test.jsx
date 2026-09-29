@@ -306,7 +306,7 @@ test("scenario selector presents General Research consistently as Research", () 
   const root = createRoot(container);
   act(() => {
     root.render(<ScenarioSelector value="" category="General Research" onCategoryChange={jest.fn()} onChange={jest.fn()} scenarios={[
-      { id: "one", stable_id: "R-01", test_scenario: "Property research", workflow_stage: "Research", test_type: "General Research", catalog_revision: "2026-09-16", priority: "P0 - Immediate" },
+      { id: "one", stable_id: "R-01", test_scenario: "Property research", workflow_stage: "Research", test_type: "General Research", catalog_revision: "2026-09-29", priority: "P0 - Immediate" },
     ]} />);
   });
   expect(container.textContent).toContain("Research");

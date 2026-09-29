@@ -38,7 +38,7 @@ const queryResult = (queryKey) => {
   if (kind === "stats") return { data: { active_projects: 1 }, isLoading: false, isError: false, refetch: jest.fn() };
   if (kind === "metrics") return { data: metrics, isLoading: false, isError: false, refetch: jest.fn() };
   if (kind === "bassett-metrics") return { data: { test_runs: { attention: 3, definition: "Attention definition", test_bank_coverage: { percent: 68, covered: 17, total: 25 } } }, isLoading: false, isError: false, refetch: jest.fn() };
-  if (kind === "perf" && queryKey[1] === "bassett") return { data: { rubric_revision: "2026-09-16", model_summary: [{ model: "Bassett", avg_score: 8, score_count: 2, passed: 1, failed: 2 }], rubric_categories: [
+  if (kind === "perf" && queryKey[1] === "bassett") return { data: { rubric_revision: "2026-09-29", model_summary: [{ model: "Bassett", avg_score: 8, score_count: 2, passed: 1, failed: 2 }], rubric_categories: [
     { label: "Property & Zoning Rules", score: 0, count: 1 }, { label: "Sources & Citations", score: 7, count: 2 },
     { label: "Reasoning & Conversation", score: 5, count: 2 }, { label: "Analysis & Next Steps", score: 10, count: 1 },
     { label: "Documents & Municipal Records", score: 6, count: 1 },

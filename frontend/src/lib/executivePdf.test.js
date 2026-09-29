@@ -35,7 +35,7 @@ function reportData(categoryCount = 5, longLabels = false) {
       { title: "Incorrect use classification", severity: "Critical", category: "Property & Zoning Rules", workflow_status: "In Review", retest_status: "Not Started", linked_test_run_count: 2 },
       { title: "Citation does not support answer", severity: "High", category: "Sources & Citations", workflow_status: "Ready for Retesting", retest_status: "Pending", linked_test_run_count: 1 },
     ],
-    rubric_revision: "2026-09-16",
+    rubric_revision: "2026-09-29",
     rubric_categories: Array.from({ length: categoryCount }, (_, index) => ({
       category: longLabels ? `Category ${index + 1} with a deliberately long descriptive label that wraps within its table cell` : `Category ${index + 1}`,
       avg_score: 6.5 + index / 10,

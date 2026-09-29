@@ -5285,7 +5285,8 @@ async def _catalog_revision_preview():
     }
 
 
-@api.post("/bassett/catalog/2026-09-16/preview")
+@api.post("/bassett/catalog/2026-09-29/preview")
+@api.post("/bassett/catalog/2026-09-16/preview", include_in_schema=False)
 @api.post("/bassett/catalog/preview")
 @api.get("/bassett/rubric-migration/preview")
 async def bassett_catalog_revision_preview(user=Depends(get_current_user)):
@@ -5293,7 +5294,8 @@ async def bassett_catalog_revision_preview(user=Depends(get_current_user)):
     return await _catalog_revision_preview()
 
 
-@api.post("/bassett/catalog/2026-09-16/apply")
+@api.post("/bassett/catalog/2026-09-29/apply")
+@api.post("/bassett/catalog/2026-09-16/apply", include_in_schema=False)
 @api.post("/bassett/catalog/apply")
 @api.post("/bassett/rubric-migration/apply")
 async def bassett_catalog_revision_apply(

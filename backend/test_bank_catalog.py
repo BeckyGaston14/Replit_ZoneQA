@@ -10,8 +10,8 @@ from pathlib import Path
 from typing import Any
 
 
-CATALOG_REVISION = "2026-09-16"
-REFERENCE_PATH = Path(__file__).with_name("test_bank_reference_2026_09_16.json")
+CATALOG_REVISION = "2026-09-29"
+REFERENCE_PATH = Path(__file__).with_name("test_bank_reference_2026_09_29.json")
 REFERENCE = json.loads(REFERENCE_PATH.read_text(encoding="utf-8"))
 RUBRIC_ITEMS = tuple(REFERENCE["rubric_items"])
 CATEGORIES = tuple(REFERENCE["categories"])
@@ -51,7 +51,11 @@ def scenario_definition(source: dict[str, Any]) -> dict[str, Any]:
         "workflow_stage": "Research" if source["test_type"] == "General Research" else "Analysis",
         "report_type": source["test_type"],
         "test_type": source["test_type"],
-        "test_scenario": source["test_scenario"],
+        # The simplified wording is the operational label shown in ZoneQA.
+        # Keep the full source wording alongside it for audit/reference use.
+        "test_scenario": source.get("simplified_scenario") or source["test_scenario"],
+        "simplified_scenario": source.get("simplified_scenario", ""),
+        "detailed_scenario": source["test_scenario"],
         "complexity": source["complexity"],
         "why_it_matters": source["why_it_matters"],
         "what_bassett_should_do": source["what_bassett_should_do"],

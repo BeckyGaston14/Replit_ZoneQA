@@ -11,7 +11,7 @@ import {
 } from "./rubricCatalog";
 
 const catalog = {
-  revision: "2026-09-16",
+  revision: "2026-09-29",
   categories: [{ key: "property_zoning_rules", name: "Property & Zoning Rules" }],
   rubric_items: [
     { rubric_id: "G-01", evaluation_criterion: "Property", expected_behavior: "Identify it", passing_standard: "Correct" },
@@ -107,7 +107,7 @@ test.each([
 
 test("comparison payload includes explicit scored-removal confirmation", () => {
   const payload = serializeComparisonPayload({
-    rubric_revision: "2026-09-16", confirm_rubric_removal: true,
+    rubric_revision: "2026-09-29", confirm_rubric_removal: true,
     evaluations: { Bassett: { scores: { "G-01": 0 } } },
   });
   expect(payload.confirm_rubric_removal).toBe(true);

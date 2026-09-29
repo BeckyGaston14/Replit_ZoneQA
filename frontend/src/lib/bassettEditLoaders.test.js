@@ -3,7 +3,7 @@ import { loadBassettTestRunForEdit } from "./bassettEditLoaders";
 test("current revision hydration opens G rubric scores in editable state", async () => {
   const apiClient = { get: jest.fn().mockResolvedValue({
     data: {
-      id: "run-1", scenario_id: "scenario-1", rubric_revision: "2026-09-16",
+      id: "run-1", scenario_id: "scenario-1", rubric_revision: "2026-09-29",
       conversation_source: "uploaded_conversation",
       rubric_scores: { "G-01": 8 }, evaluation_scores: { accuracy: 2 },
       evaluations: { Bassett: { scores: { accuracy: 2 } } },

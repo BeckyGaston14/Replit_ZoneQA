@@ -259,7 +259,7 @@ test("exports exclude archived, superseded, partial, and orphan-linked records",
 
 test("report exports keep current rubric categories separate from legacy12 groups", () => {
   const current = {
-    id: "current", testcase_id: "active", model: "Bassett", rubric_revision: "2026-09-16",
+    id: "current", testcase_id: "active", model: "Bassett", rubric_revision: "2026-09-29",
     selected_rubric_ids: ["G-01", "G-09", "G-11", "G-21", "G-26"],
     rubric_scores: { "G-01": 0, "G-09": 10, "G-11": 8, "G-21": "N/A", "G-26": 6 },
     final_result: "Pass",
@@ -296,7 +296,7 @@ test("comparison exports reject a mixed current-rubric and legacy12 triplet", ()
     evaluations: [
       {
         ...base, id: "bassett", model: "Bassett",
-        rubric_revision: "2026-09-16",
+        rubric_revision: "2026-09-29",
         selected_rubric_ids: ["G-01"], rubric_scores: { "G-01": 8 },
       },
       { ...base, id: "chatgpt", model: "ChatGPT", scores: { accuracy: 8 } },
@@ -316,7 +316,7 @@ test("release exports include current Bassett-only scores in five category total
     bassettOnlyEvaluations: [{
       id: "solo-current",
       testcase_id: "bassett:scenario-1",
-      rubric_revision: "2026-09-16",
+      rubric_revision: "2026-09-29",
       selected_rubric_ids: ["G-01", "G-09", "G-11", "G-21", "G-26"],
       rubric_scores: {
         "G-01": 0, "G-09": 10, "G-11": 8, "G-21": 7, "G-26": 6,

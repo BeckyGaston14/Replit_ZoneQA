@@ -409,7 +409,7 @@ test("both evaluation form modes keep score labels and the shared rubric without
 
 test("changing one Bassett rubric to N/A preserves every other saved score", () => {
   const rubricCatalog = {
-    revision: "2026-09-16",
+    revision: "2026-09-29",
     categories: [{ key: "property-zoning", name: "Property & Zoning Rules", rubric_ids: ["G-01", "G-02"] }],
     rubric_items: [
       { rubric_id: "G-01", category: "property-zoning", evaluation_criterion: "Property identity", expected_behavior: "Identify the property", passing_standard: "Correct property" },
@@ -743,11 +743,11 @@ test("an existing uploaded-conversation run can save unrelated changes when its 
 
 test("current converted comparison evaluations reopen with rubric scores including zero", () => {
   const draft = createComparisonEditDraft({
-    testcase: { id: "tc-current", rubric_revision: "2026-09-16", selected_rubric_ids: ["G-01"], prompts: [{ text: "Question" }] },
+    testcase: { id: "tc-current", rubric_revision: "2026-09-29", selected_rubric_ids: ["G-01"], prompts: [{ text: "Question" }] },
     evaluations: [
-      { model: "Bassett", rubric_revision: "2026-09-16", scores: { accuracy: 9 }, rubric_scores: { "G-01": 0 } },
-      { model: "ChatGPT", rubric_revision: "2026-09-16", scores: { accuracy: 4 }, rubric_scores: { "G-01": 7 } },
-      { model: "Claude", rubric_revision: "2026-09-16", scores: { accuracy: 5 }, rubric_scores: { "G-01": 8 } },
+      { model: "Bassett", rubric_revision: "2026-09-29", scores: { accuracy: 9 }, rubric_scores: { "G-01": 0 } },
+      { model: "ChatGPT", rubric_revision: "2026-09-29", scores: { accuracy: 4 }, rubric_scores: { "G-01": 7 } },
+      { model: "Claude", rubric_revision: "2026-09-29", scores: { accuracy: 5 }, rubric_scores: { "G-01": 8 } },
     ],
   });
   expect(draft.evaluations.Bassett.scores).toEqual({ accuracy: 9, "G-01": 0 });

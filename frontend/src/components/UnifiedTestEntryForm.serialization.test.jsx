@@ -2,7 +2,7 @@ import { serializeComparisonEvaluations } from "../lib/rubricCatalog";
 
 test("comparison serialization carries current rubric metadata and G scores for all models", () => {
   const serialized = serializeComparisonEvaluations({
-    rubric_revision: "2026-09-16",
+    rubric_revision: "2026-09-29",
     selected_rubric_ids: ["G-01"],
     evaluation_scores: { "G-01": 7 },
     evaluations: {
@@ -13,7 +13,7 @@ test("comparison serialization carries current rubric metadata and G scores for 
   });
   for (const model of ["Bassett", "ChatGPT", "Claude"]) {
     expect(serialized[model]).toEqual(expect.objectContaining({
-      rubric_revision: "2026-09-16",
+      rubric_revision: "2026-09-29",
       selected_rubric_ids: ["G-01"],
       rubric_scores: { "G-01": expect.any(Number) },
     }));

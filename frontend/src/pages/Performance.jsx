@@ -167,7 +167,7 @@ export default function Performance() {
       <div className="mb-4">
         <div className="bg-card border rounded-xl p-5">
            <h3 className="font-semibold font-display text-[var(--navy)] mb-3">Current Rubric Categories</h3>
-            <p className="text-xs text-muted-foreground mb-2">Revision {perf.rubric_revision || "2026-09-16"} · {EVALUATION_SCALE_LABEL}. Neutral-weight averages of selected criteria; zero is valid and missing, N/A, and unchecked criteria are excluded.</p>
+            <p className="text-xs text-muted-foreground mb-2">Revision {perf.rubric_revision || "2026-09-29"} · {EVALUATION_SCALE_LABEL}. Neutral-weight averages of selected criteria; zero is valid and missing, N/A, and unchecked criteria are excluded.</p>
            {radar.length < 3 ? <div role="status" className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">No complete current-rubric chart is available for this scope. Score at least three categories to display the radar; available values remain listed in the accessible table below.</div> : <SafeResponsiveContainer height={300} testId="performance-radar-chart">
             <RadarChart data={radar}>
               <PolarGrid gridType="polygon" /><PolarAngleAxis dataKey="dim" tick={{ fontSize: 10 }} />
