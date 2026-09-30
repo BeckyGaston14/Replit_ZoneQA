@@ -101,6 +101,95 @@ export function AdminScenarios() {
   </div>;
 }
 
+export function AdminScenarioRubrics() {
+  const queryClient = useQueryClient();
+  const [query, setQuery] = useState("");
+  const [selectedScenarioId, setSelectedScenarioId] = useState("");
+  const [selectedRubricIds, setSelectedRubricIds] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const scenariosQuery = useQuery({
+    queryKey: ["admin-bassett-scenarios"],
+    queryFn: async () => (await api.get("/bassett/scenarios?include_archived=true")).data,
+  });
+  const catalogQuery = useQuery({
+    queryKey: ["admin-rubric-catalog"],
+    queryFn: async () => (await api.get("/bassett/rubric-catalog")).data,
+  });
+  const scenarios = useMemo(() => scenariosQuery.data || [], [scenariosQuery.data]);
+  const catalog = catalogQuery.data || { rubric_items: [], categories: [] };
+  const rubricItems = (catalog.rubric_items || []).filter((item) => item.deleted !== true);
+  const selectedScenario = scenarios.find((scenario) => scenario.id === selectedScenarioId);
+  const shownScenarios = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return scenarios.filter((scenario) => !needle || [scenario.stable_id, scenario.workflow_stage, scenario.test_scenario]
+      .some((value) => String(value || "").toLowerCase().includes(needle)));
+  }, [query, scenarios]);
+  const selectScenario = (scenario) => {
+    const availableIds = new Set(rubricItems.map((item) => item.rubric_id));
+    setSelectedScenarioId(scenario.id);
+    setSelectedRubricIds((scenario.rubric_ids || []).filter((id) => availableIds.has(id)));
+  };
+  const toggleRubric = (rubricId) => {
+    setSelectedRubricIds((current) => current.includes(rubricId)
+      ? current.filter((id) => id !== rubricId)
+      : [...current, rubricId]);
+  };
+  const save = async () => {
+    if (!selectedScenario) return;
+    if (!selectedRubricIds.length) {
+      toast.error("Select at least one rubric evaluation for this scenario");
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.put(`/bassett/scenarios/${selectedScenario.id}`, withExpectedVersion(selectedScenario, {
+        rubric_ids: selectedRubricIds,
+      }));
+      toast.success(`Rubric evaluations updated for ${selectedScenario.stable_id}`);
+      const refreshed = await scenariosQuery.refetch();
+      const latest = (refreshed.data || []).find((scenario) => scenario.id === selectedScenario.id);
+      if (latest) setSelectedRubricIds([...(latest.rubric_ids || [])]);
+      await queryClient.invalidateQueries({ queryKey: ["bassett-scenarios"] });
+    } catch (error) {
+      const detail = error.response?.data?.detail;
+      toast.error(staleUpdateMessage(error) || (typeof detail === "string" ? detail : detail?.rubric_ids) || "The rubric associations could not be saved");
+    } finally { setBusy(false); }
+  };
+
+  return <div className="space-y-4">
+    <div className="rounded-xl border bg-card p-4">
+      <h2 className="font-display font-semibold text-[var(--navy)]">Scenario Rubric Associations</h2>
+      <p className="mt-1 text-sm text-muted-foreground">Choose a test scenario, then select every rubric evaluation that should appear by default when that scenario is used. Existing test runs keep their saved evaluations and scores.</p>
+      <Label htmlFor="admin-association-search" className="mt-3 block">Find a scenario</Label>
+      <Input id="admin-association-search" className="mt-2" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search ID, category, or wording…" />
+    </div>
+    <div className="grid gap-4 lg:grid-cols-[minmax(260px,0.8fr)_minmax(0,1.6fr)]">
+      <div className="rounded-xl border bg-card overflow-hidden">
+        <div className="max-h-[680px] overflow-y-auto divide-y">
+          {shownScenarios.map((scenario) => <button key={scenario.id} type="button" onClick={() => selectScenario(scenario)} className={`block w-full p-4 text-left hover:bg-slate-50 ${selectedScenarioId === scenario.id ? "bg-orange-50 ring-2 ring-inset ring-[var(--orange)]" : ""}`}>
+            <div className="flex flex-wrap items-center gap-2"><strong className="text-[var(--navy)]">{scenario.stable_id}</strong><span className="rounded-full border px-2 py-0.5 text-xs">{scenario.workflow_stage || scenario.test_type}</span>{scenario.archived && <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs">Hidden</span>}</div>
+            <p className="mt-1 line-clamp-2 text-sm">{scenario.test_scenario}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{(scenario.rubric_ids || []).length} rubric evaluation{(scenario.rubric_ids || []).length === 1 ? "" : "s"}</p>
+          </button>)}
+          {!scenariosQuery.isLoading && !shownScenarios.length && <p className="p-6 text-center text-sm text-muted-foreground">No matching scenarios.</p>}
+          {scenariosQuery.isLoading && <p className="p-6 text-center text-sm text-muted-foreground">Loading test scenarios…</p>}
+        </div>
+      </div>
+      <div className="rounded-xl border bg-card p-4">
+        {!selectedScenario ? <div className="flex min-h-[280px] items-center justify-center text-center text-sm text-muted-foreground">Select a scenario to review or change its rubric evaluations.</div> : <div className="space-y-5">
+          <div><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold text-[var(--navy)]">{selectedScenario.stable_id}</h3><span className="rounded-full border px-2 py-0.5 text-xs">{selectedRubricIds.length} selected</span></div><p className="mt-1 text-sm">{selectedScenario.test_scenario}</p></div>
+          {(catalog.categories || []).map((category) => {
+            const items = rubricItems.filter((item) => item.category === category.key);
+            if (!items.length) return null;
+            return <fieldset key={category.key} className="rounded-lg border p-3"><legend className="px-1 text-sm font-semibold text-[var(--navy)]">{category.name}</legend><div className="mt-1 space-y-2">{items.map((item) => <label key={item.rubric_id} className={`flex gap-3 rounded-md border p-3 ${item.active === false ? "bg-slate-50 text-muted-foreground" : "cursor-pointer hover:bg-slate-50"}`}><input type="checkbox" className="mt-1 h-4 w-4" checked={selectedRubricIds.includes(item.rubric_id)} disabled={item.active === false && !selectedRubricIds.includes(item.rubric_id)} onChange={() => toggleRubric(item.rubric_id)} /><span><span className="font-semibold">{item.rubric_id}</span>{item.active === false && <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-xs">Hidden</span>}<span className="mt-0.5 block text-sm">{item.evaluation_criterion}</span></span></label>)}</div></fieldset>;
+          })}
+          <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t bg-card pt-4"><p className="text-xs text-muted-foreground">Changes set the defaults for future uses of this scenario.</p><Button type="button" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save Associations"}</Button></div>
+        </div>}
+      </div>
+    </div>
+  </div>;
+}
+
 export function AdminRubricItems() {
   const queryClient = useQueryClient();
   const [query, setQuery] = useState("");

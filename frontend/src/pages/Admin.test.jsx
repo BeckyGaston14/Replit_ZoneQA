@@ -115,12 +115,14 @@ function setInput(input, value) {
   });
 }
 
-test("administrators can manage test scenarios and rubric evaluations from dedicated tabs", () => {
+test("administrators can manage scenarios, scenario rubric links, and rubric evaluations from dedicated tabs", () => {
   const view = renderAdmin();
   const labels = [...view.container.querySelectorAll('[role="tab"]')].map((tab) => tab.textContent);
   expect(labels).toContain("Test Scenarios");
+  expect(labels).toContain("Scenario Rubrics");
   expect(labels).toContain("Rubric Evaluations");
   expect(view.container.textContent).toContain("Hidden scenarios stay attached to existing records");
+  expect(view.container.textContent).toContain("select every rubric evaluation that should appear by default");
   expect(view.container.textContent).toContain("Rubric IDs and categories stay fixed");
   view.unmount();
 });

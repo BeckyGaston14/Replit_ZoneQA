@@ -5711,6 +5711,20 @@ async def bassett_update_scenario(id: str, body: Dict[str, Any], user=Depends(ge
     _require_mutable_bassett_scenario(existing)
     _require_fresh_version(existing, body)
     incoming = {key: value for key, value in body.items() if key in BASSETT_SCENARIO_FIELDS}
+    if "rubric_ids" in incoming:
+        incoming["rubric_ids"] = normalize_rubric_ids(incoming.get("rubric_ids"))
+        if not incoming["rubric_ids"]:
+            raise HTTPException(400, "Select at least one rubric evaluation")
+        available_rubric_ids = {
+            item["rubric_id"]
+            for item in await _effective_rubric_items()
+            if item.get("deleted") is not True
+        }
+        unknown_rubric_ids = sorted(set(incoming["rubric_ids"]) - available_rubric_ids)
+        if unknown_rubric_ids:
+            raise HTTPException(400, detail={
+                "rubric_ids": f"Unknown or deleted rubric evaluations: {', '.join(unknown_rubric_ids)}"
+            })
     if "workflow_stage" in incoming:
         incoming["workflow_stage"] = _canonical_bassett_workflow_stage(incoming["workflow_stage"])
     merged = {**existing, **incoming}
