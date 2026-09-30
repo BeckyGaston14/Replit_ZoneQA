@@ -384,18 +384,25 @@ export function RubricCriteriaSelector({ catalog, mappedIds = [], selectedIds = 
   </label>;
   const additional = unassociatedRubricItems(normalized, mappedIds);
   const scoredCount = selectedIds.filter((rubricId) => scores?.[rubricId] !== undefined && scores?.[rubricId] !== "" && scores?.[rubricId] !== null).length;
-  return <div className="space-y-3 rounded-lg border bg-[var(--paper)] p-3" data-testid="rubric-criteria-selector">
-    <div className="flex flex-wrap items-center justify-between gap-2 text-sm font-semibold text-[var(--navy)]"><span>Rubric criteria <span className="text-xs font-normal text-muted-foreground">Revision {normalized.revision}</span></span><span className="rounded-full border bg-background px-2 py-1 text-xs font-medium">{scoredCount} of {selectedIds.length} selected criteria scored</span></div>
-    <p className="text-xs text-muted-foreground">Scenario-mapped criteria are selected by default. Unchecked criteria are excluded from scoring; no score is assigned automatically.</p>
-    <div className="space-y-3">{normalized.categories.map((category) => {
-      const items = normalized.rubric_items.filter((item) => mapped.has(item.rubric_id) && (item.category === category.key || item.category === category.name));
-      return items.length ? <section key={category.key} className="space-y-2"><h5 className="font-semibold text-sm text-[var(--navy)]">{category.name}</h5>{items.map(itemRow)}</section> : null;
-    })}</div>
-    <details>
-      <summary className="cursor-pointer text-sm font-semibold text-[var(--navy)]">Additional unassociated criteria ({additional.length})</summary>
-      <div className="mt-2 space-y-2">{additional.map(itemRow)}</div>
-    </details>
-  </div>;
+  return <details className="rounded-lg border bg-[var(--paper)] p-3" data-testid="rubric-criteria-selector">
+    <summary className="cursor-pointer list-none text-sm font-semibold text-[var(--navy)]">
+      <span className="flex flex-wrap items-center justify-between gap-2">
+        <span>Choose rubric items ({selectedIds.length} selected)</span>
+        <span className="rounded-full border bg-background px-2 py-1 text-xs font-medium">{scoredCount} scored</span>
+      </span>
+    </summary>
+    <div className="mt-3 space-y-3">
+      <p className="text-xs text-muted-foreground">Scenario-mapped criteria are selected by default. Unchecked criteria are excluded from scoring; no score is assigned automatically. Rubric revision {normalized.revision}.</p>
+      <div className="space-y-3">{normalized.categories.map((category) => {
+        const items = normalized.rubric_items.filter((item) => mapped.has(item.rubric_id) && (item.category === category.key || item.category === category.name));
+        return items.length ? <section key={category.key} className="space-y-2"><h5 className="font-semibold text-sm text-[var(--navy)]">{category.name}</h5>{items.map(itemRow)}</section> : null;
+      })}</div>
+      <details>
+        <summary className="cursor-pointer text-sm font-semibold text-[var(--navy)]">Additional unassociated criteria ({additional.length})</summary>
+        <div className="mt-2 space-y-2">{additional.map(itemRow)}</div>
+      </details>
+    </div>
+  </details>;
 }
 
 export function RubricScoreSummary({ catalog, scores = {}, selectedIds = [] }) {
@@ -644,10 +651,6 @@ export default function UnifiedTestEntryForm({
   const mappedRubricIds = useMemo(() => reconcileRubricSelection({
     scenarios, scenarioIds: activeScenarioIds, selectedRubricIds: [],
   }).mappedRubricIds, [scenarios, activeScenarioIds]);
-  const mappedRubricItems = useMemo(() => {
-    const mapped = new Set(mappedRubricIds);
-    return normalizedRubricCatalog.rubric_items.filter((item) => mapped.has(item.rubric_id));
-  }, [mappedRubricIds, normalizedRubricCatalog.rubric_items]);
   const rubricRemovalScores = useMemo(() => (
     isComparison
       ? rubricScoresFromEvaluations(form.evaluations)
@@ -980,10 +983,6 @@ export default function UnifiedTestEntryForm({
      <GuidedSection index={0} title="1. Test Setup" active={activeSection === 0} status={sectionStatus(0)} summary={sectionSummaries[0]} onActivate={activateSection}><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
        {!lockedCommon && <div className="sm:col-span-2"><ScenarioSelector scenarios={scenarios} category={form.workflow_stage || selectedScenario?.workflow_stage || ""} onCategoryChange={(category) => setForm((current) => ({ ...current, workflow_stage: category, scenario_id: "", selected_rubric_ids: [], rubric_scenario_ids: [], rubric_selection_initialized: false }))} value={form.scenario_id} onChange={(value) => { const scenario = scenarios.find((item) => item.id === value); const scenarioRubricIds = [...new Set(scenario?.rubric_ids || [])]; setForm((current) => ({ ...current, scenario_id: value, workflow_stage: scenario?.workflow_stage || current.workflow_stage, selected_rubric_ids: scenarioRubricIds, rubric_revision: normalizedRubricCatalog.revision, rubric_scenario_ids: value ? [value] : [], rubric_selection_initialized: Boolean(value), evaluation_scores: Object.fromEntries(Object.entries(current.evaluation_scores || {}).filter(([id]) => scenarioRubricIds.includes(id))), rubric_scores: Object.fromEntries(Object.entries(current.rubric_scores || {}).filter(([id]) => scenarioRubricIds.includes(id))) })); }} error={attemptedSections.has(0) && !String(form.scenario_id || "").trim() ? "Test Scenario is required." : undefined} /></div>}
       {selectedScenario && <details className="sm:col-span-2 rounded-xl border bg-[var(--paper)] p-4"><summary className="cursor-pointer font-semibold text-[var(--navy)]">View Test Bank guidance for {selectedScenario.stable_id || "this scenario"}</summary><div className="mt-3"><ScenarioDefinition scenario={selectedScenario} /></div></details>}
-      {selectedScenario && <div className={`sm:col-span-2 rounded-xl border p-4 ${mappedRubricItems.length ? "border-blue-200 bg-blue-50" : "border-amber-300 bg-amber-50"}`} data-testid="scenario-rubric-summary">
-        <div className="font-semibold text-[var(--navy)]">Rubric items included for {selectedScenario.stable_id || "this scenario"} ({mappedRubricItems.length})</div>
-        {mappedRubricItems.length ? <><p className="mt-1 text-xs text-muted-foreground">These items are selected automatically. You can uncheck an item or add another item in Section 4.</p><div className="mt-3 flex flex-wrap gap-2">{mappedRubricItems.map((item) => <span key={item.rubric_id} className="rounded-full border border-blue-200 bg-background px-2.5 py-1 text-xs" title={item.evaluation_criterion}><b>{item.rubric_id}</b> · {item.evaluation_criterion}</span>)}</div></> : <p className="mt-1 text-sm text-amber-900">This scenario has no rubric associations. Update it in the Test Bank before recording a scored evaluation.</p>}
-      </div>}
       <Field label="Sequential Test ID"><Input value={form.test_id || "Assigned on save"} readOnly className="bg-muted" /></Field>
        <Field label="Test Name" required={isComparison} error={attemptedSections.has(0) && isComparison && !String(form.name || "").trim() ? "Test Name is required." : undefined}><Input value={form.name || form.title || ""} disabled={lockedCommon} onChange={(e) => update(isComparison ? "name" : "title", e.target.value)} /></Field>
        <Field label="Bassett version" description="Required for completed tests and version-specific dashboard reporting."><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={selectedVersionId} disabled={lockedCommon} onChange={(e) => { const selected = versions.find((version) => version.id === e.target.value); setForm((current) => ({ ...current, version_id: selected?.id || "", bassett_version: selected?.name || "" })); }}><option value="">Not specified</option>{savedVersionUnavailable && <option value={form.version_id}>{form.bassett_version || "Saved version unavailable"}</option>}{versions.map((version) => <option key={version.id} value={version.id}>{version.name}{version.active === false ? " (inactive)" : ""}</option>)}</select></Field>

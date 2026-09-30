@@ -439,7 +439,7 @@ test("changing one Bassett rubric to N/A preserves every other saved score", () 
   act(() => view.root.unmount());
 });
 
-test("a selected Test Bank scenario visibly includes all of its mapped rubric items", () => {
+test("a selected Test Bank scenario keeps mapped rubric items in Rubric Evaluation only", () => {
   const rubricCatalog = {
     revision: "2026-09-30",
     categories: [{ key: "property-zoning", name: "Property & Zoning Rules", rubric_ids: ["R-01", "R-02"] }],
@@ -449,14 +449,17 @@ test("a selected Test Bank scenario visibly includes all of its mapped rubric it
     ],
   };
   const view = renderForm("bassett", {}, { rubricCatalog });
-  const summary = view.container.querySelector('[data-testid="scenario-rubric-summary"]');
-  expect(summary).not.toBeNull();
-  expect(summary.textContent).toContain("Rubric items included for R-01 (2)");
-  expect(summary.textContent).toContain("R-01 · Property identity");
-  expect(summary.textContent).toContain("R-02 · Jurisdiction");
+  expect(view.container.querySelector('[data-testid="scenario-rubric-summary"]')).toBeNull();
   expect(view.latest().selected_rubric_ids).toEqual(["R-01", "R-02"]);
   expect(view.container.textContent).toContain("2 scenario rubric items · 0 scored");
   act(() => view.container.querySelector('summary[data-guided-section="3"]').click());
+  const rubricToggle = view.container.querySelector('[data-testid="rubric-criteria-selector"]');
+  expect(rubricToggle.open).toBe(false);
+  expect(rubricToggle.querySelector("summary").textContent).toContain("Choose rubric items (2 selected)");
+  act(() => rubricToggle.querySelector("summary").click());
+  expect(rubricToggle.open).toBe(true);
+  expect(rubricToggle.textContent).toContain("Property identity");
+  expect(rubricToggle.textContent).toContain("Jurisdiction");
   expect([...view.container.querySelectorAll('[data-testid="rubric-criteria-selector"] input[type="checkbox"]')]
     .filter((input) => input.checked)).toHaveLength(2);
   act(() => view.root.unmount());
