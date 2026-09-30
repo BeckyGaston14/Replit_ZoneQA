@@ -18,6 +18,7 @@ import { nextSort, sortTableRows, usePersistentTableSort } from "../lib/tableSor
 import { ConfirmActionDialog } from "../components/ConfirmActionDialog";
 import { invalidateConfigQueries, invalidateVersionQueries } from "../lib/hooks";
 import { QueryState } from "../components/PageState";
+import { AdminRubricItems, AdminScenarios } from "../components/AdminCatalogManagement";
 
 
 const LOOKUPS = [
@@ -330,7 +331,7 @@ export default function Admin() {
     </div>
   );
   if (!config) return <div>
-    <PageHeader title="Administration" subtitle="Configurable lookups, users, models & Bassett versions." />
+    <PageHeader title="Administration" subtitle="Manage test definitions, reference options, users, models, and Bassett versions." />
     <QueryState query={configQuery} resource="administration settings" testId="admin-config" />
   </div>;
   const cfgInteg = integ || config.integrations || {};
@@ -345,9 +346,9 @@ export default function Admin() {
 
   return (
     <div>
-      <PageHeader title="Administration" subtitle="Configurable lookups, users, models & Bassett versions." />
+      <PageHeader title="Administration" subtitle="Manage test definitions, reference options, users, models, and Bassett versions." />
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="max-w-full justify-start overflow-x-auto"><TabsTrigger value="lookups">Lookups</TabsTrigger><TabsTrigger value="models">Models</TabsTrigger><TabsTrigger value="versions">Bassett Versions</TabsTrigger><TabsTrigger value="users">Users & Roles</TabsTrigger><TabsTrigger value="integrations" data-testid="tab-integrations">Integrations</TabsTrigger></TabsList>
+        <TabsList className="max-w-full justify-start overflow-x-auto"><TabsTrigger value="lookups">Lookups</TabsTrigger><TabsTrigger value="scenarios">Test Scenarios</TabsTrigger><TabsTrigger value="rubrics">Rubric Evaluations</TabsTrigger><TabsTrigger value="models">Models</TabsTrigger><TabsTrigger value="versions">Bassett Versions</TabsTrigger><TabsTrigger value="users">Users & Roles</TabsTrigger><TabsTrigger value="integrations" data-testid="tab-integrations">Integrations</TabsTrigger></TabsList>
 
         <TabsContent value="lookups">
           <div className="mb-4 rounded-xl border bg-card p-4">
@@ -373,6 +374,14 @@ export default function Admin() {
               </details>
             ))}
           </div>
+        </TabsContent>
+
+        <TabsContent value="scenarios">
+          <AdminScenarios />
+        </TabsContent>
+
+        <TabsContent value="rubrics">
+          <AdminRubricItems />
         </TabsContent>
 
         <TabsContent value="models">

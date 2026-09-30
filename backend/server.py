@@ -2642,7 +2642,7 @@ async def _prepare_comparison_workflow(
                 if current_rubrics else []
             ),
             "rubric_definition_snapshot": (
-                rubric_snapshot(selected_rubric_ids) if current_rubrics else {}
+                await _effective_rubric_snapshot(selected_rubric_ids) if current_rubrics else {}
             ),
             "rubric_scores": rubric_scores if current_rubrics else {},
             "category_scores": rubric_result["category_scores"] if current_rubrics else {},
@@ -2678,7 +2678,7 @@ async def _prepare_comparison_workflow(
             "additional_rubric_ids": sorted(
                 set(selected_rubric_ids) - set(scenario_rubric_ids)
             ),
-            "rubric_definition_snapshot": rubric_snapshot(selected_rubric_ids),
+            "rubric_definition_snapshot": await _effective_rubric_snapshot(selected_rubric_ids),
         })
     return testcase, goldstandard, responses, evaluations
 
@@ -4570,7 +4570,7 @@ async def bassett_create_issue(body: Dict[str, Any], user=Depends(get_current_us
         "selected_rubric_ids": selected_rubric_ids,
         "additional_rubric_ids": sorted(set(selected_rubric_ids) - set(scenario_rubric_ids)),
         "rubric_scores": rubric_scores,
-        "rubric_definition_snapshot": rubric_snapshot(selected_rubric_ids),
+        "rubric_definition_snapshot": await _effective_rubric_snapshot(selected_rubric_ids),
         "category_scores": rubric_result["category_scores"],
         "score_count": rubric_result["score_count"],
     })
@@ -4687,7 +4687,7 @@ async def _prepare_bassett_workflow_document(body: Dict[str, Any], user: Dict[st
     all_rubric_ids = set(RUBRIC_CATALOG_ITEMS[index]["rubric_id"] for index in range(len(RUBRIC_CATALOG_ITEMS)))
     doc["additional_rubric_ids"] = sorted(set(selected_rubric_ids) - set(scenario_rubric_ids))
     doc["rubric_scores"] = rubric_scores
-    doc["rubric_definition_snapshot"] = rubric_snapshot(selected_rubric_ids)
+    doc["rubric_definition_snapshot"] = await _effective_rubric_snapshot(selected_rubric_ids)
     doc["category_scores"] = rubric_result["category_scores"]
     doc["score_count"] = rubric_result["score_count"]
     if rubric_scores:
@@ -5088,7 +5088,7 @@ async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_c
             "additional_rubric_ids": sorted(
                 set(selected) - set(normalize_rubric_ids(scenario.get("rubric_ids")))
             ),
-            "rubric_definition_snapshot": rubric_snapshot(selected),
+            "rubric_definition_snapshot": await _effective_rubric_snapshot(selected),
             "category_scores": rubric_result["category_scores"],
             "score_count": rubric_result["score_count"],
             "rubric_scores": scores,
@@ -5343,14 +5343,97 @@ async def bassett_convert_to_finding(id: str, body: Dict[str, Any] = None, user=
     await _bassett_history("issue", id, "converted_to_finding", user, {"finding_id": finding["id"]})
     return finding
 
+async def _effective_rubric_items():
+    """Merge administrator wording/visibility overrides onto stable rubric IDs."""
+    config = await db.config.find_one({"id": "global"}, {"_id": 0}) or {}
+    overrides = config.get("rubric_item_overrides") or {}
+    items = []
+    for source in RUBRIC_CATALOG_ITEMS:
+        rubric_id = source["rubric_id"]
+        override = overrides.get(rubric_id) or {}
+        items.append({
+            **dict(source),
+            **{
+                key: override[key]
+                for key in ("evaluation_criterion", "why_it_matters", "expected_behavior", "passing_standard")
+                if key in override
+            },
+            "active": override.get("active", True) is not False,
+            "revision": int(override.get("revision", 1)),
+            "updated_at": override.get("updated_at"),
+        })
+    return items
+
+
+async def _effective_rubric_snapshot(selected_ids):
+    selected = set(normalize_rubric_ids(selected_ids))
+    return {
+        item["rubric_id"]: dict(item)
+        for item in await _effective_rubric_items()
+        if item["rubric_id"] in selected
+    }
+
+
 @api.get("/bassett/rubric-catalog")
 async def bassett_rubric_catalog(user=Depends(get_current_user)):
-    """Return the immutable approved rubric catalog and its revision."""
+    """Return stable rubric IDs with administrator-managed wording and visibility."""
     return {
         "revision": CATALOG_REVISION,
         "categories": [dict(item) for item in RUBRIC_CATALOG_CATEGORIES],
-        "rubric_items": [dict(item) for item in RUBRIC_CATALOG_ITEMS],
+        "rubric_items": await _effective_rubric_items(),
     }
+
+
+@api.put("/bassett/rubric-items/{rubric_id}")
+async def update_bassett_rubric_item(
+    rubric_id: str, body: Dict[str, Any], user=Depends(get_current_user)
+):
+    _require_bassett_admin(user)
+    rubric_id = str(rubric_id or "").strip().upper()
+    source = next(
+        (item for item in RUBRIC_CATALOG_ITEMS if item["rubric_id"] == rubric_id),
+        None,
+    )
+    if not source:
+        raise HTTPException(404, "Rubric item not found")
+    editable = ("evaluation_criterion", "why_it_matters", "expected_behavior", "passing_standard")
+    changes = {}
+    for key in editable:
+        if key in body:
+            value = str(body.get(key) or "").strip()
+            if not value:
+                raise HTTPException(400, f"{key.replace('_', ' ').title()} cannot be blank")
+            changes[key] = value
+    if "active" in body:
+        changes["active"] = body.get("active") is not False
+    config = await db.config.find_one({"id": "global"}, {"_id": 0}) or {}
+    overrides = dict(config.get("rubric_item_overrides") or {})
+    existing = dict(overrides.get(rubric_id) or {})
+    expected_revision = body.get("expected_revision")
+    current_revision = int(existing.get("revision", 1))
+    if expected_revision is not None and int(expected_revision) != current_revision:
+        raise HTTPException(409, detail={
+            "code": "stale_update",
+            "message": "Someone else saved this rubric item first. Reload the latest values and review your edits.",
+            "current_revision": current_revision,
+            "current_updated_at": existing.get("updated_at"),
+        })
+    overrides[rubric_id] = {
+        **existing,
+        **changes,
+        "revision": current_revision + 1,
+        "updated_at": now_iso(),
+        "updated_by": user.get("name"),
+    }
+    await db.config.update_one(
+        {"id": "global"},
+        {"$set": {"rubric_item_overrides": overrides}},
+        upsert=True,
+    )
+    return next(
+        item for item in await _effective_rubric_items()
+        if item["rubric_id"] == rubric_id
+    )
 
 
 def _require_bassett_admin(user):

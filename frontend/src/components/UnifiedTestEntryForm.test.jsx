@@ -465,6 +465,29 @@ test("a selected Test Bank scenario keeps mapped rubric items in Rubric Evaluati
   act(() => view.root.unmount());
 });
 
+test("hidden rubric items are excluded from new tests but remain visible on saved tests that use them", () => {
+  const rubricCatalog = {
+    revision: "2026-09-30",
+    categories: [{ key: "property-zoning", name: "Property & Zoning Rules", rubric_ids: ["R-01", "R-02"] }],
+    rubric_items: [
+      { rubric_id: "R-01", category: "property-zoning", evaluation_criterion: "Property identity", expected_behavior: "Identify the property", passing_standard: "Correct property", active: true },
+      { rubric_id: "R-02", category: "property-zoning", evaluation_criterion: "Jurisdiction", expected_behavior: "Identify the jurisdiction", passing_standard: "Correct jurisdiction", active: false },
+    ],
+  };
+  const newView = renderForm("bassett", {}, { rubricCatalog });
+  expect(newView.latest().selected_rubric_ids).toEqual(["R-01"]);
+  act(() => newView.root.unmount());
+
+  const savedView = renderForm("bassett", {
+    id: "saved-run", rubric_revision: rubricCatalog.revision,
+    rubric_selection_initialized: true, rubric_scenario_ids: [scenario.id],
+    selected_rubric_ids: ["R-01", "R-02"], evaluation_scores: { "R-02": 8 },
+  }, { rubricCatalog });
+  act(() => savedView.container.querySelector('summary[data-guided-section="3"]').click());
+  expect(savedView.container.textContent).toContain("R-02 · Jurisdiction");
+  act(() => savedView.root.unmount());
+});
+
 test("Bassett finding categories use the configured lookup only when a linked finding is created", () => {
   const view = renderForm("bassett", { create_finding: false, issue_category: "" }, {
     config: { finding_types: ["citation problem", "hallucination", "other"] },
