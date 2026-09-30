@@ -281,7 +281,7 @@ export default function BassettTestBank() {
   };
   const previewCurrentCatalog = async () => {
     try {
-      const { data } = await api.get("/bassett/catalog/preview");
+      const { data } = await api.post("/bassett/catalog/preview");
       setCatalogPreview(data);
     } catch (error) { toast.error(importError(error, "Unable to review the current Test Bank")); }
   };
