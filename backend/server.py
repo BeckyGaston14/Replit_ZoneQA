@@ -4070,8 +4070,19 @@ async def _seed_bassett_catalog():
                 {"$set": {"archived": False, "updated_at": now_iso()}},
             )
         elif any(existing.get(key) != value for key, value in definition.items()):
-            logger.error("Bassett canonical seed conflict for %s; existing row was not overwritten",
-                         definition["stable_id"])
+            # A partially applied catalog can leave a current-revision row with
+            # legacy labels or associations. The checked-in catalog is the
+            # authoritative definition, so reconcile those fields in place.
+            await db.bassett_scenarios.update_one(
+                {"id": existing["id"]},
+                {"$set": {
+                    **definition,
+                    "archived": False,
+                    "archived_at": None,
+                    "archived_by": None,
+                    "updated_at": now_iso(),
+                }},
+            )
 
     # Keep saved QA evidence connected to the same logical Test Bank item when
     # a catalog revision replaces the scenario record. The prior scenario and
@@ -5355,12 +5366,24 @@ async def _catalog_revision_preview():
         {"catalog_revision": CATALOG_REVISION}, {"_id": 0}
     ).to_list(10000)
     target_by_stable = {row.get("stable_id"): row for row in target}
-    stable_ids = {row["test_id"] for row in RUBRIC_CATALOG_REFERENCE["scenarios"]}
+    definitions = {
+        definition["stable_id"]: definition
+        for definition in (
+            scenario_definition(row) for row in RUBRIC_CATALOG_REFERENCE["scenarios"]
+        )
+    }
+    stable_ids = set(definitions)
     legacy = [row for row in active if row.get("catalog_revision") != CATALOG_REVISION]
     missing = [stable_id for stable_id in stable_ids if stable_id not in target_by_stable]
     guidance_revision = RUBRIC_CATALOG_REFERENCE.get("guidance_revision", CATALOG_REVISION)
-    refresh = [stable_id for stable_id in stable_ids if stable_id in target_by_stable
-               and target_by_stable[stable_id].get("guidance_revision") != guidance_revision]
+    refresh = [
+        stable_id for stable_id in stable_ids
+        if stable_id in target_by_stable
+        and any(
+            target_by_stable[stable_id].get(key) != value
+            for key, value in definitions[stable_id].items()
+        )
+    ]
     legacy_reference_count = await _count_legacy_bassett_catalog_references()
     return {
         "revision": CATALOG_REVISION,

@@ -174,3 +174,28 @@ def test_existing_catalog_still_previews_changed_guidance(monkeypatch):
     assert preview["would_update_guidance"] == 94
     assert preview["would_insert"] == 0
     assert preview["would_archive"] == 0
+
+
+def test_current_revision_with_legacy_content_is_refreshed(monkeypatch):
+    from test_bank_catalog import scenario_definition
+    rows = [
+        {
+            **scenario_definition(row),
+            "id": row["test_id"],
+            "archived": False,
+        }
+        for row in REFERENCE["scenarios"]
+    ]
+    rows[0]["test_type"] = "Research"
+    rows[0]["workflow_stage"] = "Research"
+    db = _Db(rows)
+    monkeypatch.setattr(server, "db", db)
+
+    preview = asyncio.run(server._catalog_revision_preview())
+    assert preview["would_update_guidance"] == 1
+
+    asyncio.run(server._seed_bassett_catalog())
+    refreshed = next(row for row in db.rows if row["stable_id"] == rows[0]["stable_id"])
+    expected = scenario_definition(REFERENCE["scenarios"][0])
+    assert refreshed["test_type"] == expected["test_type"]
+    assert refreshed["workflow_stage"] == expected["workflow_stage"]
