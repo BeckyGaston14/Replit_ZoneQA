@@ -1,6 +1,6 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import BassettIssues, { BassettRunActions, ScenarioSelector, actionError, loadBassettTestRunForEdit, persistBassettTestRun } from "./BassettIssues";
+import BassettIssues, { BassettRunActions, ScenarioSelector, actionError, loadBassettTestRunForEdit, persistBassettTestRun, scoredRubricRemovalIds } from "./BassettIssues";
 import BassettTestBank, { ResultPill, ScenarioDetail } from "./BassettTestBank";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -525,5 +525,17 @@ test("viewers, archived rows, and read-only rows never expose an enabled edit co
 
   act(() => root.unmount());
   container.remove();
+});
+
+test("rubric-removal confirmation is not misclassified as a stale record", () => {
+  expect(scoredRubricRemovalIds({
+    response: {
+      status: 409,
+      data: { detail: { code: "scored_rubric_removal_confirmation_required", rubric_ids: ["R-03", "R-09"] } },
+    },
+  })).toEqual(["R-03", "R-09"]);
+  expect(scoredRubricRemovalIds({
+    response: { status: 409, data: { detail: { code: "stale_update" } } },
+  })).toBeNull();
 });
 

@@ -205,6 +205,7 @@ export default function BassettIssues() {
   const [quickView, setQuickView] = useState("");
   const [form, setForm] = useState(null);
   const [conflict, setConflict] = useState(null);
+  const [rubricRemovalConflict, setRubricRemovalConflict] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [loadingEditId, setLoadingEditId] = useState(null);
@@ -331,13 +332,16 @@ export default function BassettIssues() {
     else setFilters(base);
   };
 
-  const save = async () => {
+  const save = async (formOverride = null) => {
     if (saving) return;
+    const draft = formOverride && typeof formOverride === "object" && !formOverride.preventDefault
+      ? formOverride
+      : form;
     setSaveError("");
     setSaving(true);
     try {
-      const { issueId, uploadFailures, evidenceFailures } = await persistBassettTestRun(form);
-      if (!form.id) {
+      const { issueId, uploadFailures, evidenceFailures } = await persistBassettTestRun(draft);
+      if (!draft.id) {
         setSelected(issueId);
         localStorage.removeItem("zoneqa:bassett-workflow-draft");
       }
@@ -348,17 +352,24 @@ export default function BassettIssues() {
         ].filter(Boolean).join("; ");
         toast.warning(`Test run saved, but ${warnings}.`);
       } else {
-        toast.success(form.id ? "Test run updated" : "Test run recorded");
+        toast.success(draft.id ? "Test run updated" : "Test run recorded");
       }
       setConflict(null);
+      setRubricRemovalConflict(null);
       setForm(null);
       qc.invalidateQueries({ queryKey: ["attachments", "bassett_issue", issueId] });
       qc.invalidateQueries({ queryKey: ["bassett-test-runs"] });
       qc.invalidateQueries({ queryKey: ["bassett-metrics"] });
       qc.invalidateQueries({ queryKey: ["bassett-scenarios"] });
     } catch (error) {
-      if (error?.response?.status === 409 && form.id) {
-        try { setConflict((await api.get(`/bassett/issues/${form.id}`)).data); } catch { setConflict({ revision: error?.response?.data?.detail?.current_revision }); }
+      const conflictDetail = error?.response?.data?.detail;
+      const rubricIds = scoredRubricRemovalIds(error);
+      if (rubricIds) {
+        setRubricRemovalConflict(rubricIds);
+        setConflict(null);
+        setSaveError("");
+      } else if (error?.response?.status === 409 && draft.id) {
+        try { setConflict((await api.get(`/bassett/issues/${draft.id}`)).data); } catch { setConflict({ revision: conflictDetail?.current_revision }); }
         const message = staleUpdateMessage(error) || "This test run changed elsewhere. Review your entries before reapplying them.";
         setSaveError(message);
         toast.error(message);
@@ -377,6 +388,7 @@ export default function BassettIssues() {
       const data = await loadBassettTestRunForEdit(issue);
       setSelected(null);
       setConflict(null);
+      setRubricRemovalConflict(null);
       setSaveError("");
       setForm(data);
     } catch (error) {
@@ -551,13 +563,25 @@ export default function BassettIssues() {
      </MethodologyDisclosure>
 
      {selected && !showingFindings && <IssueDetail id={selected} onClose={() => setSelected(null)} onEdit={openEdit} onRestore={restore} canWrite={canWrite} canManage={canManage} refresh={() => qc.invalidateQueries()} />}
-    {form && <BassettTestRunForm key={`${form.id || form.submission_id || "new"}:${form._draftRecoveryNonce || "initial"}`} form={form} setForm={setForm} scenarios={scenarios} rubricCatalog={rubricCatalog} versions={versions} projects={projects} municipalities={municipalities} properties={properties} users={users} evidenceRecords={evidenceRecords} availableFindings={availableFindings} config={config} onSubmit={save} onCancel={() => { setConflict(null); setSaveError(""); setForm(null); }} submitting={saving} conflictNotice={<>
+    {form && <BassettTestRunForm key={`${form.id || form.submission_id || "new"}:${form._draftRecoveryNonce || "initial"}`} form={form} setForm={setForm} scenarios={scenarios} rubricCatalog={rubricCatalog} versions={versions} projects={projects} municipalities={municipalities} properties={properties} users={users} evidenceRecords={evidenceRecords} availableFindings={availableFindings} config={config} onSubmit={save} onCancel={() => { setConflict(null); setRubricRemovalConflict(null); setSaveError(""); setForm(null); }} submitting={saving} conflictNotice={<>
       {saveError && <div role="alert" className="col-span-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"><p className="font-semibold">Your changes were not saved.</p><p className="mt-1">{saveError}</p></div>}
       {conflict && <div role="alert" className="col-span-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
       <p className="font-semibold">Someone else saved this test run first. Your entries are still open for review.</p>
       <div className="mt-2 flex gap-2">
         <Button type="button" size="sm" variant="outline" onClick={() => { setForm(conflict); setConflict(null); }}>Load latest values</Button>
         <Button type="button" size="sm" onClick={() => { setForm((draft) => ({ ...draft, expected_revision: conflict.revision, expected_updated_at: conflict.updated_at })); setConflict(null); }}>Keep my entries and reapply</Button>
+      </div>
+    </div>}
+    {rubricRemovalConflict && <div role="alert" className="col-span-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+      <p className="font-semibold">Previously scored rubric items need your review.</p>
+      <p className="mt-1">The current selection omits {rubricRemovalConflict.join(", ")}. Keep them in this test run, or remove their saved scores and continue.</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <Button type="button" size="sm" variant="outline" onClick={() => {
+          setForm((draft) => ({ ...draft, selected_rubric_ids: [...new Set([...(draft.selected_rubric_ids || []), ...rubricRemovalConflict])], confirm_rubric_removal: false }));
+          setRubricRemovalConflict(null);
+          setSaveError("");
+        }}>Keep previously scored items</Button>
+        <Button type="button" size="sm" onClick={() => save({ ...form, confirm_rubric_removal: true })}>Remove old scores and save</Button>
       </div>
     </div>}
     </>} />}
@@ -593,6 +617,12 @@ function actionError(error, fallback) {
   if (detail != null) return formatApiErrorDetail(detail);
   if (!error?.response) return `${fallback}. The server could not be reached; your entries are still open.`;
   return `${fallback}. Your entries are still open so you can retry.`;
+}
+
+export function scoredRubricRemovalIds(error) {
+  const detail = error?.response?.data?.detail;
+  if (error?.response?.status !== 409 || detail?.code !== "scored_rubric_removal_confirmation_required") return null;
+  return Array.isArray(detail.rubric_ids) ? detail.rubric_ids : [];
 }
 
 function BassettFindingDetail({ id, onClose, canWrite, refresh, embedded = false }) {
