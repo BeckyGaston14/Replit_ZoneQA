@@ -56,7 +56,7 @@ export const emptyBassettTestRun = {
   title: "", question_asked: "", exact_bassett_answer: "", verified_correct_answer: "",
   test_type: "Single Prompt", turns: [], conversation_source: "structured_text", transcript_status: "not_needed",
   issue_category: "", severity: "Medium", priority: "Medium", environment: "",
-  test_date: "", scenario_id: "", general_subtype_ids: [], project_id: "", municipality_id: "", property_id: "",
+  test_date: "", scenario_id: "", project_id: "", municipality_id: "", property_id: "",
   version_id: "", bassett_version: "", status: "Not Started", result: "Not Evaluated", score: "", notes: "", evidence: "",
   evaluation_scores: {}, selected_rubric_ids: [], rubric_revision: null,
   rubric_selection_initialized: false, rubric_scenario_ids: [], confirm_rubric_removal: false,
@@ -118,7 +118,7 @@ export function bassettVersionRequirementMessage(form) {
 export function createComparisonTestDraft(overrides = {}, timeZone, now = new Date()) {
   const submissionId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   return {
-    name: "", prompts: [{ turn: 1, text: "" }], expected_behaviors: [], scenario_id: "", general_subtype_ids: [],
+    name: "", prompts: [{ turn: 1, text: "" }], expected_behaviors: [], scenario_id: "",
     project_id: "", municipality_id: "", property_id: "", version_id: "", bassett_version: "",
     test_date: todayInTimeZone(timeZone, now), status: "Draft", test_type: "Competitive Benchmark",
     criticality: 3, difficulty: 2, environment: "", notes: "", reproduction_steps: "",
@@ -196,12 +196,11 @@ export function ScenarioSelector({ scenarios, value, onChange, category = "", on
   const available = scenarios.filter((scenario) => (!scenario.archived && !scenario.archived_at) || scenario.id === value);
   const group = (scenario) => {
     const raw = scenario.catalog_revision ? (scenario.test_type || scenario.report_type || scenario.workflow_stage) : scenario.workflow_stage;
-    return raw === "General Research" ? "Research" : raw;
+    return raw;
   };
   const categories = [...new Set(available.map(group).filter(Boolean))].sort();
   const selectedGroup = available.find((scenario) => scenario.id === value);
-  const normalizedCategory = category === "General Research" ? "Research" : category;
-  const activeCategory = selectedGroup ? group(selectedGroup) : normalizedCategory;
+  const activeCategory = selectedGroup ? group(selectedGroup) : category;
   const selectedScenario = available.find((scenario) => scenario.id === value);
   const shown = activeCategory ? available.filter((scenario) => group(scenario) === activeCategory && [scenario.stable_id, scenario.test_scenario, scenario.priority]
     .some((field) => String(field || "").toLowerCase().includes(query.toLowerCase()))) : [];
@@ -256,7 +255,7 @@ export function ScenarioSelector({ scenarios, value, onChange, category = "", on
 export function ScenarioDefinition({ scenario }) {
   if (!scenario) return null;
   const rawCategory = scenario.catalog_revision ? (scenario.test_type || scenario.report_type || scenario.workflow_stage) : scenario.workflow_stage;
-  const displayCategory = rawCategory === "General Research" ? "Research" : rawCategory;
+  const displayCategory = rawCategory;
   const mappedRubrics = (scenario.rubric_ids || []).join(", ");
   const fields = [["Stable ID", scenario.stable_id], ["Scenario Type", displayCategory], ["Test Scenario", scenario.test_scenario], ["Complexity", scenario.complexity], ["Mapped rubric IDs", mappedRubrics], ["Why it matters", scenario.why_it_matters], ["What Bassett should do", scenario.what_bassett_should_do], ["Success criteria", scenario.success_criteria], ["Priority", scenario.priority]];
   return <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">{fields.map(([label, value]) => <div key={label}><div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">{label}</div><div className="whitespace-pre-wrap">{value || "—"}</div></div>)}</div>;

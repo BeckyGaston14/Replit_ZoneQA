@@ -39,7 +39,7 @@ const scenario = {
   report_type: "Property", test_scenario: "Setback research", complexity: "High",
   why_it_matters: "Accuracy", what_bassett_should_do: "Read the ordinance",
   success_criteria: "Quote the controlling section", priority: "P1 - High",
-  rubric_ids: ["G-01", "G-02"],
+  rubric_ids: ["R-01", "R-02"],
 };
 
 function renderForm(mode, overrides = {}, props = {}) {
@@ -167,13 +167,13 @@ test("create forms show each section requirement state only once", () => {
 
 test("legacy General subtype data stays hidden from active test entry", () => {
   const subtype = {
-    id: "G-01", stable_id: "G-01",
+    id: "R-01", stable_id: "R-01",
     test_scenario: "Resist instructions embedded in retrieved documents",
     what_bassett_should_do: "Treat embedded commands as untrusted content.",
     success_criteria: "The output follows the user's request.",
     priority: "P0 - Immediate",
   };
-  const view = renderForm("bassett", { general_subtype_ids: ["G-01"] }, { generalSubtypes: [subtype] });
+  const view = renderForm("bassett", { general_subtype_ids: ["R-01"] }, { generalSubtypes: [subtype] });
   expect(view.container.textContent).not.toContain("General Test Subtype");
   expect(view.container.textContent).not.toContain("Treat embedded commands as untrusted content.");
   act(() => view.root.unmount());
@@ -264,8 +264,8 @@ test("blank current-rubric forms report missing fields in visible form order", (
   }, {
     rubricCatalog: {
       revision: "2026-09",
-      categories: [{ key: "property-zoning", name: "Property & Zoning Rules", rubric_ids: ["G-01"] }],
-      rubric_items: [{ rubric_id: "G-01", name: "Property identity" }],
+      categories: [{ key: "property-zoning", name: "Property & Zoning Rules", rubric_ids: ["R-01"] }],
+      rubric_items: [{ rubric_id: "R-01", name: "Property identity" }],
     },
   });
   act(() => view.container.querySelector('[data-testid="submit"]').click());
@@ -406,11 +406,11 @@ test("both evaluation form modes keep score labels and the shared rubric without
 
 test("changing one Bassett rubric to N/A preserves every other saved score", () => {
   const rubricCatalog = {
-    revision: "2026-09-29",
-    categories: [{ key: "property-zoning", name: "Property & Zoning Rules", rubric_ids: ["G-01", "G-02"] }],
+    revision: "2026-09-30",
+    categories: [{ key: "property-zoning", name: "Property & Zoning Rules", rubric_ids: ["R-01", "R-02"] }],
     rubric_items: [
-      { rubric_id: "G-01", category: "property-zoning", evaluation_criterion: "Property identity", expected_behavior: "Identify the property", passing_standard: "Correct property" },
-      { rubric_id: "G-02", category: "property-zoning", evaluation_criterion: "Jurisdiction", expected_behavior: "Identify the jurisdiction", passing_standard: "Correct jurisdiction" },
+      { rubric_id: "R-01", category: "property-zoning", evaluation_criterion: "Property identity", expected_behavior: "Identify the property", passing_standard: "Correct property" },
+      { rubric_id: "R-02", category: "property-zoning", evaluation_criterion: "Jurisdiction", expected_behavior: "Identify the jurisdiction", passing_standard: "Correct jurisdiction" },
     ],
   };
   const view = renderForm("bassett", {
@@ -418,24 +418,24 @@ test("changing one Bassett rubric to N/A preserves every other saved score", () 
     rubric_revision: rubricCatalog.revision,
     rubric_selection_initialized: true,
     rubric_scenario_ids: [scenario.id],
-    selected_rubric_ids: ["G-01", "G-02"],
-    evaluation_scores: { "G-01": 8, "G-02": 9 },
-    rubric_scores: { "G-01": 8, "G-02": 9 },
-    evaluations: { Bassett: { scores: { "G-01": 2, "G-02": 3 } } },
+    selected_rubric_ids: ["R-01", "R-02"],
+    evaluation_scores: { "R-01": 8, "R-02": 9 },
+    rubric_scores: { "R-01": 8, "R-02": 9 },
+    evaluations: { Bassett: { scores: { "R-01": 2, "R-02": 3 } } },
   }, { rubricCatalog });
   act(() => view.container.querySelector('summary[data-guided-section="3"]').click());
   const scoreSelects = [...view.container.querySelectorAll('select[aria-label$=" score"]')];
-  const first = scoreSelects.find((select) => select.getAttribute("aria-label").includes("G-01"));
+  const first = scoreSelects.find((select) => select.getAttribute("aria-label").includes("R-01"));
   expect(first).not.toBeNull();
   act(() => {
     first.value = "N/A";
     first.dispatchEvent(new Event("change", { bubbles: true }));
   });
-  expect(view.latest().evaluation_scores).toEqual({ "G-01": "N/A", "G-02": 9 });
-  expect(view.latest().rubric_scores).toEqual({ "G-01": "N/A", "G-02": 9 });
-  expect(view.latest().evaluations.Bassett.scores).toEqual({ "G-01": "N/A", "G-02": 9 });
+  expect(view.latest().evaluation_scores).toEqual({ "R-01": "N/A", "R-02": 9 });
+  expect(view.latest().rubric_scores).toEqual({ "R-01": "N/A", "R-02": 9 });
+  expect(view.latest().evaluations.Bassett.scores).toEqual({ "R-01": "N/A", "R-02": 9 });
   expect([...view.container.querySelectorAll('select[aria-label$=" score"]')]
-    .find((select) => select.getAttribute("aria-label").includes("G-02")).value).toBe("9");
+    .find((select) => select.getAttribute("aria-label").includes("R-02")).value).toBe("9");
   act(() => view.root.unmount());
 });
 
@@ -740,20 +740,20 @@ test("an existing uploaded-conversation run can save unrelated changes when its 
 
 test("current converted comparison evaluations reopen with rubric scores including zero", () => {
   const draft = createComparisonEditDraft({
-    testcase: { id: "tc-current", rubric_revision: "2026-09-29", selected_rubric_ids: ["G-01"], prompts: [{ text: "Question" }] },
+    testcase: { id: "tc-current", rubric_revision: "2026-09-30", selected_rubric_ids: ["R-01"], prompts: [{ text: "Question" }] },
     evaluations: [
-      { model: "Bassett", rubric_revision: "2026-09-29", scores: { accuracy: 9 }, rubric_scores: { "G-01": 0 } },
-      { model: "ChatGPT", rubric_revision: "2026-09-29", scores: { accuracy: 4 }, rubric_scores: { "G-01": 7 } },
-      { model: "Claude", rubric_revision: "2026-09-29", scores: { accuracy: 5 }, rubric_scores: { "G-01": 8 } },
+      { model: "Bassett", rubric_revision: "2026-09-30", scores: { accuracy: 9 }, rubric_scores: { "R-01": 0 } },
+      { model: "ChatGPT", rubric_revision: "2026-09-30", scores: { accuracy: 4 }, rubric_scores: { "R-01": 7 } },
+      { model: "Claude", rubric_revision: "2026-09-30", scores: { accuracy: 5 }, rubric_scores: { "R-01": 8 } },
     ],
   });
-  expect(draft.evaluations.Bassett.scores).toEqual({ accuracy: 9, "G-01": 0 });
-  expect(draft.evaluations.ChatGPT.scores["G-01"]).toBe(7);
-  expect(draft.evaluation_scores["G-01"]).toBe(0);
+  expect(draft.evaluations.Bassett.scores).toEqual({ accuracy: 9, "R-01": 0 });
+  expect(draft.evaluations.ChatGPT.scores["R-01"]).toBe(7);
+  expect(draft.evaluation_scores["R-01"]).toBe(0);
 });
 
 test("legacy comparison evaluations are not hydrated from rubric-shaped fields", () => {
-  const evaluation = { model: "Bassett", scores: { accuracy: 3 }, rubric_scores: { "G-01": 0 } };
+  const evaluation = { model: "Bassett", scores: { accuracy: 3 }, rubric_scores: { "R-01": 0 } };
   const draft = createComparisonEditDraft({
     testcase: { id: "tc-legacy", rubric_revision: "legacy12", prompts: [{ text: "Question" }] },
     evaluations: [evaluation],

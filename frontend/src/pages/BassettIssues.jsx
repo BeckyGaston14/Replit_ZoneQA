@@ -269,7 +269,7 @@ export default function BassettIssues() {
     stages: [...new Set(issues.map((item) => {
       const scenario = scenarioMap[item.scenario_id] || item.definition_snapshot || item.scenario_snapshot || {};
       const value = scenario.test_type || scenario.report_type || scenario.workflow_stage || item.workflow_stage;
-      return value === "General Research" ? "Research" : value;
+      return value;
     }).filter(Boolean))].sort(),
     testTypes: [...new Set(issues.map((item) => item.test_type).filter(Boolean))].sort(),
     environments: [...new Set(issues.map((item) => item.environment).filter(Boolean))].sort(),
@@ -290,7 +290,7 @@ export default function BassettIssues() {
     if (showingFindings && filters.stage !== "all") {
       const scenario = scenarioMap[issue.scenario_id] || issue.definition_snapshot || issue.scenario_snapshot || {};
       const testBankType = scenario.test_type || scenario.report_type || scenario.workflow_stage || issue.workflow_stage;
-      if ((testBankType === "General Research" ? "Research" : testBankType) !== filters.stage) return false;
+      if (testBankType !== filters.stage) return false;
     }
     if (showingFindings && filters.testType !== "all" && issue.test_type !== filters.testType) return false;
     if (showingFindings && filters.environment !== "all" && issue.environment !== filters.environment) return false;

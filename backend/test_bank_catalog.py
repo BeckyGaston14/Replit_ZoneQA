@@ -1,7 +1,8 @@
-"""Revisioned Test Bank catalog and rubric helpers.
+"""Current Test Bank catalog and rubric helpers.
 
-The JSON reference is an immutable source snapshot.  Runtime records copy its
-definitions so later catalog revisions cannot reinterpret historical scores.
+The checked-in JSON is the application source for the approved Google Sheet.
+Saved records retain their own snapshots; all new selection and reporting uses
+the current catalog only.
 """
 from __future__ import annotations
 
@@ -10,8 +11,8 @@ from pathlib import Path
 from typing import Any
 
 
-CATALOG_REVISION = "2026-09-29"
-REFERENCE_PATH = Path(__file__).with_name("test_bank_reference_2026_09_29.json")
+CATALOG_REVISION = "2026-09-30"
+REFERENCE_PATH = Path(__file__).with_name("test_bank_reference_2026_09_30.json")
 REFERENCE = json.loads(REFERENCE_PATH.read_text(encoding="utf-8"))
 RUBRIC_ITEMS = tuple(REFERENCE["rubric_items"])
 CATEGORIES = tuple(REFERENCE["categories"])
@@ -48,7 +49,7 @@ def scenario_definition(source: dict[str, Any]) -> dict[str, Any]:
     rubric_ids = normalize_rubric_ids(source.get("rubric_ids"))
     return {
         "stable_id": source["test_id"],
-        "workflow_stage": "Research" if source["test_type"] == "General Research" else "Analysis",
+        "workflow_stage": source["test_type"],
         "report_type": source["test_type"],
         "test_type": source["test_type"],
         # The simplified wording is the operational label shown in ZoneQA.

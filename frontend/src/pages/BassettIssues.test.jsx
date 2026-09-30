@@ -323,19 +323,18 @@ test("scenario selector searches and displays the full scenario identity", () =>
   act(() => root.unmount());
 });
 
-test("scenario selector presents General Research consistently as Research", () => {
+test("scenario selector preserves the current General Research test type", () => {
   const container = document.createElement("div");
   const root = createRoot(container);
   act(() => {
     root.render(<ScenarioSelector value="" category="General Research" onCategoryChange={jest.fn()} onChange={jest.fn()} scenarios={[
-      { id: "one", stable_id: "R-01", test_scenario: "Property research", workflow_stage: "Research", test_type: "General Research", catalog_revision: "2026-09-29", priority: "P0 - Immediate" },
+      { id: "one", stable_id: "GR-01", test_scenario: "Property research", workflow_stage: "General Research", test_type: "General Research", catalog_revision: "2026-09-30", priority: "P0 - Immediate" },
     ]} />);
   });
-  expect(container.textContent).toContain("Research");
-  expect(container.textContent).not.toContain("General Research");
+  expect(container.textContent).toContain("General Research");
   const scenarioPicker = container.querySelector('button[aria-label="Test Scenario"]');
   act(() => scenarioPicker.click());
-  expect(container.textContent).toContain("Research · P0 - Immediate");
+  expect(container.textContent).toContain("General Research · P0 - Immediate");
   act(() => root.unmount());
 });
 

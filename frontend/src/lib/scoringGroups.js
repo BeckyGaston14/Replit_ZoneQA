@@ -1,12 +1,12 @@
 import { LEGACY_RUBRIC_REVISION } from "./rubricCatalog";
 
-export const CURRENT_RUBRIC_REVISION = "2026-09-29";
+export const CURRENT_RUBRIC_REVISION = "2026-09-30";
 export const CURRENT_RUBRIC_CATEGORIES = Object.freeze([
-  { key: "property_zoning_rules", label: "Property & Zoning Rules", rubricIds: Object.freeze(["G-01", "G-02", "G-03", "G-04", "G-05", "G-06", "G-07", "G-08"]) },
-  { key: "sources_citations", label: "Sources & Citations", rubricIds: Object.freeze(["G-09", "G-10"]) },
-  { key: "reasoning_conversation", label: "Reasoning & Conversation", rubricIds: Object.freeze(["G-11", "G-12", "G-13", "G-14", "G-15", "G-16", "G-17", "G-18", "G-19", "G-20"]) },
-  { key: "analysis_next_steps", label: "Analysis & Next Steps", rubricIds: Object.freeze(["G-21", "G-22", "G-23", "G-24", "G-25"]) },
-  { key: "documents_municipal_records", label: "Documents & Municipal Records", rubricIds: Object.freeze(["G-26", "G-27", "G-28", "G-29", "G-30", "G-31"]) },
+  { key: "property_zoning_rules", label: "Property & Zoning Rules", rubricIds: Object.freeze(["R-01", "R-02", "R-03", "R-04", "R-05", "R-06", "R-07", "R-08"]) },
+  { key: "sources_citations", label: "Sources & Citations", rubricIds: Object.freeze(["R-09", "R-10"]) },
+  { key: "reasoning_conversation", label: "Reasoning & Conversation", rubricIds: Object.freeze(["R-11", "R-12", "R-13", "R-14", "R-15", "R-16", "R-17", "R-18", "R-19", "R-20"]) },
+  { key: "analysis_next_steps", label: "Analysis & Next Steps", rubricIds: Object.freeze(["R-21", "R-22", "R-23", "R-24", "R-25"]) },
+  { key: "documents_municipal_records", label: "Documents & Municipal Records", rubricIds: Object.freeze(["R-26", "R-27", "R-28", "R-29", "R-30", "R-31"]) },
 ]);
 
 /** The seven dimension groups are historical legacy12 reporting only. */

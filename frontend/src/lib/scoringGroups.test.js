@@ -49,12 +49,12 @@ test("aggregates values and weights directly rather than averaging averages", ()
 
 test("calculates all five current categories from selected rubric scores with neutral denominators", () => {
   const scores = {
-    "G-01": 0, "G-09": 10, "G-11": 8, "G-21": "N/A", "G-26": 6,
-    "G-02": "", "G-10": 4, "G-12": 2, "G-22": 10, "G-27": "Missing",
+    "R-01": 0, "R-09": 10, "R-11": 8, "R-21": "N/A", "R-26": 6,
+    "R-02": "", "R-10": 4, "R-12": 2, "R-22": 10, "R-27": "Missing",
   };
   const categories = calculateRubricCategories({
-    rubric_revision: "2026-09-29",
-    selected_rubric_ids: ["G-01", "G-09", "G-10", "G-11", "G-12", "G-21", "G-22", "G-26", "G-27"],
+    rubric_revision: "2026-09-30",
+    selected_rubric_ids: ["R-01", "R-09", "R-10", "R-11", "R-12", "R-21", "R-22", "R-26", "R-27"],
     rubric_scores: scores,
   });
   expect(categories).toHaveLength(5);
@@ -65,8 +65,8 @@ test("calculates all five current categories from selected rubric scores with ne
 
 test("aggregates current rubric values without mixing legacy evaluations", () => {
   const current = [
-    { rubric_revision: "2026-09-29", selected_rubric_ids: ["G-01", "G-09"], rubric_scores: { "G-01": 0, "G-09": 10 } },
-    { rubric_revision: "2026-09-29", selected_rubric_ids: ["G-01", "G-09"], rubric_scores: { "G-01": 10, "G-09": "N/A" } },
+    { rubric_revision: "2026-09-30", selected_rubric_ids: ["R-01", "R-09"], rubric_scores: { "R-01": 0, "R-09": 10 } },
+    { rubric_revision: "2026-09-30", selected_rubric_ids: ["R-01", "R-09"], rubric_scores: { "R-01": 10, "R-09": "N/A" } },
   ];
   const rows = aggregateRubricCategories(current);
   expect(rows.find((row) => row.key === "property_zoning_rules").score).toBe(5);
@@ -76,9 +76,9 @@ test("aggregates current rubric values without mixing legacy evaluations", () =>
 
 test("does not score rubric values that are present but explicitly unchecked", () => {
   const rows = calculateRubricCategories({
-    rubric_revision: "2026-09-29",
+    rubric_revision: "2026-09-30",
     selected_rubric_ids: [],
-    rubric_scores: { "G-01": 10, "G-09": 9 },
+    rubric_scores: { "R-01": 10, "R-09": 9 },
   });
   expect(rows.every((row) => row.score === null)).toBe(true);
   expect(rows.every((row) => row.denominator === 0)).toBe(true);

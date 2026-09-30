@@ -144,13 +144,6 @@ export function useTestBank({ includeArchived = false, ...opts } = {}) {
   });
 }
 
-export function useGeneralSubtypes(opts = {}) {
-  return useQuery({
-    queryFn: async ({ signal } = {}) => (await api.get("/bassett/general-subtypes", { signal })).data,
-    ...useAuthQueryOptions(["bassett-general-subtypes"], opts, REFERENCE_QUERY_OPTIONS),
-  });
-}
-
 export function useRubricCatalog(opts = {}) {
   return useQuery({
     queryFn: async ({ signal } = {}) => (await api.get("/bassett/rubric-catalog", { signal })).data,

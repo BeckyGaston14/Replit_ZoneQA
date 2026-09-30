@@ -48,13 +48,13 @@ class Db:
 
 def _current_scores():
     return {
-        "G-01": 0,
-        "G-09": 10,
-        "G-11": 4,
-        "G-21": "N/A",
-        "G-22": 7,
-        "G-26": 8,
-        "G-02": 6,
+        "R-01": 0,
+        "R-09": 10,
+        "R-11": 4,
+        "R-21": "N/A",
+        "R-22": 7,
+        "R-26": 8,
+        "R-02": 6,
     }
 
 
@@ -63,7 +63,7 @@ def test_current_authoritative_read_recomputes_cached_rubric_values(monkeypatch)
     evaluation = {
         "id": "current",
         "rubric_revision": server.CATALOG_REVISION,
-        "selected_rubric_ids": ["G-01", "G-09", "G-11", "G-21", "G-26", "G-02", "G-22"],
+        "selected_rubric_ids": ["R-01", "R-09", "R-11", "R-21", "R-26", "R-02", "R-22"],
         "rubric_scores": _current_scores(),
         "category_scores": {"property_zoning_rules": {"average": 99}},
         "score_count": 99,
@@ -145,7 +145,7 @@ def test_comparison_read_model_rejects_mixed_scoring_system_triplet(monkeypatch)
         {
             "id": "bassett", "run_id": "run-1", "testcase_id": "tc-1",
             "model": "Bassett", "rubric_revision": server.CATALOG_REVISION,
-            "selected_rubric_ids": ["G-01"], "rubric_scores": {"G-01": 8},
+            "selected_rubric_ids": ["R-01"], "rubric_scores": {"R-01": 8},
             "scores": {}, "final_result": "Pass",
         },
         {

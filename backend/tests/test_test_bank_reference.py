@@ -1,6 +1,6 @@
-"""Validate the approved Test Bank.
+"""Validate the current approved Test Bank.
 
-The catalog was refreshed from the approved Google Sheet on 2026-09-29.
+The catalog was refreshed from the approved Google Sheet on 2026-09-30.
 The pinned hash below verifies the checked-in JSON, not a Git commit.
 """
 import json
@@ -11,18 +11,21 @@ from pathlib import Path
 
 import server
 
-REFERENCE = json.loads((Path(__file__).parents[1] / "test_bank_reference_2026_09_29.json").read_text(encoding="utf-8"))
+REFERENCE = json.loads((Path(__file__).parents[1] / "test_bank_reference_2026_09_30.json").read_text(encoding="utf-8"))
 
 
 def test_reference_contains_all_unique_scenarios_and_rubric_items():
     scenarios = REFERENCE["scenarios"]
     rubric = REFERENCE["rubric_items"]
-    assert len(scenarios) == len({row["test_id"] for row in scenarios}) == 100
-    assert Counter(row["test_type"] for row in scenarios) == {"Analysis": 29, "Document Handling": 25, "General Research": 46}
-    assert {row["rubric_id"] for row in rubric} == {f"G-{index:02}" for index in range(1, 32)}
+    assert len(scenarios) == len({row["test_id"] for row in scenarios}) == 94
+    assert Counter(row["test_type"] for row in scenarios) == {
+        "Analysis": 30, "Document Handling": 19,
+        "General Research": 35, "Municipal Research": 10,
+    }
+    assert {row["rubric_id"] for row in rubric} == {f"R-{index:02}" for index in range(1, 32)}
     assert hashlib.sha256(
-        (Path(__file__).parents[1] / "test_bank_reference_2026_09_29.json").read_bytes()
-    ).hexdigest() == "2efa1c3433b7c827982d2c322be919aabf5edd1d05c89e12587a0ff79a62b216"
+        (Path(__file__).parents[1] / "test_bank_reference_2026_09_30.json").read_bytes()
+    ).hexdigest() == "baa001a4dec20f4c49b440b630d7cf6fc5f12b56110dbfc9d4b80cd284c82928"
 
 
 def test_every_association_resolves_and_every_rubric_item_has_one_category():
@@ -40,11 +43,11 @@ def test_every_association_resolves_and_every_rubric_item_has_one_category():
         assert set(row["rubric_ids"]) <= ids
 
 
-def test_changed_ids_use_current_source_meaning_not_legacy_subtype_meaning():
+def test_rubric_ids_use_current_source_meaning():
     items = {row["rubric_id"]: row for row in REFERENCE["rubric_items"]}
-    assert items["G-01"]["evaluation_criterion"] == "Verify the property and governing jurisdiction"
-    assert items["G-30"]["evaluation_criterion"] == "Search municipal permit records carefully"
-    assert items["G-31"]["category"] == "documents_municipal_records"
+    assert items["R-01"]["evaluation_criterion"] == "Verify the property and governing jurisdiction"
+    assert items["R-30"]["evaluation_criterion"] == "Search municipal permit records carefully"
+    assert items["R-31"]["category"] == "documents_municipal_records"
 
 
 def test_simplified_scenarios_are_the_user_facing_catalog_labels():
@@ -62,8 +65,8 @@ def test_rubric_union_defaults_and_neutral_score_math():
     selected = server.normalize_rubric_ids(first["rubric_ids"])
     assert selected == first["rubric_ids"]
     scored = server.score_rubrics(
-        {"G-01": 0, "G-02": 10, "G-03": "N/A"},
-        ["G-01", "G-02", "G-03"],
+        {"R-01": 0, "R-02": 10, "R-03": "N/A"},
+        ["R-01", "R-02", "R-03"],
     )
     assert scored["overall_score"] == 5.0
     assert scored["score_count"] == 2
@@ -122,22 +125,22 @@ class _Db:
 
 
 def test_catalog_reconciliation_archives_legacy_and_is_idempotent(monkeypatch):
-    legacy = {
-        "id": "legacy-r-01", "stable_id": "R-01", "archived": False,
-        "test_scenario": "Historical meaning", "catalog_revision": "legacy12",
+    previous = {
+        "id": "prior-a-01", "stable_id": "A-01", "archived": False,
+        "test_scenario": "Prior meaning", "catalog_revision": "prior",
     }
-    db = _Db([legacy])
+    db = _Db([previous])
     monkeypatch.setattr(server, "db", db)
     asyncio.run(server._seed_bassett_catalog())
-    assert legacy["archived"] is True
-    assert legacy["id"] == "legacy-r-01"
-    assert len(db.rows) == 101
+    assert previous["archived"] is True
+    assert previous["id"] == "prior-a-01"
+    assert len(db.rows) == 95
     fresh = next(
         row for row in db.rows
         if row.get("catalog_revision") == server.CATALOG_REVISION
-        and row.get("stable_id") == "R-01"
+        and row.get("stable_id") == "A-01"
     )
-    assert fresh["id"] == "bassett-catalog-2026-09-29-R-01"
+    assert fresh["id"] == "bassett-catalog-2026-09-30-A-01"
     snapshot = [dict(row) for row in db.rows]
     asyncio.run(server._seed_bassett_catalog())
     assert db.rows == snapshot
@@ -154,7 +157,7 @@ def test_guidance_refresh_keeps_canonical_ids_and_is_idempotent(monkeypatch):
     asyncio.run(server._seed_bassett_catalog())
     assert old["id"] == "existing-canonical-id"
     assert old["why_it_matters"] == definition["why_it_matters"]
-    assert len(db.rows) == 100
+    assert len(db.rows) == 94
     snapshot = [dict(row) for row in db.rows]
     asyncio.run(server._seed_bassett_catalog())
     assert db.rows == snapshot
@@ -167,6 +170,6 @@ def test_existing_catalog_still_previews_changed_guidance(monkeypatch):
     monkeypatch.setattr(server, "db", _Db(rows))
     preview = asyncio.run(server._catalog_revision_preview())
     assert preview["already_applied"] is False
-    assert preview["would_update_guidance"] == 100
+    assert preview["would_update_guidance"] == 94
     assert preview["would_insert"] == 0
     assert preview["would_archive"] == 0

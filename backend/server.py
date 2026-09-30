@@ -36,7 +36,6 @@ from test_bank_catalog import (
     scenario_definition,
     score_rubrics,
 )
-from general_subtypes import GENERAL_TEST_SUBTYPES, GENERAL_TEST_SUBTYPE_IDS
 from evaluation_metrics import (
     CANONICAL_EVALUATION_RESULTS,
     COMPARISON_MODELS,
@@ -2523,11 +2522,8 @@ async def _prepare_comparison_workflow(
             "name", "title", "prompts", "project_id", "municipality_id", "property_id",
             "scenario_id", "workflow_stage", "test_date", "bassett_version", "version_id",
             "status", "test_type", "category", "criticality", "difficulty", "assignee_id",
-            "notes", "reproduction_steps", "environment", "priority", "general_subtype_ids",
+            "notes", "reproduction_steps", "environment", "priority",
         ) if key in body}
-    testcase["general_subtype_ids"] = _normalize_general_subtype_ids(
-        testcase.get("general_subtype_ids")
-    )
     scenario_id = str(testcase.get("scenario_id") or "").strip()
     if not scenario_id and require_scenario:
         raise HTTPException(400, detail={"scenario_id": "A Test Bank scenario is required"})
@@ -2905,7 +2901,7 @@ async def update_testcase_workflow(
         "retest_target", "retest_date", "retest_id", "regression_run_id", "source_links",
         "comparison_result", "comparison_classification", "competitive_advantage",
         "competitive_gap", "comparison_notes", "bassett_evaluation_scores",
-        "chatgpt_evaluation_scores", "claude_evaluation_scores", "general_subtype_ids",
+        "chatgpt_evaluation_scores", "claude_evaluation_scores",
          "rubric_revision", "selected_rubric_ids", "additional_rubric_ids",
          "rubric_definition_snapshot",
     )
@@ -3375,7 +3371,7 @@ BASSETT_ISSUE_FIELDS = {
     "result", "verdict", "score", "evaluation_scores", "overall_score",
     "weighted_score", "system_recommended", "score_mode", "score_label",
     "weight_explanation", "follow_up_action", "retest_target", "retest_date",
-    "source_links", "history_context", "score_rationale", "general_subtype_ids",
+    "source_links", "history_context", "score_rationale",
     "conversation_source", "transcript_status", "transcript_confirmed_by",
     "transcript_confirmed_at",
     "rubric_revision", "rubric_definition_snapshot", "selected_rubric_ids",
@@ -3450,28 +3446,8 @@ def _bassett_scenario_test_type(scenario):
         or scenario.get("workflow_stage")
         or "Unspecified"
     )
-    return "Research" if raw == "General Research" else str(raw)
+    return str(raw)
 
-
-def _normalize_general_subtype_ids(value):
-    """Return a unique, ordered list of known General subtype IDs."""
-    if value in (None, ""):
-        return []
-    if not isinstance(value, list):
-        raise HTTPException(400, detail={"general_subtype_ids": "General subtypes must be a list"})
-    normalized = []
-    unknown = []
-    for raw_id in value:
-        subtype_id = str(raw_id or "").strip().upper()
-        if not subtype_id:
-            continue
-        if subtype_id not in GENERAL_TEST_SUBTYPE_IDS:
-            unknown.append(subtype_id)
-        elif subtype_id not in normalized:
-            normalized.append(subtype_id)
-    if unknown:
-        raise HTTPException(400, detail={"general_subtype_ids": f"Unknown General subtype(s): {', '.join(unknown)}"})
-    return normalized
 
 def _normalize_bassett_config_stages(stages):
     if not isinstance(stages, list):
@@ -4308,7 +4284,6 @@ async def bassett_expand_issue(id: str, user=Depends(get_current_user)):
         "bassett_issue_id": id, "scenario_id": scenario["id"],
         "source_bassett_issue_id": id, "source_issue_id": id,
         "comparison_mode": True, "revision": 1,
-        "general_subtype_ids": list(issue.get("general_subtype_ids") or []),
         "evidence_ids": list(issue.get("evidence_ids") or []),
         "source_definition_snapshot": dict(snapshot),
         "rubric_revision": issue.get("rubric_revision") or snapshot.get("catalog_revision"),
@@ -4357,7 +4332,7 @@ async def bassett_expand_issue(id: str, user=Depends(get_current_user)):
                 "weight_explanation", "follow_up_action", "retest_target", "retest_date",
                 "retest_id", "regression_run_id", "evidence", "notes", "repro_steps",
                 "source_links", "history_context", "finding_id", "finding_turn_id",
-                "creation_key", "test_type", "turns", "general_subtype_ids", "evidence_ids",
+                "creation_key", "test_type", "turns", "evidence_ids",
             ) if issue.get(key) is not None
         },
         "created_at": stamp, "updated_at": stamp, "created_by": user.get("name"),
@@ -4512,9 +4487,6 @@ async def bassett_create_issue(body: Dict[str, Any], user=Depends(get_current_us
     doc["severity"], doc["criticality"] = _canonical_severity_pair(
         doc.get("severity"), doc.get("criticality")
     )
-    doc["general_subtype_ids"] = _normalize_general_subtype_ids(
-        doc.get("general_subtype_ids")
-    )
     doc["test_date"] = _validate_test_date(doc.get("test_date"))
     doc["status"] = _canonical_bassett_issue_status(
         doc.get("status"), default="Not Started"
@@ -4613,9 +4585,6 @@ async def _prepare_bassett_workflow_document(body: Dict[str, Any], user: Dict[st
     doc = {key: value for key, value in body.items() if key in BASSETT_ISSUE_FIELDS}
     doc["severity"], doc["criticality"] = _canonical_severity_pair(
         doc.get("severity"), doc.get("criticality")
-    )
-    doc["general_subtype_ids"] = _normalize_general_subtype_ids(
-        doc.get("general_subtype_ids")
     )
     doc.setdefault("test_type", "Single Prompt")
     doc["status"] = _canonical_bassett_issue_status(
@@ -4995,10 +4964,6 @@ async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_c
         incoming["finding_ids"] = list(dict.fromkeys(
             [finding_id for finding_id in [primary_finding_id, *requested_finding_ids] if finding_id]
         ))
-    if "general_subtype_ids" in incoming:
-        incoming["general_subtype_ids"] = _normalize_general_subtype_ids(
-            incoming.get("general_subtype_ids")
-        )
     if "severity" in incoming:
         incoming["severity"] = _normalize_severity(incoming["severity"])
         if "criticality" not in incoming:
@@ -5332,12 +5297,6 @@ async def bassett_convert_to_finding(id: str, body: Dict[str, Any] = None, user=
     await _bassett_history("issue", id, "converted_to_finding", user, {"finding_id": finding["id"]})
     return finding
 
-@api.get("/bassett/general-subtypes")
-async def bassett_general_subtypes(user=Depends(get_current_user)):
-    """Return secondary General classifications without creating a new test type."""
-    return GENERAL_TEST_SUBTYPES
-
-
 @api.get("/bassett/rubric-catalog")
 async def bassett_rubric_catalog(user=Depends(get_current_user)):
     """Return the immutable approved rubric catalog and its revision."""
@@ -5384,8 +5343,7 @@ async def _catalog_revision_preview():
     }
 
 
-@api.post("/bassett/catalog/2026-09-29/preview")
-@api.post("/bassett/catalog/2026-09-16/preview", include_in_schema=False)
+@api.post("/bassett/catalog/2026-09-30/preview")
 @api.post("/bassett/catalog/preview")
 @api.get("/bassett/rubric-migration/preview")
 async def bassett_catalog_revision_preview(user=Depends(get_current_user)):
@@ -5393,8 +5351,7 @@ async def bassett_catalog_revision_preview(user=Depends(get_current_user)):
     return await _catalog_revision_preview()
 
 
-@api.post("/bassett/catalog/2026-09-29/apply")
-@api.post("/bassett/catalog/2026-09-16/apply", include_in_schema=False)
+@api.post("/bassett/catalog/2026-09-30/apply")
 @api.post("/bassett/catalog/apply")
 @api.post("/bassett/rubric-migration/apply")
 async def bassett_catalog_revision_apply(

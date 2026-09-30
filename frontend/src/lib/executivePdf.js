@@ -376,7 +376,7 @@ export function renderExecutivePdf({ doc, data, chartImages = {}, generated = ne
        // visible title and table headers use the reporting-group terminology.
        name: "Bassett Category Performance",
        title: "Current Rubric Category Performance",
-       note: `Revision ${safeText(data?.rubric_revision, "2026-09-29")} · Scale: 0–10. Neutral-weight averages use selected scored criteria; missing, N/A, and unchecked criteria are excluded.`,
+       note: `Scale: 0–10. Neutral-weight averages use selected scored criteria; missing, N/A, and unchecked criteria are excluded.`,
       image: chartImages.categories,
         table: { headers: ["Current rubric category", "Average score out of 10"], widths: [145, 37], rows: categories.map((item) => [item.label || item.category, formatEvaluationScore(item.score ?? item.avg_score)]) },
     },

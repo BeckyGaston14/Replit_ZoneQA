@@ -45,7 +45,7 @@ export function scenarioTestType(scenario = {}) {
   const raw = scenario.catalog_revision
     ? (scenario.test_type || scenario.report_type || scenario.workflow_stage)
     : (scenario.test_type || scenario.workflow_stage);
-  return raw === "General Research" ? "Research" : (raw || "Unspecified");
+  return raw || "Unspecified";
 }
 
 export function ResultPill({ value }) {
@@ -96,8 +96,8 @@ export default function BassettTestBank() {
   const [showArchived, setShowArchived] = useState(false);
   const [stageDraft, setStageDraft] = useState({ name: "", code: "", position: "", active: true });
   const [stageConflict, setStageConflict] = useState(null);
-  const [migrationPreview, setMigrationPreview] = useState(null);
-  const [migrationApplying, setMigrationApplying] = useState(false);
+  const [catalogPreview, setCatalogPreview] = useState(null);
+  const [catalogApplying, setCatalogApplying] = useState(false);
   const { data: scenarios = [], isLoading } = useTestBank({ includeArchived: true });
   const { data: metrics } = useQuery({ queryKey: ["bassett-metrics"], queryFn: async () => (await api.get("/bassett/metrics")).data });
   const { data: projects = [] } = useCollection("projects");
@@ -113,7 +113,7 @@ export default function BassettTestBank() {
   const { data: workflowStages = [] } = useCollection("bassett/workflow-stages");
   const testTypeOptions = [...new Set(scenarios.map(scenarioTestType).filter((value) => value !== "Unspecified"))].sort();
   const testBankColumns = useMemo(() => TEST_BANK_SORT_COLUMNS.map((column) => column.key === "test_type"
-    ? { ...column, type: "status", order: ["Research", "Analysis", "Document Handling", "Unspecified"], getValue: scenarioTestType }
+    ? { ...column, type: "status", order: ["Analysis", "Document Handling", "General Research", "Municipal Research", "Unspecified"], getValue: scenarioTestType }
     : column), []);
   const [sort, setSort] = usePersistentTableSort("bassett-test-bank", TEST_BANK_SORT_COLUMNS, { key: "stable_id", direction: "asc" });
   const stages = [...new Set([...workflowStages.map((stageDef) => typeof stageDef === "string" ? stageDef : stageDef.name || stageDef.workflow_stage), ...scenarios.map((s) => s.workflow_stage)].filter(Boolean))];
@@ -279,21 +279,21 @@ export default function BassettTestBank() {
       } else toast.error(importError(error, "Unable to save category"));
     }
   };
-  const previewRubricMigration = async () => {
+  const previewCurrentCatalog = async () => {
     try {
-      const { data } = await api.get("/bassett/rubric-migration/preview");
-      setMigrationPreview(data);
-    } catch (error) { toast.error(importError(error, "Unable to preview rubric migration")); }
+      const { data } = await api.get("/bassett/catalog/preview");
+      setCatalogPreview(data);
+    } catch (error) { toast.error(importError(error, "Unable to review the current Test Bank")); }
   };
-  const applyRubricMigration = async () => {
-    setMigrationApplying(true);
+  const applyCurrentCatalog = async () => {
+    setCatalogApplying(true);
     try {
-      const { data } = await api.post("/bassett/rubric-migration/apply", { confirm: true });
-      toast.success(`${data.updated ?? data.migrated ?? 0} record(s) migrated`);
-      setMigrationPreview(null);
+      await api.post("/bassett/catalog/apply", { confirm: true });
+      toast.success("Current Test Bank loaded");
+      setCatalogPreview(null);
       qc.invalidateQueries();
-    } catch (error) { toast.error(importError(error, "Unable to apply rubric migration")); }
-    finally { setMigrationApplying(false); }
+    } catch (error) { toast.error(importError(error, "Unable to load the current Test Bank")); }
+    finally { setCatalogApplying(false); }
   };
   const scenarioDirty = Boolean(form && scenarioBaseline.current && JSON.stringify(form) !== JSON.stringify(scenarioBaseline.current));
 
@@ -303,7 +303,7 @@ export default function BassettTestBank() {
       <Button variant="outline" onClick={exportCsv}><FileOutput /> Export CSV</Button>
       <Button variant="outline" aria-pressed={showArchived} onClick={() => setShowArchived((value) => !value)}>{showArchived ? "Active scenarios" : "Archived scenarios"}</Button>
       {canManage && <Button variant="outline" onClick={() => setShowWorkflowManager(true)}>Manage categories & prefixes</Button>}
-      {canManage && <Button variant="outline" onClick={previewRubricMigration}>Review rubric updates</Button>}
+      {canManage && <Button variant="outline" onClick={previewCurrentCatalog}>Load current Test Bank</Button>}
         {canManage && <Button onClick={() => { const draft = { ...emptyScenario, scoring_category: rubricCatalog?.categories?.[0]?.key || "", catalog_revision: rubricCatalog?.revision || "" }; scenarioBaseline.current = draft; setFormErrors({}); setScenarioError(""); setConflict(null); setForm(draft); }} className="bg-[var(--orange)] hover:bg-[var(--orange-600)]"><Plus /> New Test Scenario</Button>}
     </PageHeader>
     {viewError && <div role="alert" className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">{viewError} <button type="button" className="ml-2 font-semibold underline" onClick={clearViewError}>Dismiss</button></div>}
@@ -376,7 +376,7 @@ export default function BassettTestBank() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
        <Field label="Workflow stage" required error={formErrors.workflow_stage}><select required data-testid="field-workflow_stage" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.workflow_stage} onChange={(e) => setScenarioField("workflow_stage", e.target.value)}><option value="">Select workflow stage</option>{stages.map((x) => <option key={x}>{x}</option>)}</select></Field>
        <Field label="Primary Rubric Category" required><select required data-testid="field-scoring_category" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={rubricCategoryKey(rubricCatalog, form.scoring_category)} onChange={(e) => setScenarioField("scoring_category", e.target.value)}><option value="">Select rubric category</option>{(rubricCatalog?.categories || []).map((category) => <option key={category.key} value={category.key}>{category.name}</option>)}</select><p className="mt-1 text-xs text-muted-foreground">Used to group rubric results in dashboards and reports; separate from the Test Bank Category and Test Type.</p></Field>
-       <Field label="Test Type" required><select required data-testid="field-test_type" className="h-9 w-full rounded-md border bg-background px-3 py-2 text-sm" value={form.test_type || "Analysis"} onChange={(e) => setScenarioField("test_type", e.target.value)}><option>Analysis</option><option>Document Handling</option><option value="General Research">Research</option></select></Field>
+       <Field label="Test Type" required><select required data-testid="field-test_type" className="h-9 w-full rounded-md border bg-background px-3 py-2 text-sm" value={form.test_type || "Analysis"} onChange={(e) => setScenarioField("test_type", e.target.value)}><option>Analysis</option><option>Document Handling</option><option>General Research</option><option>Municipal Research</option></select></Field>
           <Field label="Complexity" required error={formErrors.complexity}><select data-testid="field-complexity" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.complexity} onChange={(e) => setScenarioField("complexity", e.target.value)}>{["Low", "Moderate", "Medium", "High", "Very High"].map((x) => <option key={x}>{x}</option>)}</select></Field>
           <div className="sm:col-span-2"><Field label="Test Scenario" required error={formErrors.test_scenario}><Textarea data-testid="field-test_scenario" rows={3} value={form.test_scenario} onChange={(e) => setScenarioField("test_scenario", e.target.value)} /></Field></div>
           <div className="sm:col-span-2"><Field label="Why it matters" required error={formErrors.why_it_matters}><Textarea data-testid="field-why_it_matters" rows={2} value={form.why_it_matters} onChange={(e) => setScenarioField("why_it_matters", e.target.value)} /></Field></div>
@@ -410,20 +410,15 @@ export default function BassettTestBank() {
         </div>
       </details>
     </FormModal>}
-    {migrationPreview && <FormModal open onOpenChange={(open) => !open && setMigrationPreview(null)} title="Review rubric updates" onSubmit={applyRubricMigration} submitLabel={migrationApplying ? "Applying…" : migrationPreview.already_applied ? "No updates needed" : "Apply updates"} submitDisabled={migrationApplying || migrationPreview.already_applied}>
+    {catalogPreview && <FormModal open onOpenChange={(open) => !open && setCatalogPreview(null)} title="Load current Test Bank" onSubmit={applyCurrentCatalog} submitLabel={catalogApplying ? "Loading…" : catalogPreview.already_applied ? "Already current" : "Load Test Bank"} submitDisabled={catalogApplying || catalogPreview.already_applied}>
       <div className="space-y-3 text-sm">
-        <p className={`rounded-lg border p-3 ${migrationPreview.already_applied ? "border-green-200 bg-green-50 text-green-900" : "border-amber-300 bg-amber-50 text-amber-900"}`}><b>{migrationPreview.already_applied ? "Everything is current." : "No changes have been made yet."}</b> {migrationPreview.already_applied ? "The Test Bank already uses the latest rubric and guidance." : "Review the summary below before applying the updates. Historical records that cannot be converted safely will remain unchanged."}</p>
+        <p className={`rounded-lg border p-3 ${catalogPreview.already_applied ? "border-green-200 bg-green-50 text-green-900" : "border-amber-300 bg-amber-50 text-amber-900"}`}><b>{catalogPreview.already_applied ? "Everything is current." : "Ready to load."}</b> {catalogPreview.already_applied ? "ZoneQA is using the current scenarios and rubric." : "This loads the current Google Sheet definitions. Existing test records remain available for you to revise manually."}</p>
         <dl className="grid grid-cols-2 gap-2 rounded-lg border bg-[var(--paper)] p-3 sm:grid-cols-3">
-          <div><dt className="text-xs text-muted-foreground">New scenarios</dt><dd className="text-lg font-semibold text-[var(--navy)]">{migrationPreview.would_insert ?? 0}</dd></div>
-          <div><dt className="text-xs text-muted-foreground">Guidance updates</dt><dd className="text-lg font-semibold text-[var(--navy)]">{migrationPreview.would_update_guidance ?? 0}</dd></div>
-          <div><dt className="text-xs text-muted-foreground">Older scenarios archived</dt><dd className="text-lg font-semibold text-[var(--navy)]">{migrationPreview.would_archive ?? 0}</dd></div>
-          <div>
-            <dt className="text-xs text-muted-foreground">Saved records relinked</dt>
-            <dd className="text-lg font-semibold text-[var(--navy)]">{migrationPreview.would_relink_records ?? 0}</dd>
-          </div>
+          <div><dt className="text-xs text-muted-foreground">Current scenarios</dt><dd className="text-lg font-semibold text-[var(--navy)]">{catalogPreview.scenario_count ?? 0}</dd></div>
+          <div><dt className="text-xs text-muted-foreground">Rubric items</dt><dd className="text-lg font-semibold text-[var(--navy)]">{catalogPreview.rubric_count ?? 0}</dd></div>
+          <div><dt className="text-xs text-muted-foreground">Scoring categories</dt><dd className="text-lg font-semibold text-[var(--navy)]">{catalogPreview.categories_count ?? 0}</dd></div>
         </dl>
-        {!migrationPreview.already_applied && <label className="flex items-start gap-2"><input type="checkbox" required /> <span>I reviewed this summary and want to apply these Test Bank updates.</span></label>}
-        <details className="rounded-lg border p-3"><summary className="cursor-pointer font-medium text-[var(--navy)]">Technical details</summary><pre className="mt-2 max-h-48 overflow-auto text-xs">{JSON.stringify(migrationPreview, null, 2)}</pre></details>
+        {!catalogPreview.already_applied && <label className="flex items-start gap-2"><input type="checkbox" required /> <span>Load these current Test Bank definitions into ZoneQA.</span></label>}
       </div>
     </FormModal>}
     {execute && <BassettTestRunForm form={execute} setForm={setExecute} scenarios={scenarios} rubricCatalog={rubricCatalog} versions={versions} projects={projects} onSubmit={recordExecution} onCancel={() => setExecute(null)} submitting={savingRun} />}
@@ -487,7 +482,7 @@ export function ScenarioDetail({ id, rubricCatalog, canManage, canExecute, close
   };
   const categoryName = rubricCategoryName(rubricCatalog, scenario.scoring_category);
   return <div className="fixed inset-0 z-40 bg-black/20 flex justify-end" onClick={(event) => event.target === event.currentTarget && close()} role="presentation"><aside ref={drawerRef} tabIndex="-1" role="dialog" aria-modal="true" aria-labelledby="bassett-scenario-detail-title" className="bg-card h-full w-full max-w-2xl overflow-y-auto p-6 shadow-xl">
-     <div className="flex justify-between gap-4 mb-6"><div><div className="font-bold text-[var(--orange)]">{scenario.stable_id}</div><h2 id="bassett-scenario-detail-title" className="text-xl font-bold font-display text-[var(--navy)]">{scenario.test_scenario}</h2><div className="text-xs text-muted-foreground mt-2">{scenario.workflow_stage} · {scenario.complexity} complexity · {scenario.test_type || "Single Prompt"}</div><div className="mt-2 flex flex-wrap gap-2 text-xs"><span className="rounded bg-[var(--paper)] px-2 py-1">Primary scoring: {categoryName}</span><span className="rounded bg-[var(--paper)] px-2 py-1">Rubric revision: {scenario.catalog_revision || "legacy12"}</span></div></div><Button type="button" variant="ghost" onClick={close} aria-label="Close Test Scenario details">Close</Button></div>
+     <div className="flex justify-between gap-4 mb-6"><div><div className="font-bold text-[var(--orange)]">{scenario.stable_id}</div><h2 id="bassett-scenario-detail-title" className="text-xl font-bold font-display text-[var(--navy)]">{scenario.test_scenario}</h2><div className="text-xs text-muted-foreground mt-2">{scenario.workflow_stage} · {scenario.complexity} complexity · {scenario.test_type || "Single Prompt"}</div><div className="mt-2 flex flex-wrap gap-2 text-xs"><span className="rounded bg-[var(--paper)] px-2 py-1">Primary scoring: {categoryName}</span></div></div><Button type="button" variant="ghost" onClick={close} aria-label="Close Test Scenario details">Close</Button></div>
     <div className="space-y-5"><Detail label="Why it matters" value={scenario.why_it_matters} /><Detail label="What Bassett should do" value={scenario.what_bassett_should_do} /><Detail label="Success criteria" value={scenario.success_criteria} />
       <div className="rounded-xl border p-4">
         <h3 className="font-semibold text-[var(--navy)]">Mapped rubric IDs ({scenario.rubric_ids?.length || 0})</h3>

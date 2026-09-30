@@ -68,11 +68,11 @@ export default function TestCases() {
   const testBankTypeFor = (testcase) => {
     const scenario = scenarioMap[testcase.scenario_id] || testcase.source_definition_snapshot || testcase.definition_snapshot || {};
     const value = scenario.test_type || scenario.report_type || scenario.workflow_stage || testcase.category;
-    return value === "General Research" ? "Research" : value;
+    return value;
   };
   const testBankTypes = useMemo(() => [...new Set(scenarios.map((scenario) => {
     const value = scenario.test_type || scenario.report_type || scenario.workflow_stage;
-    return value === "General Research" ? "Research" : value;
+    return value;
   }).filter(Boolean))].sort(), [scenarios]);
   const save = useSave("testcases");
   const [open, setOpen] = useState(false);
