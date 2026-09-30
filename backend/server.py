@@ -5359,6 +5359,7 @@ async def _effective_rubric_items():
                 if key in override
             },
             "active": override.get("active", True) is not False,
+            "deleted": override.get("deleted") is True,
             "revision": int(override.get("revision", 1)),
             "updated_at": override.get("updated_at"),
         })
@@ -5434,6 +5435,41 @@ async def update_bassett_rubric_item(
         item for item in await _effective_rubric_items()
         if item["rubric_id"] == rubric_id
     )
+
+
+@api.delete("/bassett/rubric-items/{rubric_id}")
+async def delete_bassett_rubric_item(
+    rubric_id: str, confirm: bool = False, user=Depends(get_current_user)
+):
+    """Remove a rubric from future use while preserving historical snapshots."""
+    _require_bassett_admin(user)
+    if not confirm:
+        raise HTTPException(400, "Explicit confirmation is required")
+    rubric_id = str(rubric_id or "").strip().upper()
+    if not any(item["rubric_id"] == rubric_id for item in RUBRIC_CATALOG_ITEMS):
+        raise HTTPException(404, "Rubric item not found")
+    config = await db.config.find_one({"id": "global"}, {"_id": 0}) or {}
+    overrides = dict(config.get("rubric_item_overrides") or {})
+    existing = dict(overrides.get(rubric_id) or {})
+    overrides[rubric_id] = {
+        **existing,
+        "active": False,
+        "deleted": True,
+        "revision": int(existing.get("revision", 1)) + 1,
+        "updated_at": now_iso(),
+        "updated_by": user.get("name"),
+    }
+    await db.config.update_one(
+        {"id": "global"},
+        {"$set": {"rubric_item_overrides": overrides}},
+        upsert=True,
+    )
+    return {
+        "deleted": True,
+        "rubric_id": rubric_id,
+        "history_preserved": True,
+        "message": "Rubric item removed from future selections; historical scores remain available.",
+    }
 
 
 def _require_bassett_admin(user):
@@ -5729,6 +5765,51 @@ async def bassett_restore_scenario(id: str, user=Depends(get_current_user)):
     }, return_document=True)
     await _bassett_history("scenario", id, "restored", user, {"history_preserved": True})
     return scenario
+
+
+def _record_references_scenario(record, scenario_id):
+    if record.get("scenario_id") == scenario_id:
+        return True
+    if scenario_id in (record.get("scenario_ids") or []):
+        return True
+    return any(
+        isinstance(turn, dict) and turn.get("scenario_id") == scenario_id
+        for turn in (record.get("turns") or [])
+    )
+
+
+@api.delete("/bassett/scenarios/{id}")
+async def bassett_delete_scenario(
+    id: str, confirm: bool = False, user=Depends(get_current_user)
+):
+    _require_bassett_admin(user)
+    if not confirm:
+        raise HTTPException(400, "Explicit confirmation is required")
+    scenario = await _bassett_ref("bassett_scenarios", id, "Bassett scenario")
+    reference_counts = {}
+    for collection in (
+        "bassett_issues", "bassett_executions", "testcases", "findings",
+        "retests", "regression_runs",
+    ):
+        rows = await db[collection].find({}, {"_id": 0}).to_list(10000)
+        count = sum(_record_references_scenario(row, id) for row in rows)
+        if count:
+            reference_counts[collection] = count
+    if reference_counts:
+        total = sum(reference_counts.values())
+        raise HTTPException(409, detail={
+            "code": "scenario_in_use",
+            "message": f"This scenario is linked to {total} saved record(s). Hide it instead so those records remain complete.",
+            "references": reference_counts,
+        })
+    deleted = await db.bassett_scenarios.delete_one({"id": id})
+    if not deleted:
+        raise HTTPException(404, "Bassett scenario not found")
+    await _bassett_history(
+        "scenario", id, "deleted", user,
+        {"stable_id": scenario.get("stable_id"), "confirmed": True},
+    )
+    return {"deleted": True, "id": id, "stable_id": scenario.get("stable_id")}
 
 @api.get("/bassett/executions")
 async def bassett_list_executions(scenario_id: Optional[str] = None, user=Depends(get_current_user)):

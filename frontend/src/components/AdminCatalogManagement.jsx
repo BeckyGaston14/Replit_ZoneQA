@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, Pencil, Save, X } from "lucide-react";
+import { Eye, EyeOff, Pencil, Save, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { api, staleUpdateMessage, withExpectedVersion } from "../lib/api";
 import { Button } from "./ui/button";
@@ -60,6 +60,19 @@ export function AdminScenarios() {
     } catch (error) { toast.error(error.response?.data?.detail || "The scenario visibility could not be changed"); }
     finally { setBusy(false); }
   };
+  const remove = async (scenario) => {
+    if (!globalThis.confirm?.(`Permanently delete ${scenario.stable_id}? This is allowed only when no saved records use it.`)) return;
+    setBusy(true);
+    try {
+      await api.delete(`/bassett/scenarios/${scenario.id}?confirm=true`);
+      toast.success("Test scenario permanently deleted");
+      if (editing?.id === scenario.id) setEditing(null);
+      await refresh();
+    } catch (error) {
+      const detail = error.response?.data?.detail;
+      toast.error(typeof detail === "string" ? detail : detail?.message || "The scenario could not be deleted");
+    } finally { setBusy(false); }
+  };
 
   return <div className="space-y-4">
     <div className="rounded-xl border bg-card p-4">
@@ -78,7 +91,7 @@ export function AdminScenarios() {
         {shown.map((scenario) => <div key={scenario.id} className={`p-4 ${scenario.archived ? "bg-slate-50 text-muted-foreground" : ""}`}>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><strong className="text-[var(--navy)]">{scenario.stable_id}</strong><span className="rounded-full border px-2 py-0.5 text-xs">{scenario.workflow_stage || scenario.test_type}</span>{scenario.archived && <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs">Hidden</span>}</div><p className="mt-1 text-sm">{scenario.test_scenario}</p></div>
-            <div className="flex gap-2"><Button type="button" size="sm" variant="outline" onClick={() => setEditing({ ...scenario })}><Pencil size={14}/> Edit</Button><Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => toggle(scenario)}>{scenario.archived ? <Eye size={14}/> : <EyeOff size={14}/>} {scenario.archived ? "Show" : "Hide"}</Button></div>
+            <div className="flex flex-wrap gap-2"><Button type="button" size="sm" variant="outline" disabled={scenario.archived} title={scenario.archived ? "Show this scenario before editing it" : undefined} onClick={() => setEditing({ ...scenario })}><Pencil size={14}/> Edit</Button><Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => toggle(scenario)}>{scenario.archived ? <Eye size={14}/> : <EyeOff size={14}/>} {scenario.archived ? "Show" : "Hide"}</Button><Button type="button" size="sm" variant="destructive" disabled={busy} onClick={() => remove(scenario)}><Trash2 size={14}/> Delete</Button></div>
           </div>
         </div>)}
         {!scenariosQuery.isLoading && !shown.length && <p className="p-6 text-center text-sm text-muted-foreground">No matching scenarios.</p>}
@@ -101,7 +114,7 @@ export function AdminRubricItems() {
   const categoryNames = Object.fromEntries((catalog.categories || []).map((category) => [category.key, category.name]));
   const shown = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return (catalog.rubric_items || []).filter((item) => !needle || [item.rubric_id, item.evaluation_criterion, item.expected_behavior, categoryNames[item.category]]
+    return (catalog.rubric_items || []).filter((item) => item.deleted !== true).filter((item) => !needle || [item.rubric_id, item.evaluation_criterion, item.expected_behavior, categoryNames[item.category]]
       .some((value) => String(value || "").toLowerCase().includes(needle)));
   }, [catalog.rubric_items, categoryNames, query]);
   const refresh = async () => {
@@ -122,10 +135,23 @@ export function AdminRubricItems() {
     event.preventDefault();
     update(editing, Object.fromEntries(["evaluation_criterion", "why_it_matters", "expected_behavior", "passing_standard"].map((key) => [key, String(editing[key] || "").trim()])));
   };
+  const remove = async (item) => {
+    if (!globalThis.confirm?.(`Permanently remove ${item.rubric_id} from future evaluations? Historical scores will be preserved.`)) return;
+    setBusy(true);
+    try {
+      await api.delete(`/bassett/rubric-items/${item.rubric_id}?confirm=true`);
+      toast.success("Rubric item removed from future evaluations");
+      if (editing?.rubric_id === item.rubric_id) setEditing(null);
+      await refresh();
+    } catch (error) {
+      const detail = error.response?.data?.detail;
+      toast.error(typeof detail === "string" ? detail : detail?.message || "The rubric item could not be deleted");
+    } finally { setBusy(false); }
+  };
 
   return <div className="space-y-4">
     <div className="rounded-xl border bg-card p-4"><h2 className="font-display font-semibold text-[var(--navy)]">Rubric Evaluation Items</h2><p className="mt-1 text-sm text-muted-foreground">Revise the guidance used during evaluation or hide an item from new selections. Rubric IDs and categories stay fixed to preserve reporting and saved scores.</p><Label htmlFor="admin-rubric-search" className="mt-3 block">Find a rubric item</Label><Input id="admin-rubric-search" className="mt-2" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search ID, category, or wording…" /></div>
     {editing && <form onSubmit={save} className="rounded-xl border border-[var(--orange)] bg-card p-4 space-y-3"><div className="flex items-center justify-between gap-2"><div><h3 className="font-semibold text-[var(--navy)]">Edit {editing.rubric_id}</h3><p className="text-xs text-muted-foreground">{categoryNames[editing.category] || editing.category}</p></div><Button type="button" size="icon" variant="ghost" onClick={() => setEditing(null)} aria-label="Cancel rubric edit"><X size={16}/></Button></div>{[["evaluation_criterion", "Evaluation criterion"], ["why_it_matters", "Why it matters"], ["expected_behavior", "Expected behavior"], ["passing_standard", "Passing standard"]].map(([key, label]) => <div key={key}><Label htmlFor={`rubric-${key}`}>{label}</Label><TextArea id={`rubric-${key}`} value={editing[key]} onChange={(event) => setEditing({ ...editing, [key]: event.target.value })} /></div>)}<div className="flex gap-2"><Button type="submit" disabled={busy}><Save size={14}/> Save Changes</Button><Button type="button" variant="outline" onClick={() => setEditing(null)}>Cancel</Button></div></form>}
-    <div className="rounded-xl border bg-card overflow-hidden"><div className="max-h-[620px] overflow-y-auto divide-y">{shown.map((item) => <div key={item.rubric_id} className={`p-4 ${item.active === false ? "bg-slate-50 text-muted-foreground" : ""}`}><div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><strong className="text-[var(--navy)]">{item.rubric_id}</strong><span className="rounded-full border px-2 py-0.5 text-xs">{categoryNames[item.category] || item.category}</span>{item.active === false && <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs">Hidden</span>}</div><p className="mt-1 text-sm font-medium">{item.evaluation_criterion}</p><p className="mt-1 text-xs text-muted-foreground">{item.expected_behavior}</p></div><div className="flex gap-2"><Button type="button" size="sm" variant="outline" onClick={() => setEditing({ ...item })}><Pencil size={14}/> Edit</Button><Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => update(item, { active: item.active === false })}>{item.active === false ? <Eye size={14}/> : <EyeOff size={14}/>} {item.active === false ? "Show" : "Hide"}</Button></div></div></div>)}{!catalogQuery.isLoading && !shown.length && <p className="p-6 text-center text-sm text-muted-foreground">No matching rubric items.</p>}{catalogQuery.isLoading && <p className="p-6 text-center text-sm text-muted-foreground">Loading rubric items…</p>}</div></div>
+    <div className="rounded-xl border bg-card overflow-hidden"><div className="max-h-[620px] overflow-y-auto divide-y">{shown.map((item) => <div key={item.rubric_id} className={`p-4 ${item.active === false ? "bg-slate-50 text-muted-foreground" : ""}`}><div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><strong className="text-[var(--navy)]">{item.rubric_id}</strong><span className="rounded-full border px-2 py-0.5 text-xs">{categoryNames[item.category] || item.category}</span>{item.active === false && <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs">Hidden</span>}</div><p className="mt-1 text-sm font-medium">{item.evaluation_criterion}</p><p className="mt-1 text-xs text-muted-foreground">{item.expected_behavior}</p></div><div className="flex flex-wrap gap-2"><Button type="button" size="sm" variant="outline" onClick={() => setEditing({ ...item })}><Pencil size={14}/> Edit</Button><Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => update(item, { active: item.active === false })}>{item.active === false ? <Eye size={14}/> : <EyeOff size={14}/>} {item.active === false ? "Show" : "Hide"}</Button><Button type="button" size="sm" variant="destructive" disabled={busy} onClick={() => remove(item)}><Trash2 size={14}/> Delete</Button></div></div></div>)}{!catalogQuery.isLoading && !shown.length && <p className="p-6 text-center text-sm text-muted-foreground">No matching rubric items.</p>}{catalogQuery.isLoading && <p className="p-6 text-center text-sm text-muted-foreground">Loading rubric items…</p>}</div></div>
   </div>;
 }
