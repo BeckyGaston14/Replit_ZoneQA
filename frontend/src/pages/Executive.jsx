@@ -242,7 +242,7 @@ export default function Executive() {
 
       <div className="bg-card border rounded-xl p-5 mt-4">
          <h3 className="font-semibold font-display text-[var(--navy)] mb-3">Current Rubric Category Performance</h3>
-         <p className="text-xs text-muted-foreground mb-2">Revision {d.rubric_revision || "current"} · neutral-weight averages of selected rubric criteria; zero is valid and missing, N/A, and unchecked criteria are excluded.</p>
+         <p className="text-xs text-muted-foreground mb-2">{d.rubric_revision ? `Rubric revision ${d.rubric_revision} · ` : ""}Neutral-weight averages of selected rubric criteria; zero is valid and missing, N/A, and unchecked criteria are excluded.</p>
          {chartCategories.length === 0 ? <div role="status" className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">No scored evaluation dimensions are available for this report scope. Complete the evaluation category scores—not only the overall result—to populate this chart.</div> : <div ref={categoriesChartRef} data-testid="exec-categories-chart-render" className="min-w-0">
            <SafeResponsiveContainer height={Math.max(200, chartCategories.length * 44)} testId="exec-categories-responsive-chart">
               <BarChart data={chartCategories.map((item) => ({ ...item, category: item.label || item.category, avg_score: item.score ?? item.avg_score }))} layout="vertical" margin={{ left: 20 }}>

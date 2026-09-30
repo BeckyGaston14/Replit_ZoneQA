@@ -49,6 +49,15 @@ const PERSONAL_FINDING_STATUSES = Object.fromEntries(Object.entries(FINDING_STAT
   ...definition,
   label: PERSONAL_FINDING_STATUS_LABELS[value] || value,
 }]));
+const personalFindingStatusOptions = (statuses = []) => {
+  const seenLabels = new Set();
+  return statuses.filter((value) => {
+    const label = PERSONAL_FINDING_STATUS_LABELS[value] || value;
+    if (seenLabels.has(label)) return false;
+    seenLabels.add(label);
+    return true;
+  });
+};
 const DEFAULT_RUN_SORT = { key: "test_date", direction: "desc" };
 
 export async function persistBassettTestRun(form, apiClient = api) {
@@ -420,18 +429,25 @@ export default function BassettIssues() {
       toast.success("CSV export downloaded.");
     } catch (error) { toast.error(actionError(error, "Unable to export test runs")); }
   };
+  const openNewTestRun = () => {
+    try {
+      setForm(createBassettTestRunDraft({}, config?.application_timezone));
+    } catch (error) {
+      toast.error(actionError(error, "Unable to open the test-run form"));
+    }
+  };
 
   return <div>
     <PageHeader title={showingFindings ? "Bassett Findings" : "Bassett Test Runs"} subtitle={showingFindings ? "Findings created from Bassett-only testing. Model Comparison Findings remain separate." : "Record a Bassett test result, evidence, and follow-up. Passing test runs are not findings."}>
       {canManage && !showingFindings && <Button variant="outline" onClick={() => setShowImport(true)}><FileInput size={15} /> Import CSV</Button>}
       {canWrite && !showingFindings && <LocalDrafts mode="bassett" onRecover={(draft) => setForm(createBassettTestRunDraft(draft, config?.application_timezone))} />}
-      {!showingFindings && <Button variant="outline" onClick={exportCsv}><FileOutput size={15} /> Export CSV</Button>}
+      {!showingFindings && <Button type="button" variant="outline" onClick={exportCsv}><FileOutput size={15} /> Export CSV</Button>}
       {showingFindings
         ? <FindingsCrossNavigation />
         : <Link to="/bassett/findings"><Button variant="outline">Bassett Findings</Button></Link>}
       {showingFindings && <Button asChild variant="outline"><Link to="/bassett/issues">Bassett Test Runs</Link></Button>}
       {!showingFindings && <Button variant="outline" aria-pressed={showArchived} onClick={() => setShowArchived((value) => !value)}>{showArchived ? "Active test runs" : "Archived test runs"}</Button>}
-      {canWrite && !showingFindings && <Button onClick={() => setForm(createBassettTestRunDraft({}, config?.application_timezone))} className="bg-[var(--orange)] hover:bg-[var(--orange-600)]"><Plus size={15} /> New Bassett Test Run</Button>}
+      {canWrite && !showingFindings && <Button type="button" data-testid="new-bassett-test-run" onClick={openNewTestRun} className="relative z-10 bg-[var(--orange)] hover:bg-[var(--orange-600)]"><Plus size={15} /> New Bassett Test Run</Button>}
     </PageHeader>
     <ProjectScopeNav projects={projects} />
     <div className="mb-4 flex flex-wrap items-center gap-2" aria-label="Quick views">
@@ -457,7 +473,7 @@ export default function BassettIssues() {
         <div className="relative flex-1 min-w-[220px]"><Search size={15} className="absolute left-3 top-2.5 text-muted-foreground" /><Input aria-label={showingFindings ? "Search Bassett findings" : "Search Bassett test runs"} className="pl-9" placeholder={showingFindings ? "Search finding, test run, category, scenario…" : "Search question, response, category, scenario…"} value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} /></div>
          {!showingFindings && <select aria-label="Filter by Workflow status" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}><option value="all">All workflow statuses</option>{testStatuses.map((x) => <option key={x}>{x}</option>)}</select>}
          <select aria-label="Filter by severity" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.severity} onChange={(e) => setFilters({ ...filters, severity: e.target.value })}><option value="all">All severity</option>{SEVERITY_LABELS.map((x) => <option key={x}>{x}</option>)}</select>
-        {showingFindings && <select aria-label="Filter by finding status" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}><option value="all">All finding statuses</option>{(config?.finding_statuses || []).map((x) => <option key={x} value={x}>{PERSONAL_FINDING_STATUS_LABELS[x] || x}</option>)}</select>}
+        {showingFindings && <select aria-label="Filter by finding status" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}><option value="all">All finding statuses</option>{personalFindingStatusOptions(config?.finding_statuses || []).map((x) => <option key={x} value={x}>{PERSONAL_FINDING_STATUS_LABELS[x] || x}</option>)}</select>}
         {!showingFindings && <select aria-label="Filter by testing project" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.project} onChange={(e) => setFilters({ ...filters, project: e.target.value })}><option value="all">All testing projects</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select>}
          {!showingFindings && <><Input aria-label="Test Date from" title="Test Date from" type="date" className="w-auto" value={filters.dateFrom} onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })} /><Input aria-label="Test Date to" title="Test Date to" type="date" className="w-auto" value={filters.dateTo} onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })} /></>}
         {filtersActive && <Button type="button" size="sm" variant="outline" className="h-9 text-[var(--orange)]" onClick={clearFilters} data-testid="bassett-clear-filters"><X size={13} className="mr-1" /> Clear filters</Button>}
