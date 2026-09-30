@@ -14,6 +14,7 @@ test("current revision hydration opens G rubric scores in editable state", async
   expect(result.evaluations.Bassett.scores).toEqual({ "G-01": 8 });
   expect(result.rubric_selection_initialized).toBe(true);
   expect(result.rubric_scenario_ids).toEqual(["scenario-1"]);
+  expect(result._original_required_values.scoring_category).toBe(false);
   expect(result._original_conversation_source).toBe("uploaded_conversation");
 });
 

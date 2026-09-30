@@ -9,6 +9,7 @@ export async function loadBassettTestRunForEdit(issue, apiClient = api) {
       question_asked: Boolean(String(data?.question_asked || "").trim()),
       exact_bassett_answer: Boolean(String(data?.exact_bassett_answer || "").trim()),
       verified_correct_answer: Boolean(String(data?.verified_correct_answer || "").trim()),
+      scoring_category: Boolean(String(data?.scoring_category || "").trim()),
     },
   };
   if (data?.rubric_revision && data.rubric_revision !== LEGACY_RUBRIC_REVISION && data.rubric_scores) {

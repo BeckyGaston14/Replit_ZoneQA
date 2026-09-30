@@ -761,6 +761,25 @@ test("an existing uploaded-conversation run can save unrelated changes when its 
   act(() => view.root.unmount());
 });
 
+test("an existing run can save when its older rubric revision never stored a primary category", () => {
+  const onSubmit = jest.fn();
+  const view = renderForm("bassett", {
+    id: "run-older-rubric",
+    rubric_revision: "2026-09-29",
+    scoring_category: "",
+    _original_required_values: { scoring_category: false },
+    conversation_source: "uploaded_conversation",
+    _original_conversation_source: "uploaded_conversation",
+    attachment_count: 1,
+    result: "Not Evaluated",
+  }, { onSubmit });
+
+  expect(view.container.querySelector('[data-testid="workflow-completeness"]').textContent).toContain("Ready");
+  act(() => view.container.querySelector('[data-testid="submit"]').click());
+  expect(onSubmit).toHaveBeenCalled();
+  act(() => view.root.unmount());
+});
+
 test("current converted comparison evaluations reopen with rubric scores including zero", () => {
   const draft = createComparisonEditDraft({
     testcase: { id: "tc-current", rubric_revision: "2026-09-30", selected_rubric_ids: ["R-01"], prompts: [{ text: "Question" }] },

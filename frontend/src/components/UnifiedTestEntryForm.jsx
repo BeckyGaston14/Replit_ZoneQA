@@ -469,7 +469,10 @@ function progressFor(form, mode) {
       ? [["turns", (form.turns || []).every((turn) => String(turn.prompt || "").trim() && String(turn.response || "").trim()) && (form.turns || []).length]]
       : [["question_asked", form.question_asked], ["exact_bassett_answer", form.exact_bassett_answer], ["verified_correct_answer", form.verified_correct_answer]]), ["test_date", form.test_date]]
     : [["scenario_id", form.scenario_id], ["name", form.name], ["prompt", form.prompts?.[0]?.text], ["gold_standard_answer", form.gold_standard_answer], ["exact_bassett_answer", form.exact_bassett_answer], ["test_date", form.test_date]];
-  if (form.rubric_revision && form.rubric_revision !== LEGACY_RUBRIC_REVISION) fields.push(["scoring_category", form.scoring_category]);
+  if (form.rubric_revision && form.rubric_revision !== LEGACY_RUBRIC_REVISION) {
+    const grandfatheredMissingCategory = form.id && form._original_required_values?.scoring_category === false;
+    fields.push(["scoring_category", form.scoring_category || grandfatheredMissingCategory]);
+  }
   const complete = fields.filter(([, value]) => String(value || "").trim()).length;
   return { complete, total: fields.length, ready: complete === fields.length };
 }
@@ -477,7 +480,9 @@ function progressFor(form, mode) {
 function validate(form, mode) {
   if (mode === "bassett") {
     if (!String(form.scenario_id || "").trim()) return "A Test Scenario is required";
-    if (form.rubric_revision && form.rubric_revision !== LEGACY_RUBRIC_REVISION && !String(form.scoring_category || "").trim()) return "Select a Primary Rubric Category.";
+    if (form.rubric_revision && form.rubric_revision !== LEGACY_RUBRIC_REVISION
+      && !String(form.scoring_category || "").trim()
+      && !(form.id && form._original_required_values?.scoring_category === false)) return "Select a Primary Rubric Category.";
     if (form.create_finding && !String(form.finding?.title || "").trim()) return "Enter a finding title.";
     if (form.create_finding && !String(form.finding?.finding_type || form.issue_category || "").trim()) return "Select a Finding Category.";
     const versionError = bassettVersionRequirementMessage(form);

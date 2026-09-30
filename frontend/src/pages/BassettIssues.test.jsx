@@ -456,6 +456,7 @@ test("row edit loads the complete current test run before opening the form", asy
       question_asked: false,
       exact_bassett_answer: false,
       verified_correct_answer: false,
+      scoring_category: false,
     },
   }));
   expect(apiClient.get).toHaveBeenCalledWith("/bassett/issues/run-615");

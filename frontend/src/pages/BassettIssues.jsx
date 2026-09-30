@@ -368,7 +368,7 @@ export default function BassettIssues() {
         setRubricRemovalConflict(rubricIds);
         setConflict(null);
         setSaveError("");
-      } else if (error?.response?.status === 409 && draft.id) {
+      } else if (error?.response?.status === 409 && conflictDetail?.code === "stale_update" && draft.id) {
         try { setConflict((await api.get(`/bassett/issues/${draft.id}`)).data); } catch { setConflict({ revision: conflictDetail?.current_revision }); }
         const message = staleUpdateMessage(error) || "This test run changed elsewhere. Review your entries before reapplying them.";
         setSaveError(message);

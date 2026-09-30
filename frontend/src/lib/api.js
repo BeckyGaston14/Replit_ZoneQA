@@ -83,7 +83,8 @@ export function withExpectedVersion(record, changes = {}) {
 }
 
 export function staleUpdateMessage(error) {
-  return error?.response?.status === 409
+  const detail = error?.response?.data?.detail;
+  return error?.response?.status === 409 && detail?.code === "stale_update"
     ? "This record changed elsewhere. Your edits are still open; review them against the latest saved version before trying again."
     : "";
 }

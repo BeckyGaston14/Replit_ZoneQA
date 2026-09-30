@@ -47,8 +47,9 @@ test("versioned updates fall back to a fetched revision", () => {
 });
 
 test("stale update errors retain edits with an actionable message", () => {
-  expect(staleUpdateMessage({ response: { status: 409 } }))
+  expect(staleUpdateMessage({ response: { status: 409, data: { detail: { code: "stale_update" } } } }))
     .toContain("edits are still open");
+  expect(staleUpdateMessage({ response: { status: 409, data: { detail: { code: "other_conflict" } } } })).toBe("");
   expect(staleUpdateMessage({ response: { status: 500 } })).toBe("");
 });
 
