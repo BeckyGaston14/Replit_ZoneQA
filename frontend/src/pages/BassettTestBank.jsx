@@ -111,7 +111,8 @@ export default function BassettTestBank() {
     enabled: Boolean(form),
   });
   const { data: workflowStages = [] } = useCollection("bassett/workflow-stages");
-  const testTypeOptions = [...new Set(scenarios.map(scenarioTestType).filter((value) => value !== "Unspecified"))].sort();
+  const visibleScenarioOptions = scenarios.filter((scenario) => Boolean(scenario.archived) === showArchived);
+  const testTypeOptions = [...new Set(visibleScenarioOptions.map(scenarioTestType).filter((value) => value !== "Unspecified"))].sort();
   const testBankColumns = useMemo(() => TEST_BANK_SORT_COLUMNS.map((column) => column.key === "test_type"
     ? { ...column, type: "status", order: ["Analysis", "Document Handling", "General Research", "Municipal Research", "Unspecified"], getValue: scenarioTestType }
     : column), []);
@@ -317,8 +318,8 @@ export default function BassettTestBank() {
       <div className="flex flex-wrap gap-2 mb-4">
          <div className="relative flex-1 min-w-[240px]"><Search size={15} className="absolute left-3 top-2.5 text-muted-foreground" /><Input aria-label="Search Test Scenario records" className="pl-9" placeholder="Search ID, scenario, or purpose…" value={search} onChange={(e) => setViewFilter("search", e.target.value)} /></div>
          <select aria-label="Filter by test type" className="h-9 rounded-md border bg-background px-3 text-sm" value={stage} onChange={(e) => setViewFilter("stage", e.target.value)}><option value="all">All test types</option>{testTypeOptions.map((x) => <option key={x}>{x}</option>)}</select>
-         <select aria-label="Filter by complexity" className="h-9 rounded-md border bg-background px-3 text-sm" value={complexity} onChange={(e) => setViewFilter("complexity", e.target.value)}><option value="all">All complexity</option>{[...new Set(scenarios.map((item) => item.complexity).filter(Boolean))].sort().map((x) => <option key={x}>{x}</option>)}</select>
-         <select aria-label="Filter by priority" className="h-9 rounded-md border bg-background px-3 text-sm" value={priority} onChange={(e) => setViewFilter("priority", e.target.value)}><option value="all">All priorities</option>{[...new Set(scenarios.map((item) => item.priority).filter(Boolean))].sort().map((x) => <option key={x}>{x}</option>)}</select>
+         <select aria-label="Filter by complexity" className="h-9 rounded-md border bg-background px-3 text-sm" value={complexity} onChange={(e) => setViewFilter("complexity", e.target.value)}><option value="all">All complexity</option>{[...new Set(visibleScenarioOptions.map((item) => item.complexity).filter(Boolean))].sort().map((x) => <option key={x}>{x}</option>)}</select>
+         <select aria-label="Filter by priority" className="h-9 rounded-md border bg-background px-3 text-sm" value={priority} onChange={(e) => setViewFilter("priority", e.target.value)}><option value="all">All priorities</option>{[...new Set(visibleScenarioOptions.map((item) => item.priority).filter(Boolean))].sort().map((x) => <option key={x}>{x}</option>)}</select>
          {(search || stage !== "all" || complexity !== "all" || priority !== "all") && <Button type="button" size="sm" variant="outline" className="h-9 text-[var(--orange)]" onClick={() => { setPage(1); updateView(DEFAULT_TEST_BANK_VIEW); }} data-testid="test-bank-clear-filters"><X size={13} className="mr-1" /> Clear filters</Button>}
          <span className="text-xs text-muted-foreground self-center">View saved to your account</span>
       </div>
