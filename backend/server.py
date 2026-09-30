@@ -4009,17 +4009,52 @@ async def _seed_bassett_catalog():
             {"_id": 0},
         )
         if not existing:
+            # Some production databases still enforce the older one-row-per-
+            # stable-ID index. Reuse that logical scenario in place so the
+            # catalog activation cannot archive every legacy row and then fail
+            # to insert its replacement. This also keeps saved test-run links
+            # attached to the same scenario record.
+            prior = await db.bassett_scenarios.find_one(
+                {"stable_id": definition["stable_id"]}, {"_id": 0}
+            )
+            if prior:
+                await db.bassett_scenarios.update_one(
+                    {"id": prior["id"]},
+                    {"$set": {
+                        **definition,
+                        "archived": False,
+                        "archived_at": None,
+                        "archived_by": None,
+                        "seeded": True,
+                        "updated_at": now_iso(),
+                    }},
+                )
+                continue
             doc = {**definition, "id": f"bassett-catalog-{CATALOG_REVISION}-{definition['stable_id']}",
                    "archived": False, "seeded": True, "created_at": now_iso(),
                    "created_by": "system", "updated_at": now_iso()}
             try:
                 await db.bassett_scenarios.insert_one(doc)
             except UniqueViolationError:
-                # Another startup instance won the exact canonical-ID insert.
+                # Another startup instance or an older stable-ID-only index won
+                # the insert. Reconcile that logical scenario instead of
+                # leaving the Test Bank archived and incomplete.
                 existing = await db.bassett_scenarios.find_one(
                     {"stable_id": definition["stable_id"]}, {"_id": 0}
                 )
-                if not existing or any(existing.get(key) != value for key, value in definition.items()):
+                if existing:
+                    await db.bassett_scenarios.update_one(
+                        {"id": existing["id"]},
+                        {"$set": {
+                            **definition,
+                            "archived": False,
+                            "archived_at": None,
+                            "archived_by": None,
+                            "seeded": True,
+                            "updated_at": now_iso(),
+                        }},
+                    )
+                else:
                     logger.error("Bassett canonical seed conflict for %s; existing row was not overwritten",
                                  definition["stable_id"])
         elif existing.get("guidance_revision") != definition.get("guidance_revision"):

@@ -132,15 +132,16 @@ def test_catalog_reconciliation_archives_legacy_and_is_idempotent(monkeypatch):
     db = _Db([previous])
     monkeypatch.setattr(server, "db", db)
     asyncio.run(server._seed_bassett_catalog())
-    assert previous["archived"] is True
+    assert previous["archived"] is False
     assert previous["id"] == "prior-a-01"
-    assert len(db.rows) == 95
+    assert len(db.rows) == 94
     fresh = next(
         row for row in db.rows
         if row.get("catalog_revision") == server.CATALOG_REVISION
         and row.get("stable_id") == "A-01"
     )
-    assert fresh["id"] == "bassett-catalog-2026-09-30-A-01"
+    assert fresh["id"] == "prior-a-01"
+    assert fresh["rubric_ids"] == REFERENCE["scenarios"][0]["rubric_ids"]
     snapshot = [dict(row) for row in db.rows]
     asyncio.run(server._seed_bassett_catalog())
     assert db.rows == snapshot
