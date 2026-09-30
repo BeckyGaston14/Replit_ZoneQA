@@ -72,7 +72,7 @@ export default function Reports() {
       const columns = [
         ["name", "Test Name"], ["project_name", "Project"], ["municipality_name", "Municipality"],
         ["category", "Category"], ["criticality", "Severity"], ["status", "Workflow status"],
-        ["bassett_result", "Bassett test result"], ["gold_stale", "Gold Reverification Required"],
+        ["bassett_result", "Bassett test result"],
         ["test_date", "Test Date"],
       ].map(([key, label]) => ({ key, label }));
       downloadCsv("zoneqa-testcases.csv", tableRowsToCsv(data.testcases, columns));

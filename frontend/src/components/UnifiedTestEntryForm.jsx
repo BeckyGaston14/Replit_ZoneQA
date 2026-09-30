@@ -1121,7 +1121,7 @@ export default function UnifiedTestEntryForm({
          <div className="max-h-56 space-y-2 overflow-y-auto rounded-lg border p-3">
            {visibleEvidenceRecords.length ? visibleEvidenceRecords.map((record) => {
              const checked = (form.evidence_ids || []).includes(record.id);
-             return <label key={record.id} className="flex items-start gap-2 rounded-md p-2 hover:bg-muted"><Checkbox checked={checked} onCheckedChange={(value) => update("evidence_ids", value === true ? [...new Set([...(form.evidence_ids || []), record.id])] : (form.evidence_ids || []).filter((id) => id !== record.id))} /><span><span className="block font-medium text-[var(--navy)]">{record.document_name || record.id}</span><span className="block text-xs text-muted-foreground">{record.section || record.doc_type || "Ordinance Evidence"}{record.verification_status ? ` · ${record.verification_status}` : ""}</span></span></label>;
+             return <label key={record.id} className="flex items-start gap-2 rounded-md p-2 hover:bg-muted"><Checkbox checked={checked} onCheckedChange={(value) => update("evidence_ids", value === true ? [...new Set([...(form.evidence_ids || []), record.id])] : (form.evidence_ids || []).filter((id) => id !== record.id))} /><span><span className="block font-medium text-[var(--navy)]">{record.document_name || record.id}</span><span className="block text-xs text-muted-foreground">{record.section || record.doc_type || "Ordinance Evidence"}</span></span></label>;
            }) : <p className="text-sm text-muted-foreground">{form.municipality_id ? "No Ordinance Evidence records are available for this municipality." : "Select a municipality to see matching Ordinance Evidence records."}</p>}
          </div>
        </Field>}

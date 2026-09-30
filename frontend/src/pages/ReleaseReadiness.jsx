@@ -5,7 +5,7 @@ import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useCollection } from "../lib/hooks";
 import { PageHeader, StatCard, CritBadge, ResultBadge, StatusBadge, SampleDataBanner, sampleScopeIncludesData, MethodologyDisclosure } from "../components/shared";
-import { DEMO_STATUSES, FINDING_STATUSES, REGRESSION_DELTA_STATUSES, RELEASE_DECISIONS, readableTextColor, statusDefinition } from "../lib/statusMaps";
+import { FINDING_STATUSES, REGRESSION_DELTA_STATUSES, RELEASE_DECISIONS, readableTextColor, statusDefinition } from "../lib/statusMaps";
 import { ListSelect } from "../components/forms";
 import { Button } from "../components/ui/button";
 import { Textarea } from "../components/ui/textarea";
@@ -312,19 +312,6 @@ export default function ReleaseReadiness() {
                   </div>
                 ))}
               </div>
-              {(r.stale_gold_tests || []).length > 0 && (
-                <div className="mt-4 border-t pt-3" data-testid="readiness-stale-gold-panel">
-                  <div className="mb-1.5"><StatusBadge value="Gold Reverification Required" definitions={DEMO_STATUSES} compact /> <span className="text-xs text-muted-foreground">({r.stale_gold_tests.length})</span></div>
-                  <div className="space-y-1">
-                    {r.stale_gold_tests.map((t) => (
-                      <Link key={t.testcase_id} to={`/testcases/${t.testcase_id}`} className="block text-sm text-[var(--navy)] hover:underline">
-                        {t.name} <span className="text-xs text-muted-foreground">— stale evidence: {t.stale_evidence.join("; ")}</span>
-                      </Link>
-                    ))}
-                  </div>
-                  <p className="text-[11px] text-muted-foreground mt-1.5">These tests were evaluated against a Gold Standard whose supporting evidence predates the latest ordinance amendment or was superseded.</p>
-                </div>
-              )}
             </div>
 
             <div className="space-y-4">

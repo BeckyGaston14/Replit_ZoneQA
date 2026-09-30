@@ -1,18 +1,14 @@
 import ResourceList from "../components/ResourceList";
 import { useNavigate } from "react-router-dom";
 import { useCollection } from "../lib/hooks";
-import { useAuth } from "../lib/auth";
 import { useState } from "react";
 import { api } from "../lib/api";
 import {
   PROJECT_SCHEMA,
   MUNICIPALITY_SCHEMA,
   PROPERTY_SCHEMA,
-  VerificationBadge,
   createEvidenceSchema,
 } from "../lib/resourceSchemas";
-
-export { VerificationBadge };
 
 export function Projects() {
   const navigate = useNavigate();
@@ -68,7 +64,5 @@ export function Properties() {
 
 export function Evidence() {
   const { data: municipalities = [] } = useCollection("municipalities");
-  const { data: users = [] } = useCollection("users");
-  const { user } = useAuth();
-  return <ResourceList {...createEvidenceSchema(municipalities, users, user)} />;
+  return <ResourceList {...createEvidenceSchema(municipalities)} />;
 }

@@ -39,7 +39,6 @@ jest.mock("../components/Attachments", () => ({ Attachments: () => null }));
 jest.mock("../components/TestCaseActions", () => ({
   TestCaseActions: ({ onEdit }) => <button data-testid="detail-edit-action" onClick={onEdit}>Edit test case</button>,
 }));
-jest.mock("./Resources", () => ({ VerificationBadge: () => null }));
 jest.mock("../components/ui/tabs", () => ({ Tabs: ({ children, value }) => <div data-testid="detail-tabs" data-value={value}>{children}</div>, TabsList: ({ children }) => <div>{children}</div>, TabsTrigger: ({ children }) => <button>{children}</button>, TabsContent: ({ children }) => <div>{children}</div> }));
 jest.mock("../components/ui/button", () => ({ Button: ({ children, ...props }) => <button {...props}>{children}</button> }));
 jest.mock("../components/ui/input", () => ({ Input: (props) => <input {...props} /> }));

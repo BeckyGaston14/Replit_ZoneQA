@@ -8,7 +8,7 @@ test.each([
   ["DataIntegrity", /INTEGRITY_CHECK_STATUSES/],
   ["ReleaseReadiness", /StatusBadge value=\{decisionStatus\}/],
   ["Admin", /ACTIVITY_STATUSES/],
-  ["Demos", /Gold Reverification Required/],
+  ["Demos", /StatusBadge value=\{d\.status \|\| "Approved"\}/],
   ["Coverage", /StatusBadge value=\{status\}/],
   ["CalendarPage", /CALENDAR_EVENT_STATES/],
   ["Regression", /ResultBadge value=\{r\.result \|\| "Not Evaluated"\}/],

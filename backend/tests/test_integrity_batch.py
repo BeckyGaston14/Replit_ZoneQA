@@ -113,10 +113,10 @@ async def test_batch_repairs_exact_sample_records_and_is_idempotent():
     )
 
     preview = await preview_integrity_batch(database)
-    assert len(preview["records"]) == 7
+    assert len(preview["records"]) == 6
     assert preview["preview_ids"] == [
         "projects:project-0", "projects:project-1", "projects:project-2", "projects:project-3",
-        "testcases:tc-date", "testcases:tc-created-date", "evidence:ev-1",
+        "testcases:tc-date", "testcases:tc-created-date",
     ]
     assert preview["records"][4]["source_date"] == "2026-06-01"
     assert preview["records"][4]["source_date_kind"] == "evaluation Test Date"
@@ -129,7 +129,6 @@ async def test_batch_repairs_exact_sample_records_and_is_idempotent():
     assert first["changed"] == {
         "project_owners": 4,
         "testcase_dates": 2,
-        "evidence_authorities": 1,
     }
     assert all(project.get("owner_user_id") == "admin-1" for project in projects[:4])
     assert projects[4].get("owner_user_id") is None
@@ -137,7 +136,7 @@ async def test_batch_repairs_exact_sample_records_and_is_idempotent():
     assert next(tc for tc in testcases if tc["id"] == "tc-created-date")["test_date"] == "2026-08-04"
     assert next(tc for tc in testcases if tc["id"] == "tc-no-source").get("test_date") is None
     assert next(tc for tc in testcases if tc["id"] == "tc-existing")["test_date"] == "2026-01-01"
-    assert database.evidence.records[0]["issuing_authority"] == "New York City Department of City Planning"
+    assert database.evidence.records[0]["issuing_authority"] == ""
     assert database.evidence.records[1]["issuing_authority"] == ""
     assert database.versions.records[0]["version_type"] == ""
     assert database.versions.records[0]["release_channel"] is None

@@ -63,7 +63,7 @@ test("resource schemas preserve required and relation-field contracts", () => {
     collection: "municipalities",
   }));
 
-  const evidenceSchema = createEvidenceSchema([], [{ name: "QA Tester" }], { name: "QA Tester" });
+  const evidenceSchema = createEvidenceSchema([]);
   expect(evidenceSchema.newLabel).toBe("New Ordinance Evidence");
   expect(evidenceSchema.emptyStateTitle).toBe("No ordinance evidence records have been created yet.");
   expect(evidenceSchema.emptyActionLabel).toBe("Create an ordinance evidence record.");
@@ -74,12 +74,9 @@ test("resource schemas preserve required and relation-field contracts", () => {
     label: "Code Section #",
     group: "reference",
   }));
-  expect(evidenceSchema.fields.find(({ key }) => key === "verified_by")).toEqual(expect.objectContaining({
-    type: "select",
-    options: ["QA Tester"],
-    description: "Automatically set when first saved. Editable on later updates.",
-  }));
-  expect(evidenceSchema.fields.find(({ key }) => key === "verified_by").disabledWhen({ id: "" })).toBe(true);
-  expect(evidenceSchema.fields.find(({ key }) => key === "verified_date").disabledWhen({ id: "" })).toBe(true);
-  expect(evidenceSchema.initial).toEqual(expect.objectContaining({ verified_by: "QA Tester" }));
+  expect(evidenceSchema.fields.map(({ key }) => key)).not.toEqual(expect.arrayContaining([
+    "document_version", "issuing_authority", "verification_status", "verified_by", "verified_date",
+    "effective_date", "superseded_date",
+  ]));
+  expect(evidenceSchema.columns.map(({ key }) => key)).toEqual(["document_name", "doc_type", "section"]);
 });

@@ -1,4 +1,4 @@
-import { formatTestDate, todayInTimeZone } from "./testDates";
+import { formatTestDate } from "./testDates";
 
 export const MUNICIPALITY_ADD_FIELDS = [
   { key: "name", label: "Municipality" },
@@ -135,31 +135,7 @@ export const PROPERTY_SCHEMA = {
   ],
 };
 
-const VERIFICATION_STYLES = {
-  Unverified: { bg: "#fff7ed", color: "#c2410c" },
-  "Verification in Progress": { bg: "#eff6ff", color: "#1d4ed8" },
-  Verified: { bg: "#dcfce7", color: "#166534" },
-  Superseded: { bg: "#f1f5f9", color: "#475569" },
-  Conflicting: { bg: "#fef3c7", color: "#92400e" },
-  Rejected: { bg: "#fee2e2", color: "#991b1b" },
-};
-
-export function VerificationBadge({ value }) {
-  const style = VERIFICATION_STYLES[value] || VERIFICATION_STYLES.Unverified;
-  return <span className="text-xs font-semibold rounded-full px-2 py-0.5" style={{ background: style.bg, color: style.color }}>{value || "Unverified"}</span>;
-}
-
-export function createEvidenceSchema(municipalities = [], users = [], currentUser = null) {
-  const municipalityMap = Object.fromEntries(municipalities.map((municipality) => [municipality.id, municipality]));
-  const staleOf = (row) => {
-    if (row.superseded_date) return `Superseded ${row.superseded_date}`;
-    const latestAmendment = municipalityMap[row.municipality_id]?.latest_amendment_date;
-    if (latestAmendment && row.effective_date && row.effective_date < latestAmendment) {
-      return `Predates ${municipalityMap[row.municipality_id]?.name} amendment ${latestAmendment}`;
-    }
-    return null;
-  };
-
+export function createEvidenceSchema(municipalities = []) {
   return {
     title: "Ordinance Evidence",
     singular: "Ordinance Evidence",
@@ -167,61 +143,25 @@ export function createEvidenceSchema(municipalities = [], users = [], currentUse
     emptyStateTitle: "No ordinance evidence records have been created yet.",
     emptyStateDescription: "",
     emptyActionLabel: "Create an ordinance evidence record.",
-    subtitle: "Authoritative zoning sources & Gold Standard evidence base — full provenance per record.",
+    subtitle: "Reusable zoning sources and documents linked to municipalities, test runs, and Gold Standards.",
     collection: "evidence",
     attachable: "evidence",
     columns: [
       { key: "document_name", label: "Document", render: (row) => nameCell(row.document_name) },
       { key: "doc_type", label: "Type" },
-      { key: "issuing_authority", label: "Issuing Authority", render: (row) => row.issuing_authority || "—" },
       { key: "section", label: "Code Section #", render: (row) => row.section || "—" },
-      {
-        key: "verification_status",
-        label: "Verification",
-        render: (row) => (
-          <span>
-            <VerificationBadge value={row.verification_status} />
-            {row.verified_by && <span className="text-[10px] text-muted-foreground block mt-0.5">{row.verified_by}{row.verified_date ? ` · ${row.verified_date}` : ""}</span>}
-          </span>
-        ),
-      },
-      {
-        key: "effective_date",
-        label: "Effective / Freshness",
-        type: "date",
-        render: (row) => {
-          const stale = staleOf(row);
-          return (
-            <span>{row.effective_date || "—"}
-              {stale && <span className="block mt-0.5 text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 rounded-full px-1.5 py-0.5 w-fit" data-testid="evidence-stale-flag">⚠ STALE — {stale}</span>}
-            </span>
-          );
-        },
-      },
     ],
     fields: [
       { key: "document_name", label: "Document Name", required: true, col: 2, group: "source", groupLabel: "Evidence source" },
       { key: "municipality_id", label: "Municipality", required: true, ...municipalityRelation, group: "source", groupLabel: "Evidence source" },
       { key: "doc_type", label: "Document Type / Source Type", type: "select", options: ["Ordinance Section", "Municipal Code", "Zoning Map", "Planned Development Ordinance", "Overlay", "Official Interpretation", "Municipal Correspondence", "Approval", "Property Document", "Other"], group: "source", groupLabel: "Evidence source" },
-      { key: "issuing_authority", label: "Issuing Authority", group: "source", groupLabel: "Evidence source" },
-      { key: "document_version", label: "Ordinance / Document Version", group: "source", groupLabel: "Evidence source" },
       { key: "section", label: "Code Section #", group: "reference", groupLabel: "Code reference" },
       { key: "page_number", label: "Page Number", group: "reference", groupLabel: "Code reference" },
-      { key: "effective_date", label: "Effective Date", type: "date", group: "reference", groupLabel: "Code reference" },
-      { key: "superseded_date", label: "Superseded Date", type: "date", group: "reference", groupLabel: "Code reference" },
       { key: "source_url", label: "Source URL", type: "url", col: 2, group: "reference", groupLabel: "Code reference" },
-      { key: "verification_status", label: "Verification Status", type: "select", options: ["Unverified", "Verification in Progress", "Verified", "Superseded", "Conflicting", "Rejected"], group: "verification", groupLabel: "Verification" },
-      { key: "verified_by", label: "Verified By", type: "select", options: [...new Set(users.map((user) => user.name).filter(Boolean))], disabledWhen: (form) => !form.id, description: "Automatically set when first saved. Editable on later updates.", group: "verification", groupLabel: "Verification" },
-      { key: "verified_date", label: "Verified Date", type: "date", disabledWhen: (form) => !form.id, description: "Automatically set when first saved. Editable on later updates.", group: "verification", groupLabel: "Verification" },
       { key: "relevant_text", label: "Extracted Source Text", type: "textarea", col: 2, group: "content", groupLabel: "Evidence content" },
       { key: "notes", label: "Notes", type: "textarea", col: 2, group: "content", groupLabel: "Evidence content" },
     ],
-    filterFields: [
-      { key: "doc_type", label: "Document Type" },
-      { key: "verification_status", label: "Verification Status" },
-    ],
-    initial: currentUser ? { verified_by: currentUser.name, verified_date: todayInTimeZone() } : {},
-    dateRanges: [{ start: "effective_date", end: "superseded_date", startLabel: "Effective Date", endLabel: "Superseded Date" }],
+    filterFields: [{ key: "doc_type", label: "Document Type" }],
   };
 }
 

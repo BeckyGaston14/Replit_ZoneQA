@@ -122,7 +122,6 @@ export async function persistBassettTestRun(form, apiClient = api) {
           document_name: file.name,
           municipality_id: form.municipality_id,
           doc_type: "Other",
-          verification_status: "Unverified",
           notes: `Created from Bassett Test Run ${form.title || form.test_id || issueId}.`,
         });
         const upload = new FormData();

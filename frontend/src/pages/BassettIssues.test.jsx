@@ -289,7 +289,7 @@ test("supporting uploads can become linked Ordinance Evidence without duplicate 
 
   expect(result).toEqual(expect.objectContaining({ issueId: "run-4", uploadFailures: 0, evidenceFailures: 0 }));
   expect(apiClient.post).toHaveBeenCalledWith("/evidence", expect.objectContaining({
-    document_name: "zoning-code.pdf", municipality_id: "municipality-1", verification_status: "Unverified",
+    document_name: "zoning-code.pdf", municipality_id: "municipality-1",
   }));
   const uploads = apiClient.post.mock.calls.filter(([url]) => url === "/attachments/upload");
   expect(uploads).toHaveLength(1);

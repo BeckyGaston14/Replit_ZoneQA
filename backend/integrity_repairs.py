@@ -14,13 +14,6 @@ LEGACY_SAMPLE_PROJECT_NAMES = frozenset({
     "Bassett Release Regression",
 })
 
-SAMPLE_EVIDENCE_AUTHORITIES = {
-    "NYC ZR §32-00 Use Regulations": "New York City Department of City Planning",
-    "Cool Springs PD Ordinance 2019-14": "City of Franklin Planning and Sustainability Department",
-    "OKC Municipal Code §59-9150 Parking": "City of Oklahoma City Planning Department",
-    "Sterling Heights Setback Table": "City of Sterling Heights Office of Planning",
-}
-
 COMPARISON_MODELS = frozenset({"Bassett", "ChatGPT", "Claude"})
 INTEGRITY_REPAIR_SCOPES = frozenset({"metadata", "sample_testcase_dates"})
 
@@ -219,18 +212,6 @@ async def preview_integrity_batch(database, scope: str = "metadata") -> dict:
     records.extend(_public_preview_records(testcase_records))
     skipped.extend(testcase_skipped)
 
-    evidence = await _all(database.evidence)
-    for record in evidence:
-        authority = SAMPLE_EVIDENCE_AUTHORITIES.get(record.get("document_name"))
-        if authority and _is_sample_record(record) and _blank(record.get("issuing_authority")):
-            records.append({
-                "repair": "evidence_authorities",
-                "collection": "evidence",
-                "id": record["id"],
-                "name": record.get("document_name", ""),
-                "changes": {"issuing_authority": authority},
-            })
-
     return _preview_payload(scope, records, skipped)
 
 
@@ -261,7 +242,7 @@ async def _repair_sample_testcase_dates(database) -> dict:
 
 
 async def repair_integrity_batch(database, scope: str = "metadata") -> dict:
-    """Apply the five exact-match repairs and return an auditable change report.
+    """Apply the supported exact-match repairs and return an auditable change report.
 
     Every write is guarded by the same blank/legacy predicate used to select it.
     Running this function repeatedly therefore produces no additional changes.
@@ -275,12 +256,10 @@ async def repair_integrity_batch(database, scope: str = "metadata") -> dict:
         "changed": {
             "project_owners": 0,
             "testcase_dates": 0,
-            "evidence_authorities": 0,
         },
         "matched": {
             "legacy_sample_projects": 0,
             "sample_testcases_without_dates": 0,
-            "sample_evidence": 0,
         },
         "skipped": [],
     }
@@ -379,26 +358,6 @@ async def repair_integrity_batch(database, scope: str = "metadata") -> dict:
                 "source_evaluation_created_at": source_created_at,
                 "target_test_date": latest_date,
             })
-
-    evidence = await _all(database.evidence)
-    matching_evidence = [
-        record for record in evidence
-        if record.get("document_name") in SAMPLE_EVIDENCE_AUTHORITIES
-        and _is_sample_record(record)
-        and _blank(record.get("issuing_authority"))
-    ]
-    report["matched"]["sample_evidence"] = len(matching_evidence)
-    for record in matching_evidence:
-        result = await database.evidence.update_one(
-            {
-                "id": record["id"],
-                "document_name": record["document_name"],
-                "issuing_authority": record.get("issuing_authority"),
-            },
-            {"$set": {"issuing_authority": SAMPLE_EVIDENCE_AUTHORITIES[record["document_name"]]}},
-        )
-        if getattr(result, "modified_count", 1):
-            report["changed"]["evidence_authorities"] += 1
 
     report["changed_total"] = sum(report["changed"].values())
     return report

@@ -10,7 +10,6 @@ import { CommentsThread } from "../components/CommentsThread";
 import { AssigneePicker } from "../components/AssigneePicker";
 import { ClaimsPanel } from "../components/ClaimsPanel";
 import { Attachments } from "../components/Attachments";
-import { VerificationBadge } from "./Resources";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/tabs";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -23,9 +22,8 @@ import { CANONICAL_EVALUATION_RESULTS, normalizeEvaluationResult } from "../lib/
 import { SortableTableHeader } from "../components/SortableTableHeader";
 import { TableSortControls } from "../components/TableSortControls";
 import { TestCaseActions } from "../components/TestCaseActions";
-import { ConfirmActionDialog } from "../components/ConfirmActionDialog";
 import {
-  COMPARISON_RUN_STATUSES, COMPARISON_SLOT_STATUSES, DEMO_STATUSES,
+  COMPARISON_RUN_STATUSES, COMPARISON_SLOT_STATUSES,
   EXPECTED_BEHAVIOR_STATUSES, FINDING_STATUSES, GOLD_STANDARD_STATUSES,
   RETEST_LIFECYCLE_STATUSES, RETEST_STATUSES, StatusBadge, StatusLegend,
   TEST_CASE_STATUSES, TEST_WORKFLOW_STATUSES,
@@ -502,16 +500,10 @@ export default function TestCaseDetail() {
               {canWrite && <Button size="sm" variant="outline" onClick={() => setGoldModal(true)}>{gold_standard ? "Edit" : "Create"}</Button>}</div>
             {gold_standard ? (
               <div className="space-y-3 text-sm">
-                {evidence.some((e) => e.freshness_warning) && (
-                   <div className="flex items-start gap-2 border rounded-lg px-3 py-2 text-xs" data-testid="gold-stale-evidence-warning"><StatusBadge value="Gold Reverification Required" definitions={DEMO_STATUSES} compact /><span>Supporting evidence is stale: {evidence.filter((e) => e.freshness_warning).map((e) => e.document_name).join("; ")}. This Gold Standard may no longer reflect the current ordinance.</span></div>
-                )}
-                {gold_standard.review_status === "Approved" && !evidence.some((e) => e.verification_status === "Verified") && (
-                   <div className="flex items-start gap-2 border rounded-lg px-3 py-2 text-xs" data-testid="gold-unverified-warning"><StatusBadge value="Insufficient Verified Evidence" definitions={GOLD_STANDARD_STATUSES} compact /><span>Approved without any Verified evidence — this Gold Standard's authority is not established. Verify a source or change the conclusion to "Insufficient Verified Evidence".</span></div>
-                )}
                 <div><span className="text-xs font-semibold text-muted-foreground uppercase">Answer</span><p className="prose-response mt-1">{gold_standard.answer}</p></div>
                 <div><span className="text-xs font-semibold text-muted-foreground uppercase">Explanation</span><p className="prose-response mt-1">{gold_standard.explanation}</p></div>
                 {gold_standard.limitations && <div><span className="text-xs font-semibold text-muted-foreground uppercase">Limitations</span><p className="prose-response mt-1">{gold_standard.limitations}</p></div>}
-                 <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">Prepared: {gold_standard.prepared_by || "—"} · Reviewed: {gold_standard.reviewed_by || "—"} {gold_standard.version ? `· v${gold_standard.version}` : ""}<StatusBadge value={gold_standard.review_status === "Approved" && data.gold_stale ? "Approved — Reverification Required" : gold_standard.review_status} definitions={GOLD_STANDARD_STATUSES} compact testId="gold-status-label" /><span>· Supporting evidence: {evidence.length} ({evidence.filter((e) => e.verification_status === "Verified").length} verified)</span></div>
+                 <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">Prepared: {gold_standard.prepared_by || "—"} · Reviewed: {gold_standard.reviewed_by || "—"} {gold_standard.version ? `· v${gold_standard.version}` : ""}<StatusBadge value={gold_standard.review_status} definitions={GOLD_STANDARD_STATUSES} compact testId="gold-status-label" /><span>· Supporting evidence: {evidence.length}</span></div>
               </div>
             ) : <p className="text-sm text-muted-foreground">No Gold Standard yet. Establish the authoritative answer from evidence.</p>}
           </div>
@@ -522,24 +514,11 @@ export default function TestCaseDetail() {
             {evidence.length === 0 && <p className="text-sm text-muted-foreground">No evidence linked. Link from Ordinance Evidence.</p>}
             {evidence.map((e) => (
               <div key={e.id} className="bg-card border rounded-xl p-4">
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <span className="font-semibold text-[var(--navy)]">{e.document_name}</span>
-                  <VerificationBadge value={e.verification_status} />
-                </div>
+                <div className="flex items-center justify-between gap-2 flex-wrap"><span className="font-semibold text-[var(--navy)]">{e.document_name}</span></div>
                 <div className="text-xs text-muted-foreground mt-1 flex flex-wrap gap-x-3 gap-y-0.5" data-testid="evidence-provenance">
-                  {e.issuing_authority && <span><b>Authority:</b> {e.issuing_authority}</span>}
-                  {e.document_version && <span><b>Version:</b> {e.document_version}</span>}
                   {e.section && <span><b>Code Section #:</b> {e.section}{e.page_number ? ` · p.${e.page_number}` : ""}</span>}
-                  {e.effective_date && <span>Effective {e.effective_date}</span>}
-                  {e.superseded_date && <span className="text-red-600 font-semibold">Superseded {e.superseded_date}</span>}
-                  {e.verified_by && <span>Verified by {e.verified_by}{e.verified_date ? ` on ${e.verified_date}` : ""}</span>}
                   {e.source_url && <a href={e.source_url} target="_blank" rel="noreferrer" className="text-[var(--orange)] font-semibold hover:underline">Source ↗</a>}
                 </div>
-                {e.freshness_warning && (
-                  <div className="mt-2 text-xs bg-red-50 border border-red-300 text-red-800 rounded-lg px-2.5 py-1.5 font-semibold" data-testid="evidence-freshness-warning">
-                    ⚠ STALE: {e.freshness_warning}
-                  </div>
-                )}
                 <p className="text-sm mt-2 prose-response bg-[var(--paper)] rounded p-2">{e.relevant_text}</p>
                 <div className="mt-3 border-t pt-3">
                   <Attachments entityType="evidence" entityId={e.id} canWrite={canWrite} compact />
@@ -550,11 +529,6 @@ export default function TestCaseDetail() {
         </TabsContent>
 
         <TabsContent value="evaluation">
-          {data.gold_stale && (
-            <div className="bg-amber-50 border border-amber-300 text-amber-800 rounded-xl px-4 py-2.5 mb-3 text-sm" data-testid="eval-gold-stale-warning">
-              ⚠ <b>Gold Standard authority under review</b> — supporting evidence is stale ({(data.gold_stale_evidence || []).join("; ")}). Evaluations remain historically valid but should be re-verified against the current ordinance.
-            </div>
-          )}
           <div className="bg-card border rounded-xl overflow-hidden">
             <TableSortControls columns={EVALUATION_COLUMNS} sort={evaluationSort} setSort={setEvaluationSort} defaultSort={defaultEvaluationSort} className="p-3 pb-0" />
             <table className="w-full text-sm">
@@ -959,47 +933,29 @@ function FindingModal({ open, setOpen, tc, project, config, onDone }) {
 
 function GoldModal({ open, setOpen, existing, tcId, evidence = [], onDone }) {
   const [g, setG] = useState(existing || { answer: "", explanation: "", limitations: "", version: "1", prepared_by: "", reviewed_by: "", review_status: "Draft", testcase_id: tcId });
-  const [confirmingUnverifiedApproval, setConfirmingUnverifiedApproval] = useState(false);
   const set = (k, v) => setG({ ...g, [k]: v });
-  const save = async (unverifiedApprovalConfirmed = false) => {
-    if (g.review_status === "Insufficient Verified Evidence" && !(g.explanation || "").trim())
-      return toast.error("Explain why 'Insufficient Verified Evidence' is the correct conclusion.");
-    if (g.review_status === "Approved" && !evidence.some((e) => e.verification_status === "Verified") && !unverifiedApprovalConfirmed) {
-      setConfirmingUnverifiedApproval(true);
-      return;
-    }
+  const save = async () => {
     try {
       if (g.id) await api.put(`/goldstandards/${g.id}`, withExpectedVersion(g, g)); else await api.post("/goldstandards", g);
-      toast.success("Gold Standard saved"); setConfirmingUnverifiedApproval(false); setOpen(false); onDone();
+      toast.success("Gold Standard saved"); setOpen(false); onDone();
     } catch (error) {
       toast.error(staleUpdateMessage(error) || formatApiErrorDetail(error?.response?.data?.detail) || "Unable to save Gold Standard.");
       if (error?.response?.status === 409) onDone();
     }
   };
   return (
-    <>
     <FormModal open={open} onOpenChange={setOpen} title="Gold Standard" onSubmit={save} wide>
-      <Field label="Verified Answer / Gold Standard"><Textarea rows={3} value={g.answer} onChange={(e) => set("answer", e.target.value)} data-testid="gold-answer" /></Field>
-      <Field label="Explanation (required for Insufficient Verified Evidence)"><Textarea rows={3} value={g.explanation} onChange={(e) => set("explanation", e.target.value)} data-testid="gold-explanation" /></Field>
+      <Field label="Gold Standard Answer"><Textarea rows={3} value={g.answer} onChange={(e) => set("answer", e.target.value)} data-testid="gold-answer" /></Field>
+      <Field label="Explanation"><Textarea rows={3} value={g.explanation} onChange={(e) => set("explanation", e.target.value)} data-testid="gold-explanation" /></Field>
       <Field label="Limitations / caveats"><Textarea rows={2} value={g.limitations || ""} onChange={(e) => set("limitations", e.target.value)} /></Field>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <Field label="Prepared By"><Input value={g.prepared_by} onChange={(e) => set("prepared_by", e.target.value)} /></Field>
         <Field label="Reviewed By"><Input value={g.reviewed_by} onChange={(e) => set("reviewed_by", e.target.value)} /></Field>
         <Field label="Version"><Input value={g.version || ""} onChange={(e) => set("version", e.target.value)} /></Field>
-        <Field label="Approval Status"><ListSelect options={["Draft", "In Review", "Approved", "Insufficient Verified Evidence"]} value={g.review_status} onChange={(v) => set("review_status", v)} testid="gold-status" /></Field>
+        <Field label="Approval Status"><ListSelect options={["Draft", "In Review", "Approved"]} value={g.review_status} onChange={(v) => set("review_status", v)} testid="gold-status" /></Field>
       </div>
-      <p className="text-xs text-muted-foreground">Linked evidence: {evidence.length} ({evidence.filter((e) => e.verification_status === "Verified").length} verified).</p>
+      <p className="text-xs text-muted-foreground">Linked evidence: {evidence.length}.</p>
     </FormModal>
-    <ConfirmActionDialog
-      open={confirmingUnverifiedApproval}
-      onOpenChange={setConfirmingUnverifiedApproval}
-      title="Approve without verified evidence?"
-      description="No Verified evidence is linked to this test. Approving a Gold Standard that relies only on unverified evidence weakens its authority. Your draft will remain open if you cancel."
-      confirmLabel="Approve Gold Standard"
-      destructive
-      onConfirm={() => save(true)}
-    />
-    </>
   );
 }
 

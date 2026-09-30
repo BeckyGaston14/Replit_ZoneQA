@@ -223,15 +223,10 @@ export default function Comparison() {
            </div>}
 
           {data.gold_standard && (
-            <div className={`rounded-xl p-4 mb-4 ${data.gold_stale ? "bg-[var(--navy)] text-white border-2 border-amber-400" : "bg-[var(--navy)] text-white"}`}>
+            <div className="rounded-xl p-4 mb-4 bg-[var(--navy)] text-white">
               <div className="text-xs font-bold uppercase tracking-wide text-[var(--orange)] mb-1" data-testid="cmp-gold-label">
-                {data.gold_stale ? "Gold Standard — Approved Historically, Reverification Required" : "Gold Standard (authoritative)"}
+                Gold Standard
               </div>
-              {data.gold_stale && (
-                <div className="text-xs bg-amber-400/20 border border-amber-400/60 text-amber-200 rounded-lg px-2.5 py-1.5 mb-2" data-testid="cmp-gold-stale-warning">
-                  ⚠ Supporting evidence is stale ({(data.gold_stale_evidence || []).join("; ")}) — this answer's authority is under review against the current ordinance.
-                </div>
-              )}
               <p className="text-sm prose-response">{data.gold_standard.answer}</p>
             </div>
           )}

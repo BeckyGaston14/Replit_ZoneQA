@@ -30,7 +30,6 @@ export default function Demos() {
         {demos.map((d) => { const tc = tcMap[d.testcase_id]; return (
            <Link key={d.id} to={`/testcases/${d.testcase_id}`} className="block bg-card border rounded-xl p-5 card-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)] focus-visible:ring-offset-2" data-testid="demo-card">
              <div className="flex items-center gap-2 mb-2 flex-wrap"><StatusBadge value={d.status || "Approved"} definitions={DEMO_STATUSES} compact /><span className="text-xs text-muted-foreground">{d.bassett_version}</span>
-              {tc?.gold_stale && <StatusBadge value="Gold Reverification Required" definitions={DEMO_STATUSES} compact testId="demo-stale-gold-flag" />}
             </div>
             <h3 className="font-semibold font-display text-[var(--navy)]">{tc?.name || "Test"}</h3>
             <p className="text-sm text-muted-foreground mt-1">{tc?.municipality_name}</p>

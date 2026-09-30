@@ -2185,14 +2185,6 @@ async def crud_create(coll, body, user):
         )
     elif coll in ("findings", "bassett_issues"):
         doc["severity"], doc["criticality"] = _canonical_severity_pair()
-    if coll == "evidence":
-        # Verification provenance is authoritative at creation time.  It may
-        # be corrected later through the normal edit workflow.
-        config = await db.config.find_one({"id": "global"}, {"_id": 0}) or DEFAULT_CONFIG
-        doc["verified_by"] = user["name"]
-        doc["verified_date"] = datetime.now(
-            ZoneInfo(_application_timezone_name(config))
-        ).date().isoformat()
     if coll == "evaluations" and "final_result" in doc:
         doc["final_result"] = normalize_evaluation_result(doc.get("final_result"))
     if coll == "models":
@@ -10796,12 +10788,6 @@ async def _run_data_integrity(user):
             }
         add("testcase", tid, tc.get("name", "?"), "Active test case has no recorded Test Date",
             "medium", repair, f"/testcases/{tid}", repair_action)
-
-    for evidence_record in evidence:
-        if not (evidence_record.get("issuing_authority") or "").strip():
-            add("evidence", evidence_record["id"], evidence_record.get("document_name", "?"),
-                "Ordinance evidence has no Issuing Authority", "low",
-                "Identify the government department or other authority that issued the source", "/evidence")
 
     for scenario in scenarios:
         if scenario.get("archived") or scenario.get("archived_at"):
