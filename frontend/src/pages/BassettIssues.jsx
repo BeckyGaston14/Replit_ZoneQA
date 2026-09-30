@@ -568,7 +568,7 @@ export default function BassettIssues() {
       <p className="font-semibold">Someone else saved this test run first. Your entries are still open for review.</p>
       <div className="mt-2 flex gap-2">
         <Button type="button" size="sm" variant="outline" onClick={() => { setForm(conflict); setConflict(null); }}>Load latest values</Button>
-        <Button type="button" size="sm" onClick={() => { setForm((draft) => ({ ...draft, expected_revision: conflict.revision, expected_updated_at: conflict.updated_at })); setConflict(null); }}>Keep my entries and reapply</Button>
+        <Button type="button" size="sm" onClick={() => { setForm((draft) => ({ ...draft, revision: conflict.revision, updated_at: conflict.updated_at, expected_revision: conflict.revision, expected_updated_at: undefined })); setConflict(null); }}>Keep my entries and reapply</Button>
       </div>
     </div>}
     {rubricRemovalConflict && <div role="alert" className="col-span-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
@@ -610,9 +610,9 @@ function ImportReview({ preview }) {
 function actionError(error, fallback) {
   if (error?.response?.status === 401) return "Your session has expired. Sign in again, then retry.";
   if (error?.response?.status === 403) return "You do not have permission for this action.";
-  if (error?.response?.status === 409) return "This record changed elsewhere. Refresh and retry.";
-  if (error?.response?.status === 413) return "The selected upload is too large. Your entries are still open; remove the file or upload a smaller copy and retry.";
   const detail = error?.response?.data?.detail;
+  if (error?.response?.status === 409 && detail?.code === "stale_update") return "This record changed elsewhere. Refresh and retry.";
+  if (error?.response?.status === 413) return "The selected upload is too large. Your entries are still open; remove the file or upload a smaller copy and retry.";
   if (detail != null) return formatApiErrorDetail(detail);
   if (!error?.response) return `${fallback}. The server could not be reached; your entries are still open.`;
   return `${fallback}. Your entries are still open so you can retry.`;

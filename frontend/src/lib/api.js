@@ -75,10 +75,16 @@ export function formatApiErrorDetail(detail) {
 
 export function withExpectedVersion(record, changes = {}) {
   const body = { ...changes };
-  if (record?.expected_updated_at) body.expected_updated_at = record.expected_updated_at;
-  else if (record?.updated_at) body.expected_updated_at = record.updated_at;
-  else if (record?.expected_revision != null) body.expected_revision = record.expected_revision;
+  // Submit one concurrency token only. Edit forms contain a full copy of the
+  // fetched record and can retain an older expected timestamp after a conflict
+  // retry. Sending that stale timestamp alongside a current revision causes a
+  // false conflict even though the revision is authoritative.
+  delete body.expected_revision;
+  delete body.expected_updated_at;
+  if (record?.expected_revision != null) body.expected_revision = record.expected_revision;
   else if (record?.revision != null) body.expected_revision = record.revision;
+  else if (record?.expected_updated_at) body.expected_updated_at = record.expected_updated_at;
+  else if (record?.updated_at) body.expected_updated_at = record.updated_at;
   return body;
 }
 

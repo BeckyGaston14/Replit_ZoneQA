@@ -15,7 +15,7 @@ import { formatNeutralAverage, rubricScoreSummary } from "../lib/scoreMath";
 import { CANONICAL_EVALUATION_RESULTS, isEvaluatedResult, normalizeEvaluationResult } from "../lib/evaluationResults";
 import { ConfirmActionDialog } from "./ConfirmActionDialog";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
-import { SEVERITY_LABELS, severityLabel, severityNumber } from "../lib/severity";
+import { severityLabel, severityNumber } from "../lib/severity";
 import {
   LEGACY_RUBRIC_REVISION,
   normalizeRubricCatalog,
@@ -933,7 +933,10 @@ export default function UnifiedTestEntryForm({
   const sectionHasValue = (index) => {
     if (!isComparison && index === 1 && form.conversation_source === "uploaded_conversation") return hasConversationFile;
     if (!isComparison && index === 1 && form.test_type === "Multi-turn") return Boolean(form.turns?.length);
-    if (!isComparison && index === 2 && (form.test_type === "Multi-turn" || form.conversation_source === "uploaded_conversation")) return false;
+    if (index === 2 && (form.test_type === "Multi-turn" || form.conversation_source === "uploaded_conversation")) {
+      const result = normalizeEvaluationResult(form.result);
+      return Boolean(result && result !== "Not Evaluated");
+    }
     if (index === 3) return Object.values(evaluationFor("Bassett").scores || {}).some((value) => value !== null && value !== "");
     if (index === 4) return Boolean(form.create_finding || form.assignee_id || form.finding_id || form.finding_ids?.length);
     if (index === 5) return Boolean(form.source_links || form.evidence || form.notes || form.attachments?.length || form.evidence_ids?.length);
@@ -1025,7 +1028,7 @@ export default function UnifiedTestEntryForm({
       form.environment || "Environment not specified",
     ].join(" · "),
     [reviewProject, municipalities.find((item) => item.id === form.municipality_id)?.name || "No municipality", uploadedConversation ? "Uploaded conversation" : (form.test_type || "Single Prompt")].join(" · "),
-    [normalizeEvaluationResult(form.result) || "Not Evaluated", severityLabel(form.severity || form.criticality) || "Not rated"].join(" · "),
+    [normalizeEvaluationResult(form.result) || "Not Evaluated", form.priority || "Priority not set"].join(" · "),
     mappedRubricIds.length
       ? `${mappedRubricIds.length} scenario rubric item${mappedRubricIds.length === 1 ? "" : "s"} · ${Object.values(evaluationFor("Bassett").scores || {}).filter((value) => value !== "" && value !== null && value !== undefined).length} scored`
       : "No rubric items assigned to this scenario",
@@ -1078,14 +1081,12 @@ export default function UnifiedTestEntryForm({
        <GuidedSection index={2} required={!uploadedConversation} title="3. Bassett Test Result" active={activeSection === 2} status={sectionStatus(2)} summary={sectionSummaries[2]} onActivate={activateSection}><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {(isComparison || form.test_type !== "Multi-turn") && <Field label="Bassett Response" required={isComparison || !uploadedConversation} optional={uploadedConversation} description={uploadedConversation ? "Optional now; required before expanding to Model Comparison. The uploaded conversation is authoritative." : undefined} error={attemptedSections.has(2) && (isComparison || !uploadedConversation) && !String(responseFor("Bassett").response || "").trim() ? "Bassett Response is required." : undefined}><Textarea rows={6} value={responseFor("Bassett").response || ""} disabled={lockedCommon} onChange={(e) => updateResponse("Bassett", "response", e.target.value)} /></Field>}
        {!isComparison && form.test_type === "Multi-turn" && <div className="sm:col-span-2 rounded-lg border bg-[var(--paper)] p-3 text-sm text-muted-foreground">Responses are captured within the ordered turns above. The overall verdict and evaluation below still apply to the complete conversation.</div>}
-       <div className="sm:col-span-2 grid gap-2 rounded-lg border bg-[var(--paper)] p-3 text-xs text-muted-foreground sm:grid-cols-3">
+       <div className="sm:col-span-2 grid gap-2 rounded-lg border bg-[var(--paper)] p-3 text-xs text-muted-foreground sm:grid-cols-2">
          <p><strong className="text-[var(--navy)]">Result</strong><br />How well Bassett answered.</p>
-         <p><strong className="text-[var(--navy)]">Severity</strong><br />How serious the problem is.</p>
-         <p><strong className="text-[var(--navy)]">Workflow</strong><br />What you are doing about it.</p>
+         <p><strong className="text-[var(--navy)]">Priority</strong><br />How urgently this result needs attention.</p>
        </div>
-       <Field label="Test Result"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={normalizeEvaluationResult(form.result)} onChange={(e) => update("result", e.target.value)}>{(isComparison ? COMPARISON_RESULT_OPTIONS : BASSETT_RESULT_OPTIONS).map((value) => <option key={value}>{value}</option>)}</select></Field>
-       <Field label="Severity"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={severityLabel(form.severity || form.criticality) || "Medium"} onChange={(e) => setForm((current) => ({ ...current, severity: e.target.value, criticality: severityNumber(e.target.value) }))}>{SEVERITY_LABELS.map((value) => <option key={value}>{value}</option>)}</select></Field>
-      <Field label="Priority"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.priority || "Medium"} onChange={(e) => update("priority", e.target.value)}>{["Critical", "High", "Medium", "Low"].map((value) => <option key={value}>{value}</option>)}</select></Field>
+       <Field label="Result"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={normalizeEvaluationResult(form.result)} onChange={(e) => update("result", e.target.value)}>{(isComparison ? COMPARISON_RESULT_OPTIONS : BASSETT_RESULT_OPTIONS).map((value) => <option key={value}>{value}</option>)}</select></Field>
+      <Field label="Priority"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.priority || "Medium"} onChange={(e) => setForm((current) => ({ ...current, priority: e.target.value, severity: e.target.value, criticality: severityNumber(e.target.value) }))}>{["Critical", "High", "Medium", "Low", "Very Low"].map((value) => <option key={value}>{value}</option>)}</select></Field>
     </div></GuidedSection>
 
      <GuidedSection index={3} title="4. Rubric Evaluation" active={activeSection === 3} status={sectionStatus(3)} summary={sectionSummaries[3]} onActivate={activateSection}><p className="text-xs text-muted-foreground">Score the applicable rubric items. Blank and N/A items are excluded from the score; zero remains a valid score.</p><div className="mt-4 space-y-4">{rubricCatalog && catalogActive && <RubricCriteriaSelector catalog={normalizedRubricCatalog} mappedIds={mappedRubricIds} selectedIds={form.selected_rubric_ids || []} scores={rubricRemovalScores} disabled={lockedCommon} onChange={(ids, meta = {}) => setForm((current) => ({ ...current, selected_rubric_ids: ids, rubric_revision: normalizedRubricCatalog.revision, rubric_selection_initialized: true, confirm_rubric_removal: current.confirm_rubric_removal || meta.confirm_rubric_removal }))} />}<h4 className="font-semibold text-sm text-[var(--navy)]">Bassett evaluation · {form.rubric_revision || LEGACY_RUBRIC_REVISION} · calculated score</h4><EvaluationGrid model="Bassett" scores={evaluationFor("Bassett").scores} dimensions={dimensions} onChange={updateEvaluation} locked={lockedCommon} /><RubricScoreSummary catalog={normalizedRubricCatalog} scores={evaluationFor("Bassett").scores} selectedIds={form.selected_rubric_ids || []} /><Field label="Bassett Score Rationale" required={hasScoredDimension(evaluationFor("Bassett").scores)} description="Cite the specific answer evidence that supports the selected numbers (minimum 20 characters when scored)."><Textarea rows={3} value={evaluationFor("Bassett").rationale || form.score_rationale || ""} onChange={(e) => updateEvaluationRationale("Bassett", e.target.value)} /></Field></div></GuidedSection>

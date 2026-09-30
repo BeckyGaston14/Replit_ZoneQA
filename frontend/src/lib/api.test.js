@@ -34,16 +34,23 @@ test("API interceptor ignores transient errors and dispatches definitive expiry"
   window.removeEventListener("zoneqa:auth-expired", expired);
 });
 
-test("versioned updates prefer the fetched timestamp and preserve changes", () => {
+test("versioned updates prefer the fetched revision and preserve changes", () => {
   expect(withExpectedVersion(
     { revision: 3, updated_at: "stamp" },
     { name: "Edited" },
-  )).toEqual({ name: "Edited", expected_updated_at: "stamp" });
+  )).toEqual({ name: "Edited", expected_revision: 3 });
 });
 
-test("versioned updates fall back to a fetched revision", () => {
-  expect(withExpectedVersion({ revision: 3 }, { name: "Edited" }))
-    .toEqual({ name: "Edited", expected_revision: 3 });
+test("versioned updates discard stale copied tokens and send one current token", () => {
+  expect(withExpectedVersion(
+    { expected_revision: 4, revision: 3, expected_updated_at: "current-stamp", updated_at: "old-stamp" },
+    { name: "Edited", expected_revision: 2, expected_updated_at: "stale-stamp" },
+  )).toEqual({ name: "Edited", expected_revision: 4 });
+});
+
+test("versioned updates fall back to a fetched timestamp when no revision exists", () => {
+  expect(withExpectedVersion({ updated_at: "stamp" }, { name: "Edited" }))
+    .toEqual({ name: "Edited", expected_updated_at: "stamp" });
 });
 
 test("stale update errors retain edits with an actionable message", () => {

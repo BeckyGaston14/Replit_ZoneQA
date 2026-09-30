@@ -244,6 +244,8 @@ test("save orchestration persists the run before uploading new-run files", async
     post: jest.fn(() => Promise.reject(failure)),
   })).rejects.toBe(failure);
   expect(actionError(failure, "Unable to save test run")).toBe("Finding turn linkage is invalid");
+  expect(actionError({ response: { status: 409, data: { detail: "Historical run validation failed" } } }, "Unable to save test run"))
+    .toBe("Historical run validation failed");
   expect(actionError({ response: { status: 500, data: {} } }, "Unable to save test run")).toContain("entries are still open");
   expect(actionError({}, "Unable to save test run")).toContain("server could not be reached");
 });

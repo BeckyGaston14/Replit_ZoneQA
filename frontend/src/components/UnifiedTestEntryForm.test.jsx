@@ -363,9 +363,10 @@ test("both form modes expose all twelve plain-language scoring questions and one
   for (const mode of ["bassett", "comparison"]) {
     const view = renderForm(mode, { id: `${mode}-edit` });
     expectedQuestions.forEach((question) => expect(view.container.textContent).toContain(question));
-    for (const label of ["Prompt / Question", "Verified Answer / Gold Standard", "Bassett Response", "Test Result", "Severity", "Priority", "Source Links", "Property / Address", "Bassett Score Rationale", "Owner / Assignee", "Supporting Notes", "Supporting Source Documents / Images"]) {
+    for (const label of ["Prompt / Question", "Verified Answer / Gold Standard", "Bassett Response", "Result", "Priority", "Source Links", "Property / Address", "Bassett Score Rationale", "Owner / Assignee", "Supporting Notes", "Supporting Source Documents / Images"]) {
       expect([...view.container.querySelectorAll("label")].some((node) => node.textContent.trim().startsWith(label))).toBe(true);
     }
+    expect([...view.container.querySelectorAll("label")].some((node) => node.textContent.trim().startsWith("Severity"))).toBe(false);
     if (mode === "bassett") {
       expect(view.container.querySelector('select[aria-label="Finding Category"]')).toBeNull();
       expect(view.container.querySelector('select[aria-label="Test Scenario type"]')).not.toBeNull();
@@ -375,6 +376,24 @@ test("both form modes expose all twelve plain-language scoring questions and one
     expect(view.container.querySelector('button[type="submit"]').textContent).toBe("Save Changes");
     act(() => view.root.unmount());
   }
+});
+
+test("an uploaded conversation with a recorded result marks the Bassett result section complete", () => {
+  const view = renderForm("bassett", {
+    id: "uploaded-result",
+    conversation_source: "uploaded_conversation",
+    attachment_count: 1,
+    result: "Critical Fail",
+    priority: "Critical",
+  });
+  const sectionButton = view.container.querySelector('button[aria-label="Section 3: Bassett result"]');
+  expect(sectionButton).not.toBeNull();
+  expect(sectionButton.className).toContain("bg-green-50");
+  act(() => sectionButton.click());
+  expect(view.container.querySelector('select').textContent).toBeTruthy();
+  expect(view.latest().result).toBe("Critical Fail");
+  expect(view.latest().priority).toBe("Critical");
+  act(() => view.root.unmount());
 });
 
 test("uploaded Bassett conversations keep the authoritative file separate from supporting source documents", () => {
