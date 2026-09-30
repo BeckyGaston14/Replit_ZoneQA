@@ -209,12 +209,13 @@ test("save orchestration persists the run before uploading new-run files", async
 
   const file = new File(["evidence"], "evidence.txt", { type: "text/plain" });
   const createApi = { post: jest.fn(() => Promise.resolve({ data: { issue: { id: "run-2" } } })) };
-  const result = await persistBassettTestRun({ attachments: [file], scenario_id: "scenario-1" }, createApi);
+  const result = await persistBassettTestRun({ attachments: [file], scenario_id: "scenario-1", scenario_ids: ["scenario-1", "scenario-2"] }, createApi);
   expect(result.issueId).toBe("run-2");
   expect(createApi.post.mock.calls[0]).toEqual([
     "/bassett/issues/workflow-json",
     expect.objectContaining({
       scenario_id: "scenario-1",
+      scenario_ids: ["scenario-1", "scenario-2"],
       pending_attachment_count: 1,
       pending_conversation_attachment: false,
     }),

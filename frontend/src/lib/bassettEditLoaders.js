@@ -3,7 +3,12 @@ import { LEGACY_RUBRIC_REVISION } from "./rubricCatalog";
 
 export async function loadBassettTestRunForEdit(issue, apiClient = api) {
   const { data } = await apiClient.get(`/bassett/issues/${issue.id}`);
+  const scenarioIds = [...new Set([
+    data?.scenario_id,
+    ...(Array.isArray(data?.scenario_ids) ? data.scenario_ids : []),
+  ].filter(Boolean))];
   const editMetadata = {
+    scenario_ids: scenarioIds,
     _original_conversation_source: data?.conversation_source || "structured_text",
     _original_required_values: {
       question_asked: Boolean(String(data?.question_asked || "").trim()),
@@ -23,7 +28,7 @@ export async function loadBassettTestRunForEdit(issue, apiClient = api) {
       rubric_selection_initialized: true,
       rubric_scenario_ids: Array.isArray(data.rubric_scenario_ids)
         ? [...data.rubric_scenario_ids]
-        : [data.scenario_id, ...(data.scenario_ids || [])].filter(Boolean),
+        : scenarioIds,
       evaluation_scores: { ...data.rubric_scores },
       ...(data.evaluations?.Bassett ? {
         evaluations: {

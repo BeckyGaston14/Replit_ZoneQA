@@ -695,6 +695,27 @@ def test_inactive_versions_remain_valid_for_history_but_deleted_versions_are_rej
     assert "no longer available" in str(missing.value.detail)
 
 
+def test_reference_validation_normalizes_and_validates_all_linked_scenarios(monkeypatch):
+    fake_db = _RunDb(_complete_scenario())
+    fake_db.records["bassett_scenarios"].append(_complete_scenario(
+        id="scenario-2", stable_id="R-02", test_scenario="Use classification research",
+    ))
+    monkeypatch.setattr(server, "db", fake_db)
+    document = {
+        "scenario_id": "scenario-1",
+        "scenario_ids": ["scenario-2", "scenario-1", "scenario-2"],
+    }
+    asyncio.run(server._validate_bassett_refs(document))
+    assert document["scenario_ids"] == ["scenario-1", "scenario-2"]
+
+    with pytest.raises(HTTPException) as missing:
+        asyncio.run(server._validate_bassett_refs({
+            "scenario_id": "scenario-1", "scenario_ids": ["missing-scenario"],
+        }))
+    assert missing.value.status_code == 400
+    assert "additional scenario" in str(missing.value.detail).lower()
+
+
 def test_legacy_project_version_id_is_presented_as_the_canonical_name():
     normalized = server._canonicalize_bassett_version_record(
         {"id": "project-1", "bassett_version": "version-1"},

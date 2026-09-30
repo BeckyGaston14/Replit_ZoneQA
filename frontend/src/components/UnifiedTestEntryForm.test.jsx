@@ -465,6 +465,45 @@ test("a selected Test Bank scenario keeps mapped rubric items in Rubric Evaluati
   act(() => view.root.unmount());
 });
 
+test("a Bassett test run can link additional scenarios and combines their rubric items", () => {
+  const additionalScenario = {
+    ...scenario,
+    id: "scenario-2",
+    stable_id: "R-02",
+    test_scenario: "Use classification research",
+    rubric_ids: ["R-02", "R-03"],
+  };
+  const rubricCatalog = {
+    revision: "2026-09-30",
+    categories: [{ key: "property-zoning", name: "Property & Zoning Rules", rubric_ids: ["R-01", "R-02", "R-03"] }],
+    rubric_items: ["R-01", "R-02", "R-03"].map((rubricId) => ({
+      rubric_id: rubricId,
+      category: "property-zoning",
+      evaluation_criterion: rubricId,
+      expected_behavior: `Expected ${rubricId}`,
+      passing_standard: `Pass ${rubricId}`,
+    })),
+  };
+  const view = renderForm("bassett", {
+    scenario_id: scenario.id,
+    scenario_ids: [scenario.id],
+  }, { scenarios: [scenario, additionalScenario], rubricCatalog });
+
+  const addButton = [...view.container.querySelectorAll("button")]
+    .find((button) => button.textContent.includes("Add another scenario"));
+  expect(addButton).not.toBeUndefined();
+  act(() => addButton.click());
+  const additionalOption = [...view.container.querySelectorAll('[role="listbox"][aria-label="Additional Test Scenario options"] label')]
+    .find((label) => label.textContent.includes("R-02"));
+  expect(additionalOption).not.toBeUndefined();
+  act(() => additionalOption.querySelector('input[type="checkbox"]').click());
+
+  expect(view.latest().scenario_ids).toEqual(["scenario-1", "scenario-2"]);
+  expect(view.latest().selected_rubric_ids).toEqual(["R-01", "R-02", "R-03"]);
+  expect(view.container.textContent).toContain("1 additional scenario selected");
+  act(() => view.root.unmount());
+});
+
 test("hidden rubric items are excluded from new tests but remain visible on saved tests that use them", () => {
   const rubricCatalog = {
     revision: "2026-09-30",

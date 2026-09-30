@@ -25,3 +25,15 @@ test("legacy12 hydration leaves legacy evaluation scores untouched", async () =>
   const result = await loadBassettTestRunForEdit({ id: "run-legacy" }, apiClient);
   expect(result.evaluation_scores).toEqual({ accuracy: 2 });
 });
+
+test("edit hydration preserves the primary and every additional scenario", async () => {
+  const apiClient = { get: jest.fn().mockResolvedValue({
+    data: {
+      id: "run-multi", scenario_id: "scenario-1",
+      scenario_ids: ["scenario-2", "scenario-1", "scenario-2"],
+      rubric_revision: "legacy12",
+    },
+  }) };
+  const result = await loadBassettTestRunForEdit({ id: "run-multi" }, apiClient);
+  expect(result.scenario_ids).toEqual(["scenario-1", "scenario-2"]);
+});

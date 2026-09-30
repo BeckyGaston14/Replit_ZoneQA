@@ -3365,7 +3365,7 @@ BASSETT_ISSUE_FIELDS = {
     "issue_category", "severity", "criticality", "priority", "environment", "reported_date", "test_date",
     "status", "assignee_id", "project_id", "testcase_id", "finding_id", "finding_ids",
     "triaged_by", "triaged_by_name", "triaged_at",
-    "scenario_id", "workflow_stage", "version_id", "bassett_version", "retest_id",
+    "scenario_id", "scenario_ids", "workflow_stage", "version_id", "bassett_version", "retest_id",
     "regression_run_id", "municipality_id", "property_id", "notes",
     "resolution", "repro_steps", "evidence", "evidence_ids",
     "result", "verdict", "score", "evaluation_scores", "overall_score",
@@ -3447,6 +3447,23 @@ def _bassett_scenario_test_type(scenario):
         or "Unspecified"
     )
     return str(raw)
+
+
+def _record_scenario_ids(record, *, include_turns=False):
+    """Return each scenario linked to a run, with the primary scenario first."""
+    if not isinstance(record, dict):
+        return []
+    raw_ids = record.get("scenario_ids") or []
+    if not isinstance(raw_ids, list):
+        raw_ids = []
+    values = [record.get("scenario_id"), *raw_ids]
+    if include_turns:
+        values.extend(
+            turn.get("scenario_id")
+            for turn in (record.get("turns") or [])
+            if isinstance(turn, dict)
+        )
+    return list(dict.fromkeys(str(value).strip() for value in values if str(value or "").strip()))
 
 
 def _normalize_bassett_config_stages(stages):
@@ -3951,13 +3968,27 @@ async def _validate_bassett_refs(
         assignee = await _bassett_ref("users", doc["assignee_id"], "Assignee", allow_archived=False)
         if assignee.get("active") is False or assignee.get("deleted_at"):
             raise HTTPException(400, "Assignee must be an active user")
+    raw_scenario_ids = doc.get("scenario_ids") or []
+    if not isinstance(raw_scenario_ids, list):
+        raise HTTPException(400, "scenario_ids must be a list")
+    scenario_ids = list(dict.fromkeys(
+        str(value).strip()
+        for value in [doc.get("scenario_id"), *raw_scenario_ids]
+        if str(value or "").strip()
+    ))
     if doc.get("scenario_id"):
-        await _bassett_ref(
-            "bassett_scenarios", doc["scenario_id"], "Bassett scenario",
-            allow_archived=allow_archived_scenario,
-        )
+        doc["scenario_id"] = scenario_ids[0]
+        doc["scenario_ids"] = scenario_ids
+        for index, scenario_id in enumerate(scenario_ids):
+            await _bassett_ref(
+                "bassett_scenarios", scenario_id,
+                "Primary Bassett scenario" if index == 0 else "Additional Bassett scenario",
+                allow_archived=allow_archived_scenario,
+            )
     elif require_scenario:
         raise HTTPException(400, "A Bassett scenario is required")
+    else:
+        doc["scenario_ids"] = []
     version_id = str(doc.get("version_id") or "").strip()
     version_name = str(doc.get("bassett_version") or "").strip()
     if not version_id and not version_name:
@@ -3975,6 +4006,27 @@ async def _validate_bassett_refs(
         doc["version_id"] = version["id"]
         doc["bassett_version"] = canonical_name
     return project, testcase
+
+
+async def _bassett_run_scenarios(doc):
+    """Load linked scenarios in their stored order after reference validation."""
+    scenarios = []
+    for scenario_id in _record_scenario_ids(doc):
+        scenario = await db.bassett_scenarios.find_one({"id": scenario_id}, {"_id": 0})
+        if scenario:
+            scenarios.append(scenario)
+    return scenarios
+
+
+def _bassett_definition_snapshot(scenario):
+    """Freeze the linked Test Bank definition used by a run."""
+    return {
+        "id": scenario.get("id"),
+        **{
+            field: scenario.get(field)
+            for field in BASSETT_DEFINITION_SNAPSHOT_FIELDS
+        },
+    }
 
 async def _workflow_stage(stage_name):
     canonical_name = _canonical_bassett_workflow_stage(stage_name)
@@ -4191,14 +4243,16 @@ async def _bassett_history(entity_type, entity_id, action, user, changes=None):
     return entry
 
 async def _bassett_scenario_links(scenario_id):
-    issues = _filter_sample_scope(
-        "bassett_issues",
-        await db.bassett_issues.find({"scenario_id": scenario_id}, {"_id": 0}).to_list(5000),
-    )
-    executions = _filter_sample_scope(
-        "bassett_executions",
-        await db.bassett_executions.find({"scenario_id": scenario_id}, {"_id": 0}).to_list(5000),
-    )
+    issues = [
+        row for row in _filter_sample_scope(
+            "bassett_issues", await db.bassett_issues.find({}, {"_id": 0}).to_list(5000)
+        ) if scenario_id in _record_scenario_ids(row, include_turns=True)
+    ]
+    executions = [
+        row for row in _filter_sample_scope(
+            "bassett_executions", await db.bassett_executions.find({}, {"_id": 0}).to_list(5000)
+        ) if scenario_id in _record_scenario_ids(row, include_turns=True)
+    ]
     return issues, executions
 
 @api.get("/bassett/issues")
@@ -4212,8 +4266,6 @@ async def bassett_list_issues(
     requested_status = _canonical_bassett_issue_status(status) if status and status != "all" else None
     if severity and severity != "all":
         query["severity"] = severity
-    if scenario_id:
-        query["scenario_id"] = scenario_id
     date_from, date_to = _validate_date_range(test_date_from, test_date_to)
     if date_from or date_to:
         query["test_date"] = {
@@ -4224,6 +4276,8 @@ async def bassett_list_issues(
         [("test_date", -1), ("created_at", -1)]
     ).to_list(5000)
     issues = _filter_sample_scope("bassett_issues", issues)
+    if scenario_id:
+        issues = [issue for issue in issues if scenario_id in _record_scenario_ids(issue, include_turns=True)]
     issues = [
         {
             **issue,
@@ -4255,6 +4309,17 @@ async def bassett_get_issue(id: str, user=Depends(get_current_user)):
         issue["scenario"] = _normalize_bassett_stage_record(
             await db.bassett_scenarios.find_one({"id": issue["scenario_id"]}, {"_id": 0})
         )
+        linked_scenario_ids = _record_scenario_ids(issue)
+        issue["scenario_ids"] = linked_scenario_ids
+        linked_scenarios = await db.bassett_scenarios.find(
+            {"id": {"$in": linked_scenario_ids}}, {"_id": 0}
+        ).to_list(5000)
+        scenario_by_id = {scenario.get("id"): scenario for scenario in linked_scenarios}
+        issue["scenarios"] = [
+            _normalize_bassett_stage_record(scenario_by_id[scenario_id])
+            for scenario_id in linked_scenario_ids
+            if scenario_id in scenario_by_id
+        ]
     if issue.get("definition_snapshot"):
         issue["definition_snapshot"] = _normalize_bassett_stage_record(issue["definition_snapshot"])
     finding_ids = list(dict.fromkeys([
@@ -4544,9 +4609,17 @@ async def bassett_create_issue(body: Dict[str, Any], user=Depends(get_current_us
     await _validate_bassett_issue_status(doc.get("status"))
     await _validate_bassett_refs(doc, require_scenario=True)
     await _validate_bassett_turn_refs(doc)
-    scenario = await db.bassett_scenarios.find_one({"id": doc["scenario_id"]}, {"_id": 0})
-    _validate_scenario_required(scenario)
-    scenario_rubric_ids = normalize_rubric_ids(scenario.get("rubric_ids"))
+    scenarios = await _bassett_run_scenarios(doc)
+    for scenario in scenarios:
+        _validate_scenario_required(scenario)
+    scenario = scenarios[0]
+    doc["definition_snapshots"] = [
+        _bassett_definition_snapshot(linked_scenario) for linked_scenario in scenarios
+    ]
+    scenario_rubric_ids = normalize_rubric_ids([
+        rubric_id for linked_scenario in scenarios
+        for rubric_id in (linked_scenario.get("rubric_ids") or [])
+    ])
     selected_rubric_ids = normalize_rubric_ids(
         body.get("selected_rubric_ids", scenario_rubric_ids)
     )
@@ -4574,7 +4647,7 @@ async def bassett_create_issue(body: Dict[str, Any], user=Depends(get_current_us
         "category_scores": rubric_result["category_scores"],
         "score_count": rubric_result["score_count"],
     })
-    if scenario.get("catalog_revision") != CATALOG_REVISION:
+    if any(linked.get("catalog_revision") != CATALOG_REVISION for linked in scenarios):
         for field in (
             "rubric_revision", "selected_rubric_ids", "additional_rubric_ids",
             "rubric_scores", "rubric_definition_snapshot", "category_scores", "score_count",
@@ -4618,11 +4691,15 @@ async def bassett_create_issue(body: Dict[str, Any], user=Depends(get_current_us
         raise HTTPException(409, str(error))
     if created:
         await _bassett_history("issue", doc["id"], "created", user, {
-            "status": doc["status"], "scenario_id": doc["scenario_id"], "result": doc["result"],
+            "status": doc["status"], "scenario_id": doc["scenario_id"],
+            "scenario_ids": doc.get("scenario_ids") or [doc["scenario_id"]],
+            "result": doc["result"],
         })
-        await _bassett_history("scenario", doc["scenario_id"], "test_run_recorded", user, {
-            "test_run_id": doc["id"], "result": doc["result"],
-        })
+        for scenario_id in _record_scenario_ids(doc):
+            await _bassett_history("scenario", scenario_id, "test_run_recorded", user, {
+                "test_run_id": doc["id"], "result": doc["result"],
+                "primary": scenario_id == doc["scenario_id"],
+            })
         await log_activity("bassett_issue", doc["id"], "created", user, doc.get("title", ""))
     return {**doc, "idempotent_replay": not created}
 
@@ -4647,10 +4724,15 @@ async def _prepare_bassett_workflow_document(body: Dict[str, Any], user: Dict[st
     await _validate_bassett_issue_status(doc.get("status"))
     project, testcase = await _validate_bassett_refs(doc, require_scenario=True)
     await _validate_bassett_turn_refs(doc)
-    scenario = await db.bassett_scenarios.find_one({"id": doc["scenario_id"]}, {"_id": 0})
-    if not scenario:
+    scenarios = await _bassett_run_scenarios(doc)
+    if not scenarios:
         raise HTTPException(400, "Bassett scenario does not exist")
-    _validate_scenario_required(scenario)
+    for scenario in scenarios:
+        _validate_scenario_required(scenario)
+    scenario = scenarios[0]
+    doc["definition_snapshots"] = [
+        _bassett_definition_snapshot(linked_scenario) for linked_scenario in scenarios
+    ]
     doc["workflow_stage"] = _canonical_bassett_workflow_stage(
         scenario.get("workflow_stage")
     )
@@ -4661,7 +4743,10 @@ async def _prepare_bassett_workflow_document(body: Dict[str, Any], user: Dict[st
         raw_scores = {}
     if not isinstance(raw_scores, dict):
         raise HTTPException(400, detail={"evaluation_scores": "Scores must be an object"})
-    scenario_rubric_ids = normalize_rubric_ids(scenario.get("rubric_ids"))
+    scenario_rubric_ids = normalize_rubric_ids([
+        rubric_id for linked_scenario in scenarios
+        for rubric_id in (linked_scenario.get("rubric_ids") or [])
+    ])
     selected_rubric_ids = normalize_rubric_ids(
         body.get("selected_rubric_ids", scenario_rubric_ids)
     )
@@ -4725,7 +4810,7 @@ async def _prepare_bassett_workflow_document(body: Dict[str, Any], user: Dict[st
             "score_label": "Rubric average",
             "weight_explanation": "Neutral rubric weights; missing and N/A values are excluded.",
         })
-    if scenario.get("catalog_revision") != CATALOG_REVISION:
+    if any(linked.get("catalog_revision") != CATALOG_REVISION for linked in scenarios):
         for field in (
             "rubric_revision", "selected_rubric_ids", "additional_rubric_ids",
             "rubric_scores", "rubric_definition_snapshot", "category_scores", "score_count",
@@ -4887,16 +4972,19 @@ async def _bassett_create_workflow_impl(
             "id": new_id(), "entity_type": "issue", "entity_id": doc["id"],
             "action": "created", "changes": {
                 "status": doc["status"], "scenario_id": doc["scenario_id"],
+                "scenario_ids": doc.get("scenario_ids") or [doc["scenario_id"]],
                 "result": doc["result"], "workflow": True,
             }, "actor_id": user.get("id"), "actor": user.get("name", "system"),
             "created_at": doc["created_at"],
-        }, {
-            "id": new_id(), "entity_type": "scenario", "entity_id": doc["scenario_id"],
+        }]
+        history_documents.extend({
+            "id": new_id(), "entity_type": "scenario", "entity_id": scenario_id,
             "action": "test_run_recorded", "changes": {
                 "test_run_id": doc["id"], "result": doc["result"],
+                "primary": scenario_id == doc["scenario_id"],
             }, "actor_id": user.get("id"), "actor": user.get("name", "system"),
             "created_at": doc["created_at"],
-        }]
+        } for scenario_id in _record_scenario_ids(doc))
         if finding:
             history_documents.append({
                 "id": new_id(), "entity_type": "issue", "entity_id": doc["id"],
@@ -5016,6 +5104,14 @@ async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_c
             incoming["criticality"] = _severity_criticality(None, incoming["severity"])
     if "scenario_id" in incoming and incoming["scenario_id"] != existing.get("scenario_id"):
         raise HTTPException(409, "A test run's Test Bank scenario link is immutable")
+    if "scenario_ids" in incoming:
+        if not isinstance(incoming["scenario_ids"], list):
+            raise HTTPException(400, "scenario_ids must be a list")
+        incoming["scenario_ids"] = list(dict.fromkeys(
+            str(value).strip()
+            for value in [existing.get("scenario_id"), *incoming["scenario_ids"]]
+            if str(value or "").strip()
+        ))
     if "test_date" in incoming:
         incoming["test_date"] = _validate_test_date(incoming.get("test_date"))
     if "status" in incoming:
@@ -5050,10 +5146,11 @@ async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_c
                 **incoming_g_scores,
             }
             merged["rubric_scores"] = incoming["rubric_scores"]
-        scenario = await db.bassett_scenarios.find_one(
-            {"id": existing.get("scenario_id")}, {"_id": 0}
-        ) or {}
-        allowed_rubric_ids = set(normalize_rubric_ids(scenario.get("rubric_ids")))
+        linked_scenarios = await _bassett_run_scenarios(merged)
+        mapped_rubric_ids = normalize_rubric_ids([
+            rubric_id for scenario in linked_scenarios
+            for rubric_id in (scenario.get("rubric_ids") or [])
+        ])
         selected = normalize_rubric_ids(
             incoming.get("selected_rubric_ids", existing.get("selected_rubric_ids") or [])
         )
@@ -5086,7 +5183,7 @@ async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_c
             "selected_rubric_ids": selected,
             "rubric_revision": CATALOG_REVISION,
             "additional_rubric_ids": sorted(
-                set(selected) - set(normalize_rubric_ids(scenario.get("rubric_ids")))
+                set(selected) - set(mapped_rubric_ids)
             ),
             "rubric_definition_snapshot": await _effective_rubric_snapshot(selected),
             "category_scores": rubric_result["category_scores"],
@@ -5168,6 +5265,12 @@ async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_c
     # to select an inactive scenario.
     await _validate_bassett_refs(merged, allow_archived_scenario=True)
     await _validate_bassett_turn_refs(merged, allow_archived_scenarios=True)
+    if "scenario_ids" in incoming:
+        linked_scenarios = await _bassett_run_scenarios(merged)
+        incoming["definition_snapshots"] = [
+            _bassett_definition_snapshot(scenario) for scenario in linked_scenarios
+        ]
+        merged["definition_snapshots"] = incoming["definition_snapshots"]
     incoming["version_id"] = merged.get("version_id", "")
     incoming["bassett_version"] = merged.get("bassett_version", "")
     changed = {key: [existing.get(key), merged.get(key)] for key in incoming if existing.get(key) != merged.get(key)}
@@ -5588,13 +5691,13 @@ async def bassett_list_scenarios(
     )
     for scenario in scenarios:
         scenario["issue_count"] = sum(
-            issue.get("scenario_id") == scenario["id"] for issue in all_issues
+            scenario["id"] in _record_scenario_ids(issue, include_turns=True) for issue in all_issues
         )
         scenario["legacy_execution_count"] = sum(
-            execution.get("scenario_id") == scenario["id"] for execution in all_executions
+            scenario["id"] in _record_scenario_ids(execution, include_turns=True) for execution in all_executions
         )
         scenario["execution_count"] = sum(
-            run.get("scenario_id") == scenario["id"] for run in lineage_runs
+            scenario["id"] in _record_scenario_ids(run, include_turns=True) for run in lineage_runs
         )
     workflow_stages = _normalize_bassett_config_stages(
         await db.bassett_workflow_stages.find({}, {"_id": 0}).sort(
@@ -6018,7 +6121,8 @@ async def bassett_metrics(version_id: Optional[str] = None, environment: Optiona
         issues = [issue for issue in issues if issue.get("project_id") == project_id]
         executions = [execution for execution in executions if execution.get("project_id") == project_id]
         project_scenario_ids = {
-            run.get("scenario_id") for run in [*issues, *executions] if run.get("scenario_id")
+            scenario_id for run in [*issues, *executions]
+            for scenario_id in _record_scenario_ids(run, include_turns=True)
         }
         scenarios = [
             scenario for scenario in scenarios
@@ -6048,7 +6152,11 @@ async def bassett_metrics(version_id: Optional[str] = None, environment: Optiona
     ]
     eligible = pass_rate_runs
     active_scenario_ids = {scenario["id"] for scenario in scenarios}
-    completed_scenarios = {e.get("scenario_id") for e in completed if e.get("scenario_id") in active_scenario_ids}
+    completed_scenarios = {
+        scenario_id for run in completed
+        for scenario_id in _record_scenario_ids(run, include_turns=True)
+        if scenario_id in active_scenario_ids
+    }
     passed = passed_runs
     failure_breakdown = Counter(
         (next((_bassett_scenario_test_type(s) for s in scenarios if s["id"] == e.get("scenario_id")), "Unclassified"))
@@ -6070,10 +6178,7 @@ async def bassett_metrics(version_id: Optional[str] = None, environment: Optiona
     open_actual_findings = [finding for finding in actual_findings if _finding_is_open(finding)]
     actual_finding_severity = _finding_severity_counts(actual_findings)
     issue_severity = _finding_severity_counts(issues)
-    covered_scenarios = {
-        e.get("scenario_id") for e in completed
-        if e.get("scenario_id") in active_scenario_ids
-    }
+    covered_scenarios = set(completed_scenarios)
     test_bank_coverage = {
         "total": len(scenarios), "covered": len(covered_scenarios),
         "percent": round(len(covered_scenarios) / len(scenarios) * 100, 1) if scenarios else 0,
@@ -6126,7 +6231,7 @@ async def bassett_metrics(version_id: Optional[str] = None, environment: Optiona
 def _bassett_csv_rows(resource, docs):
     fields = {
         "issues": ["id", "title", "question_asked", "exact_bassett_answer", "verified_correct_answer",
-                   "issue_category", "severity", "priority", "status", "scenario_id", "finding_id",
+                   "issue_category", "severity", "priority", "status", "scenario_id", "scenario_ids", "finding_id",
                     "version_id", "bassett_version", "environment", "test_date", "reported_date", "result", "score",
                    "rubric_revision", "selected_rubric_ids", "category_scores", "overall_score",
                    "resolution", "archived", "archived_at"],
@@ -9040,20 +9145,22 @@ async def analytics_executive(
 def _bassett_scenario_evaluation_candidates(run, active_scenario_ids):
     """Emit eligible parent and turn evaluations without duplicating a scenario."""
     candidates = []
-    parent_scenario_id = run.get("scenario_id")
-    if (
-        parent_scenario_id in active_scenario_ids
-        and _dashboard_bassett_result_is_eligible(run)
-    ):
-        candidates.append({
-            **run,
-            "_coverage_order": (*_dashboard_bassett_order(run), 0, ""),
-        })
+    emitted = set()
+    if _dashboard_bassett_result_is_eligible(run):
+        for parent_scenario_id in _record_scenario_ids(run):
+            if parent_scenario_id not in active_scenario_ids or parent_scenario_id in emitted:
+                continue
+            candidates.append({
+                **run,
+                "scenario_id": parent_scenario_id,
+                "_coverage_order": (*_dashboard_bassett_order(run), 0, ""),
+            })
+            emitted.add(parent_scenario_id)
     for index, turn in enumerate(run.get("turns") or [], start=1):
         if not isinstance(turn, dict):
             continue
         scenario_id = turn.get("scenario_id")
-        if scenario_id not in active_scenario_ids:
+        if scenario_id not in active_scenario_ids or scenario_id in emitted:
             continue
         candidate = {
             **run,
@@ -9073,6 +9180,7 @@ def _bassett_scenario_evaluation_candidates(run, active_scenario_ids):
             str(turn.get("id") or ""),
         )
         candidates.append(candidate)
+        emitted.add(scenario_id)
     return candidates
 
 

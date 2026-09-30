@@ -1175,6 +1175,20 @@ def test_shared_bassett_eligibility_normalizes_legacy_workflow_statuses():
     assert server._dashboard_bassett_result_is_eligible(run) is True
 
 
+def test_multi_scenario_run_contributes_one_coverage_candidate_per_linked_scenario():
+    run = {
+        "id": "run-1", "scenario_id": "scenario-1",
+        "scenario_ids": ["scenario-1", "scenario-2", "scenario-2"],
+        "status": "In Review", "result": "Pass", "bassett_version": "Bassett v9.26",
+    }
+    candidates = server._bassett_scenario_evaluation_candidates(
+        run, {"scenario-1", "scenario-2", "scenario-3"}
+    )
+    assert [candidate["scenario_id"] for candidate in candidates] == [
+        "scenario-1", "scenario-2",
+    ]
+
+
 def test_bassett_environment_must_come_from_administration_lookup(monkeypatch):
     monkeypatch.setattr(server, "db", Db({
         "config": [{"id": "global", "environments": ["Production", "Staging"]}],
