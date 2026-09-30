@@ -5803,7 +5803,7 @@ async def bassett_delete_scenario(
             "references": reference_counts,
         })
     deleted = await db.bassett_scenarios.delete_one({"id": id})
-    if not deleted:
+    if not getattr(deleted, "deleted_count", 0):
         raise HTTPException(404, "Bassett scenario not found")
     await _bassett_history(
         "scenario", id, "deleted", user,
