@@ -5570,6 +5570,45 @@ async def _save_rubric_catalog(items, user, id_mapping=None):
     return normalized
 
 
+R21_SCENARIO_BACKFILL_MARKER = f"{CATALOG_REVISION}:all-current-scenarios"
+
+
+async def _ensure_r21_on_current_scenarios():
+    """Add R-21 to every current Test Bank scenario once, without touching history."""
+    config = await db.config.find_one({"id": "global"}, {"_id": 0}) or {}
+    if config.get("scenario_r21_backfill_revision") == R21_SCENARIO_BACKFILL_MARKER:
+        return {"updated": 0, "already_applied": True}
+
+    scenarios = await db.bassett_scenarios.find(
+        {"catalog_revision": CATALOG_REVISION}, {"_id": 0}
+    ).to_list(10000)
+    updated = 0
+    timestamp = now_iso()
+    for scenario in scenarios:
+        rubric_ids = normalize_rubric_ids(scenario.get("rubric_ids"))
+        if "R-21" in rubric_ids:
+            continue
+        await db.bassett_scenarios.update_one(
+            {"id": scenario["id"]},
+            {"$set": {
+                "rubric_ids": [*rubric_ids, "R-21"],
+                "updated_at": timestamp,
+            }},
+        )
+        updated += 1
+
+    await db.config.update_one(
+        {"id": "global"},
+        {"$set": {
+            "scenario_r21_backfill_revision": R21_SCENARIO_BACKFILL_MARKER,
+            "scenario_r21_backfill_updated_at": timestamp,
+            "scenario_r21_backfill_count": updated,
+        }},
+        upsert=True,
+    )
+    return {"updated": updated, "already_applied": False}
+
+
 async def _effective_rubric_snapshot(selected_ids):
     items = await _effective_rubric_items()
     selected = set(normalize_rubric_ids(
@@ -6044,6 +6083,62 @@ def _record_references_scenario(record, scenario_id):
     )
 
 
+async def _scenario_reference_counts(scenario_id):
+    reference_counts = {}
+    for collection in (
+        "bassett_issues", "bassett_executions", "testcases", "findings",
+        "retests", "regression_runs",
+    ):
+        rows = await db[collection].find({}, {"_id": 0}).to_list(10000)
+        count = sum(_record_references_scenario(row, scenario_id) for row in rows)
+        if count:
+            reference_counts[collection] = count
+    return reference_counts
+
+
+@api.delete("/bassett/scenarios/archived")
+async def bassett_delete_archived_scenarios(
+    confirm: bool = False, user=Depends(get_current_user)
+):
+    """Permanently remove every unreferenced hidden scenario.
+
+    Historical scenarios that are still referenced by a saved record are
+    deliberately retained so the cleanup cannot break existing test history.
+    """
+    _require_bassett_admin(user)
+    if not confirm:
+        raise HTTPException(400, "Explicit confirmation is required")
+    archived = await db.bassett_scenarios.find(
+        {"archived": True}, {"_id": 0}
+    ).to_list(10000)
+    deleted = []
+    retained = []
+    for scenario in archived:
+        scenario_id = scenario.get("id")
+        references = await _scenario_reference_counts(scenario_id)
+        if references:
+            retained.append({
+                "id": scenario_id,
+                "stable_id": scenario.get("stable_id"),
+                "references": references,
+            })
+            continue
+        result = await db.bassett_scenarios.delete_one({"id": scenario_id, "archived": True})
+        if getattr(result, "deleted_count", 0):
+            deleted.append({"id": scenario_id, "stable_id": scenario.get("stable_id")})
+            await _bassett_history(
+                "scenario", scenario_id, "deleted", user,
+                {"stable_id": scenario.get("stable_id"), "confirmed": True, "bulk_cleanup": True},
+            )
+    return {
+        "found": len(archived),
+        "deleted_count": len(deleted),
+        "retained_count": len(retained),
+        "deleted": deleted,
+        "retained": retained,
+    }
+
+
 @api.delete("/bassett/scenarios/{id}")
 async def bassett_delete_scenario(
     id: str, confirm: bool = False, user=Depends(get_current_user)
@@ -6052,15 +6147,7 @@ async def bassett_delete_scenario(
     if not confirm:
         raise HTTPException(400, "Explicit confirmation is required")
     scenario = await _bassett_ref("bassett_scenarios", id, "Bassett scenario")
-    reference_counts = {}
-    for collection in (
-        "bassett_issues", "bassett_executions", "testcases", "findings",
-        "retests", "regression_runs",
-    ):
-        rows = await db[collection].find({}, {"_id": 0}).to_list(10000)
-        count = sum(_record_references_scenario(row, id) for row in rows)
-        if count:
-            reference_counts[collection] = count
+    reference_counts = await _scenario_reference_counts(id)
     if reference_counts:
         total = sum(reference_counts.values())
         raise HTTPException(409, detail={
@@ -11766,6 +11853,7 @@ async def startup():
                 patch["bassett_workflow_stages"] = normalized_stages
         if patch:
             await db.config.update_one({"id": "global"}, {"$set": patch})
+    await _ensure_r21_on_current_scenarios()
     await _ensure_default_models()
     # These are system definitions, not client-provided defaults.  Preserve
     # administrator changes while making a fresh installation immediately usable.

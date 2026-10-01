@@ -33,6 +33,10 @@ export function AdminScenarios() {
     return scenarios.filter((row) => !needle || [row.stable_id, row.workflow_stage, row.test_scenario]
       .some((value) => String(value || "").toLowerCase().includes(needle)));
   }, [query, scenariosQuery.data]);
+  const hiddenCount = useMemo(
+    () => (scenariosQuery.data || []).filter((scenario) => scenario.archived).length,
+    [scenariosQuery.data],
+  );
 
   const refresh = async () => {
     await scenariosQuery.refetch();
@@ -73,13 +77,34 @@ export function AdminScenarios() {
       toast.error(typeof detail === "string" ? detail : detail?.message || "The scenario could not be deleted");
     } finally { setBusy(false); }
   };
+  const removeAllHidden = async () => {
+    if (!globalThis.confirm?.(`Permanently delete all ${hiddenCount} hidden test scenarios? Scenarios used by saved records will be retained automatically.`)) return;
+    setBusy(true);
+    try {
+      const { data } = await api.delete("/bassett/scenarios/archived?confirm=true");
+      if (data.retained_count) {
+        toast.success(`${data.deleted_count} hidden scenarios deleted; ${data.retained_count} retained because saved records use them.`);
+      } else {
+        toast.success(`${data.deleted_count} hidden scenarios permanently deleted.`);
+      }
+      setEditing(null);
+      await refresh();
+    } catch (error) {
+      const detail = error.response?.data?.detail;
+      toast.error(typeof detail === "string" ? detail : detail?.message || "The hidden scenarios could not be deleted");
+    } finally { setBusy(false); }
+  };
 
   return <div className="space-y-4">
     <div className="rounded-xl border bg-card p-4">
       <h2 className="font-display font-semibold text-[var(--navy)]">Test Scenarios</h2>
       <p className="mt-1 text-sm text-muted-foreground">Update the instructions shown during test entry. Hidden scenarios stay attached to existing records but are unavailable for new tests.</p>
-      <Label htmlFor="admin-scenario-search" className="mt-3 block">Find a scenario</Label>
+      <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-[240px] flex-1"><Label htmlFor="admin-scenario-search" className="block">Find a scenario</Label>
       <Input id="admin-scenario-search" className="mt-2" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search ID, category, or wording…" />
+        </div>
+        {hiddenCount > 0 && <Button type="button" variant="destructive" disabled={busy} onClick={removeAllHidden}><Trash2 size={14}/> Delete all hidden scenarios ({hiddenCount})</Button>}
+      </div>
     </div>
     {editing && <form onSubmit={save} className="rounded-xl border border-[var(--orange)] bg-card p-4 space-y-3">
       <div className="flex items-center justify-between gap-2"><div><h3 className="font-semibold text-[var(--navy)]">Edit {editing.stable_id}</h3><p className="text-xs text-muted-foreground">The ID and category remain fixed so reports and historical links continue to work.</p></div><Button type="button" size="icon" variant="ghost" onClick={() => setEditing(null)} aria-label="Cancel scenario edit"><X size={16}/></Button></div>
