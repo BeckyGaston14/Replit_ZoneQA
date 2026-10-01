@@ -591,6 +591,28 @@ class _RunCollection:
     async def insert_one(self, document):
         self.database.records.setdefault(self.name, []).append(dict(document))
 
+    async def count_documents(self, query):
+        return sum(
+            1 for row in self.database.records.get(self.name, [])
+            if all(row.get(key) == value for key, value in query.items() if not key.startswith("$") and key != "is_deleted")
+            and ("is_deleted" not in query or row.get("is_deleted") is not True)
+        )
+
+    async def find_one_and_update(self, query, update, return_document=False):
+        for index, row in enumerate(self.database.records.get(self.name, [])):
+            if row.get("id") != query.get("id"):
+                continue
+            expected_revision = next(
+                (item.get("revision") for item in query.get("$or", []) if "revision" in item and not isinstance(item.get("revision"), dict)),
+                None,
+            )
+            if expected_revision is not None and int(row.get("revision", 1)) != int(expected_revision):
+                continue
+            stored = {**row, **update.get("$set", {})}
+            self.database.records[self.name][index] = stored
+            return dict(stored)
+        return None
+
 class _RunDb:
     def __init__(self, scenario):
         self.records = {
@@ -713,7 +735,8 @@ def test_reference_validation_normalizes_and_validates_all_linked_scenarios(monk
             "scenario_id": "scenario-1", "scenario_ids": ["missing-scenario"],
         }))
     assert missing.value.status_code == 400
-    assert "additional scenario" in str(missing.value.detail).lower()
+    detail = str(missing.value.detail).lower()
+    assert "additional" in detail and "scenario" in detail
 
 
 def test_legacy_project_version_id_is_presented_as_the_canonical_name():
@@ -793,7 +816,7 @@ def test_existing_required_value_cannot_be_cleared_during_edit():
         )
     assert "verified correct answer" in str(exc.value.detail).lower()
 
-def test_canonical_run_scenario_link_cannot_be_changed(monkeypatch):
+def test_canonical_run_scenario_link_can_be_changed_with_new_snapshot_and_audit(monkeypatch):
     class ExistingRunDb(_RunDb):
         def __init__(self):
             super().__init__(_complete_scenario())
@@ -803,14 +826,41 @@ def test_canonical_run_scenario_link_cannot_be_changed(monkeypatch):
             }]
 
     fake_db = ExistingRunDb()
+    replacement = _complete_scenario(
+        id="scenario-2", stable_id="R-02", test_scenario="Use classification research",
+    )
+    fake_db.records["bassett_scenarios"].append(replacement)
     monkeypatch.setattr(server, "db", fake_db)
+    updated = asyncio.run(server.bassett_update_issue(
+        "run-1", {"scenario_id": "scenario-2", "scenario_ids": ["scenario-2"]},
+        user={"id": "tester-1", "name": "Tester", "role": "tester"},
+    ))
+    assert updated["scenario_id"] == "scenario-2"
+    assert updated["scenario_ids"] == ["scenario-2"]
+    assert updated["definition_snapshot"]["stable_id"] == "R-02"
+    scenario_events = [row for row in fake_db.records["bassett_history"] if row["entity_type"] == "scenario"]
+    assert [row["action"] for row in scenario_events] == ["test_run_unlinked", "test_run_linked"]
+
+
+def test_canonical_run_scenario_change_rejects_archived_replacement(monkeypatch):
+    class ExistingRunDb(_RunDb):
+        def __init__(self):
+            super().__init__(_complete_scenario())
+            self.records["bassett_scenarios"].append(_complete_scenario(
+                id="scenario-2", stable_id="R-02", archived=True,
+            ))
+            self.records["bassett_issues"] = [{
+                **_run_body(), "id": "run-1", "scenario_id": "scenario-1", "status": "New",
+            }]
+
+    monkeypatch.setattr(server, "db", ExistingRunDb())
     with pytest.raises(HTTPException) as exc:
         asyncio.run(server.bassett_update_issue(
             "run-1", {"scenario_id": "scenario-2"},
             user={"id": "tester-1", "name": "Tester", "role": "tester"},
         ))
-    assert exc.value.status_code == 409
-    assert "immutable" in exc.value.detail
+    assert exc.value.status_code == 400
+    assert "archived" in str(exc.value.detail).lower()
 
 
 def test_existing_runs_can_keep_archived_scenario_links_during_edits(monkeypatch):

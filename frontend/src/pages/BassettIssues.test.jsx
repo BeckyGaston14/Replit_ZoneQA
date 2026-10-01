@@ -260,6 +260,7 @@ test("editing preserves concurrency fields and does not upload existing attachme
     revision: 8,
     updated_at: "2026-09-08T12:00:00Z",
     scenario_id: "primary-scenario",
+    _original_scenario_id: "primary-scenario",
     scenario_ids: ["primary-scenario", "additional-scenario"],
     attachments: [{ id: "attachment-1", original_filename: "ordinance.pdf" }],
   }, existingApi);
@@ -271,6 +272,25 @@ test("editing preserves concurrency fields and does not upload existing attachme
   expect(existingApi.put.mock.calls[0][1]).not.toHaveProperty("scenario_id");
   expect(existingApi.put.mock.calls[0][1].scenario_ids).toEqual(["additional-scenario"]);
   expect(existingApi.post).not.toHaveBeenCalled();
+});
+
+test("editing sends a deliberate primary scenario change and its new linked scenarios", async () => {
+  const existingApi = {
+    put: jest.fn(() => Promise.resolve({ data: {} })),
+    post: jest.fn(),
+  };
+  await persistBassettTestRun({
+    id: "run-1",
+    revision: 8,
+    scenario_id: "replacement-scenario",
+    _original_scenario_id: "original-scenario",
+    scenario_ids: ["replacement-scenario", "additional-scenario"],
+    attachments: [],
+  }, existingApi);
+  expect(existingApi.put).toHaveBeenCalledWith("/bassett/issues/run-1", expect.objectContaining({
+    scenario_id: "replacement-scenario",
+    scenario_ids: ["replacement-scenario", "additional-scenario"],
+  }));
 });
 
 test("supporting uploads can become linked Ordinance Evidence without duplicate test-run attachments", async () => {
@@ -449,6 +469,7 @@ test("row edit loads the complete current test run before opening the form", asy
   const issue = { id: "run-615", title: "615 Bland Boulevard", revision: 7, updated_at: "2026-09-08T12:00:00Z" };
   const complete = {
     ...issue,
+    scenario_id: "scenario-1",
     scenario: { id: "scenario-1", stable_id: "R-01" },
     evaluation_scores: { accuracy: 9 },
     attachments: [{ id: "attachment-1", original_filename: "ordinance.pdf" }],
@@ -459,6 +480,7 @@ test("row edit loads the complete current test run before opening the form", asy
 
   await expect(loadBassettTestRunForEdit(issue, apiClient)).resolves.toEqual(expect.objectContaining({
     ...complete,
+    _original_scenario_id: "scenario-1",
     _original_required_values: {
       question_asked: false,
       exact_bassett_answer: false,

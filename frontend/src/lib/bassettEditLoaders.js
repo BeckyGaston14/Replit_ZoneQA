@@ -9,6 +9,7 @@ export async function loadBassettTestRunForEdit(issue, apiClient = api) {
   ].filter(Boolean))];
   const editMetadata = {
     scenario_ids: scenarioIds,
+    _original_scenario_id: data?.scenario_id || "",
     _original_conversation_source: data?.conversation_source || "structured_text",
     _original_required_values: {
       question_asked: Boolean(String(data?.question_asked || "").trim()),

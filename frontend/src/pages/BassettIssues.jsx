@@ -74,12 +74,14 @@ export async function persistBassettTestRun(form, apiClient = api) {
     delete body.attachments;
     delete body.conversation_attachment;
     delete body.create_evidence_from_uploads;
-    // The primary Test Bank scenario is permanent once a run is created.
-    // Do not resend it during ordinary edits: catalog refreshes can replace
-    // the live scenario record while preserving the run's historical link,
-    // which made an otherwise unrelated edit look like a reassignment.
-    delete body.scenario_id;
-    if (Array.isArray(body.scenario_ids)) {
+    // Omit the primary scenario during ordinary edits so catalog refreshes do
+    // not look like a reassignment. Send it only when the user deliberately
+    // selects a different scenario in the edit form.
+    const originalScenarioId = form._original_scenario_id || form.scenario_id;
+    if (form.scenario_id === originalScenarioId) {
+      delete body.scenario_id;
+    }
+    if (Array.isArray(body.scenario_ids) && form.scenario_id === originalScenarioId) {
       body.scenario_ids = body.scenario_ids.filter((scenarioId) => scenarioId !== form.scenario_id);
     }
     body.pending_attachment_count = files.length;
@@ -376,7 +378,7 @@ export default function BassettIssues() {
         setConflict(null);
         setSaveError("");
       } else if (error?.response?.status === 409 && conflictDetail?.code === "stale_update" && draft.id) {
-        try { setConflict((await api.get(`/bassett/issues/${draft.id}`)).data); } catch { setConflict({ revision: conflictDetail?.current_revision }); }
+        try { setConflict(await loadBassettTestRunForEdit({ id: draft.id })); } catch { setConflict({ revision: conflictDetail?.current_revision }); }
         const message = staleUpdateMessage(error) || "This test run changed elsewhere. Review your entries before reapplying them.";
         setSaveError(message);
         toast.error(message);

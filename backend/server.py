@@ -5094,14 +5094,26 @@ async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_c
         incoming["severity"] = _normalize_severity(incoming["severity"])
         if "criticality" not in incoming:
             incoming["criticality"] = _severity_criticality(None, incoming["severity"])
-    if "scenario_id" in incoming and incoming["scenario_id"] != existing.get("scenario_id"):
-        raise HTTPException(409, "A test run's Test Bank scenario link is immutable")
+    scenario_changed = (
+        "scenario_id" in incoming
+        and str(incoming.get("scenario_id") or "").strip() != str(existing.get("scenario_id") or "").strip()
+    )
+    if scenario_changed:
+        incoming["scenario_id"] = str(incoming.get("scenario_id") or "").strip()
+        if not incoming["scenario_id"]:
+            raise HTTPException(400, "A Test Scenario is required")
+        await _bassett_ref(
+            "bassett_scenarios", incoming["scenario_id"], "Primary Bassett scenario",
+            allow_archived=False,
+        )
+        incoming.setdefault("scenario_ids", [incoming["scenario_id"]])
     if "scenario_ids" in incoming:
         if not isinstance(incoming["scenario_ids"], list):
             raise HTTPException(400, "scenario_ids must be a list")
+        primary_scenario_id = incoming.get("scenario_id") if scenario_changed else existing.get("scenario_id")
         incoming["scenario_ids"] = list(dict.fromkeys(
             str(value).strip()
-            for value in [existing.get("scenario_id"), *incoming["scenario_ids"]]
+            for value in [primary_scenario_id, *incoming["scenario_ids"]]
             if str(value or "").strip()
         ))
     if "test_date" in incoming:
@@ -5165,7 +5177,7 @@ async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_c
             if rubric_id in (merged.get("rubric_scores") or {})
         }
         rubric_result = score_rubrics(scores, selected)
-        if existing.get("rubric_revision") != CATALOG_REVISION:
+        if existing.get("rubric_revision") != CATALOG_REVISION and not scenario_changed:
             raise HTTPException(409, "Historical runs cannot be assigned current catalog rubrics")
         incoming["evaluation_scores"] = {
             key: value for key, value in (incoming.get("evaluation_scores") or {}).items()
@@ -5249,12 +5261,8 @@ async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_c
         incoming["triaged_by"] = user.get("id")
         incoming["triaged_by_name"] = user.get("name")
         incoming["triaged_at"] = now_iso()
-    # The Test Bank is revisioned. Historical runs retain immutable links to
-    # the scenario definitions that were active when they were recorded, even
-    # after those definitions are archived by a later catalog release. The
-    # scenario link itself cannot be changed above, so allowing the unchanged
-    # archived references here preserves history without permitting a new run
-    # to select an inactive scenario.
+    # Unchanged historical links may reference archived definitions. An
+    # intentional reassignment is validated above against an active scenario.
     await _validate_bassett_refs(merged, allow_archived_scenario=True)
     await _validate_bassett_turn_refs(merged, allow_archived_scenarios=True)
     if "scenario_ids" in incoming:
@@ -5263,6 +5271,9 @@ async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_c
             _bassett_definition_snapshot(scenario) for scenario in linked_scenarios
         ]
         merged["definition_snapshots"] = incoming["definition_snapshots"]
+        if linked_scenarios:
+            incoming["definition_snapshot"] = _bassett_definition_snapshot(linked_scenarios[0])
+            merged["definition_snapshot"] = incoming["definition_snapshot"]
     incoming["version_id"] = merged.get("version_id", "")
     incoming["bassett_version"] = merged.get("bassett_version", "")
     changed = {key: [existing.get(key), merged.get(key)] for key in incoming if existing.get(key) != merged.get(key)}
@@ -5314,6 +5325,13 @@ async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_c
                 }})
     if changed:
         await _bassett_history("issue", id, "updated", user, changed)
+    if scenario_changed:
+        await _bassett_history("scenario", existing.get("scenario_id"), "test_run_unlinked", user, {
+            "test_run_id": id, "replacement_scenario_id": updated.get("scenario_id"),
+        })
+        await _bassett_history("scenario", updated.get("scenario_id"), "test_run_linked", user, {
+            "test_run_id": id, "previous_scenario_id": existing.get("scenario_id"), "primary": True,
+        })
     return updated
 
 @api.post("/bassett/issues/{id}/archive")
