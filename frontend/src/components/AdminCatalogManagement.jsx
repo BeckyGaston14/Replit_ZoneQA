@@ -23,6 +23,7 @@ export function AdminScenarios() {
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [confirmingBulkDelete, setConfirmingBulkDelete] = useState(false);
   const scenariosQuery = useQuery({
     queryKey: ["admin-bassett-scenarios"],
     queryFn: async () => (await api.get("/bassett/scenarios?include_archived=true")).data,
@@ -78,7 +79,6 @@ export function AdminScenarios() {
     } finally { setBusy(false); }
   };
   const removeAllHidden = async () => {
-    if (!globalThis.confirm?.(`Permanently delete all ${hiddenCount} hidden test scenarios? Scenarios used by saved records will be retained automatically.`)) return;
     setBusy(true);
     try {
       const { data } = await api.delete("/bassett/scenarios/archived?confirm=true");
@@ -88,6 +88,7 @@ export function AdminScenarios() {
         toast.success(`${data.deleted_count} hidden scenarios permanently deleted.`);
       }
       setEditing(null);
+      setConfirmingBulkDelete(false);
       await refresh();
     } catch (error) {
       const detail = error.response?.data?.detail;
@@ -103,8 +104,13 @@ export function AdminScenarios() {
         <div className="min-w-[240px] flex-1"><Label htmlFor="admin-scenario-search" className="block">Find a scenario</Label>
       <Input id="admin-scenario-search" className="mt-2" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search ID, category, or wording…" />
         </div>
-        {hiddenCount > 0 && <Button type="button" variant="destructive" disabled={busy} onClick={removeAllHidden}><Trash2 size={14}/> Delete all hidden scenarios ({hiddenCount})</Button>}
+        {hiddenCount > 0 && <Button type="button" variant="destructive" disabled={busy} onClick={() => setConfirmingBulkDelete(true)}><Trash2 size={14}/> Delete all hidden scenarios ({hiddenCount})</Button>}
       </div>
+      {confirmingBulkDelete && <div role="alert" className="mt-3 rounded-lg border border-red-300 bg-red-50 p-3 text-sm">
+        <p className="font-semibold text-red-800">Permanently delete all {hiddenCount} hidden test scenarios?</p>
+        <p className="mt-1 text-red-700">Scenarios used by saved records will be retained automatically so existing test history stays complete.</p>
+        <div className="mt-3 flex flex-wrap gap-2"><Button type="button" variant="destructive" disabled={busy} onClick={removeAllHidden}>{busy ? "Deleting…" : `Permanently delete ${hiddenCount}`}</Button><Button type="button" variant="outline" disabled={busy} onClick={() => setConfirmingBulkDelete(false)}>Cancel</Button></div>
+      </div>}
     </div>
     {editing && <form onSubmit={save} className="rounded-xl border border-[var(--orange)] bg-card p-4 space-y-3">
       <div className="flex items-center justify-between gap-2"><div><h3 className="font-semibold text-[var(--navy)]">Edit {editing.stable_id}</h3><p className="text-xs text-muted-foreground">The ID and category remain fixed so reports and historical links continue to work.</p></div><Button type="button" size="icon" variant="ghost" onClick={() => setEditing(null)} aria-label="Cancel scenario edit"><X size={16}/></Button></div>
