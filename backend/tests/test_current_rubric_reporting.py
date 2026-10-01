@@ -53,7 +53,7 @@ def _current_scores():
         "R-11": 4,
         "R-21": "N/A",
         "R-22": 7,
-        "R-26": 8,
+        "R-27": 8,
         "R-02": 6,
     }
 
@@ -63,7 +63,7 @@ def test_current_authoritative_read_recomputes_cached_rubric_values(monkeypatch)
     evaluation = {
         "id": "current",
         "rubric_revision": server.CATALOG_REVISION,
-        "selected_rubric_ids": ["R-01", "R-09", "R-11", "R-21", "R-26", "R-02", "R-22"],
+        "selected_rubric_ids": ["R-01", "R-09", "R-11", "R-21", "R-27", "R-02", "R-22"],
         "rubric_scores": _current_scores(),
         "category_scores": {"property_zoning_rules": {"average": 99}},
         "score_count": 99,

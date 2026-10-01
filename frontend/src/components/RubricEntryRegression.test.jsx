@@ -31,7 +31,7 @@ test("new scenario picker excludes archived scenarios but preserves an existing 
 test.each([undefined, null, "", "N/A"])("unchecking an unscored criterion (%s) does not ask for confirmation", (score) => {
   const confirm = jest.spyOn(globalThis, "confirm").mockReturnValue(true);
   const onChange = jest.fn();
-  const catalog = { revision: "2026-09-30", categories: [{ key: "sources", name: "Sources & Citations" }], rubric_items: [{ rubric_id: "R-09", category: "sources", evaluation_criterion: "Citations" }] };
+  const catalog = { revision: "2026-10-01", categories: [{ key: "sources", name: "Sources & Citations" }], rubric_items: [{ rubric_id: "R-09", category: "sources", evaluation_criterion: "Citations" }] };
   act(() => root.render(<RubricCriteriaSelector catalog={catalog} mappedIds={["R-09"]} selectedIds={["R-09"]} scores={{ "R-09": score }} onChange={onChange} />));
   expect(container.textContent).toContain("Sources & Citations");
   act(() => container.querySelector('input[type="checkbox"]').click());

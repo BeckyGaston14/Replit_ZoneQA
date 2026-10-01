@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, Pencil, Save, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Eye, EyeOff, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { api, staleUpdateMessage, withExpectedVersion } from "../lib/api";
 import { Button } from "./ui/button";
@@ -201,6 +201,7 @@ export function AdminRubricItems() {
   });
   const catalog = catalogQuery.data || { rubric_items: [], categories: [] };
   const categoryNames = Object.fromEntries((catalog.categories || []).map((category) => [category.key, category.name]));
+  const availableItems = (catalog.rubric_items || []).filter((item) => item.deleted !== true);
   const shown = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return (catalog.rubric_items || []).filter((item) => item.deleted !== true).filter((item) => !needle || [item.rubric_id, item.evaluation_criterion, item.expected_behavior, categoryNames[item.category]]
@@ -217,12 +218,63 @@ export function AdminRubricItems() {
       toast.success(changes.active === false ? "Rubric item hidden from new selections" : changes.active === true ? "Rubric item is available again" : "Rubric item updated");
       setEditing(null);
       await refresh();
-    } catch (error) { toast.error(staleUpdateMessage(error) || error.response?.data?.detail || "The rubric item could not be saved"); }
+      return true;
+    } catch (error) { toast.error(staleUpdateMessage(error) || error.response?.data?.detail || "The rubric item could not be saved"); return false; }
     finally { setBusy(false); }
   };
-  const save = (event) => {
+  const startAdd = () => setEditing({
+    is_new: true,
+    position: availableItems.length + 1,
+    category: catalog.categories?.[0]?.key || "",
+    evaluation_complexity: "Moderate",
+    evaluation_criterion: "",
+    why_it_matters: "",
+    expected_behavior: "",
+    passing_standard: "",
+  });
+  const save = async (event) => {
     event.preventDefault();
-    update(editing, Object.fromEntries(["evaluation_criterion", "why_it_matters", "expected_behavior", "passing_standard"].map((key) => [key, String(editing[key] || "").trim()])));
+    const fields = ["evaluation_criterion", "evaluation_complexity", "why_it_matters", "expected_behavior", "passing_standard", "category"];
+    const payload = {
+      ...Object.fromEntries(fields.map((key) => [key, String(editing[key] || "").trim()])),
+      position: Number(editing.position),
+    };
+    if (editing.is_new) {
+      setBusy(true);
+      try {
+        await api.post("/bassett/rubric-items", payload);
+        toast.success("Rubric item added and numbers updated");
+        setEditing(null);
+        await refresh();
+      } catch (error) { toast.error(error.response?.data?.detail || "The rubric item could not be added"); }
+      finally { setBusy(false); }
+      return;
+    }
+    const currentPosition = availableItems.findIndex((item) => item.rubric_id === editing.rubric_id) + 1;
+    const updated = await update(editing, payload);
+    if (!updated) return;
+    if (payload.position && payload.position !== currentPosition) {
+      setBusy(true);
+      try {
+        await api.post("/bassett/rubric-items/reorder", { rubric_id: editing.rubric_id, position: payload.position });
+        toast.success("Rubric numbers and scenario links updated");
+        await refresh();
+      } catch (error) { toast.error(error.response?.data?.detail || "The rubric item order could not be changed"); }
+      finally { setBusy(false); }
+    }
+  };
+  const move = async (item, change) => {
+    const currentPosition = availableItems.findIndex((candidate) => candidate.rubric_id === item.rubric_id) + 1;
+    const position = currentPosition + change;
+    if (position < 1 || position > availableItems.length) return;
+    setBusy(true);
+    try {
+      await api.post("/bassett/rubric-items/reorder", { rubric_id: item.rubric_id, position });
+      toast.success("Rubric numbers and scenario links updated");
+      setEditing(null);
+      await refresh();
+    } catch (error) { toast.error(error.response?.data?.detail || "The rubric item order could not be changed"); }
+    finally { setBusy(false); }
   };
   const remove = async (item) => {
     if (!globalThis.confirm?.(`Permanently remove ${item.rubric_id} from future evaluations? Historical scores will be preserved.`)) return;
@@ -239,8 +291,8 @@ export function AdminRubricItems() {
   };
 
   return <div className="space-y-4">
-    <div className="rounded-xl border bg-card p-4"><h2 className="font-display font-semibold text-[var(--navy)]">Rubric Evaluation Items</h2><p className="mt-1 text-sm text-muted-foreground">Revise the guidance used during evaluation or hide an item from new selections. Rubric IDs and categories stay fixed to preserve reporting and saved scores.</p><Label htmlFor="admin-rubric-search" className="mt-3 block">Find a rubric item</Label><Input id="admin-rubric-search" className="mt-2" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search ID, category, or wording…" /></div>
-    {editing && <form onSubmit={save} className="rounded-xl border border-[var(--orange)] bg-card p-4 space-y-3"><div className="flex items-center justify-between gap-2"><div><h3 className="font-semibold text-[var(--navy)]">Edit {editing.rubric_id}</h3><p className="text-xs text-muted-foreground">{categoryNames[editing.category] || editing.category}</p></div><Button type="button" size="icon" variant="ghost" onClick={() => setEditing(null)} aria-label="Cancel rubric edit"><X size={16}/></Button></div>{[["evaluation_criterion", "Evaluation criterion"], ["why_it_matters", "Why it matters"], ["expected_behavior", "Expected behavior"], ["passing_standard", "Passing standard"]].map(([key, label]) => <div key={key}><Label htmlFor={`rubric-${key}`}>{label}</Label><TextArea id={`rubric-${key}`} value={editing[key]} onChange={(event) => setEditing({ ...editing, [key]: event.target.value })} /></div>)}<div className="flex gap-2"><Button type="submit" disabled={busy}><Save size={14}/> Save Changes</Button><Button type="button" variant="outline" onClick={() => setEditing(null)}>Cancel</Button></div></form>}
-    <div className="rounded-xl border bg-card overflow-hidden"><div className="max-h-[620px] overflow-y-auto divide-y">{shown.map((item) => <div key={item.rubric_id} className={`p-4 ${item.active === false ? "bg-slate-50 text-muted-foreground" : ""}`}><div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><strong className="text-[var(--navy)]">{item.rubric_id}</strong><span className="rounded-full border px-2 py-0.5 text-xs">{categoryNames[item.category] || item.category}</span>{item.active === false && <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs">Hidden</span>}</div><p className="mt-1 text-sm font-medium">{item.evaluation_criterion}</p><p className="mt-1 text-xs text-muted-foreground">{item.expected_behavior}</p></div><div className="flex flex-wrap gap-2"><Button type="button" size="sm" variant="outline" onClick={() => setEditing({ ...item })}><Pencil size={14}/> Edit</Button><Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => update(item, { active: item.active === false })}>{item.active === false ? <Eye size={14}/> : <EyeOff size={14}/>} {item.active === false ? "Show" : "Hide"}</Button><Button type="button" size="sm" variant="destructive" disabled={busy} onClick={() => remove(item)}><Trash2 size={14}/> Delete</Button></div></div></div>)}{!catalogQuery.isLoading && !shown.length && <p className="p-6 text-center text-sm text-muted-foreground">No matching rubric items.</p>}{catalogQuery.isLoading && <p className="p-6 text-center text-sm text-muted-foreground">Loading rubric items…</p>}</div></div>
+    <div className="rounded-xl border bg-card p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-display font-semibold text-[var(--navy)]">Rubric Evaluation Items</h2><p className="mt-1 text-sm text-muted-foreground">Add, edit, hide, delete, or move items. Moving an item automatically renumbers the current list and updates Test Scenario associations; saved test-run snapshots keep their original labels and scores.</p></div><Button type="button" onClick={startAdd}><Plus size={16}/> Add Rubric Item</Button></div><Label htmlFor="admin-rubric-search" className="mt-3 block">Find a rubric item</Label><Input id="admin-rubric-search" className="mt-2" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search ID, category, or wording…" /></div>
+    {editing && <form onSubmit={save} className="rounded-xl border border-[var(--orange)] bg-card p-4 space-y-3"><div className="flex items-center justify-between gap-2"><div><h3 className="font-semibold text-[var(--navy)]">{editing.is_new ? "Add Rubric Item" : `Edit ${editing.rubric_id}`}</h3><p className="text-xs text-muted-foreground">Choose its number to place it in the list. Later items will be renumbered automatically.</p></div><Button type="button" size="icon" variant="ghost" onClick={() => setEditing(null)} aria-label="Cancel rubric edit"><X size={16}/></Button></div><div className="grid gap-3 sm:grid-cols-3"><div><Label htmlFor="rubric-position">Rubric number</Label><Input id="rubric-position" type="number" min="1" max={availableItems.length + (editing.is_new ? 1 : 0)} value={editing.position || availableItems.findIndex((item) => item.rubric_id === editing.rubric_id) + 1} onChange={(event) => setEditing({ ...editing, position: event.target.value })} /></div><div><Label htmlFor="rubric-category">Category</Label><select id="rubric-category" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={editing.category || ""} onChange={(event) => setEditing({ ...editing, category: event.target.value })}>{(catalog.categories || []).map((category) => <option key={category.key} value={category.key}>{category.name}</option>)}</select></div><div><Label htmlFor="rubric-complexity">Evaluation complexity</Label><select id="rubric-complexity" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={editing.evaluation_complexity || "Moderate"} onChange={(event) => setEditing({ ...editing, evaluation_complexity: event.target.value })}>{["Low", "Moderate", "High", "Very High"].map((value) => <option key={value}>{value}</option>)}</select></div></div>{[["evaluation_criterion", "Evaluation criterion"], ["why_it_matters", "Why it matters"], ["expected_behavior", "Expected behavior"], ["passing_standard", "Passing standard"]].map(([key, label]) => <div key={key}><Label htmlFor={`rubric-${key}`}>{label}</Label><TextArea id={`rubric-${key}`} value={editing[key]} onChange={(event) => setEditing({ ...editing, [key]: event.target.value })} /></div>)}<div className="flex gap-2"><Button type="submit" disabled={busy}><Save size={14}/> {editing.is_new ? "Add Item" : "Save Changes"}</Button><Button type="button" variant="outline" onClick={() => setEditing(null)}>Cancel</Button></div></form>}
+    <div className="rounded-xl border bg-card overflow-hidden"><div className="max-h-[620px] overflow-y-auto divide-y">{shown.map((item) => { const position = availableItems.findIndex((candidate) => candidate.rubric_id === item.rubric_id) + 1; return <div key={item.rubric_id} className={`p-4 ${item.active === false ? "bg-slate-50 text-muted-foreground" : ""}`}><div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><strong className="text-[var(--navy)]">{item.rubric_id}</strong><span className="rounded-full border px-2 py-0.5 text-xs">{categoryNames[item.category] || item.category}</span>{item.active === false && <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs">Hidden</span>}</div><p className="mt-1 text-sm font-medium">{item.evaluation_criterion}</p><p className="mt-1 text-xs text-muted-foreground">{item.expected_behavior}</p></div><div className="flex flex-wrap gap-2"><Button type="button" size="icon" variant="outline" disabled={busy || position <= 1 || query.trim()} onClick={() => move(item, -1)} aria-label={`Move ${item.rubric_id} up`} title="Move up and renumber"><ArrowUp size={14}/></Button><Button type="button" size="icon" variant="outline" disabled={busy || position >= availableItems.length || query.trim()} onClick={() => move(item, 1)} aria-label={`Move ${item.rubric_id} down`} title="Move down and renumber"><ArrowDown size={14}/></Button><Button type="button" size="sm" variant="outline" onClick={() => setEditing({ ...item, position })}><Pencil size={14}/> Edit</Button><Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => update(item, { active: item.active === false })}>{item.active === false ? <Eye size={14}/> : <EyeOff size={14}/>} {item.active === false ? "Show" : "Hide"}</Button><Button type="button" size="sm" variant="destructive" disabled={busy} onClick={() => remove(item)}><Trash2 size={14}/> Delete</Button></div></div></div>; })}{!catalogQuery.isLoading && !shown.length && <p className="p-6 text-center text-sm text-muted-foreground">No matching rubric items.</p>}{catalogQuery.isLoading && <p className="p-6 text-center text-sm text-muted-foreground">Loading rubric items…</p>}</div></div>
   </div>;
 }

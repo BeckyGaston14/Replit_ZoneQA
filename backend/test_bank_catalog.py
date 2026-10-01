@@ -11,8 +11,8 @@ from pathlib import Path
 from typing import Any
 
 
-CATALOG_REVISION = "2026-09-30"
-REFERENCE_PATH = Path(__file__).with_name("test_bank_reference_2026_09_30.json")
+CATALOG_REVISION = "2026-10-01"
+REFERENCE_PATH = Path(__file__).with_name("test_bank_reference_2026_10_01.json")
 REFERENCE = json.loads(REFERENCE_PATH.read_text(encoding="utf-8"))
 RUBRIC_ITEMS = tuple(REFERENCE["rubric_items"])
 CATEGORIES = tuple(REFERENCE["categories"])
@@ -74,12 +74,19 @@ def rubric_snapshot(selected_ids: Any) -> dict[str, dict[str, Any]]:
     return {rubric_id: dict(RUBRIC_BY_ID[rubric_id]) for rubric_id in ids}
 
 
-def score_rubrics(scores: Any, selected_ids: Any) -> dict[str, Any]:
+def score_rubrics(
+    scores: Any, selected_ids: Any, *, rubric_items: Any = None, categories: Any = None
+) -> dict[str, Any]:
     """Neutral-weight category and overall averages; zero is a valid score."""
     scores = scores if isinstance(scores, dict) else {}
-    ids = normalize_rubric_ids(selected_ids)
+    item_list = list(rubric_items) if isinstance(rubric_items, (list, tuple)) else list(RUBRIC_ITEMS)
+    ids = normalize_rubric_ids(
+        selected_ids, allowed={item["rubric_id"] for item in item_list}
+    )
     values = []
-    by_category = aggregate_rubric_categories(scores, ids)
+    by_category = aggregate_rubric_categories(
+        scores, ids, rubric_items=item_list, categories=categories
+    )
     for rubric_id in ids:
         raw = scores.get(rubric_id)
         if raw in (None, "", "N/A", "NA", "Missing"):
@@ -106,7 +113,9 @@ def score_rubrics(scores: Any, selected_ids: Any) -> dict[str, Any]:
     }
 
 
-def aggregate_rubric_categories(scores: Any, selected_ids: Any) -> dict[str, dict[str, Any]]:
+def aggregate_rubric_categories(
+    scores: Any, selected_ids: Any, *, rubric_items: Any = None, categories: Any = None
+) -> dict[str, dict[str, Any]]:
     """Aggregate selected current-revision rubric values across every catalog category.
 
     The returned rows deliberately include numerator and denominator rather than
@@ -116,10 +125,13 @@ def aggregate_rubric_categories(scores: Any, selected_ids: Any) -> dict[str, dic
     stable chart and distinguish an empty category from an absent category.
     """
     scores = scores if isinstance(scores, dict) else {}
-    ids = normalize_rubric_ids(selected_ids)
+    item_list = list(rubric_items) if isinstance(rubric_items, (list, tuple)) else list(RUBRIC_ITEMS)
+    item_by_id = {item["rubric_id"]: item for item in item_list}
+    ids = normalize_rubric_ids(selected_ids, allowed=set(item_by_id))
+    category_list = list(categories) if isinstance(categories, (list, tuple)) else list(CATEGORIES)
     category_totals = {
         category["key"]: {"numerator": 0.0, "denominator": 0, "count": 0}
-        for category in CATEGORIES
+        for category in category_list
     }
     for rubric_id in ids:
         raw = scores.get(rubric_id)
@@ -131,7 +143,7 @@ def aggregate_rubric_categories(scores: Any, selected_ids: Any) -> dict[str, dic
             continue
         if not 0 <= value <= 10:
             continue
-        category = RUBRIC_BY_ID[rubric_id]["category"]
+        category = item_by_id[rubric_id]["category"]
         totals = category_totals[category]
         totals["numerator"] += value
         totals["denominator"] += 1
@@ -147,17 +159,22 @@ def aggregate_rubric_categories(scores: Any, selected_ids: Any) -> dict[str, dic
     }
 
 
-def aggregate_rubric_evaluations(evaluations: Any) -> list[dict[str, Any]]:
+def aggregate_rubric_evaluations(
+    evaluations: Any, *, rubric_items: Any = None, categories: Any = None
+) -> list[dict[str, Any]]:
     """Aggregate current-revision rubric values across evaluation records."""
+    category_list = list(categories) if isinstance(categories, (list, tuple)) else list(CATEGORIES)
     totals = {
         category["key"]: {"numerator": 0.0, "denominator": 0, "count": 0}
-        for category in CATEGORIES
+        for category in category_list
     }
     evaluation_count = 0
     for evaluation in evaluations if isinstance(evaluations, list) else []:
         result = aggregate_rubric_categories(
             evaluation.get("rubric_scores") or {},
             evaluation.get("selected_rubric_ids") or [],
+            rubric_items=rubric_items,
+            categories=category_list,
         )
         if result:
             evaluation_count += 1

@@ -425,7 +425,7 @@ test("both evaluation form modes keep score labels and the shared rubric without
 
 test("changing one Bassett rubric to N/A preserves every other saved score", () => {
   const rubricCatalog = {
-    revision: "2026-09-30",
+    revision: "2026-10-01",
     categories: [{ key: "property-zoning", name: "Property & Zoning Rules", rubric_ids: ["R-01", "R-02"] }],
     rubric_items: [
       { rubric_id: "R-01", category: "property-zoning", evaluation_criterion: "Property identity", expected_behavior: "Identify the property", passing_standard: "Correct property" },
@@ -460,7 +460,7 @@ test("changing one Bassett rubric to N/A preserves every other saved score", () 
 
 test("a selected Test Bank scenario keeps mapped rubric items in Rubric Evaluation only", () => {
   const rubricCatalog = {
-    revision: "2026-09-30",
+    revision: "2026-10-01",
     categories: [{ key: "property-zoning", name: "Property & Zoning Rules", rubric_ids: ["R-01", "R-02"] }],
     rubric_items: [
       { rubric_id: "R-01", category: "property-zoning", evaluation_criterion: "Property identity", expected_behavior: "Identify the property", passing_standard: "Correct property" },
@@ -493,7 +493,7 @@ test("a Bassett test run can link additional scenarios and combines their rubric
     rubric_ids: ["R-02", "R-03"],
   };
   const rubricCatalog = {
-    revision: "2026-09-30",
+    revision: "2026-10-01",
     categories: [{ key: "property-zoning", name: "Property & Zoning Rules", rubric_ids: ["R-01", "R-02", "R-03"] }],
     rubric_items: ["R-01", "R-02", "R-03"].map((rubricId) => ({
       rubric_id: rubricId,
@@ -525,7 +525,7 @@ test("a Bassett test run can link additional scenarios and combines their rubric
 
 test("hidden rubric items are excluded from new tests but remain visible on saved tests that use them", () => {
   const rubricCatalog = {
-    revision: "2026-09-30",
+    revision: "2026-10-01",
     categories: [{ key: "property-zoning", name: "Property & Zoning Rules", rubric_ids: ["R-01", "R-02"] }],
     rubric_items: [
       { rubric_id: "R-01", category: "property-zoning", evaluation_criterion: "Property identity", expected_behavior: "Identify the property", passing_standard: "Correct property", active: true },
@@ -866,11 +866,11 @@ test("an existing run can save when its older rubric revision never stored a pri
 
 test("current converted comparison evaluations reopen with rubric scores including zero", () => {
   const draft = createComparisonEditDraft({
-    testcase: { id: "tc-current", rubric_revision: "2026-09-30", selected_rubric_ids: ["R-01"], prompts: [{ text: "Question" }] },
+    testcase: { id: "tc-current", rubric_revision: "2026-10-01", selected_rubric_ids: ["R-01"], prompts: [{ text: "Question" }] },
     evaluations: [
-      { model: "Bassett", rubric_revision: "2026-09-30", scores: { accuracy: 9 }, rubric_scores: { "R-01": 0 } },
-      { model: "ChatGPT", rubric_revision: "2026-09-30", scores: { accuracy: 4 }, rubric_scores: { "R-01": 7 } },
-      { model: "Claude", rubric_revision: "2026-09-30", scores: { accuracy: 5 }, rubric_scores: { "R-01": 8 } },
+      { model: "Bassett", rubric_revision: "2026-10-01", scores: { accuracy: 9 }, rubric_scores: { "R-01": 0 } },
+      { model: "ChatGPT", rubric_revision: "2026-10-01", scores: { accuracy: 4 }, rubric_scores: { "R-01": 7 } },
+      { model: "Claude", rubric_revision: "2026-10-01", scores: { accuracy: 5 }, rubric_scores: { "R-01": 8 } },
     ],
   });
   expect(draft.evaluations.Bassett.scores).toEqual({ accuracy: 9, "R-01": 0 });

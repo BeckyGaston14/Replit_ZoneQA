@@ -53,7 +53,7 @@ test("calculates all five current categories from selected rubric scores with ne
     "R-02": "", "R-10": 4, "R-12": 2, "R-22": 10, "R-27": "Missing",
   };
   const categories = calculateRubricCategories({
-    rubric_revision: "2026-09-30",
+    rubric_revision: "2026-10-01",
     selected_rubric_ids: ["R-01", "R-09", "R-10", "R-11", "R-12", "R-21", "R-22", "R-26", "R-27"],
     rubric_scores: scores,
   });
@@ -65,8 +65,8 @@ test("calculates all five current categories from selected rubric scores with ne
 
 test("aggregates current rubric values without mixing legacy evaluations", () => {
   const current = [
-    { rubric_revision: "2026-09-30", selected_rubric_ids: ["R-01", "R-09"], rubric_scores: { "R-01": 0, "R-09": 10 } },
-    { rubric_revision: "2026-09-30", selected_rubric_ids: ["R-01", "R-09"], rubric_scores: { "R-01": 10, "R-09": "N/A" } },
+    { rubric_revision: "2026-10-01", selected_rubric_ids: ["R-01", "R-09"], rubric_scores: { "R-01": 0, "R-09": 10 } },
+    { rubric_revision: "2026-10-01", selected_rubric_ids: ["R-01", "R-09"], rubric_scores: { "R-01": 10, "R-09": "N/A" } },
   ];
   const rows = aggregateRubricCategories(current);
   expect(rows.find((row) => row.key === "property_zoning_rules").score).toBe(5);
@@ -76,7 +76,7 @@ test("aggregates current rubric values without mixing legacy evaluations", () =>
 
 test("does not score rubric values that are present but explicitly unchecked", () => {
   const rows = calculateRubricCategories({
-    rubric_revision: "2026-09-30",
+    rubric_revision: "2026-10-01",
     selected_rubric_ids: [],
     rubric_scores: { "R-01": 10, "R-09": 9 },
   });

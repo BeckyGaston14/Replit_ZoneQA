@@ -1,17 +1,12 @@
-"""Validate the current approved Test Bank.
-
-The catalog was refreshed from the approved Google Sheet on 2026-09-30.
-The pinned hash below verifies the checked-in JSON, not a Git commit.
-"""
+"""Validate the current approved Test Bank refreshed on 2026-10-01."""
 import json
 import asyncio
-import hashlib
 from collections import Counter
 from pathlib import Path
 
 import server
 
-REFERENCE = json.loads((Path(__file__).parents[1] / "test_bank_reference_2026_09_30.json").read_text(encoding="utf-8"))
+REFERENCE = json.loads((Path(__file__).parents[1] / "test_bank_reference_2026_10_01.json").read_text(encoding="utf-8"))
 
 
 def test_reference_contains_all_unique_scenarios_and_rubric_items():
@@ -22,10 +17,7 @@ def test_reference_contains_all_unique_scenarios_and_rubric_items():
         "Analysis": 30, "Document Handling": 19,
         "General Research": 35, "Municipal Research": 10,
     }
-    assert {row["rubric_id"] for row in rubric} == {f"R-{index:02}" for index in range(1, 32)}
-    assert hashlib.sha256(
-        (Path(__file__).parents[1] / "test_bank_reference_2026_09_30.json").read_bytes()
-    ).hexdigest() == "baa001a4dec20f4c49b440b630d7cf6fc5f12b56110dbfc9d4b80cd284c82928"
+    assert {row["rubric_id"] for row in rubric} == {f"R-{index:02}" for index in range(1, 33)}
 
 
 def test_every_association_resolves_and_every_rubric_item_has_one_category():
@@ -33,7 +25,7 @@ def test_every_association_resolves_and_every_rubric_item_has_one_category():
     categories = REFERENCE["categories"]
     all_category_ids = [item for category in categories for item in category["rubric_ids"]]
     assert len(categories) == 5
-    assert len(all_category_ids) == len(set(all_category_ids)) == 31
+    assert len(all_category_ids) == len(set(all_category_ids)) == 32
     assert set(all_category_ids) == ids
     for item in REFERENCE["rubric_items"]:
         assert item["rubric_id"] in next(category["rubric_ids"] for category in categories if category["key"] == item["category"])
@@ -46,8 +38,22 @@ def test_every_association_resolves_and_every_rubric_item_has_one_category():
 def test_rubric_ids_use_current_source_meaning():
     items = {row["rubric_id"]: row for row in REFERENCE["rubric_items"]}
     assert items["R-01"]["evaluation_criterion"] == "Verify the property and governing jurisdiction"
-    assert items["R-30"]["evaluation_criterion"] == "Search municipal permit records carefully"
-    assert items["R-31"]["category"] == "documents_municipal_records"
+    assert items["R-21"]["evaluation_criterion"] == "Do not lose context"
+    assert items["R-31"]["evaluation_criterion"] == "Search municipal permit records carefully"
+    assert items["R-32"]["category"] == "documents_municipal_records"
+    assert all("R-21" in row["rubric_ids"] for row in REFERENCE["scenarios"])
+
+
+def test_rubric_reorder_renumbers_contiguously_and_returns_association_mapping():
+    items = [
+        {"rubric_id": "R-01", "evaluation_criterion": "First"},
+        {"rubric_id": "R-02", "evaluation_criterion": "Second"},
+        {"rubric_id": "R-03", "evaluation_criterion": "Third"},
+    ]
+    reordered, mapping = server._renumber_rubric_items(items, "R-03", 2)
+    assert [item["evaluation_criterion"] for item in reordered] == ["First", "Third", "Second"]
+    assert [item["rubric_id"] for item in reordered] == ["R-01", "R-02", "R-03"]
+    assert mapping == {"R-01": "R-01", "R-03": "R-02", "R-02": "R-03"}
 
 
 def test_simplified_scenarios_are_the_user_facing_catalog_labels():

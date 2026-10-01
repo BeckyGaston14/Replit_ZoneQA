@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "source_url": "https://docs.google.com/spreadsheets/d/1VDv4i0EeWN0eZ5ETY4S_Ijd7k4Pqe6kkb2wUfV9Tngs/edit",
-  "retrieved_on": "2026-09-30",
+  "retrieved_on": "2026-10-01",
   "categories": [
     {
       "key": "property_zoning_rules",
@@ -38,30 +38,31 @@
         "R-17",
         "R-18",
         "R-19",
-        "R-20"
+        "R-20",
+        "R-21"
       ]
     },
     {
       "key": "analysis_next_steps",
       "name": "Analysis & Next Steps",
       "rubric_ids": [
-        "R-21",
         "R-22",
         "R-23",
         "R-24",
-        "R-25"
+        "R-25",
+        "R-26"
       ]
     },
     {
       "key": "documents_municipal_records",
       "name": "Documents & Municipal Records",
       "rubric_ids": [
-        "R-26",
         "R-27",
         "R-28",
         "R-29",
         "R-30",
-        "R-31"
+        "R-31",
+        "R-32"
       ]
     }
   ],
@@ -248,6 +249,15 @@
     },
     {
       "rubric_id": "R-21",
+      "category": "reasoning_conversation",
+      "evaluation_criterion": "Do not lose context",
+      "evaluation_complexity": "Moderate",
+      "why_it_matters": "Earlier conversation details, supplied documents, and established facts can be lost or contradicted as work continues.",
+      "expected_behavior": "Use relevant established facts, decisions, documents, and constraints throughout the response; do not ask for information already available unless it is genuinely unclear or changed.",
+      "passing_standard": "Retains and applies material context consistently, does not contradict established facts, and asks only for information that is missing, unclear, or changed."
+    },
+    {
+      "rubric_id": "R-22",
       "category": "analysis_next_steps",
       "evaluation_criterion": "Keep property facts separate when comparing two properties",
       "evaluation_complexity": "High",
@@ -256,7 +266,7 @@
       "passing_standard": "Keeps each property’s facts, sources, approvals, and conclusions separate, with no unsupported crossover."
     },
     {
-      "rubric_id": "R-22",
+      "rubric_id": "R-23",
       "category": "analysis_next_steps",
       "evaluation_criterion": "Keep research separate from property analysis",
       "evaluation_complexity": "Moderate",
@@ -265,7 +275,7 @@
       "passing_standard": "Clearly distinguishes research from analysis and does not make a property-specific compliance decision when only research was requested."
     },
     {
-      "rubric_id": "R-23",
+      "rubric_id": "R-24",
       "category": "analysis_next_steps",
       "evaluation_criterion": "Give the right next step or CTA when one is needed",
       "evaluation_complexity": "Moderate",
@@ -274,7 +284,7 @@
       "passing_standard": "Provides a specific, relevant next step or CTA when information, approval, municipal confirmation, or expert review is needed."
     },
     {
-      "rubric_id": "R-24",
+      "rubric_id": "R-25",
       "category": "analysis_next_steps",
       "evaluation_criterion": "Prepare a handoff another person can use",
       "evaluation_complexity": "Moderate",
@@ -283,7 +293,7 @@
       "passing_standard": "Leaves a usable handoff that states what was done, what was found, what remains open, and what should happen next."
     },
     {
-      "rubric_id": "R-25",
+      "rubric_id": "R-26",
       "category": "analysis_next_steps",
       "evaluation_criterion": "Separate zoning rules from other regulated-use requirements",
       "evaluation_complexity": "Very High",
@@ -292,7 +302,7 @@
       "passing_standard": "Clearly separates local zoning findings from state, utility, licensing, or other outside requirements and directs follow-up to the right source."
     },
     {
-      "rubric_id": "R-26",
+      "rubric_id": "R-27",
       "category": "documents_municipal_records",
       "evaluation_criterion": "Use the document version the user says is current",
       "evaluation_complexity": "High",
@@ -301,7 +311,7 @@
       "passing_standard": "Uses the user-designated current version and clearly flags any material conflict with an older version."
     },
     {
-      "rubric_id": "R-27",
+      "rubric_id": "R-28",
       "category": "documents_municipal_records",
       "evaluation_criterion": "Handle incomplete or unreadable uploads honestly",
       "evaluation_complexity": "High",
@@ -310,7 +320,7 @@
       "passing_standard": "States what was readable, identifies missing or unreadable material, and does not summarize content that was not reviewed."
     },
     {
-      "rubric_id": "R-28",
+      "rubric_id": "R-29",
       "category": "documents_municipal_records",
       "evaluation_criterion": "Use surveys, plans, and municipal records correctly",
       "evaluation_complexity": "High",
@@ -319,7 +329,7 @@
       "passing_standard": "Uses only facts supported by the correct survey, plan, or municipal record and identifies missing, conflicting, outdated, or unverified material."
     },
     {
-      "rubric_id": "R-29",
+      "rubric_id": "R-30",
       "category": "documents_municipal_records",
       "evaluation_criterion": "Summarize documents without losing important exceptions, conditions, or footnotes",
       "evaluation_complexity": "High",
@@ -328,7 +338,7 @@
       "passing_standard": "Keeps material exceptions, conditions, footnotes, and limits in the summary and points to the source when they affect the result."
     },
     {
-      "rubric_id": "R-30",
+      "rubric_id": "R-31",
       "category": "documents_municipal_records",
       "evaluation_criterion": "Search municipal permit records carefully",
       "evaluation_complexity": "Moderate",
@@ -337,7 +347,7 @@
       "passing_standard": "Reports the official source, property match, permit details, and search limits; it does not treat no result as proof of no record."
     },
     {
-      "rubric_id": "R-31",
+      "rubric_id": "R-32",
       "category": "documents_municipal_records",
       "evaluation_criterion": "Plan a complete municipal records request",
       "evaluation_complexity": "High",
@@ -370,7 +380,8 @@
         "R-14",
         "R-19",
         "R-20",
-        "R-23"
+        "R-21",
+        "R-24"
       ]
     },
     {
@@ -396,7 +407,8 @@
         "R-14",
         "R-19",
         "R-20",
-        "R-23"
+        "R-21",
+        "R-24"
       ]
     },
     {
@@ -419,7 +431,8 @@
         "R-10",
         "R-14",
         "R-20",
-        "R-23"
+        "R-21",
+        "R-24"
       ]
     },
     {
@@ -443,7 +456,8 @@
         "R-12",
         "R-14",
         "R-20",
-        "R-23"
+        "R-21",
+        "R-24"
       ]
     },
     {
@@ -470,7 +484,8 @@
         "R-14",
         "R-19",
         "R-20",
-        "R-23"
+        "R-21",
+        "R-24"
       ]
     },
     {
@@ -493,8 +508,9 @@
         "R-10",
         "R-14",
         "R-20",
-        "R-23",
-        "R-28"
+        "R-21",
+        "R-24",
+        "R-29"
       ]
     },
     {
@@ -518,7 +534,8 @@
         "R-10",
         "R-14",
         "R-20",
-        "R-23"
+        "R-21",
+        "R-24"
       ]
     },
     {
@@ -541,8 +558,9 @@
         "R-10",
         "R-14",
         "R-20",
-        "R-23",
-        "R-28"
+        "R-21",
+        "R-24",
+        "R-29"
       ]
     },
     {
@@ -563,8 +581,9 @@
         "R-10",
         "R-14",
         "R-20",
-        "R-23",
-        "R-28"
+        "R-21",
+        "R-24",
+        "R-29"
       ]
     },
     {
@@ -587,7 +606,8 @@
         "R-14",
         "R-19",
         "R-20",
-        "R-23"
+        "R-21",
+        "R-24"
       ]
     },
     {
@@ -610,7 +630,8 @@
         "R-14",
         "R-19",
         "R-20",
-        "R-23"
+        "R-21",
+        "R-24"
       ]
     },
     {
@@ -632,9 +653,10 @@
         "R-14",
         "R-19",
         "R-20",
-        "R-22",
+        "R-21",
         "R-23",
-        "R-25"
+        "R-24",
+        "R-26"
       ]
     },
     {
@@ -656,8 +678,9 @@
         "R-10",
         "R-14",
         "R-20",
-        "R-23",
-        "R-28"
+        "R-21",
+        "R-24",
+        "R-29"
       ]
     },
     {
@@ -679,8 +702,9 @@
         "R-10",
         "R-14",
         "R-20",
-        "R-23",
-        "R-28"
+        "R-21",
+        "R-24",
+        "R-29"
       ]
     },
     {
@@ -700,11 +724,12 @@
         "R-09",
         "R-14",
         "R-20",
-        "R-23",
+        "R-21",
         "R-24",
-        "R-26",
-        "R-28",
-        "R-29"
+        "R-25",
+        "R-27",
+        "R-29",
+        "R-30"
       ]
     },
     {
@@ -726,8 +751,9 @@
         "R-10",
         "R-14",
         "R-20",
-        "R-23",
-        "R-28"
+        "R-21",
+        "R-24",
+        "R-29"
       ]
     },
     {
@@ -753,7 +779,8 @@
         "R-14",
         "R-19",
         "R-20",
-        "R-23"
+        "R-21",
+        "R-24"
       ]
     },
     {
@@ -775,8 +802,9 @@
         "R-10",
         "R-14",
         "R-20",
-        "R-23",
-        "R-28"
+        "R-21",
+        "R-24",
+        "R-29"
       ]
     },
     {
@@ -799,7 +827,8 @@
         "R-14",
         "R-19",
         "R-20",
-        "R-23"
+        "R-21",
+        "R-24"
       ]
     },
     {
@@ -821,8 +850,9 @@
         "R-10",
         "R-14",
         "R-20",
-        "R-23",
-        "R-28"
+        "R-21",
+        "R-24",
+        "R-29"
       ]
     },
     {
@@ -847,8 +877,9 @@
         "R-14",
         "R-19",
         "R-20",
-        "R-23",
-        "R-25"
+        "R-21",
+        "R-24",
+        "R-26"
       ]
     },
     {
@@ -873,8 +904,9 @@
         "R-14",
         "R-19",
         "R-20",
-        "R-23",
-        "R-25"
+        "R-21",
+        "R-24",
+        "R-26"
       ]
     },
     {
@@ -900,8 +932,9 @@
         "R-14",
         "R-19",
         "R-20",
-        "R-23",
-        "R-25"
+        "R-21",
+        "R-24",
+        "R-26"
       ]
     },
     {
@@ -926,8 +959,9 @@
         "R-14",
         "R-19",
         "R-20",
-        "R-23",
-        "R-25"
+        "R-21",
+        "R-24",
+        "R-26"
       ]
     },
     {
@@ -951,7 +985,8 @@
         "R-14",
         "R-17",
         "R-20",
-        "R-23"
+        "R-21",
+        "R-24"
       ]
     },
     {
@@ -974,7 +1009,8 @@
         "R-14",
         "R-19",
         "R-20",
-        "R-23"
+        "R-21",
+        "R-24"
       ]
     },
     {
@@ -1001,12 +1037,13 @@
         "R-14",
         "R-19",
         "R-20",
-        "R-23",
+        "R-21",
         "R-24",
-        "R-26",
+        "R-25",
         "R-27",
         "R-28",
-        "R-29"
+        "R-29",
+        "R-30"
       ]
     },
     {
@@ -1027,9 +1064,10 @@
         "R-17",
         "R-19",
         "R-20",
-        "R-22",
+        "R-21",
         "R-23",
-        "R-26"
+        "R-24",
+        "R-27"
       ]
     },
     {
@@ -1050,10 +1088,11 @@
         "R-17",
         "R-19",
         "R-20",
-        "R-22",
+        "R-21",
         "R-23",
-        "R-25",
-        "R-26"
+        "R-24",
+        "R-26",
+        "R-27"
       ]
     },
     {
@@ -1073,9 +1112,10 @@
         "R-17",
         "R-19",
         "R-20",
-        "R-22",
+        "R-21",
         "R-23",
-        "R-28"
+        "R-24",
+        "R-29"
       ]
     },
     {
@@ -1094,10 +1134,11 @@
         "R-17",
         "R-19",
         "R-20",
-        "R-23",
-        "R-26",
+        "R-21",
+        "R-24",
         "R-27",
-        "R-28"
+        "R-28",
+        "R-29"
       ]
     },
     {
@@ -1116,10 +1157,11 @@
         "R-14",
         "R-19",
         "R-20",
-        "R-26",
+        "R-21",
         "R-27",
         "R-28",
-        "R-29"
+        "R-29",
+        "R-30"
       ]
     },
     {
@@ -1138,11 +1180,12 @@
         "R-14",
         "R-19",
         "R-20",
-        "R-23",
-        "R-26",
+        "R-21",
+        "R-24",
         "R-27",
         "R-28",
-        "R-29"
+        "R-29",
+        "R-30"
       ]
     },
     {
@@ -1161,10 +1204,11 @@
         "R-14",
         "R-19",
         "R-20",
-        "R-23",
-        "R-26",
-        "R-28",
-        "R-29"
+        "R-21",
+        "R-24",
+        "R-27",
+        "R-29",
+        "R-30"
       ]
     },
     {
@@ -1183,10 +1227,11 @@
         "R-14",
         "R-19",
         "R-20",
-        "R-26",
+        "R-21",
         "R-27",
         "R-28",
-        "R-29"
+        "R-29",
+        "R-30"
       ]
     },
     {
@@ -1206,11 +1251,12 @@
         "R-17",
         "R-19",
         "R-20",
-        "R-23",
-        "R-26",
+        "R-21",
+        "R-24",
         "R-27",
         "R-28",
-        "R-29"
+        "R-29",
+        "R-30"
       ]
     },
     {
@@ -1229,11 +1275,12 @@
         "R-14",
         "R-19",
         "R-20",
-        "R-23",
-        "R-26",
+        "R-21",
+        "R-24",
         "R-27",
         "R-28",
-        "R-29"
+        "R-29",
+        "R-30"
       ]
     },
     {
@@ -1252,11 +1299,12 @@
         "R-14",
         "R-19",
         "R-20",
-        "R-23",
-        "R-26",
+        "R-21",
+        "R-24",
         "R-27",
         "R-28",
-        "R-29"
+        "R-29",
+        "R-30"
       ]
     },
     {
@@ -1278,10 +1326,11 @@
         "R-17",
         "R-19",
         "R-20",
-        "R-23",
-        "R-26",
-        "R-28",
-        "R-31"
+        "R-21",
+        "R-24",
+        "R-27",
+        "R-29",
+        "R-32"
       ]
     },
     {
@@ -1299,8 +1348,9 @@
         "R-14",
         "R-19",
         "R-20",
-        "R-23",
-        "R-31"
+        "R-21",
+        "R-24",
+        "R-32"
       ]
     },
     {
@@ -1320,12 +1370,13 @@
         "R-17",
         "R-19",
         "R-20",
-        "R-23",
-        "R-26",
+        "R-21",
+        "R-24",
         "R-27",
         "R-28",
         "R-29",
-        "R-31"
+        "R-30",
+        "R-32"
       ]
     },
     {
@@ -1345,10 +1396,11 @@
         "R-17",
         "R-19",
         "R-20",
-        "R-23",
-        "R-26",
-        "R-28",
-        "R-29"
+        "R-21",
+        "R-24",
+        "R-27",
+        "R-29",
+        "R-30"
       ]
     },
     {
@@ -1368,10 +1420,11 @@
         "R-18",
         "R-19",
         "R-20",
-        "R-23",
-        "R-26",
-        "R-28",
-        "R-29"
+        "R-21",
+        "R-24",
+        "R-27",
+        "R-29",
+        "R-30"
       ]
     },
     {
@@ -1391,10 +1444,11 @@
         "R-15",
         "R-19",
         "R-20",
-        "R-23",
-        "R-26",
+        "R-21",
+        "R-24",
         "R-27",
-        "R-28"
+        "R-28",
+        "R-29"
       ]
     },
     {
@@ -1414,10 +1468,11 @@
         "R-17",
         "R-19",
         "R-20",
-        "R-23",
-        "R-26",
-        "R-28",
-        "R-29"
+        "R-21",
+        "R-24",
+        "R-27",
+        "R-29",
+        "R-30"
       ]
     },
     {
@@ -1436,10 +1491,11 @@
         "R-14",
         "R-19",
         "R-20",
-        "R-23",
-        "R-26",
-        "R-28",
-        "R-29"
+        "R-21",
+        "R-24",
+        "R-27",
+        "R-29",
+        "R-30"
       ]
     },
     {
@@ -1458,11 +1514,12 @@
         "R-14",
         "R-19",
         "R-20",
-        "R-25",
+        "R-21",
         "R-26",
         "R-27",
         "R-28",
-        "R-29"
+        "R-29",
+        "R-30"
       ]
     },
     {
@@ -1482,11 +1539,12 @@
         "R-17",
         "R-19",
         "R-20",
-        "R-22",
+        "R-21",
         "R-23",
-        "R-27",
+        "R-24",
         "R-28",
-        "R-29"
+        "R-29",
+        "R-30"
       ]
     },
     {
@@ -1507,10 +1565,11 @@
         "R-14",
         "R-17",
         "R-20",
-        "R-23",
+        "R-21",
         "R-24",
-        "R-26",
-        "R-28"
+        "R-25",
+        "R-27",
+        "R-29"
       ]
     },
     {
@@ -1530,7 +1589,8 @@
         "R-10",
         "R-19",
         "R-20",
-        "R-22"
+        "R-21",
+        "R-23"
       ]
     },
     {
@@ -1553,8 +1613,9 @@
         "R-12",
         "R-14",
         "R-20",
-        "R-22",
-        "R-23"
+        "R-21",
+        "R-23",
+        "R-24"
       ]
     },
     {
@@ -1577,8 +1638,9 @@
         "R-12",
         "R-14",
         "R-20",
-        "R-22",
-        "R-23"
+        "R-21",
+        "R-23",
+        "R-24"
       ]
     },
     {
@@ -1598,7 +1660,8 @@
         "R-10",
         "R-19",
         "R-20",
-        "R-22"
+        "R-21",
+        "R-23"
       ]
     },
     {
@@ -1619,7 +1682,8 @@
         "R-10",
         "R-19",
         "R-20",
-        "R-22"
+        "R-21",
+        "R-23"
       ]
     },
     {
@@ -1642,7 +1706,8 @@
         "R-14",
         "R-19",
         "R-20",
-        "R-22"
+        "R-21",
+        "R-23"
       ]
     },
     {
@@ -1663,7 +1728,8 @@
         "R-14",
         "R-19",
         "R-20",
-        "R-22"
+        "R-21",
+        "R-23"
       ]
     },
     {
@@ -1684,7 +1750,8 @@
         "R-10",
         "R-19",
         "R-20",
-        "R-22"
+        "R-21",
+        "R-23"
       ]
     },
     {
@@ -1705,7 +1772,8 @@
         "R-13",
         "R-14",
         "R-20",
-        "R-22"
+        "R-21",
+        "R-23"
       ]
     },
     {
@@ -1725,7 +1793,8 @@
         "R-10",
         "R-19",
         "R-20",
-        "R-22"
+        "R-21",
+        "R-23"
       ]
     },
     {
@@ -1748,9 +1817,10 @@
         "R-14",
         "R-19",
         "R-20",
-        "R-26",
-        "R-28",
-        "R-29"
+        "R-21",
+        "R-27",
+        "R-29",
+        "R-30"
       ]
     },
     {
@@ -1771,8 +1841,9 @@
         "R-15",
         "R-16",
         "R-20",
-        "R-22",
-        "R-23"
+        "R-21",
+        "R-23",
+        "R-24"
       ]
     },
     {
@@ -1791,8 +1862,9 @@
         "R-12",
         "R-14",
         "R-20",
-        "R-22",
-        "R-23"
+        "R-21",
+        "R-23",
+        "R-24"
       ]
     },
     {
@@ -1811,8 +1883,9 @@
         "R-09",
         "R-14",
         "R-20",
-        "R-22",
-        "R-23"
+        "R-21",
+        "R-23",
+        "R-24"
       ]
     },
     {
@@ -1831,8 +1904,9 @@
         "R-12",
         "R-14",
         "R-20",
-        "R-22",
-        "R-23"
+        "R-21",
+        "R-23",
+        "R-24"
       ]
     },
     {
@@ -1852,8 +1926,9 @@
         "R-12",
         "R-14",
         "R-20",
-        "R-22",
-        "R-23"
+        "R-21",
+        "R-23",
+        "R-24"
       ]
     },
     {
@@ -1871,7 +1946,8 @@
         "R-09",
         "R-14",
         "R-20",
-        "R-22"
+        "R-21",
+        "R-23"
       ]
     },
     {
@@ -1890,8 +1966,9 @@
         "R-12",
         "R-14",
         "R-20",
-        "R-22",
-        "R-23"
+        "R-21",
+        "R-23",
+        "R-24"
       ]
     },
     {
@@ -1912,8 +1989,9 @@
         "R-17",
         "R-19",
         "R-20",
-        "R-22",
-        "R-23"
+        "R-21",
+        "R-23",
+        "R-24"
       ]
     },
     {
@@ -1933,9 +2011,10 @@
         "R-10",
         "R-14",
         "R-20",
-        "R-22",
+        "R-21",
         "R-23",
-        "R-25"
+        "R-24",
+        "R-26"
       ]
     },
     {
@@ -1958,7 +2037,8 @@
         "R-14",
         "R-19",
         "R-20",
-        "R-22"
+        "R-21",
+        "R-23"
       ]
     },
     {
@@ -1978,7 +2058,8 @@
         "R-10",
         "R-19",
         "R-20",
-        "R-22"
+        "R-21",
+        "R-23"
       ]
     },
     {
@@ -2000,7 +2081,8 @@
         "R-10",
         "R-19",
         "R-20",
-        "R-22"
+        "R-21",
+        "R-23"
       ]
     },
     {
@@ -2020,7 +2102,8 @@
         "R-10",
         "R-19",
         "R-20",
-        "R-22"
+        "R-21",
+        "R-23"
       ]
     },
     {
@@ -2040,7 +2123,8 @@
         "R-10",
         "R-19",
         "R-20",
-        "R-22"
+        "R-21",
+        "R-23"
       ]
     },
     {
@@ -2060,7 +2144,8 @@
         "R-10",
         "R-19",
         "R-20",
-        "R-22"
+        "R-21",
+        "R-23"
       ]
     },
     {
@@ -2081,8 +2166,9 @@
         "R-10",
         "R-19",
         "R-20",
-        "R-22",
-        "R-25"
+        "R-21",
+        "R-23",
+        "R-26"
       ]
     },
     {
@@ -2103,8 +2189,9 @@
         "R-10",
         "R-19",
         "R-20",
-        "R-22",
-        "R-25"
+        "R-21",
+        "R-23",
+        "R-26"
       ]
     },
     {
@@ -2125,8 +2212,9 @@
         "R-10",
         "R-19",
         "R-20",
-        "R-22",
-        "R-25"
+        "R-21",
+        "R-23",
+        "R-26"
       ]
     },
     {
@@ -2147,8 +2235,9 @@
         "R-10",
         "R-19",
         "R-20",
-        "R-22",
-        "R-25"
+        "R-21",
+        "R-23",
+        "R-26"
       ]
     },
     {
@@ -2170,8 +2259,9 @@
         "R-17",
         "R-19",
         "R-20",
-        "R-22",
-        "R-23"
+        "R-21",
+        "R-23",
+        "R-24"
       ]
     },
     {
@@ -2193,7 +2283,8 @@
         "R-14",
         "R-19",
         "R-20",
-        "R-22"
+        "R-21",
+        "R-23"
       ]
     },
     {
@@ -2213,9 +2304,10 @@
         "R-17",
         "R-19",
         "R-20",
-        "R-22",
+        "R-21",
         "R-23",
-        "R-26"
+        "R-24",
+        "R-27"
       ]
     },
     {
@@ -2235,10 +2327,11 @@
         "R-17",
         "R-19",
         "R-20",
-        "R-22",
+        "R-21",
         "R-23",
-        "R-25",
-        "R-26"
+        "R-24",
+        "R-26",
+        "R-27"
       ]
     },
     {
@@ -2257,9 +2350,10 @@
         "R-14",
         "R-19",
         "R-20",
-        "R-22",
+        "R-21",
         "R-23",
-        "R-25"
+        "R-24",
+        "R-26"
       ]
     },
     {
@@ -2278,8 +2372,9 @@
         "R-14",
         "R-15",
         "R-20",
-        "R-22",
-        "R-23"
+        "R-21",
+        "R-23",
+        "R-24"
       ]
     },
     {
@@ -2300,9 +2395,10 @@
         "R-10",
         "R-14",
         "R-20",
-        "R-22",
+        "R-21",
         "R-23",
-        "R-26"
+        "R-24",
+        "R-27"
       ]
     },
     {
@@ -2321,9 +2417,10 @@
         "R-09",
         "R-14",
         "R-20",
-        "R-22",
+        "R-21",
         "R-23",
-        "R-28"
+        "R-24",
+        "R-29"
       ]
     },
     {
@@ -2342,9 +2439,10 @@
         "R-14",
         "R-19",
         "R-20",
-        "R-22",
+        "R-21",
         "R-23",
-        "R-31"
+        "R-24",
+        "R-32"
       ]
     },
     {
@@ -2363,10 +2461,11 @@
         "R-14",
         "R-19",
         "R-20",
-        "R-22",
+        "R-21",
         "R-23",
         "R-24",
-        "R-31"
+        "R-25",
+        "R-32"
       ]
     },
     {
@@ -2387,10 +2486,11 @@
         "R-17",
         "R-19",
         "R-20",
-        "R-22",
+        "R-21",
         "R-23",
-        "R-28",
-        "R-30"
+        "R-24",
+        "R-29",
+        "R-31"
       ]
     },
     {
@@ -2409,10 +2509,11 @@
         "R-14",
         "R-19",
         "R-20",
-        "R-22",
+        "R-21",
         "R-23",
         "R-24",
-        "R-31"
+        "R-25",
+        "R-32"
       ]
     },
     {
@@ -2432,9 +2533,10 @@
         "R-17",
         "R-19",
         "R-20",
-        "R-22",
+        "R-21",
         "R-23",
-        "R-28"
+        "R-24",
+        "R-29"
       ]
     },
     {
@@ -2457,8 +2559,9 @@
         "R-14",
         "R-19",
         "R-20",
-        "R-22",
-        "R-23"
+        "R-21",
+        "R-23",
+        "R-24"
       ]
     },
     {
@@ -2479,12 +2582,12 @@
         "R-17",
         "R-19",
         "R-20",
-        "R-22",
+        "R-21",
         "R-23",
-        "R-28"
+        "R-24",
+        "R-29"
       ]
     }
   ],
-  "guidance_revision": "2026-09-30"
+  "guidance_revision": "2026-10-01"
 }
-

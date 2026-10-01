@@ -1,6 +1,6 @@
 import { LEGACY_RUBRIC_REVISION } from "./rubricCatalog";
 
-export const CURRENT_RUBRIC_REVISION = "2026-09-30";
+export const CURRENT_RUBRIC_REVISION = "2026-10-01";
 export const CURRENT_RUBRIC_CATEGORIES = Object.freeze([
   { key: "property_zoning_rules", label: "Property & Zoning Rules", rubricIds: Object.freeze(["R-01", "R-02", "R-03", "R-04", "R-05", "R-06", "R-07", "R-08"]) },
   { key: "sources_citations", label: "Sources & Citations", rubricIds: Object.freeze(["R-09", "R-10"]) },
