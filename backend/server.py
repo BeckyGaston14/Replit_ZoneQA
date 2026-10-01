@@ -3441,6 +3441,14 @@ def _bassett_scenario_test_type(scenario):
     return str(raw)
 
 
+BASSETT_SCENARIO_TYPES = (
+    "Analysis",
+    "Document Handling",
+    "General Research",
+    "Municipal Research",
+)
+
+
 def _record_scenario_ids(record, *, include_turns=False):
     """Return each scenario linked to a run, with the primary scenario first."""
     if not isinstance(record, dict):
@@ -9291,6 +9299,13 @@ async def analytics_coverage(user=Depends(get_current_user), scope: str = "both"
         } for value in values]
 
     workflow_stages = bassett_rows("workflow_stage", ["Research", "Analysis"])
+    observed_test_types = {
+        _bassett_scenario_test_type(scenario) for scenario in scenarios
+    }
+    scenario_test_types = [
+        *BASSETT_SCENARIO_TYPES,
+        *sorted(observed_test_types - set(BASSETT_SCENARIO_TYPES)),
+    ]
     test_types = [{
         "value": value,
         "tests": len([
@@ -9302,12 +9317,27 @@ async def analytics_coverage(user=Depends(get_current_user), scope: str = "both"
             if _bassett_scenario_test_type(scenario) == value
             and scenario.get("id") in evaluated_scenarios
         ]),
-    } for value in ["Research", "Analysis", "Document Handling"]]
+    } for value in scenario_test_types]
+    rubric_categories = []
+    for category in RUBRIC_CATALOG_CATEGORIES:
+        category_rubric_ids = set(category.get("rubric_ids") or [])
+        matching = [
+            scenario for scenario in scenarios
+            if category_rubric_ids.intersection(normalize_rubric_ids(scenario.get("rubric_ids")))
+        ]
+        rubric_categories.append({
+            "value": category["name"],
+            "tests": len(matching),
+            "evaluated": len([
+                scenario for scenario in matching
+                if scenario.get("id") in evaluated_scenarios
+            ]),
+        })
     complexities = bassett_rows("complexity", ["Low", "Moderate", "High", "Very High"])
     priorities = bassett_rows("priority", ["P0 - Immediate", "P1 - High", "P2 - Medium", "P3 - Low"])
     bassett_gaps = sum(
         row["tests"] > 0 and row["evaluated"] == 0
-        for rows in (test_types, complexities, priorities)
+        for rows in (test_types, rubric_categories, complexities, priorities)
         for row in rows
     )
     comparison_summary = {
@@ -9324,6 +9354,7 @@ async def analytics_coverage(user=Depends(get_current_user), scope: str = "both"
     coverage_evidence = evidence_status(selected_evaluated)
     return {"municipalities": municipalities, "categories": categories, "criticality": criticality,
             "workflow_stages": workflow_stages, "test_types": test_types,
+            "rubric_categories": rubric_categories,
             "complexities": complexities, "priorities": priorities,
             "report_scope": scope, "population_counts": {"bassett_only": bassett_summary, "model_comparison": comparison_summary},
             "summary": {"total_tests": selected_total, "evaluated_tests": selected_evaluated,

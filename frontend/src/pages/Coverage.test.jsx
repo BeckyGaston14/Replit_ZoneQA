@@ -16,7 +16,12 @@ test.each([
 });
 
 test("current Test Types take precedence over legacy workflow-stage groupings", () => {
-  const current = [{ value: "Research", tests: 46 }, { value: "Analysis", tests: 29 }, { value: "Document Handling", tests: 25 }];
+  const current = [
+    { value: "Analysis", tests: 30 },
+    { value: "Document Handling", tests: 19 },
+    { value: "General Research", tests: 35 },
+    { value: "Municipal Research", tests: 10 },
+  ];
   const legacy = [{ value: "Research", tests: 46 }, { value: "Analysis", tests: 54 }];
   expect(bassettCoverageTypes({ test_types: current, workflow_stages: legacy })).toEqual(current);
   expect(bassettCoverageTypes({ workflow_stages: legacy })).toEqual(legacy);

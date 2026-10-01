@@ -1074,6 +1074,44 @@ def test_coverage_does_not_count_unrepresented_buckets_as_gaps(monkeypatch):
     assert result["summary"]["gap_count"] == 0
 
 
+def test_coverage_uses_current_test_bank_scenario_types(monkeypatch):
+    scenario_counts = {
+        "Analysis": 2,
+        "Document Handling": 1,
+        "General Research": 3,
+        "Municipal Research": 1,
+    }
+    scenarios = []
+    for test_type, count in scenario_counts.items():
+        scenarios.extend({
+            "id": f"{test_type}-{index}",
+            "test_type": test_type,
+            "complexity": "Moderate",
+            "priority": "P2 - Medium",
+        } for index in range(count))
+    rows = {
+        "testcases": [], "municipalities": [], "evaluations": [], "test_runs": [],
+        "config": [{"id": "global", "categories": [], "criticality": {}}],
+        "bassett_scenarios": scenarios, "bassett_issues": [], "bassett_executions": [],
+    }
+    monkeypatch.setattr(server, "db", Db(rows))
+
+    async def fake_crud_list(collection, query=None):
+        return [dict(row) for row in rows.get(collection, [])]
+
+    monkeypatch.setattr(server, "crud_list", fake_crud_list)
+    result = asyncio.run(server.analytics_coverage(
+        {"id": "viewer", "role": "viewer"}, scope="bassett"
+    ))
+
+    assert [row["value"] for row in result["test_types"]] == list(server.BASSETT_SCENARIO_TYPES)
+    assert {row["value"]: row["tests"] for row in result["test_types"]} == scenario_counts
+    assert "Research" not in {row["value"] for row in result["test_types"]}
+    assert [row["value"] for row in result["rubric_categories"]] == [
+        category["name"] for category in server.RUBRIC_CATALOG_CATEGORIES
+    ]
+
+
 def test_performance_and_coverage_scope_include_standalone_bassett_runs(monkeypatch):
     rows = {
         "testcases": [], "evaluations": [], "test_runs": [], "municipalities": [],

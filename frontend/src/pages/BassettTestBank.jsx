@@ -299,7 +299,7 @@ export default function BassettTestBank() {
   const scenarioDirty = Boolean(form && scenarioBaseline.current && JSON.stringify(form) !== JSON.stringify(scenarioBaseline.current));
 
   return <div>
-    <PageHeader title="Bassett Test Bank" subtitle="Bassett-only Research, Analysis, and Document Handling scenarios with explicit success criteria and Bassett test run history. Pass test runs are not findings.">
+    <PageHeader title="Bassett Test Bank" subtitle="Bassett-only Analysis, Document Handling, General Research, and Municipal Research scenarios with explicit success criteria and Bassett test run history. Pass test runs are not findings.">
       {canManage && <Button variant="outline" onClick={() => setShowImport(true)}><FileInput /> Import CSV</Button>}
       <Button variant="outline" onClick={exportCsv}><FileOutput /> Export CSV</Button>
       <Button variant="outline" aria-pressed={showArchived} onClick={() => setShowArchived((value) => !value)}>{showArchived ? "Active scenarios" : "Archived scenarios"}</Button>

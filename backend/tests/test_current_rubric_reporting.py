@@ -177,8 +177,9 @@ def test_standalone_bassett_release_scoring_uses_current_rubric():
     assert len(scored["category_scores"]) == 5
 
 
-def test_scenario_test_type_preserves_document_handling():
-    assert server._bassett_scenario_test_type({"test_type": "General Research"}) == "Research"
+def test_scenario_test_type_preserves_current_test_bank_types():
+    assert server._bassett_scenario_test_type({"test_type": "General Research"}) == "General Research"
+    assert server._bassett_scenario_test_type({"test_type": "Municipal Research"}) == "Municipal Research"
     assert server._bassett_scenario_test_type({"test_type": "Analysis"}) == "Analysis"
     assert server._bassett_scenario_test_type({"test_type": "Document Handling"}) == "Document Handling"
 
