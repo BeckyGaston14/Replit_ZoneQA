@@ -1,6 +1,9 @@
 import { formatTestDate } from "./testDates";
 
+export const COUNTRY_FIELD = { key: "country", label: "Country", type: "select", options: ["USA", "Canada"], defaultValue: "USA" };
+
 export const MUNICIPALITY_ADD_FIELDS = [
+  COUNTRY_FIELD,
   { key: "name", label: "Municipality" },
   { key: "state", label: "State / Province", type: "select", configKey: "jurisdiction_regions" },
 ];
@@ -80,12 +83,14 @@ export const MUNICIPALITY_SCHEMA = {
   singular: "Municipality",
   subtitle: "Reusable jurisdiction records — knowledge hub per municipality.",
   collection: "municipalities",
+  initial: { country: "USA" },
   newLabel: "New Municipality",
   parentLifecycle: true,
   dateRanges: [{ start: "code_effective_date", end: "latest_amendment_date", startLabel: "Code Effective Date", endLabel: "Latest Known Amendment Date" }],
   columns: [
     { key: "name", label: "Municipality", type: "text", render: (row) => nameCell(row.name) },
     { key: "state", label: "State / Province" },
+    { key: "country", label: "Country" },
     { key: "county", label: "County" },
     { key: "muni_type", label: "Type" },
     { key: "primary_code", label: "Primary Code" },
@@ -94,6 +99,7 @@ export const MUNICIPALITY_SCHEMA = {
   ],
   fields: [
     { key: "name", label: "Municipality", required: true },
+    COUNTRY_FIELD,
     { key: "state", label: "State / Province", type: "select", configKey: "jurisdiction_regions", required: true },
     { key: "county", label: "County" },
     { key: "muni_type", label: "Type", type: "select", configKey: "municipality_types" },
@@ -115,6 +121,7 @@ export const PROPERTY_SCHEMA = {
   emptyActionLabel: "Create a property record.",
   subtitle: "Property-specific testing records.",
   collection: "properties",
+  initial: { country: "USA" },
   parentLifecycle: true,
   columns: [
     { key: "name", label: "Property", render: (row) => nameCell(row.name) },
@@ -125,6 +132,7 @@ export const PROPERTY_SCHEMA = {
   fields: [
     { key: "name", label: "Property Name", required: true, col: 2 },
     { key: "address", label: "Address", required: true, col: 2 },
+    COUNTRY_FIELD,
     { key: "municipality_id", label: "Municipality", required: true, ...municipalityRelation },
     { key: "property_type", label: "Property Type", type: "select", options: ["Commercial", "Residential", "Industrial", "Mixed-Use", "Vacant Land", "Agricultural"] },
     { key: "apn", label: "Parcel / APN" },

@@ -6,6 +6,7 @@ import { useConfig } from "../lib/hooks";
 import { useSavedView } from "../lib/savedViews";
 import { useAuth } from "../lib/auth";
 import { PageHeader, CritBadge, MethodologyDisclosure, Section, StatCard } from "../components/shared";
+import { FINDING_WORKFLOW_LABELS, workflowStatusLabel } from "../lib/workflowStatuses";
 import { FINDING_STATUSES, StatusBadge } from "../lib/statusMaps";
 import { Attachments } from "../components/Attachments";
 import { CommentsThread } from "../components/CommentsThread";
@@ -23,11 +24,7 @@ import { FindingsCrossNavigation } from "../components/FindingsCrossNavigation";
 
 const ALL = "__all";
 const DEFAULT_FILTERS = { status: ALL, criticality: ALL, type: ALL, retest: ALL, version: ALL };
-const PERSONAL_FINDING_STATUS_LABELS = {
-  New: "Not Yet Reviewed", Confirmed: "Reviewing", "Needs Investigation": "Reviewing",
-  Planned: "Reported to Development", "In Development": "Reported to Development",
-  "Ready for Retest": "Ready to Retest", Fixed: "Resolved", Closed: "Closed", "Won't Fix": "Closed", Duplicate: "Closed",
-};
+const PERSONAL_FINDING_STATUS_LABELS = FINDING_WORKFLOW_LABELS;
 const PERSONAL_FINDING_STATUSES = Object.fromEntries(Object.entries(FINDING_STATUSES).map(([value, definition]) => [value, {
   ...definition,
   label: PERSONAL_FINDING_STATUS_LABELS[value] || value,
@@ -161,7 +158,7 @@ export default function Findings() {
   const shown = findings.filter((f) =>
     (testcaseFilter === ALL || f.testcase_id === testcaseFilter) &&
     (projectFilter === ALL || f.project_id === projectFilter) &&
-    (flt.status === ALL || f.developer_status === flt.status) &&
+    (flt.status === ALL || workflowStatusLabel(f.developer_status) === workflowStatusLabel(flt.status)) &&
     (flt.criticality === ALL || String(f.criticality) === flt.criticality) &&
     (flt.type === ALL || f.finding_type === flt.type) &&
     (flt.retest === ALL || (f.retest_status || "Pending") === flt.retest) &&
@@ -221,7 +218,7 @@ export default function Findings() {
               <Search size={15} className="absolute left-3 top-2.5 text-muted-foreground" />
               <Input aria-label="Search model comparison findings" className="pl-9 h-9" placeholder="Search finding, type, version, assignee…" value={search} onChange={(event) => setSearch(event.target.value)} />
             </div>
-            {[["status", config?.finding_statuses, "All finding statuses"], ["criticality", SEVERITY_LABELS.map((label, index) => ({ value: String(index + 1), label })), "All severity"]].map(([key, opts, label]) => (
+            {[["status", config?.finding_statuses, "All workflow statuses"], ["criticality", SEVERITY_LABELS.map((label, index) => ({ value: String(index + 1), label })), "All severity"]].map(([key, opts, label]) => (
               <select key={key} value={flt[key]} onChange={(e) => setFilter(key, e.target.value)} data-testid={`filter-${key}`}
                 className="h-9 text-sm border rounded-md px-3 bg-background text-[var(--navy)]">
                 <option value={ALL}>{label}</option>
@@ -344,7 +341,7 @@ export default function Findings() {
 
       {statusForm && (
         <FormModal open onOpenChange={() => setStatusForm(null)} title="Update Developer Status" onSubmit={saveStatus} submitLabel={submitting ? "Saving…" : "Save Status"}>
-          <Field label="Status"><ListSelect options={config?.finding_statuses} value={statusForm.status} onChange={(v) => setStatusForm({ ...statusForm, status: v })} testid="status-select" /></Field>
+          <Field label="Workflow status"><ListSelect options={config?.finding_statuses} value={workflowStatusLabel(statusForm.status)} onChange={(v) => setStatusForm({ ...statusForm, status: v })} testid="status-select" /></Field>
           <Field label="Resolution"><Textarea rows={3} value={statusForm.resolution} onChange={(e) => setStatusForm({ ...statusForm, resolution: e.target.value })} /></Field>
           <Field label="Note (added to history)"><Textarea rows={2} value={statusForm.note} onChange={(e) => setStatusForm({ ...statusForm, note: e.target.value })} /></Field>
         </FormModal>

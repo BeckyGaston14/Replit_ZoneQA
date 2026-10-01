@@ -201,6 +201,9 @@ export default function ResourceList({ title, subtitle, collection, columns, fie
   };
   const set = (k, v) => {
     setForm((f) => ({ ...f, [k]: v }));
+    if (collection === "properties" && k === "municipality_id" && v) {
+      api.get(`/municipalities/${v}`).then(({ data }) => setForm(current => current.municipality_id === v ? { ...current, country: data.country || "USA" } : current)).catch(() => {});
+    }
     setFormErrors((errors) => {
       if (!errors[k]) return errors;
       const next = { ...errors };

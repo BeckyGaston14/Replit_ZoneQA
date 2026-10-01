@@ -5,6 +5,7 @@ load_dotenv(ROOT_DIR / '.env')
 
 import os, uuid, logging, json, re, hashlib, hmac, secrets, ipaddress, csv, io, base64, math, time, traceback, unicodedata
 from collections import Counter
+from address_regions import CA_REGIONS, full_region, address_fields
 from contextvars import ContextVar
 from functools import cmp_to_key
 from urllib.parse import urlsplit
@@ -339,7 +340,7 @@ def _normalize_municipality_part(value):
 
 
 def _municipality_key(name, state):
-    return (_normalize_municipality_part(name), _normalize_municipality_part(state))
+    return (_normalize_municipality_part(name), _normalize_municipality_part(full_region(state)))
 
 
 async def _normalize_property_identity(document):
@@ -369,11 +370,13 @@ async def _normalize_property_identity(document):
             if municipality:
                 municipality_id = municipality.get("id")
     fields, identity = canonical_property_identity(normalized, municipality)
+    if not normalized.get("country") and municipality:
+        normalized["country"] = address_fields(municipality)["country"]
     for key, value in fields.items():
         if value not in (None, ""):
             normalized.setdefault(key, value)
     normalized["property_duplicate_key"] = "|".join(identity)
-    return normalized
+    return address_fields(normalized)
 
 
 async def _validate_unique_property(document, *, exclude_id=None):
@@ -1924,6 +1927,8 @@ async def crud_list(coll, filt=None, include_archived=False, include_sample=None
         filt = {**filt, "archived": {"$ne": True}}
     docs = await db[coll].find(filt, {"_id": 0}).to_list(5000)
     docs = _filter_sample_scope(coll, docs, include_sample)
+    if coll in ("municipalities", "properties"):
+        docs = [address_fields(doc) for doc in docs]
     if coll == "findings":
         docs = [_canonicalize_finding_severity(doc) for doc in docs]
     if coll == "projects":
@@ -1937,6 +1942,8 @@ async def crud_get(coll, id, include_sample=None):
         raise HTTPException(404, f"{coll} not found")
     if not _filter_sample_scope(coll, [doc], include_sample):
         raise HTTPException(404, f"{coll} not found")
+    if coll in ("municipalities", "properties"):
+        doc = address_fields(doc)
     if coll == "findings":
         doc = _canonicalize_finding_severity(doc)
     if coll == "projects":
@@ -2174,6 +2181,7 @@ async def crud_create(coll, body, user):
             [run_id for run_id in [primary_run_id, *(doc.get("linked_test_run_ids") or [])] if run_id]
         ))
     if coll == "municipalities":
+        doc = address_fields(doc)
         await _validate_unique_municipality(doc)
     if coll == "properties":
         doc = await _normalize_property_identity(doc)
@@ -2186,7 +2194,7 @@ async def crud_create(coll, body, user):
     elif coll in ("findings", "bassett_issues"):
         doc["severity"], doc["criticality"] = _canonical_severity_pair()
     if coll == "evaluations" and "final_result" in doc:
-        doc["final_result"] = normalize_evaluation_result(doc.get("final_result"))
+        doc["final_result"] = await _validate_configured_result(doc.get("final_result"))
     if coll == "models":
         if user.get("role") not in ("admin", "qa_manager"):
             raise HTTPException(403, "Only administrators and QA managers can manage models")
@@ -2303,6 +2311,7 @@ async def crud_update(coll, id, body, user):
     if not existing_for_references:
         raise HTTPException(404, "Not found")
     if coll == "municipalities":
+        body = address_fields({**existing_for_references, **body})
         await _validate_unique_municipality(
             {**existing_for_references, **body}, exclude_id=id,
         )
@@ -2341,7 +2350,7 @@ async def crud_update(coll, id, body, user):
         _prepare_project_completion_input(body, existing_for_references)
     if coll == "evaluations":
         if "final_result" in body:
-            body["final_result"] = normalize_evaluation_result(body.get("final_result"))
+            body["final_result"] = await _validate_configured_result(body.get("final_result"))
         await _apply_authoritative_evaluation_fields(body, existing_for_references)
     await _validate_user_references(coll, body, existing_for_references)
     if coll != "testcases":
@@ -2562,7 +2571,7 @@ async def _prepare_comparison_workflow(
     response_input = body.get("responses") if isinstance(body.get("responses"), dict) else {}
     evaluation_input = body.get("evaluations") if isinstance(body.get("evaluations"), dict) else {}
     configured = await db.config.find_one({"id": "global"}, {"_id": 0}) or DEFAULT_CONFIG
-    allowed_results = set(CANONICAL_EVALUATION_RESULTS)
+    allowed_results = set(configured.get("pass_results") or CANONICAL_EVALUATION_RESULTS)
     scenario_rubric_ids = await _normalize_current_rubric_ids(scenario.get("rubric_ids"))
     requested_rubric_ids = body.get(
         "selected_rubric_ids", testcase.get("selected_rubric_ids", scenario_rubric_ids)
@@ -2616,7 +2625,7 @@ async def _prepare_comparison_workflow(
         if model == "Bassett" and not final_result:
             final_result = testcase.get("result")
         final_result = final_result or authoritative["system_recommended"] or "Not Evaluated"
-        final_result = normalize_evaluation_result(final_result)
+        final_result = str(final_result).strip()
         if final_result not in allowed_results:
             raise HTTPException(400, detail={"evaluations": f"Invalid {model} evaluation result"})
         evaluations.append({
@@ -3325,7 +3334,7 @@ async def _configured_bassett_issue_statuses():
         await config_collection.find_one({"id": "global"}, {"_id": 0})
         if config_collection is not None else None
     ) or DEFAULT_CONFIG
-    values = config.get("bassett_workflow_statuses") or list(BASSETT_DEFAULT_WORKFLOW_STATUSES)
+    values = _workflow_options(config)
     return tuple(dict.fromkeys(str(value).strip() for value in values if str(value).strip()))
 
 
@@ -3657,7 +3666,7 @@ def _decorate_bassett_execution(execution):
     execution.update(_bassett_result_details(execution.get("result")))
     return execution
 
-def _normalize_bassett_turns(doc):
+def _normalize_bassett_turns(doc, allowed_results=None):
     """Validate and normalize structured conversation turns.
 
     Turn IDs are intentionally client-stable when supplied, but are generated
@@ -3710,7 +3719,7 @@ def _normalize_bassett_turns(doc):
             raise HTTPException(400, f"Turn {index} citations must be a list")
         scenario_id = str(raw.get("scenario_id") or "").strip()
         turn_result = str(raw.get("result") or "").strip()
-        if turn_result and turn_result not in BASSETT_CANONICAL_RESULTS:
+        if turn_result and turn_result not in (allowed_results or BASSETT_CANONICAL_RESULTS):
             raise HTTPException(400, f"Turn {index} has an invalid evaluation result")
         turn = {
             "id": turn_id,
@@ -3757,8 +3766,8 @@ def _bassett_has_structured_transcript(doc):
     )
 
 
-def _validate_issue_required(doc, has_conversation_attachment=False):
-    _normalize_bassett_turns(doc)
+def _validate_issue_required(doc, has_conversation_attachment=False, allowed_results=None):
+    _normalize_bassett_turns(doc, allowed_results=allowed_results)
     conversation_source = str(doc.get("conversation_source") or "structured_text").strip()
     if conversation_source not in ("structured_text", "uploaded_conversation"):
         raise HTTPException(400, "Conversation source must be structured text or uploaded conversation")
@@ -3782,7 +3791,7 @@ def _validate_issue_required(doc, has_conversation_attachment=False):
             raise HTTPException(400, f"{label} is required")
 
 
-def _validate_issue_required_update(existing, merged, has_conversation_attachment=False):
+def _validate_issue_required_update(existing, merged, has_conversation_attachment=False, allowed_results=None):
     """Validate an edit without making legacy omissions block unrelated work.
 
     A populated required value still cannot be cleared. Records created before a
@@ -3812,7 +3821,7 @@ def _validate_issue_required_update(existing, merged, has_conversation_attachmen
         return
     if merged.get("test_type") == "Multi-turn":
         try:
-            _normalize_bassett_turns(merged)
+            _normalize_bassett_turns(merged, allowed_results=allowed_results)
         except HTTPException:
             if existing.get("test_type") != "Multi-turn" or existing.get("turns") != merged.get("turns"):
                 raise
@@ -3878,13 +3887,15 @@ def _canonicalize_bassett_version_record(record, versions):
     return normalized
 
 
-def _validate_bassett_run_result(doc, allow_legacy=False):
-    allowed = BASSETT_RESULTS if allow_legacy else BASSETT_CANONICAL_RESULTS
+def _validate_bassett_run_result(doc, allow_legacy=False, allowed_results=None):
+    allowed = tuple(allowed_results or BASSETT_CANONICAL_RESULTS)
+    if allow_legacy:
+        allowed = tuple(dict.fromkeys((*allowed, *BASSETT_RESULTS)))
     result = str(doc.get("result") or "Not Evaluated")
     if result not in allowed:
         raise HTTPException(
             400,
-            "Bassett test result must be Pass, Pass with Minor Issues, Needs Improvement, Fail, Critical Fail, or Not Evaluated",
+            "Choose an Evaluation Result configured in Administration",
         )
     score = doc.get("score")
     if score in (None, ""):
@@ -4600,8 +4611,8 @@ async def bassett_create_issue(body: Dict[str, Any], user=Depends(get_current_us
     doc["status"] = _canonical_bassett_issue_status(
         doc.get("status"), default="Not Started"
     )
-    _validate_issue_required(doc)
-    _validate_bassett_run_result(doc)
+    _validate_issue_required(doc, allowed_results=await _configured_evaluation_results())
+    _validate_bassett_run_result(doc, allowed_results=await _configured_evaluation_results())
     _validate_bassett_version_requirement(doc)
     await _validate_configured_environment(doc)
     await _validate_bassett_issue_status(doc.get("status"))
@@ -4709,14 +4720,14 @@ async def _prepare_bassett_workflow_document(body: Dict[str, Any], user: Dict[st
     doc["status"] = _canonical_bassett_issue_status(
         doc.get("status"), default="Not Started"
     )
-    _normalize_bassett_turns(doc)
+    _normalize_bassett_turns(doc, allowed_results=await _configured_evaluation_results())
     doc["test_date"] = _validate_test_date(doc.get("test_date"))
     if doc.get("retest_date"):
         doc["retest_date"] = _validate_test_date(
             doc.get("retest_date"), required=False, field_name="Retest target date"
         )
-    _validate_issue_required(doc, has_conversation_attachment=has_conversation_attachment)
-    _validate_bassett_run_result(doc)
+    _validate_issue_required(doc, has_conversation_attachment=has_conversation_attachment, allowed_results=await _configured_evaluation_results())
+    _validate_bassett_run_result(doc, allowed_results=await _configured_evaluation_results())
     await _validate_bassett_issue_status(doc.get("status"))
     project, testcase = await _validate_bassett_refs(doc, require_scenario=True)
     await _validate_bassett_turn_refs(doc)
@@ -5213,6 +5224,7 @@ async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_c
         existing,
         merged,
         has_conversation_attachment=bool(existing_attachment_count or body.get("pending_attachment_count")),
+        allowed_results=await _configured_evaluation_results(),
     )
     # _validate_issue_required normalizes compatibility mirrors on the merged
     # document; carry those normalized values into the persisted update too.
@@ -5223,7 +5235,7 @@ async def bassett_update_issue(id: str, body: Dict[str, Any], user=Depends(get_c
     elif "test_type" in incoming and merged.get("test_type") == "Single Prompt":
         incoming["test_type"] = "Single Prompt"
         incoming["turns"] = []
-    _validate_bassett_run_result(merged, allow_legacy=True)
+    _validate_bassett_run_result(merged, allow_legacy=True, allowed_results=await _configured_evaluation_results())
     try:
         _validate_bassett_version_requirement(merged)
     except HTTPException:
@@ -5386,13 +5398,13 @@ async def bassett_link_finding(id: str, body: Dict[str, Any], user=Depends(get_c
     updated = await db.bassett_issues.find_one_and_update({"id": id}, {"$set": {
         "finding_id": issue.get("finding_id") or finding["id"],
         "finding_ids": existing_finding_ids,
-        "finding_turn_id": issue.get("finding_turn_id") or turn_id or None,
+        "finding_turn_id": (turn_id or issue.get("finding_turn_id") or None) if issue.get("finding_id") in (None, "", finding["id"]) else issue.get("finding_turn_id"),
         "updated_at": now_iso()
     }}, return_document=True)
     await db.findings.update_one({"id": finding["id"]}, {"$set": {
         "bassett_issue_id": existing_issue_id or id,
         "linked_test_run_ids": linked_run_ids,
-        "bassett_turn_id": finding.get("bassett_turn_id") or turn_id or None,
+        "bassett_turn_id": (turn_id or finding.get("bassett_turn_id") or None) if existing_issue_id in (None, "", id) else finding.get("bassett_turn_id"),
         "updated_at": now_iso(),
     }})
     await _bassett_history("issue", id, "linked_finding", user, {"finding_id": finding["id"]})
@@ -5570,7 +5582,7 @@ async def _save_rubric_catalog(items, user, id_mapping=None):
     return normalized
 
 
-R21_SCENARIO_BACKFILL_MARKER = f"{CATALOG_REVISION}:all-current-scenarios"
+R21_SCENARIO_BACKFILL_MARKER = f"{CATALOG_REVISION}:all-active-scenarios-v2"
 
 
 async def _ensure_r21_on_current_scenarios():
@@ -5579,12 +5591,12 @@ async def _ensure_r21_on_current_scenarios():
     if config.get("scenario_r21_backfill_revision") == R21_SCENARIO_BACKFILL_MARKER:
         return {"updated": 0, "already_applied": True}
 
-    scenarios = await db.bassett_scenarios.find(
-        {"catalog_revision": CATALOG_REVISION}, {"_id": 0}
-    ).to_list(10000)
+    scenarios = await db.bassett_scenarios.find({}, {"_id": 0}).to_list(10000)
     updated = 0
     timestamp = now_iso()
     for scenario in scenarios:
+        if scenario.get("archived") is True:
+            continue
         rubric_ids = normalize_rubric_ids(scenario.get("rubric_ids"))
         if "R-21" in rubric_ids:
             continue
@@ -6593,12 +6605,13 @@ async def _bassett_import_preview(resource, rows):
             if (
                 existing_issue and supplied_result
                 and supplied_result != str(existing_issue.get("result") or "")
-                and supplied_result not in BASSETT_CANONICAL_RESULTS
+                and supplied_result not in await _configured_evaluation_results()
             ):
                 errors.append("A replacement result must use the canonical result vocabulary")
             try:
                 _validate_bassett_run_result(
                     candidate,
+                    allowed_results=await _configured_evaluation_results(),
                     allow_legacy=bool(
                         existing_issue and (
                             not supplied_result
@@ -6699,10 +6712,10 @@ async def bassett_csv_import(resource: str, body: Dict[str, Any], user=Depends(g
                 document["severity"], document["criticality"] = _canonical_severity_pair(
                     document.get("severity"), document.get("criticality")
                 )
-                _validate_issue_required(document)
+                _validate_issue_required(document, allowed_results=await _configured_evaluation_results())
                 if document.get("scenario_id") != existing.get("scenario_id"):
                     raise HTTPException(409, "A test run's Test Bank scenario link is immutable")
-                _validate_bassett_run_result(document, allow_legacy=True)
+                _validate_bassett_run_result(document, allow_legacy=True, allowed_results=await _configured_evaluation_results())
                 await _validate_bassett_issue_status(document.get("status"))
                 await _validate_bassett_refs(document)
                 operations.append((True, document))
@@ -6713,8 +6726,8 @@ async def bassett_csv_import(resource: str, body: Dict[str, Any], user=Depends(g
                 document.get("severity"), document.get("criticality")
             )
             document["test_date"] = _validate_test_date(document.get("test_date"))
-            _validate_issue_required(document)
-            _validate_bassett_run_result(document)
+            _validate_issue_required(document, allowed_results=await _configured_evaluation_results())
+            _validate_bassett_run_result(document, allowed_results=await _configured_evaluation_results())
             await _validate_bassett_issue_status(document.get("status"))
             await _validate_bassett_refs(document, require_scenario=True)
             document.update({
@@ -7094,18 +7107,43 @@ def _finding_is_open(finding):
 
 async def _configured_finding_statuses():
     config = await db.config.find_one({"id": "global"}, {"_id": 0}) or DEFAULT_CONFIG
-    return config.get("finding_statuses") or DEFAULT_CONFIG["finding_statuses"]
+    return _workflow_options(config)
+
+WORKFLOW_OPTIONS = ["Not Started", "In Review", "Engineering", "Ready for Retesting", "Closed / Resolved"]
+FINDING_WORKFLOW_LABELS = {
+    "New": "Not Started", "Confirmed": "In Review", "Needs Investigation": "In Review",
+    "Planned": "Engineering", "In Development": "Engineering",
+    "Ready for Retest": "Ready for Retesting", "Fixed": "Closed / Resolved",
+    "Closed": "Closed / Resolved", "Won't Fix": "Closed / Resolved", "Duplicate": "Closed / Resolved",
+}
+FINDING_WORKFLOW_STORAGE = dict(zip(WORKFLOW_OPTIONS, ["New", "Confirmed", "In Development", "Ready for Retest", "Closed"]))
+
+def _workflow_options(config):
+    if not config.get("shared_workflow_lookup_v1"):
+        return list(WORKFLOW_OPTIONS)
+    return config.get("finding_statuses") or list(WORKFLOW_OPTIONS)
+
+async def _configured_evaluation_results():
+    config = await db.config.find_one({"id": "global"}, {"_id": 0}) or DEFAULT_CONFIG
+    return config.get("pass_results") or list(CANONICAL_EVALUATION_RESULTS)
+
+async def _validate_configured_result(value):
+    value = str(value or "Not Evaluated").strip()
+    if value not in await _configured_evaluation_results():
+        raise HTTPException(400, "Choose an Evaluation Result configured in Administration")
+    return value
 
 def _validate_finding_status(status, allowed_statuses):
     if not isinstance(status, str) or not status.strip():
         raise HTTPException(400, "status is required")
     normalized = status.strip()
-    if normalized not in allowed_statuses:
+    label = FINDING_WORKFLOW_LABELS.get(normalized, normalized)
+    if normalized not in allowed_statuses and label not in allowed_statuses:
         raise HTTPException(400, "Invalid finding status")
-    return normalized
+    return FINDING_WORKFLOW_STORAGE.get(normalized, normalized)
 
 def _require_retest_target_status(status, allowed_statuses):
-    if status not in allowed_statuses:
+    if status not in allowed_statuses and FINDING_WORKFLOW_LABELS.get(status, status) not in allowed_statuses:
         raise HTTPException(
             409,
             f"Retest verdict requires finding status '{status}', which is not configured",
@@ -7141,6 +7179,8 @@ async def update_finding_status(id: str, body: Dict[str, Any], user=Depends(requ
 async def get_config(user=Depends(get_current_user)):
     doc = await db.config.find_one({"id": "global"}, {"_id": 0})
     doc = doc or {}
+    doc["finding_statuses"] = _workflow_options(doc)
+    doc["bassett_workflow_statuses"] = doc["finding_statuses"]
     if "bassett_workflow_stages" in doc:
         doc["bassett_workflow_stages"] = _normalize_bassett_config_stages(
             doc["bassett_workflow_stages"]
@@ -7183,6 +7223,15 @@ async def update_config(body: Dict[str, Any], user=Depends(get_current_user)):
     if user["role"] not in ("admin", "qa_manager"):
         raise HTTPException(403, "Admin only")
     body["id"] = "global"
+    for key in ("pass_results", "finding_statuses"):
+        if key in body:
+            values = body[key]
+            if not isinstance(values, list) or not values or any(not isinstance(v, str) or not v.strip() for v in values):
+                raise HTTPException(400, f"{key} must contain at least one non-empty option")
+            body[key] = list(dict.fromkeys(v.strip() for v in values))
+    if "finding_statuses" in body:
+        body["bassett_workflow_statuses"] = body["finding_statuses"]
+        body["shared_workflow_lookup_v1"] = True
     if "bassett_workflow_stages" in body:
         body["bassett_workflow_stages"] = _normalize_bassett_config_stages(
             body["bassett_workflow_stages"]
@@ -10704,7 +10753,7 @@ RETEST_VERDICTS = ["Fixed", "Partially Fixed", "Not Fixed", "Unable to Verify", 
 VERDICT_TO_FINDING = {"Fixed": "Fixed", "Partially Fixed": "In Development", "Not Fixed": "In Development",
                       "Unable to Verify": "Ready for Retest", "New Regression Introduced": "Confirmed"}
 
-def _validate_retest_completion(body):
+def _validate_retest_completion(body, allowed_results=None):
     """Validate completion evidence before changing either retest or finding."""
     errors = {}
     verdict = body.get("verdict")
@@ -10720,8 +10769,8 @@ def _validate_retest_completion(body):
     if not environment:
         errors["new_environment"] = "is required"
     result = str(body.get("new_result") or "").strip()
-    if result not in (*PASS_SET, *FAIL_SET):
-        errors["new_result"] = "must be a normalized Pass, Pass with Minor Issues, Fail, or Critical Fail result"
+    if result not in (allowed_results or (*PASS_SET, *FAIL_SET)):
+        errors["new_result"] = "must be an Evaluation Result configured in Administration"
     try:
         score = float(body.get("new_score"))
         if score < 0 or score > 10:
@@ -10815,7 +10864,7 @@ async def complete_retest(id: str, body: Dict[str, Any], user=Depends(require_wr
         raise HTTPException(409, "Retest is orphaned: linked finding no longer exists")
     if finding.get("archived") or finding.get("status") == "Archived":
         raise HTTPException(409, "Archived findings are immutable; retests remain historical records")
-    verdict, response, version, environment, new_result, score, completed_at = _validate_retest_completion(body)
+    verdict, response, version, environment, new_result, score, completed_at = _validate_retest_completion(body, allowed_results=await _configured_evaluation_results())
     upd = {"verdict": verdict, "outcome": verdict, "status": "Completed",
            "test_date": _validate_test_date(body.get("test_date")), "retest_date": completed_at,
            "completed_at": completed_at, "reviewer": user["name"],
@@ -11675,8 +11724,7 @@ DEFAULT_CONFIG = {
     "difficulty": {"1": "Basic", "2": "Standard", "3": "Advanced", "4": "Complex", "5": "Expert"},
     "test_statuses": ["Draft", "Ready to Test", "Testing", "Awaiting Evidence", "Ready for Evaluation",
                       "Evaluated", "Retest Required", "Retested", "Closed"],
-    "finding_statuses": ["New", "Confirmed", "Needs Investigation", "Planned", "In Development",
-                         "Ready for Retest", "Fixed", "Won't Fix", "Duplicate", "Closed"],
+    "finding_statuses": list(WORKFLOW_OPTIONS),
     "bassett_workflow_statuses": list(BASSETT_DEFAULT_WORKFLOW_STATUSES),
     "categories": ["Property & Regulatory Identification", "Zoning Code Requirements",
                    "Special Districts / Entitlements", "Municipal Research", "Compliance",
@@ -11853,6 +11901,19 @@ async def startup():
                 patch["bassett_workflow_stages"] = normalized_stages
         if patch:
             await db.config.update_one({"id": "global"}, {"$set": patch})
+    current_config = await db.config.find_one({"id": "global"}, {"_id": 0}) or {}
+    if not current_config.get("address_regions_v1"):
+        regions = [full_region(value) for value in current_config.get("jurisdiction_regions", DEFAULT_CONFIG["jurisdiction_regions"])]
+        regions = list(dict.fromkeys([*regions, *DEFAULT_CONFIG["jurisdiction_regions"], *CA_REGIONS.values()]))
+        await db.config.update_one({"id": "global"}, {"$set": {
+            "jurisdiction_regions": regions, "address_regions_v1": True,
+        }})
+    if not current_config.get("shared_workflow_lookup_v1"):
+        await db.config.update_one({"id": "global"}, {"$set": {
+            "finding_statuses": list(WORKFLOW_OPTIONS),
+            "bassett_workflow_statuses": list(WORKFLOW_OPTIONS),
+            "shared_workflow_lookup_v1": True,
+        }})
     await _ensure_r21_on_current_scenarios()
     await _ensure_default_models()
     # These are system definitions, not client-provided defaults.  Preserve

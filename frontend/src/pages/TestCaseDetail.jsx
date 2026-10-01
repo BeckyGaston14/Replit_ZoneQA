@@ -18,7 +18,7 @@ import { FormModal, Field, ListSelect } from "../components/forms";
 import { ArrowLeft, Plus, Flag, Columns3, Star, Zap, Play, Loader2, Sparkles, CopyPlus, GitBranch, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { RESULT_COLORS } from "../lib/api";
-import { CANONICAL_EVALUATION_RESULTS, normalizeEvaluationResult } from "../lib/evaluationResults";
+import { configuredResultOptions } from "../lib/evaluationResults";
 import { SortableTableHeader } from "../components/SortableTableHeader";
 import { TableSortControls } from "../components/TableSortControls";
 import { TestCaseActions } from "../components/TestCaseActions";
@@ -642,6 +642,7 @@ export default function TestCaseDetail() {
 const RETEST_VERDICTS = ["Fixed", "Partially Fixed", "Not Fixed", "Unable to Verify", "New Regression Introduced"];
 
 function CompleteRetestModal({ rt, setRt, onDone, environments, applicationTimeZone }) {
+  const { data: resultConfig } = useConfig();
   const [f, setF] = useState({ verdict: "Fixed", test_date: todayInTimeZone(applicationTimeZone), new_bassett_version: rt.new_bassett_version || "", new_environment: rt.new_environment || "Staging", new_response: "", new_score: "", new_result: "Pass", notes: "" });
   const set = (k, v) => setF({ ...f, [k]: v });
   const [saving, setSaving] = useState(false);
@@ -667,7 +668,7 @@ function CompleteRetestModal({ rt, setRt, onDone, environments, applicationTimeZ
       <Field label="Bassett Response"><Textarea rows={4} value={f.new_response} onChange={(e) => set("new_response", e.target.value)} data-testid="retest-response" /></Field>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Field label="New Score (0-10)"><ScoreSelect value={f.new_score} onChange={(value) => set("new_score", value ?? "")} testId="retest-score" ariaLabel="New retest score" /></Field>
-        <Field label="New Result"><ListSelect options={["Pass", "Pass with Minor Issues", "Needs Improvement", "Fail", "Critical Fail"]} value={f.new_result} onChange={(v) => set("new_result", v)} /></Field>
+        <Field label="New Result"><ListSelect options={configuredResultOptions(resultConfig)} value={f.new_result} onChange={(v) => set("new_result", v)} /></Field>
       </div>
       <Field label="Notes"><Textarea rows={2} value={f.notes} onChange={(e) => set("notes", e.target.value)} /></Field>
     </FormModal>
@@ -903,7 +904,7 @@ function EvalModal({ data, setData, config, tc, onDone }) {
         <b className="text-indigo-800">System recommends: {calculationPending ? "Calculating…" : calculationError ? "Unavailable" : sysRec}</b>
         <span className="text-xs text-indigo-700 ml-2">{calculationError || (weighted != null ? `weighted score ${weighted}/10` : "no dimensions scored yet")} {!calculationError && "— the reviewer decision below is final."}</span>
       </div>
-      <Field label="Reviewer Final Result"><ListSelect options={CANONICAL_EVALUATION_RESULTS} value={normalizeEvaluationResult(data.final_result)} onChange={(v) => setData({ ...data, final_result: v })} testid="eval-result" /></Field>
+      <Field label="Reviewer Final Result"><ListSelect options={configuredResultOptions(config)} value={data.final_result || "Not Evaluated"} onChange={(v) => setData({ ...data, final_result: v })} testid="eval-result" /></Field>
       {overridden && (
         <Field label={`Override reason (system said ${sysRec})`}>
           <Textarea rows={2} value={data.override_reason || ""} onChange={(e) => setData({ ...data, override_reason: e.target.value })} data-testid="override-reason" />

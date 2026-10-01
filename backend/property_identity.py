@@ -6,6 +6,7 @@ looked-up municipality data so an ID and its display name resolve identically.
 
 import re
 import unicodedata
+from address_regions import REGIONS
 
 STATE_ALIASES = {
     "alabama": "al", "alaska": "ak", "arizona": "az", "arkansas": "ar",
@@ -21,6 +22,8 @@ STATE_ALIASES = {
     "district of columbia": "dc",
 }
 STATE_ALIASES.update({value: value for value in STATE_ALIASES.values()})
+STATE_ALIASES.update({name.casefold(): code.lower() for code, name in REGIONS.items()})
+STATE_ALIASES.update({code.lower(): code.lower() for code in REGIONS})
 
 STREET_ALIASES = {
     "avenue": "ave", "av": "ave", "boulevard": "blvd", "bl": "blvd",
@@ -47,6 +50,9 @@ def normalize_state(value) -> str:
 
 
 def normalize_zip(value) -> str:
+    canadian = re.sub(r"\s", "", str(value or "")).upper()
+    if re.fullmatch(r"[A-Z]\d[A-Z]\d[A-Z]\d", canadian):
+        return canadian
     digits = re.sub(r"\D", "", str(value or ""))
     return digits[:5]
 

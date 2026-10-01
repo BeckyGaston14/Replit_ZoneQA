@@ -58,7 +58,7 @@ export function SelectOrAdd({ collection, valueField = "id", labelFn, value, onC
       setError(missingContext.message || `${missingContext.label || key} is required before adding this record.`);
       return;
     }
-    const missing = (addFields || []).find((field) => field.required !== false && !String(form[field.key] || "").trim());
+    const missing = (addFields || []).find((field) => field.required !== false && !String(form[field.key] || field.defaultValue || "").trim());
     if (missing) {
       setFieldErrors({ [missing.key]: `${missing.label} is required.` });
       return;
@@ -67,7 +67,7 @@ export function SelectOrAdd({ collection, valueField = "id", labelFn, value, onC
     setError("");
     setFieldErrors({});
     try {
-      const { data } = await api.post(`/${collection}`, { ...addDefaults, ...form });
+      const { data } = await api.post(`/${collection}`, { ...Object.fromEntries((addFields || []).filter(f => f.defaultValue).map(f => [f.key, f.defaultValue])), ...addDefaults, ...form });
       qc.setQueriesData?.({ queryKey: [collection] }, (current = []) => [...current.filter((item) => item[valueField] !== data[valueField]), data]);
       await qc.invalidateQueries({ predicate: (query) => query.queryKey.some((key) => String(key).startsWith(collection)) });
       onChange(data[valueField]);
@@ -101,12 +101,12 @@ export function SelectOrAdd({ collection, valueField = "id", labelFn, value, onC
               const fieldErrorId = `${fieldId}-error`;
              return <div key={f.key} className="space-y-1">
                   <label htmlFor={fieldId} className="text-xs font-semibold text-muted-foreground">{f.label}{f.required !== false && <span className="text-red-700" aria-hidden="true"> *</span>}</label>
-               {f.type === "select" ? <select id={fieldId} value={form[f.key] || ""}
+               {f.type === "select" ? <select id={fieldId} value={form[f.key] || f.defaultValue || ""}
                   onChange={(e) => { setForm({ ...form, [f.key]: e.target.value }); setFieldErrors((current) => ({ ...current, [f.key]: "" })); setError(""); }}
                   required={f.required !== false} aria-invalid={Boolean(fieldErrors[f.key])} aria-describedby={fieldErrors[f.key] ? fieldErrorId : undefined} disabled={pending} className="h-8 w-full rounded-md border bg-background px-3 text-sm">
                   <option value="">Select {f.label.toLowerCase()}</option>
                   {[...new Set([...(f.options || addConfig?.[f.configKey] || []), form[f.key]].filter(Boolean))].map((option) => <option key={option} value={option}>{option}</option>)}
-                </select> : <Input id={fieldId} placeholder={f.label} value={form[f.key] || ""}
+                </select> : <Input id={fieldId} placeholder={f.label} value={form[f.key] || f.defaultValue || ""}
                   onChange={(e) => { setForm({ ...form, [f.key]: e.target.value }); setFieldErrors((current) => ({ ...current, [f.key]: "" })); setError(""); }}
                   onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); create(); } }}
                   required={f.required !== false} aria-invalid={Boolean(fieldErrors[f.key])} aria-describedby={fieldErrors[f.key] ? fieldErrorId : undefined} disabled={pending} className="h-8 text-sm" />}

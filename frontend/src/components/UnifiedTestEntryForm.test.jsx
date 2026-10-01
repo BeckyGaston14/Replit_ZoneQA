@@ -67,6 +67,18 @@ afterEach(() => {
   jest.clearAllMocks();
 });
 
+test("configured results and workflow options appear in the entry form", () => {
+  const { container, root } = renderForm("bassett", { id: "run-1", result: "Awaiting confirmation", status: "In Review" }, {
+    config: { pass_results: ["Pass", "Awaiting confirmation"], finding_statuses: ["Not Started", "In Review", "Engineering", "Ready for Retesting", "Closed / Resolved"] },
+  });
+  const resultSelect = [...container.querySelectorAll("select")].find(select => select.value === "Awaiting confirmation");
+  expect(resultSelect).toBeDefined();
+  expect([...resultSelect.options].map(option => option.value)).toEqual(["Pass", "Awaiting confirmation"]);
+  const workflowSelect = [...container.querySelectorAll("select")].find(select => select.value === "In Review");
+  expect([...workflowSelect.options].map(option => option.value)).toEqual(["Not Started", "In Review", "Engineering", "Ready for Retesting", "Closed / Resolved"]);
+  act(() => root.unmount());
+});
+
 test("new Bassett test runs begin unevaluated instead of assuming a pass", () => {
   expect(createBassettTestRunDraft().result).toBe("Not Evaluated");
 });

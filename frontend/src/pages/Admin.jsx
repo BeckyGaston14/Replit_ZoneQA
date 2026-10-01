@@ -22,8 +22,7 @@ import { AdminRubricItems, AdminScenarioRubrics, AdminScenarios } from "../compo
 
 
 const LOOKUPS = [
-  ["test_statuses", "Test Statuses"], ["finding_statuses", "Finding Statuses"],
-  ["bassett_workflow_statuses", "Bassett Test Run Workflow Statuses"],
+  ["test_statuses", "Test Statuses"], ["finding_statuses", "Workflow Statuses"],
   ["pass_results", "Evaluation Results"], ["environments", "Environments"],
   ["municipality_types", "Municipality Types"], ["jurisdiction_regions", "States / Provinces"],
   ["finding_types", "Finding Categories"],

@@ -43,16 +43,16 @@ export const RESULT_STATUSES = Object.fromEntries(
 );
 
 export const FINDING_STATUSES = {
-  New: { color: "#64748b", icon: Circle, description: "Newly recorded and not yet triaged." },
-  Confirmed: { color: "#0369a1", icon: CheckCircle2, description: "Confirmed as a reproducible finding." },
-  "Needs Investigation": { color: "#7c3aed", icon: HelpCircle, description: "More investigation is required." },
-  Planned: { color: "#1d4ed8", icon: Clock3, description: "Accepted and planned for future work." },
-  "In Development": { color: "#2f3f96", icon: Loader2, description: "A fix is being developed." },
-  "Ready for Retest": { color: "#b45309", icon: AlertTriangle, description: "A fix is ready for QA retesting." },
-  Fixed: { color: "#15803d", icon: CheckCircle2, description: "The fix passed verification." },
-  Closed: { color: "#334155", icon: CheckCircle2, description: "The finding is closed." },
-  "Won't Fix": { color: "#475569", icon: Ban, description: "The finding was intentionally declined." },
-  Duplicate: { color: "#64748b", icon: Ban, description: "The finding duplicates another record." },
+  New: { label: "Not Started", color: "#64748b", icon: Circle, description: "Newly recorded and not yet triaged." },
+  Confirmed: { label: "In Review", color: "#0369a1", icon: CheckCircle2, description: "Confirmed as a reproducible finding." },
+  "Needs Investigation": { label: "In Review", color: "#7c3aed", icon: HelpCircle, description: "More investigation is required." },
+  Planned: { label: "Engineering", color: "#1d4ed8", icon: Clock3, description: "Accepted and planned for future work." },
+  "In Development": { label: "Engineering", color: "#2f3f96", icon: Loader2, description: "A fix is being developed." },
+  "Ready for Retest": { label: "Ready for Retesting", color: "#b45309", icon: AlertTriangle, description: "A fix is ready for QA retesting." },
+  Fixed: { label: "Closed / Resolved", color: "#15803d", icon: CheckCircle2, description: "The fix passed verification." },
+  Closed: { label: "Closed / Resolved", color: "#334155", icon: CheckCircle2, description: "The finding is closed." },
+  "Won't Fix": { label: "Closed / Resolved", color: "#475569", icon: Ban, description: "The finding was intentionally declined." },
+  Duplicate: { label: "Closed / Resolved", color: "#64748b", icon: Ban, description: "The finding duplicates another record." },
 };
 
 export const REGRESSION_DELTA_STATUSES = {

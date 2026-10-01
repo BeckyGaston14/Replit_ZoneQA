@@ -7,6 +7,10 @@ export const CANONICAL_EVALUATION_RESULTS = [
   "Not Evaluated",
 ];
 
+export function configuredResultOptions(config) {
+  return config?.pass_results?.length ? config.pass_results : CANONICAL_EVALUATION_RESULTS;
+}
+
 export const LEGACY_EVALUATION_RESULT_ALIASES = {
   "Pass with Notes": "Pass with Minor Issues",
   Partial: "Needs Improvement",

@@ -167,16 +167,24 @@ test("Bassett finding quick views use finding workflow statuses", () => {
     { id: "planned-1", title: "Planned issue", developer_status: "Planned", severity: "High" },
     { id: "dev-1", title: "Development issue", developer_status: "In Development", severity: "High" },
     { id: "fixed-1", title: "Fixed issue", developer_status: "Fixed", severity: "Critical" },
+    { id: "review-1", title: "Review issue", developer_status: "Confirmed", severity: "Low" },
+    { id: "investigate-1", title: "Investigation issue", developer_status: "Needs Investigation", severity: "Medium" },
   ];
   const container = document.createElement("div");
   const root = createRoot(container);
   act(() => root.render(<BassettIssues />));
-  const reported = [...container.querySelectorAll("button")].find((button) => button.textContent === "Reported to Development");
+  const reported = [...container.querySelectorAll("button")].find((button) => button.textContent === "Engineering");
   act(() => reported.click());
   expect(container.textContent).toContain("Planned issue");
   expect(container.textContent).toContain("Development issue");
   expect(container.textContent).not.toContain("New issue");
   expect(container.textContent).not.toContain("Fixed issue");
+  const review = [...container.querySelectorAll("button")].find((button) => button.textContent === "In Review");
+  act(() => review.click());
+  expect(container.textContent).toContain("Review issue");
+  expect(container.textContent).toContain("Investigation issue");
+  expect(container.textContent).not.toContain("New issue");
+  expect(container.textContent).not.toContain("Development issue");
   act(() => root.unmount());
 });
 

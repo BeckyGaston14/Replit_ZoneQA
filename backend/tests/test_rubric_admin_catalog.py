@@ -122,6 +122,7 @@ def test_r21_backfill_updates_every_current_scenario_once_and_preserves_legacy(m
         {
             "id": "historical",
             "catalog_revision": "2026-09-30",
+            "archived": True,
             "rubric_ids": ["R-03"],
         },
     ]
