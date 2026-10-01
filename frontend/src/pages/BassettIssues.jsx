@@ -74,6 +74,14 @@ export async function persistBassettTestRun(form, apiClient = api) {
     delete body.attachments;
     delete body.conversation_attachment;
     delete body.create_evidence_from_uploads;
+    // The primary Test Bank scenario is permanent once a run is created.
+    // Do not resend it during ordinary edits: catalog refreshes can replace
+    // the live scenario record while preserving the run's historical link,
+    // which made an otherwise unrelated edit look like a reassignment.
+    delete body.scenario_id;
+    if (Array.isArray(body.scenario_ids)) {
+      body.scenario_ids = body.scenario_ids.filter((scenarioId) => scenarioId !== form.scenario_id);
+    }
     body.pending_attachment_count = files.length;
     const { data } = await apiClient.put(`/bassett/issues/${form.id}`, withExpectedVersion(form, body));
     savedIssue = data;

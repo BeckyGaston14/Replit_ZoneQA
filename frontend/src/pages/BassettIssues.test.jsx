@@ -259,6 +259,8 @@ test("editing preserves concurrency fields and does not upload existing attachme
     id: "run-1",
     revision: 8,
     updated_at: "2026-09-08T12:00:00Z",
+    scenario_id: "primary-scenario",
+    scenario_ids: ["primary-scenario", "additional-scenario"],
     attachments: [{ id: "attachment-1", original_filename: "ordinance.pdf" }],
   }, existingApi);
   expect(existingApi.put).toHaveBeenCalledWith("/bassett/issues/run-1", expect.objectContaining({
@@ -266,6 +268,8 @@ test("editing preserves concurrency fields and does not upload existing attachme
     updated_at: "2026-09-08T12:00:00Z",
   }));
   expect(existingApi.put.mock.calls[0][1]).not.toHaveProperty("attachments");
+  expect(existingApi.put.mock.calls[0][1]).not.toHaveProperty("scenario_id");
+  expect(existingApi.put.mock.calls[0][1].scenario_ids).toEqual(["additional-scenario"]);
   expect(existingApi.post).not.toHaveBeenCalled();
 });
 

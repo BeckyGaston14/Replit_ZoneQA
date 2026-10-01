@@ -189,7 +189,7 @@ export function createComparisonEditDraft(full, timeZone, now = new Date()) {
   };
 }
 
-export function ScenarioSelector({ scenarios, value, onChange, category = "", onCategoryChange, error }) {
+export function ScenarioSelector({ scenarios, value, onChange, category = "", onCategoryChange, error, disabled = false }) {
   const id = useId();
   const [query, setQuery] = useState("");
   const [scenarioOpen, setScenarioOpen] = useState(false);
@@ -207,13 +207,13 @@ export function ScenarioSelector({ scenarios, value, onChange, category = "", on
   const errorId = `${id}-error`;
   return <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
     <Field label="Scenario Type" required controlId={`${id}-category`}>
-      <Select required value={activeCategory || ""} onValueChange={(value) => { setQuery(""); onCategoryChange(value); }}>
+      <Select required value={activeCategory || ""} disabled={disabled} onValueChange={(value) => { setQuery(""); onCategoryChange(value); }}>
         <SelectTrigger id={`${id}-category`} aria-label="Test Scenario type" aria-required="true" className="h-auto min-h-9 w-full text-left [&>span]:line-clamp-none [&>span]:whitespace-normal [&>span]:break-words"><SelectValue placeholder="Select a test type first" /></SelectTrigger>
         <SelectContent className="max-w-[calc(100vw-2rem)]"><SelectItem value="__all" disabled>Select a test type first</SelectItem>{categories.map((item) => <SelectItem key={item} value={item} className="whitespace-normal break-words py-2">{item}</SelectItem>)}</SelectContent>
       </Select>
     </Field>
     <Field label="Test Scenario" required controlId={`${id}-scenario`}>
-      <Input aria-label="Search Test Scenario records" placeholder={activeCategory ? `Search ${activeCategory} scenarios…` : "Select a test type first"} value={query} onChange={(e) => { setQuery(e.target.value); setScenarioOpen(Boolean(activeCategory)); }} disabled={!activeCategory} />
+      <Input aria-label="Search Test Scenario records" placeholder={activeCategory ? `Search ${activeCategory} scenarios…` : "Select a test type first"} value={query} onChange={(e) => { setQuery(e.target.value); setScenarioOpen(Boolean(activeCategory)); }} disabled={disabled || !activeCategory} />
       <Button
         id={`${id}-scenario`}
         type="button"
@@ -223,7 +223,7 @@ export function ScenarioSelector({ scenarios, value, onChange, category = "", on
         aria-expanded={scenarioOpen}
         aria-invalid={Boolean(error)}
         aria-describedby={error ? errorId : undefined}
-        disabled={!activeCategory}
+        disabled={disabled || !activeCategory}
         className="mt-2 h-auto min-h-9 w-full justify-between whitespace-normal text-left font-normal"
         onClick={() => setScenarioOpen((open) => !open)}
       >
@@ -1050,7 +1050,7 @@ export default function UnifiedTestEntryForm({
     {!form.id && draftAvailable && <div className="rounded-lg border border-[var(--orange)] bg-orange-50 p-3 text-sm flex flex-wrap items-center justify-between gap-3"><span>A saved {isComparison ? "comparison" : "Bassett"} draft is available.</span><div className="flex flex-wrap gap-2"><Button type="button" size="sm" variant="outline" onClick={recoverDraft}>Recover draft</Button><Button type="button" size="sm" variant="outline" onClick={() => { try { deleteLocalDraft(mode); setDraftAvailable(false); toast.success("Draft deleted"); } catch { toast.error("Draft could not be deleted"); } }}>Delete draft</Button></div></div>}
 
      <GuidedSection index={0} title="1. Test Setup" active={activeSection === 0} status={sectionStatus(0)} summary={sectionSummaries[0]} onActivate={activateSection}><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-       {!lockedCommon && <div className="sm:col-span-2"><ScenarioSelector scenarios={scenarios} category={form.workflow_stage || selectedScenario?.workflow_stage || ""} onCategoryChange={(category) => setForm((current) => ({ ...current, workflow_stage: category, scenario_id: "", scenario_ids: [], selected_rubric_ids: [], rubric_scenario_ids: [], rubric_selection_initialized: false }))} value={form.scenario_id} onChange={(value) => { const scenario = scenarios.find((item) => item.id === value); const scenarioRubricIds = [...new Set((scenario?.rubric_ids || []).filter((rubricId) => activeRubricIds.has(rubricId)))]; setForm((current) => ({ ...current, scenario_id: value, scenario_ids: value ? [value] : [], workflow_stage: scenario?.workflow_stage || current.workflow_stage, selected_rubric_ids: scenarioRubricIds, rubric_revision: normalizedRubricCatalog.revision, rubric_scenario_ids: value ? [value] : [], rubric_selection_initialized: Boolean(value), evaluation_scores: Object.fromEntries(Object.entries(current.evaluation_scores || {}).filter(([id]) => scenarioRubricIds.includes(id))), rubric_scores: Object.fromEntries(Object.entries(current.rubric_scores || {}).filter(([id]) => scenarioRubricIds.includes(id))) })); }} error={attemptedSections.has(0) && !String(form.scenario_id || "").trim() ? "Test Scenario is required." : undefined} /></div>}
+       {!lockedCommon && <div className="sm:col-span-2"><ScenarioSelector disabled={Boolean(form.id)} scenarios={scenarios} category={form.workflow_stage || selectedScenario?.workflow_stage || ""} onCategoryChange={(category) => setForm((current) => ({ ...current, workflow_stage: category, scenario_id: "", scenario_ids: [], selected_rubric_ids: [], rubric_scenario_ids: [], rubric_selection_initialized: false }))} value={form.scenario_id} onChange={(value) => { const scenario = scenarios.find((item) => item.id === value); const scenarioRubricIds = [...new Set((scenario?.rubric_ids || []).filter((rubricId) => activeRubricIds.has(rubricId)))]; setForm((current) => ({ ...current, scenario_id: value, scenario_ids: value ? [value] : [], workflow_stage: scenario?.workflow_stage || current.workflow_stage, selected_rubric_ids: scenarioRubricIds, rubric_revision: normalizedRubricCatalog.revision, rubric_scenario_ids: value ? [value] : [], rubric_selection_initialized: Boolean(value), evaluation_scores: Object.fromEntries(Object.entries(current.evaluation_scores || {}).filter(([id]) => scenarioRubricIds.includes(id))), rubric_scores: Object.fromEntries(Object.entries(current.rubric_scores || {}).filter(([id]) => scenarioRubricIds.includes(id))) })); }} error={attemptedSections.has(0) && !String(form.scenario_id || "").trim() ? "Test Scenario is required." : undefined} />{form.id && <p className="mt-2 text-xs text-muted-foreground">The primary Test Scenario stays fixed after the run is created. You can update the additional scenarios below.</p>}</div>}
       {!isComparison && selectedScenario && <div className="sm:col-span-2"><AdditionalScenarioSelector scenarios={scenarios} primaryId={form.scenario_id} selectedIds={form.scenario_ids || []} disabled={lockedCommon} onChange={(scenarioIds) => setForm((current) => ({ ...current, scenario_ids: scenarioIds }))} /></div>}
       {selectedScenario && <details className="sm:col-span-2 rounded-xl border bg-[var(--paper)] p-4"><summary className="cursor-pointer font-semibold text-[var(--navy)]">View Test Bank guidance for {selectedScenario.stable_id || "this scenario"}</summary><div className="mt-3"><ScenarioDefinition scenario={selectedScenario} /></div></details>}
       <Field label="Sequential Test ID"><Input value={form.test_id || "Assigned on save"} readOnly className="bg-muted" /></Field>
