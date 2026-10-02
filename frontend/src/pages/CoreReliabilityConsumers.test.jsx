@@ -3,6 +3,20 @@ import path from "path";
 
 const source = (name) => fs.readFileSync(path.join(__dirname, `${name}.jsx`), "utf8");
 
+test("Bassett findings and runs keep actions below their title and drafts after export", () => {
+  const text = source("BassettIssues");
+  expect(text).toContain('<PageHeader stackedActions');
+  expect(text.indexOf('Import CSV</Button>')).toBeLessThan(text.indexOf('Export CSV</Button>'));
+  expect(text.indexOf('Export CSV</Button>')).toBeLessThan(text.indexOf('<LocalDrafts mode="bassett"'));
+});
+
+test("active and archived runs use one consolidated list at every width", () => {
+  const text = source("BassettIssues");
+  expect(text).toContain('className="space-y-3" role="list" aria-label="Bassett test runs"');
+  expect(text).not.toContain('aria-label="Bassett test runs table"');
+  expect(text).toContain('lg:grid-cols-5');
+});
+
 test("Test Bank run entry receives existing linked records and all shared lookups", () => {
   const text = source("BassettTestBank");
   for (const key of ["municipalities", "properties", "users", "evidenceRecords", "availableFindings", "config"]) {

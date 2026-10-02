@@ -33,8 +33,8 @@ export function LocalDrafts({ mode, onRecover }) {
       <p className="text-sm text-muted-foreground">One unfinished draft per testing section is saved on this device and browser. Uploaded files must be reselected after recovery.</p>
       {draft && <div className="rounded-lg border p-3 space-y-3">
         <h3 className="font-semibold">{draft.title || draft.name || "Untitled test"}</h3>
-        <p className="text-sm whitespace-pre-wrap break-words">{draft.question_asked || draft.prompts?.[0]?.text || "No prompt entered"}</p>
-        <p className="text-sm">Test date: {draft.test_date || "Not entered"}</p>
+        <p className="text-sm whitespace-pre-wrap break-words">{mode === "finding" ? draft.description || "No description entered" : draft.question_asked || draft.prompts?.[0]?.text || "No prompt entered"}</p>
+        {mode !== "finding" && <p className="text-sm">Test date: {draft.test_date || "Not entered"}</p>}
         <div className="flex flex-wrap gap-2">
           <Button type="button" onClick={recover}>Recover Draft</Button>
           <Button type="button" variant="outline" onClick={remove}>Delete Draft</Button>

@@ -1,4 +1,4 @@
-export const DRAFT_KEYS = { bassett: "zoneqa:bassett-workflow-draft", comparison: "zoneqa:comparison-workflow-draft" };
+export const DRAFT_KEYS = { bassett: "zoneqa:bassett-workflow-draft", comparison: "zoneqa:comparison-workflow-draft", finding: "zoneqa:bassett-finding-draft" };
 
 export function hasDraftContent(form) {
   return Boolean([form.title, form.name, form.question_asked, form.exact_bassett_answer, form.verified_correct_answer, form.scenario_id, form.notes]

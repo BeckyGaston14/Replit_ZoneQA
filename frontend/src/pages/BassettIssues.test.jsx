@@ -139,13 +139,12 @@ test("Bassett findings view is explicitly labeled and stays in the Bassett-only 
   act(() => root.render(<BassettIssues />));
   expect(container.querySelector("h1").textContent).toBe("Bassett Findings");
   expect(container.textContent).toContain("Bassett Test Runs");
-  expect(container.textContent).toContain("Model Comparison Findings");
   const header = container.querySelector("header");
-  const navigation = header.querySelector('[data-testid="findings-cross-navigation"]');
   const contextualShortcut = header.querySelector('a[href="/bassett/issues"]');
-  expect(navigation).not.toBeNull();
+  expect(header.textContent).not.toContain("Model Comparison Findings");
+  expect(header.textContent).toContain("Export CSV");
+  expect(header.textContent).toContain("Archived Findings");
   expect(contextualShortcut).not.toBeNull();
-  expect(navigation.compareDocumentPosition(contextualShortcut) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(contextualShortcut.textContent).toBe("Bassett Test Runs");
   expect(contextualShortcut.querySelector("button")).toBeNull();
   expect(container.textContent).toContain("Select a Bassett finding to view its details.");

@@ -1930,7 +1930,7 @@ async def crud_list(coll, filt=None, include_archived=False, include_sample=None
     if coll in ("municipalities", "properties"):
         docs = [address_fields(doc) for doc in docs]
     if coll == "findings":
-        docs = [_canonicalize_finding_severity(doc) for doc in docs]
+        docs = [_canonicalize_finding_severity(doc) for doc in docs if not doc.get("deleted_at") and (include_archived or not doc.get("archived"))]
     if coll == "projects":
         versions = await crud_list("versions", include_sample=include_sample)
         docs = [_canonicalize_bassett_version_record(doc, versions) for doc in docs]
@@ -2285,6 +2285,8 @@ async def crud_create(coll, body, user):
     return clean(doc)
 
 async def crud_update(coll, id, body, user):
+    if coll == "findings" and {"archived", "deleted_at", "deleted_by"}.intersection(body):
+        raise HTTPException(409, "Use the finding archive, restore, or delete action")
     if coll == "models":
         if user.get("role") not in ("admin", "qa_manager"):
             raise HTTPException(403, "Only administrators and QA managers can manage models")
@@ -3113,6 +3115,10 @@ async def permanently_delete_testcase(id: str, body: Dict[str, Any], admin=Depen
     return {"ok": True, "id": id, "audit_id": audit["id"]}
 
 async def crud_delete(coll, id, user):
+    if coll == "findings":
+        record = await crud_get(coll, id)
+        if _finding_is_bassett(record):
+            raise HTTPException(409, "Use the protected Bassett finding delete action; linked test runs must be preserved")
     if coll == "models":
         if user.get("role") not in ("admin", "qa_manager"):
             raise HTTPException(403, "Only administrators and QA managers can manage models")
@@ -6196,6 +6202,7 @@ async def bassett_create_execution(id: str, body: Dict[str, Any], user=Depends(g
 @api.get("/bassett/findings")
 async def bassett_findings(
     issue_id: Optional[str] = None, execution_id: Optional[str] = None,
+    include_archived: bool = False,
     user=Depends(get_current_user),
 ):
     """Return only findings explicitly linked to a Bassett issue or test run."""
@@ -6215,12 +6222,14 @@ async def bassett_findings(
     execution_links = {run.get("finding_id"): run["id"] for run in executions if run.get("finding_id")}
     linked = []
     for finding in findings:
+        if finding.get("deleted_at") or (finding.get("archived") and not include_archived):
+            continue
         linked_run_ids = list(dict.fromkeys([
             run_id for run_id in [finding.get("bassett_issue_id"), *(finding.get("linked_test_run_ids") or []), issue_links.get(finding.get("id"))] if run_id
         ]))
         linked_issue = finding.get("bassett_issue_id") or (linked_run_ids[0] if linked_run_ids else None)
         linked_execution = finding.get("bassett_execution_id") or execution_links.get(finding.get("id"))
-        if not linked_issue and not linked_execution:
+        if not linked_issue and not linked_execution and not _finding_is_bassett(finding):
             continue
         if issue_id and issue_id not in linked_run_ids:
             continue
@@ -6257,6 +6266,42 @@ async def bassett_findings(
             "test_date": finding.get("test_date") or source.get("test_date"),
         })
     return linked
+
+
+@api.post("/bassett/findings")
+async def create_bassett_finding(body: Dict[str, Any], user=Depends(require_writer)):
+    title = str(body.get("title") or "").strip()
+    if not title:
+        raise HTTPException(400, "Finding title is required")
+    allowed = ("description", "expected_behavior", "finding_type", "severity", "developer_status", "linked_test_run_ids")
+    doc = {key: body[key] for key in allowed if key in body}
+    doc.update(title=title, finding_scope="bassett", archived=False)
+    runs = doc.get("linked_test_run_ids") or []
+    if not isinstance(runs, list):
+        raise HTTPException(400, "Linked test runs must be a list")
+    doc["bassett_issue_id"] = runs[0] if runs else None
+    return await crud_create("findings", doc, user)
+
+
+@api.post("/bassett/findings/{id}/lifecycle")
+async def bassett_finding_lifecycle(id: str, body: Dict[str, Any], user=Depends(require_roles("admin", "qa_manager"))):
+    finding = await crud_get("findings", id)
+    if not _finding_is_bassett(finding):
+        raise HTTPException(400, "This is not a Bassett finding")
+    action = body.get("action")
+    if action not in ("archive", "restore", "delete"):
+        raise HTTPException(400, "Invalid finding action")
+    if finding.get("deleted_at"):
+        raise HTTPException(409, "This finding has been deleted")
+    if action == "delete" and body.get("confirmation_title") != finding.get("title"):
+        raise HTTPException(400, "Enter the finding title to confirm deletion")
+    stamp = now_iso()
+    update = {"archived": action != "restore", "updated_at": stamp}
+    if action == "delete":
+        update.update(deleted_at=stamp, deleted_by=user["id"])
+    await db.findings.update_one({"id": id}, {"$set": update})
+    await log_activity("findings", id, action, user, "Linked test runs and retained history unchanged")
+    return {"ok": True, "action": action}
 
 
 @api.get("/comparison/findings")
@@ -6419,8 +6464,8 @@ async def bassett_metrics(version_id: Optional[str] = None, environment: Optiona
     }
     actual_findings = [
         finding for finding in all_findings
-        if finding.get("bassett_issue_id") or finding.get("bassett_execution_id")
-        or finding.get("id") in issue_finding_ids or finding.get("id") in execution_finding_ids
+        if not finding.get("archived") and not finding.get("deleted_at") and (
+            _finding_is_bassett(finding, issue_finding_ids | execution_finding_ids))
     ]
     actual_findings = [_canonicalize_finding_severity(finding) for finding in actual_findings]
     open_actual_findings = [finding for finding in actual_findings if _finding_is_open(finding)]

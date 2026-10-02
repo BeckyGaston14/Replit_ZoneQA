@@ -174,14 +174,14 @@ export function Section({ title, children, action }) {
   );
 }
 
-export function PageHeader({ title, subtitle, children }) {
+export function PageHeader({ title, subtitle, children, stackedActions = false }) {
   return (
     <header className="flex items-end justify-between mb-6 flex-wrap gap-3">
       <div>
         <h1 className="text-2xl font-bold font-display text-[var(--navy)]">{title}</h1>
         {subtitle && <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>}
       </div>
-      <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">{children}</div>
+      <div className={cn("flex w-full flex-wrap items-center gap-2", !stackedActions && "sm:w-auto sm:justify-end")}>{children}</div>
     </header>
   );
 }

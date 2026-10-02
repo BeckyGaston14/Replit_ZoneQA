@@ -16,9 +16,8 @@ import { BassettTestRunForm, ScenarioDefinition, ScenarioSelector, createBassett
 import { AlertTriangle, Archive, ArchiveRestore, CheckCircle2, ClipboardCopy, ExternalLink, FileInput, FileOutput, Flag, Loader2, Pencil, Plus, RefreshCw, Search, ShieldAlert, X } from "lucide-react";
 import { toast } from "sonner";
 import { parseCsv } from "../lib/csv";
-import { SortableTableHeader } from "../components/SortableTableHeader";
 import { TableSortControls } from "../components/TableSortControls";
-import { nextSort, sortTableRows, usePersistentTableSort } from "../lib/tableSorting";
+import { sortTableRows, usePersistentTableSort } from "../lib/tableSorting";
 import { formatTestDate } from "../lib/testDates";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { FINDING_WORKFLOW_LABELS, workflowStatusLabel } from "../lib/workflowStatuses";
@@ -26,13 +25,9 @@ import { FINDING_STATUSES, StatusBadge } from "../lib/statusMaps";
 import { normalizeEvaluationResult } from "../lib/evaluationResults";
 import { ConfirmActionDialog } from "../components/ConfirmActionDialog";
 import { ProjectScopeNav } from "../components/ProjectScopeNav";
-import { FindingsCrossNavigation } from "../components/FindingsCrossNavigation";
+import { BassettFindingTools, BassettFindingLifecycle } from "../components/BassettFindingTools";
 import { loadBassettTestRunForEdit } from "../lib/bassettEditLoaders";
 import { SEVERITY_LABELS, severityLabel } from "../lib/severity";
-import {
-  TABLE_ACTION_CELL_CLASS, TABLE_CELL_CLASS, TABLE_CLASS, TABLE_EMPTY_CELL_CLASS,
-  TABLE_FRAME_CLASS, TABLE_HEAD_CLASS,
-} from "../lib/tableStyles";
 const defaultTestStatuses = ["Not Started", "In Review", "Engineering", "Closed / Resolved", "Ready for Retesting"];
 const PERSONAL_FINDING_STATUS_LABELS = FINDING_WORKFLOW_LABELS;
 const PERSONAL_FINDING_STATUSES = Object.fromEntries(Object.entries(FINDING_STATUSES).map(([value, definition]) => [value, {
@@ -228,7 +223,7 @@ export default function BassettIssues() {
   }, [searchParams, setSearchParams]);
   const { data: issues = [], isLoading } = useQuery({
     queryKey: ["bassett-test-runs", showingFindings, showArchived, filters.status, filters.severity, filters.dateFrom, filters.dateTo],
-    queryFn: async () => (await api.get(showingFindings ? "/bassett/findings" : "/bassett/issues", { params: { include_archived: !showingFindings, status: showingFindings ? undefined : filters.status, severity: filters.severity, test_date_from: filters.dateFrom || undefined, test_date_to: filters.dateTo || undefined } })).data,
+    queryFn: async () => (await api.get(showingFindings ? "/bassett/findings" : "/bassett/issues", { params: { include_archived: true, status: showingFindings ? undefined : filters.status, severity: filters.severity, test_date_from: filters.dateFrom || undefined, test_date_to: filters.dateTo || undefined } })).data,
   });
   const scopedProjectId = filters.project !== "all" ? filters.project : "";
   const { data: metrics, isLoading: metricsLoading, isError: metricsError } = useQuery({
@@ -284,7 +279,7 @@ export default function BassettIssues() {
     environments: [...new Set(issues.map((item) => item.environment).filter(Boolean))].sort(),
   }), [issues, scenarioMap]);
   const shown = useMemo(() => sortTableRows(issues.filter((issue) => {
-    if (!showingFindings && Boolean(issue.archived || issue.status === "Archived") !== showArchived) return false;
+    if (issue.deleted_at || Boolean(issue.archived || issue.status === "Archived") !== showArchived) return false;
     if (showingFindings && quickView === "in-review" && workflowStatusLabel(issue.developer_status) !== "In Review") return false;
     if (showingFindings && quickView === "not-started" && issue.developer_status !== "New") return false;
     if (showingFindings && quickView === "reported" && !['Planned', 'In Development'].includes(issue.developer_status)) return false;
@@ -449,14 +444,13 @@ export default function BassettIssues() {
   };
 
   return <div>
-    <PageHeader title={showingFindings ? "Bassett Findings" : "Bassett Test Runs"} subtitle={showingFindings ? "Findings created from Bassett-only testing. Model Comparison Findings remain separate." : "Record a Bassett test result, evidence, and follow-up. Passing test runs are not findings."}>
+    <PageHeader stackedActions title={showingFindings ? "Bassett Findings" : "Bassett Test Runs"} subtitle={showingFindings ? "Findings created from Bassett-only testing. Model Comparison Findings remain separate." : "Record a Bassett test result, evidence, and follow-up. Passing test runs are not findings."}>
       {canManage && !showingFindings && <Button variant="outline" onClick={() => setShowImport(true)}><FileInput size={15} /> Import CSV</Button>}
-      {canWrite && !showingFindings && <LocalDrafts mode="bassett" onRecover={(draft) => setForm(createBassettTestRunDraft(draft, config?.application_timezone))} />}
       {!showingFindings && <Button type="button" variant="outline" onClick={exportCsv}><FileOutput size={15} /> Export CSV</Button>}
+      {canWrite && !showingFindings && <LocalDrafts mode="bassett" onRecover={(draft) => setForm(createBassettTestRunDraft(draft, config?.application_timezone))} />}
       {showingFindings
-        ? <FindingsCrossNavigation />
+        ? <BassettFindingTools records={shown} config={config} canWrite={canWrite} canManage={canManage} archived={showArchived} onToggleArchive={() => { setShowArchived((value) => !value); setSelected(null); }} onChanged={() => qc.invalidateQueries()} />
         : <Link to="/bassett/findings"><Button variant="outline">Bassett Findings</Button></Link>}
-      {showingFindings && <Button asChild variant="outline"><Link to="/bassett/issues">Bassett Test Runs</Link></Button>}
       {!showingFindings && <Button variant="outline" aria-pressed={showArchived} onClick={() => setShowArchived((value) => !value)}>{showArchived ? "Active test runs" : "Archived test runs"}</Button>}
       {canWrite && !showingFindings && <Button type="button" data-testid="new-bassett-test-run" onClick={openNewTestRun} className="relative z-10 bg-[var(--orange)] hover:bg-[var(--orange-600)]"><Plus size={15} /> New Bassett Test Run</Button>}
     </PageHeader>
@@ -479,7 +473,7 @@ export default function BassettIssues() {
        <StatCard label={showingFindings ? "Total Findings" : "Scenario coverage"} value={showingFindings ? (metrics?.findings?.total ?? 0) : (metrics ? `${metrics.test_runs.test_bank_coverage.percent}%` : "—")} sub={showingFindings ? "linked to Bassett-only testing" : (metrics ? `${metrics.test_runs.test_bank_coverage.covered}/${metrics.test_runs.test_bank_coverage.total} active scenarios with a qualifying completed evaluation` : "Draft and Not Evaluated runs are excluded")} icon={CheckCircle2} accent="#16a34a" />
     </div>
     <div className={showingFindings ? "grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]" : ""}>
-    <Section title={showingFindings ? "Bassett findings" : "Bassett test runs"} action={<span className="text-xs text-muted-foreground">{shown.length} shown · archived records stay in history</span>}>
+    <Section title={showingFindings ? (showArchived ? "Archived Bassett findings" : "Bassett findings") : "Bassett test runs"} action={<span className="text-xs text-muted-foreground">{shown.length} shown · archived records stay in history</span>}>
       <div className="flex flex-wrap gap-2 mb-4">
         <div className="relative flex-1 min-w-[220px]"><Search size={15} className="absolute left-3 top-2.5 text-muted-foreground" /><Input aria-label={showingFindings ? "Search Bassett findings" : "Search Bassett test runs"} className="pl-9" placeholder={showingFindings ? "Search finding, test run, category, scenario…" : "Search question, response, category, scenario…"} value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} /></div>
          {!showingFindings && <select aria-label="Filter by Workflow status" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}><option value="all">All workflow statuses</option>{testStatuses.map((x) => <option key={x}>{x}</option>)}</select>}
@@ -500,8 +494,10 @@ export default function BassettIssues() {
           <select aria-label="Filter by Test Bank type" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.stage} onChange={(e) => setFilters({ ...filters, stage: e.target.value })}><option value="all">All Test Bank types</option>{findingOptions.stages.map((x) => <option key={x}>{x}</option>)}</select>
           <select aria-label="Filter by conversation format" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.testType} onChange={(e) => setFilters({ ...filters, testType: e.target.value })}><option value="all">All conversation formats</option>{findingOptions.testTypes.map((x) => <option key={x}>{x}</option>)}</select>
           <select aria-label="Filter by environment" className="h-9 rounded-md border bg-background px-3 text-sm" value={filters.environment} onChange={(e) => setFilters({ ...filters, environment: e.target.value })}><option value="all">All environments</option>{findingOptions.environments.map((x) => <option key={x}>{x}</option>)}</select>
-          <label className="text-xs text-muted-foreground">Test Date from <Input aria-label="Finding Test Date from" title="Test Date from" type="date" className="mt-1 w-auto" value={filters.dateFrom} onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })} /></label>
-          <label className="text-xs text-muted-foreground">to <Input aria-label="Finding Test Date to" title="Test Date to" type="date" className="mt-1 w-auto" value={filters.dateTo} onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })} /></label>
+          <fieldset className="basis-full mt-1 flex flex-wrap gap-2 border-t pt-2"><legend className="text-xs text-muted-foreground">Test Date</legend>
+          <label className="text-xs text-muted-foreground">From <Input aria-label="Finding Test Date from" title="Test Date from" type="date" className="mt-1 w-auto" value={filters.dateFrom} onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })} /></label>
+          <label className="text-xs text-muted-foreground">To <Input aria-label="Finding Test Date to" title="Test Date to" type="date" className="mt-1 w-auto" value={filters.dateTo} onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })} /></label>
+          </fieldset>
         </div>
       </details>}
       {showingFindings ? <div className="space-y-2" role="region" aria-label="Bassett findings list">
@@ -515,14 +511,16 @@ export default function BassettIssues() {
         {!isLoading && !shown.length && <div className="border rounded-xl p-8 text-center text-sm text-muted-foreground">No Bassett findings match these filters.</div>}
       </div> : <>
       <TableSortControls columns={runColumns} sort={sort} setSort={setSort} defaultSort={defaultSort} className="mb-3" />
-       <div className="space-y-3 sm:hidden" role="list" aria-label="Bassett test runs">
+       <div className="space-y-3" role="list" aria-label="Bassett test runs">
+         {isLoading && <p role="status" className="p-8 text-center text-sm text-muted-foreground">Loading Bassett test runs…</p>}
          {shown.map((issue) => <article key={issue.id} role="listitem" className="rounded-xl border bg-card p-4">
            <button type="button" className="w-full text-left rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)]" onClick={() => setSelected(issue.id)} aria-label={`Open ${issue.title || issue.question_asked}`}>
              <div className="flex flex-wrap items-center gap-2"><span className="text-xs font-semibold text-muted-foreground">{issue.test_id || "No Test ID"}</span><Pill tone={severityLabel(issue.severity) === "Critical" ? "red" : severityLabel(issue.severity) === "High" ? "orange" : "slate"}>{severityLabel(issue.severity) || "Not rated"}</Pill><StatusBadge value={issue.result || "Not Evaluated"} compact /></div>
              <div className="mt-2 font-semibold text-[var(--navy)]">{issue.title || issue.question_asked}</div>
              <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{issue.question_asked}</div>
            </button>
-           <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t pt-3 text-xs">
+           <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t pt-3 text-xs lg:grid-cols-5">
+             <div><dt className="text-muted-foreground">Scenario</dt><dd className="font-medium">{scenarioMap[issue.scenario_id]?.stable_id || "Not linked"}{(issue.scenario_ids || []).filter((id) => id !== issue.scenario_id).length > 0 ? ` +${(issue.scenario_ids || []).filter((id) => id !== issue.scenario_id).length}` : ""}</dd></div>
              <div><dt className="text-muted-foreground">Workflow</dt><dd className="font-medium">{issue.status || "—"}</dd></div>
              <div><dt className="text-muted-foreground">Test date</dt><dd className="font-medium">{formatTestDate(issue.test_date)}</dd></div>
              <div><dt className="text-muted-foreground">Bassett version</dt><dd className="font-medium">{issue.bassett_version || "Not specified"}</dd></div>
@@ -532,21 +530,10 @@ export default function BassettIssues() {
          </article>)}
          {!isLoading && !shown.length && <div className="rounded-xl border p-8 text-center text-sm text-muted-foreground">No Bassett test runs match these filters.</div>}
        </div>
-       <div className={`${TABLE_FRAME_CLASS} hidden sm:block`} role="region" aria-label="Bassett test runs table" tabIndex="0" data-testid="bassett-runs-table-scroll">
-          <table className={TABLE_CLASS}><thead className={TABLE_HEAD_CLASS}><tr>{runColumns.map((column) => <SortableTableHeader key={column.key} column={column} sort={sort} onSort={(key) => setSort((current) => nextSort(current, key))} />)}<th className="px-2.5 py-2 text-right text-[11px] uppercase tracking-wide text-muted-foreground">Actions</th></tr></thead>
-             <tbody>{isLoading ? <tr><td colSpan="10" className="p-8 text-center text-muted-foreground"><span className="inline-flex items-center gap-2"><span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent" aria-hidden="true" />Loading {showingFindings ? "Bassett findings" : "Bassett test runs"}… this may take a few seconds.</span></td></tr> : shown.map((issue) => <tr key={issue.id} className="border-t hover:bg-[var(--paper)]">
-             <td className="px-3 py-3 text-xs font-semibold text-[var(--navy)]">{issue.test_id || "—"}</td><td className={`${TABLE_CELL_CLASS} min-w-[270px]`}><button type="button" className="w-full text-left rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)] focus-visible:ring-offset-2" onClick={() => setSelected(issue.id)} aria-label={`Open ${issue.title || issue.question_asked}`}><div className="font-semibold text-[var(--navy)]">{issue.title || issue.question_asked}</div><div className="text-xs text-muted-foreground line-clamp-1 mt-1">{issue.question_asked}</div></button></td>
-            <td className="px-3 py-3 text-xs">{scenarioMap[issue.scenario_id]?.stable_id || "—"}{(issue.scenario_ids || []).filter((scenarioId) => scenarioId !== issue.scenario_id).length > 0 ? ` +${(issue.scenario_ids || []).filter((scenarioId) => scenarioId !== issue.scenario_id).length}` : ""}</td>
-             <td className="px-3 py-3"><Pill tone={severityLabel(issue.severity) === "Critical" ? "red" : severityLabel(issue.severity) === "High" ? "orange" : "slate"}>{severityLabel(issue.severity) || "Not rated"}</Pill></td>
-             <td className="px-3 py-3 text-xs font-medium">{issue.status}</td><td className="px-3 py-3 text-xs"><StatusBadge value={issue.result || "Not Evaluated"} compact /></td><td className="px-3 py-3 text-xs">{issue.bassett_version || "Not specified"}</td><td className="px-3 py-3 text-xs">{issue.environment || "—"}</td><td className="px-3 py-3 text-xs"><time dateTime={issue.test_date || undefined}>{formatTestDate(issue.test_date)}</time></td>
-             <td className={TABLE_ACTION_CELL_CLASS}><BassettRunActions issue={issue} canWrite={canWrite} canManage={canManage} editing={loadingEditId === issue.id} onEdit={openEdit} onArchive={setConfirmingArchive} onRestore={restore} /></td>
-           </tr>)}{!isLoading && !shown.length && <tr><td colSpan="9" className={TABLE_EMPTY_CELL_CLASS}>{showingFindings ? "No Bassett findings match these filters." : "No Bassett test runs match these filters."}</td></tr>}</tbody>
-            </table>
-      </div>
       </>}
     </Section>
     {showingFindings && (selected
-      ? <BassettFindingDetail id={selected} onClose={() => setSelected(null)} canWrite={canWrite} refresh={() => qc.invalidateQueries()} embedded />
+      ? <BassettFindingDetail id={selected} onClose={() => setSelected(null)} canManage={canManage} canWrite={canWrite && !showArchived} refresh={() => qc.invalidateQueries()} embedded />
       : <aside aria-label="Bassett Finding details" className="hidden xl:block"><div className="bg-card border rounded-xl p-8 text-center text-sm text-muted-foreground">Select a Bassett finding to view its details.</div></aside>)}
     </div>
      <MethodologyDisclosure title={showingFindings ? "How Bassett Finding metrics are calculated" : "How Bassett Test Run metrics are calculated"} testid="bassett-test-runs-methodology">
@@ -624,7 +611,7 @@ export function scoredRubricRemovalIds(error) {
   return Array.isArray(detail.rubric_ids) ? detail.rubric_ids : [];
 }
 
-function BassettFindingDetail({ id, onClose, canWrite, refresh, embedded = false }) {
+function BassettFindingDetail({ id, onClose, canWrite, canManage, refresh, embedded = false }) {
   const drawerRef = useFocusTrap(true, onClose);
   const [statusForm, setStatusForm] = useState(null);
   const [editForm, setEditForm] = useState(null);
@@ -720,6 +707,7 @@ function BassettFindingDetail({ id, onClose, canWrite, refresh, embedded = false
       {isLoading && <div className="text-sm text-muted-foreground">Loading Bassett Finding Details…</div>}
       {isError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">Unable to load this Bassett finding.</div>}
       {finding && <div className="space-y-5 text-sm">
+        {canManage && <BassettFindingLifecycle finding={finding} onChanged={() => { refresh(); onClose(); }} />}
         <div className="flex flex-wrap gap-2"><Pill tone={severityLabel(finding.severity) === "Critical" ? "red" : severityLabel(finding.severity) === "High" ? "orange" : "slate"}>{severityLabel(finding.severity) || "Not rated"}</Pill><StatusBadge value={workflowStatusLabel(finding.developer_status)} definitions={PERSONAL_FINDING_STATUSES} /></div>
         <Info label="Finding Category" value={`${finding.finding_type || "Other"}${finding.finding_type_detail ? ` · ${finding.finding_type_detail}` : ""}`} />
         <Info label="Description" value={finding.description || "—"} />

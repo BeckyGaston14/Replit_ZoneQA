@@ -67,6 +67,17 @@ afterEach(() => {
   jest.clearAllMocks();
 });
 
+test("linked record selectors are not concealed in a disclosure", () => {
+  const { container, root } = renderForm("bassett");
+  const section = container.querySelector('section[aria-label="Linked records"]');
+  expect(section).not.toBeNull();
+  expect(section.querySelector("summary")).toBeNull();
+  expect(section.textContent).toContain("Municipality");
+  expect(section.textContent).toContain("Property / Address");
+  expect(section.textContent).toContain("Project");
+  act(() => root.unmount());
+});
+
 test("configured results and workflow options appear in the entry form", () => {
   const { container, root } = renderForm("bassett", { id: "run-1", result: "Awaiting confirmation", status: "In Review" }, {
     config: { pass_results: ["Pass", "Awaiting confirmation"], finding_statuses: ["Not Started", "In Review", "Engineering", "Ready for Retesting", "Closed / Resolved"] },
