@@ -25,7 +25,7 @@ import { FINDING_STATUSES, StatusBadge } from "../lib/statusMaps";
 import { normalizeEvaluationResult } from "../lib/evaluationResults";
 import { ConfirmActionDialog } from "../components/ConfirmActionDialog";
 import { ProjectScopeNav } from "../components/ProjectScopeNav";
-import { BassettFindingTools, BassettFindingLifecycle } from "../components/BassettFindingTools";
+import { BassettFindingTools, BassettFindingLifecycle, ArchivedRunDelete } from "../components/BassettFindingTools";
 import { loadBassettTestRunForEdit } from "../lib/bassettEditLoaders";
 import { SEVERITY_LABELS, severityLabel } from "../lib/severity";
 const defaultTestStatuses = ["Not Started", "In Review", "Engineering", "Closed / Resolved", "Ready for Retesting"];
@@ -221,7 +221,7 @@ export default function BassettIssues() {
       setSearchParams(next, { replace: true });
     }
   }, [searchParams, setSearchParams]);
-  const { data: issues = [], isLoading } = useQuery({
+  const { data: issues = [], isLoading, isError: listError, refetch: retryList } = useQuery({
     queryKey: ["bassett-test-runs", showingFindings, showArchived, filters.status, filters.severity, filters.dateFrom, filters.dateTo],
     queryFn: async () => (await api.get(showingFindings ? "/bassett/findings" : "/bassett/issues", { params: { include_archived: true, status: showingFindings ? undefined : filters.status, severity: filters.severity, test_date_from: filters.dateFrom || undefined, test_date_to: filters.dateTo || undefined } })).data,
   });
@@ -500,6 +500,7 @@ export default function BassettIssues() {
           </fieldset>
         </div>
       </details>}
+      {listError && <div role="alert" className="rounded-lg border p-3 mb-3">Unable to load these records. Your saved data has not been removed. <Button variant="outline" onClick={() => retryList()}>Try Again</Button></div>}
       {showingFindings ? <div className="space-y-2" role="region" aria-label="Bassett findings list">
         {isLoading && <div className="border rounded-xl p-8 text-center text-sm text-muted-foreground">Loading Bassett findings… this may take a few seconds.</div>}
         {!isLoading && shown.map((finding) => <button type="button" key={finding.id} onClick={() => setSelected(finding.id)} aria-label={`View finding ${finding.title || "Untitled finding"}`} aria-pressed={selected === finding.id}
@@ -513,27 +514,32 @@ export default function BassettIssues() {
       <TableSortControls columns={runColumns} sort={sort} setSort={setSort} defaultSort={defaultSort} className="mb-3" />
        <div className="space-y-3" role="list" aria-label="Bassett test runs">
          {isLoading && <p role="status" className="p-8 text-center text-sm text-muted-foreground">Loading Bassett test runs…</p>}
-         {shown.map((issue) => <article key={issue.id} role="listitem" className="rounded-xl border bg-card p-4">
+         {shown.map((issue) => <article key={issue.id} role="listitem" className="rounded-xl border bg-card p-3">
            <button type="button" className="w-full text-left rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orange)]" onClick={() => setSelected(issue.id)} aria-label={`Open ${issue.title || issue.question_asked}`}>
              <div className="flex flex-wrap items-center gap-2"><span className="text-xs font-semibold text-muted-foreground">{issue.test_id || "No Test ID"}</span><Pill tone={severityLabel(issue.severity) === "Critical" ? "red" : severityLabel(issue.severity) === "High" ? "orange" : "slate"}>{severityLabel(issue.severity) || "Not rated"}</Pill><StatusBadge value={issue.result || "Not Evaluated"} compact /></div>
-             <div className="mt-2 font-semibold text-[var(--navy)]">{issue.title || issue.question_asked}</div>
-             <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{issue.question_asked}</div>
+             <div className="mt-1 font-semibold text-[var(--navy)]">{issue.title || issue.question_asked}</div>
+             <div className="mt-1 text-xs text-muted-foreground">{[...new Set([issue.scenario_id, ...(issue.scenario_ids || [])].filter(Boolean))].map((id) => scenarioMap[id]).filter(Boolean).map((scenario) => `${scenario.stable_id || "Scenario"}: ${scenario.test_scenario || scenario.title || scenario.description || "Description unavailable"}`).join(" · ")}</div>
            </button>
-           <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t pt-3 text-xs lg:grid-cols-5">
+           <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs lg:grid-cols-5">
              <div><dt className="text-muted-foreground">Scenario</dt><dd className="font-medium">{scenarioMap[issue.scenario_id]?.stable_id || "Not linked"}{(issue.scenario_ids || []).filter((id) => id !== issue.scenario_id).length > 0 ? ` +${(issue.scenario_ids || []).filter((id) => id !== issue.scenario_id).length}` : ""}</dd></div>
              <div><dt className="text-muted-foreground">Workflow</dt><dd className="font-medium">{issue.status || "—"}</dd></div>
              <div><dt className="text-muted-foreground">Test date</dt><dd className="font-medium">{formatTestDate(issue.test_date)}</dd></div>
              <div><dt className="text-muted-foreground">Bassett version</dt><dd className="font-medium">{issue.bassett_version || "Not specified"}</dd></div>
              <div><dt className="text-muted-foreground">Environment</dt><dd className="font-medium">{issue.environment || "—"}</dd></div>
            </dl>
-           <div className="mt-3 flex justify-end border-t pt-2"><BassettRunActions issue={issue} canWrite={canWrite} canManage={canManage} editing={loadingEditId === issue.id} onEdit={openEdit} onArchive={setConfirmingArchive} onRestore={restore} /></div>
+           <div className="flex justify-end gap-2"><BassettRunActions issue={issue} canWrite={canWrite} canManage={canManage} editing={loadingEditId === issue.id} onEdit={openEdit} onArchive={setConfirmingArchive} onRestore={restore} />{canManage && isArchivedRun(issue) && <ArchivedRunDelete issue={issue} onChanged={() => { setSelected(null); qc.invalidateQueries(); }} />}</div>
          </article>)}
          {!isLoading && !shown.length && <div className="rounded-xl border p-8 text-center text-sm text-muted-foreground">No Bassett test runs match these filters.</div>}
        </div>
       </>}
     </Section>
     {showingFindings && (selected
-      ? <BassettFindingDetail id={selected} onClose={() => setSelected(null)} canManage={canManage} canWrite={canWrite && !showArchived} refresh={() => qc.invalidateQueries()} embedded />
+      ? <BassettFindingDetail id={selected} onClose={() => setSelected(null)} canManage={canManage} canWrite={canWrite && !showArchived} refresh={() => qc.invalidateQueries()} onStartRetest={async (finding, runId) => {
+          const { data: source } = await api.get(`/bassett/issues/${runId}`);
+          const draft = createBassettRetestDraft(source, finding, config?.application_timezone);
+          setSelected(null);
+          requestAnimationFrame(() => setForm(draft));
+        }} embedded />
       : <aside aria-label="Bassett Finding details" className="hidden xl:block"><div className="bg-card border rounded-xl p-8 text-center text-sm text-muted-foreground">Select a Bassett finding to view its details.</div></aside>)}
     </div>
      <MethodologyDisclosure title={showingFindings ? "How Bassett Finding metrics are calculated" : "How Bassett Test Run metrics are calculated"} testid="bassett-test-runs-methodology">
@@ -611,7 +617,12 @@ export function scoredRubricRemovalIds(error) {
   return Array.isArray(detail.rubric_ids) ? detail.rubric_ids : [];
 }
 
-function BassettFindingDetail({ id, onClose, canWrite, canManage, refresh, embedded = false }) {
+export function createBassettRetestDraft(source, finding, timeZone) {
+  const context = Object.fromEntries(["scenario_id", "scenario_ids", "project_id", "municipality_id", "property_id", "bassett_version", "environment", "question_asked"].filter((key) => source[key] !== undefined).map((key) => [key, source[key]]));
+  return createBassettTestRunDraft({ ...context, title: `Retest: ${source.title || finding.title}`, finding_id: finding.id, finding_ids: [finding.id], create_finding: false }, timeZone);
+}
+
+function BassettFindingDetail({ id, onClose, canWrite, canManage, refresh, onStartRetest, embedded = false }) {
   const drawerRef = useFocusTrap(true, onClose);
   const [statusForm, setStatusForm] = useState(null);
   const [editForm, setEditForm] = useState(null);
@@ -625,7 +636,7 @@ function BassettFindingDetail({ id, onClose, canWrite, canManage, refresh, embed
     queryFn: async () => (await api.get("/bassett/issues", { params: { include_archived: true } })).data,
   });
   const { data: config } = useQuery({ queryKey: ["config"], queryFn: async () => (await api.get("/config")).data });
-  const sourceRun = finding?.bassett_issue_id;
+  const sourceRun = finding?.bassett_issue_id || finding?.linked_test_run_ids?.[0];
   const linkedRunIds = [...new Set([sourceRun, ...(finding?.linked_test_run_ids || [])].filter(Boolean))];
   const linkedRuns = linkedRunIds.map((runId) => availableRuns.find((run) => run.id === runId) || { id: runId });
 
@@ -688,9 +699,9 @@ function BassettFindingDetail({ id, onClose, canWrite, canManage, refresh, embed
     if (!sourceRun || submitting) return;
     setSubmitting(true);
     try {
-      await api.post(`/bassett/issues/${sourceRun}/send-for-retest`, {});
-      toast.success("Bassett test run sent for retest");
-      refresh();
+      if (!onStartRetest) throw new Error("Retest entry is unavailable. Reopen this finding from Bassett Findings.");
+      await onStartRetest(finding, sourceRun);
+      toast.success("New retest opened. Record the new result and save; the original test is unchanged.");
     } catch (error) { toast.error(actionError(error, "Unable to start retest")); }
     finally { setSubmitting(false); }
   };

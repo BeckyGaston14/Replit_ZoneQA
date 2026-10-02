@@ -4290,7 +4290,7 @@ async def bassett_list_issues(
     issues = await db.bassett_issues.find(query, {"_id": 0}).sort(
         [("test_date", -1), ("created_at", -1)]
     ).to_list(5000)
-    issues = _filter_sample_scope("bassett_issues", issues)
+    issues = _filter_sample_scope("bassett_issues", [issue for issue in issues if not issue.get("deleted_at")])
     if scenario_id:
         issues = [issue for issue in issues if scenario_id in _record_scenario_ids(issue, include_turns=True)]
     issues = [
@@ -5365,6 +5365,8 @@ async def bassett_archive_issue(id: str, user=Depends(get_current_user)):
 async def bassett_restore_issue(id: str, user=Depends(get_current_user)):
     _require_bassett_manager(user)
     issue = await _bassett_ref("bassett_issues", id, "Issue")
+    if issue.get("deleted_at"):
+        raise HTTPException(409, "Deleted test runs cannot be restored from the archive")
     if not issue.get("archived"):
         return issue
     restored_status = issue.get("archived_status")
@@ -5376,6 +5378,20 @@ async def bassett_restore_issue(id: str, user=Depends(get_current_user)):
     }, return_document=True)
     await _bassett_history("issue", id, "restored", user, {"history_preserved": True})
     return updated
+
+@api.post("/bassett/issues/{id}/delete-archived")
+async def bassett_delete_archived_issue(id: str, body: Dict[str, Any], user=Depends(get_current_user)):
+    _require_bassett_manager(user)
+    issue = await _bassett_ref("bassett_issues", id, "Test run")
+    if not issue.get("archived"):
+        raise HTTPException(409, "Archive the test run before deleting it")
+    if body.get("confirmation_title") != (issue.get("title") or issue.get("question_asked") or id):
+        raise HTTPException(400, "Enter the exact test run title to confirm deletion")
+    await db.bassett_issues.update_one({"id": id, "archived": True}, {"$set": {
+        "deleted_at": now_iso(), "deleted_by": user["id"], "updated_at": now_iso(),
+    }})
+    await _bassett_history("issue", id, "deleted", user, {"linked_records_and_uploads_preserved": True})
+    return {"ok": True}
 
 @api.post("/bassett/issues/{id}/link-finding")
 async def bassett_link_finding(id: str, body: Dict[str, Any], user=Depends(get_current_user)):
@@ -8061,6 +8077,8 @@ class _RequestContextBridge:
 
 
 def _filter_sample_scope(collection, records, include_sample=None):
+    if collection in ("bassett_issues", "findings"):
+        records = [record for record in records if not record.get("deleted_at")]
     # Models are application configuration, not test/sample content.  Earlier
     # sample imports tagged the default model rows as sample_data, which made
     # the Administration > Models table appear empty whenever sample records

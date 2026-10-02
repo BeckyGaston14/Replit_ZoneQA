@@ -1,5 +1,18 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
+import { createBassettRetestDraft } from "./BassettIssues";
+
+test("Bassett retest opens a new unscored run linked to its finding", () => {
+  const draft = createBassettRetestDraft({ id: "old", title: "Original", scenario_id: "scenario", project_id: "project", result: "Critical Fail", evaluation_scores: { accuracy: 1 }, attachments: [{ id: "old-upload" }] }, { id: "finding", title: "Use Table Errors" }, "America/Chicago");
+  expect(draft.id).toBeFalsy();
+  expect(draft.title).toBe("Retest: Original");
+  expect(draft.scenario_id).toBe("scenario");
+  expect(draft.project_id).toBe("project");
+  expect(draft.finding_ids).toEqual(["finding"]);
+  expect(draft.result).not.toBe("Critical Fail");
+  expect(draft.evaluation_scores).not.toEqual({ accuracy: 1 });
+  expect(draft.attachments || []).toEqual([]);
+});
 import BassettIssues, { BassettRunActions, ScenarioSelector, actionError, loadBassettTestRunForEdit, persistBassettTestRun, scoredRubricRemovalIds } from "./BassettIssues";
 import BassettTestBank, { ResultPill, ScenarioDetail } from "./BassettTestBank";
 

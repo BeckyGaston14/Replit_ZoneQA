@@ -115,3 +115,26 @@ export function BassettFindingLifecycle({ finding, onChanged }) {
     </ConfirmActionDialog>
   </div>;
 }
+
+export function ArchivedRunDelete({ issue, onChanged }) {
+  const [open, setOpen] = useState(false);
+  const [confirmation, setConfirmation] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const title = issue.title || issue.question_asked || issue.id;
+  const remove = async () => {
+    if (busy) return;
+    if (confirmation !== title) { setError("Enter the exact test run title."); return; }
+    setBusy(true);
+    try {
+      await api.post(`/bassett/issues/${issue.id}/delete-archived`, { confirmation_title: confirmation });
+      setOpen(false); onChanged(); toast.success("Archived test run deleted");
+    } catch (e) { setError(errorText(e)); }
+    finally { setBusy(false); }
+  };
+  return <><Button type="button" size="sm" variant="outline" onClick={() => { setOpen(true); setError(""); setConfirmation(""); }}>Delete Test Run</Button>
+    <ConfirmActionDialog open={open} onOpenChange={(value) => !busy && setOpen(value)} title={`Delete ${title}?`} description="Remove this test run from the archive. Linked findings and uploaded files are preserved, and stored history is retained for safety. Enter the exact test run title to confirm." confirmLabel="Delete Test Run" destructive busy={busy} onConfirm={remove}>
+      <Input aria-label="Confirm test run title" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} />
+      {error && <p role="alert">{error}</p>}
+    </ConfirmActionDialog></>;
+}

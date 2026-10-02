@@ -998,7 +998,7 @@ export default function UnifiedTestEntryForm({
     }));
   };
   const comparison = form.comparison || {};
-  const showFollowUp = isComparison || form.create_finding || ["Needs Improvement", "Fail", "Critical Fail"].includes(normalizeEvaluationResult(form.result)) || Boolean(form.follow_up_action || form.retest_target || form.retest_date);
+  const showFollowUp = isComparison;
   const totalSections = isComparison ? 11 : showFollowUp ? 7 : 6;
   const sectionLabels = isComparison
     ? ["Setup", "Records & prompt", "Bassett result", "Rubric", "Findings", "Sources", "Follow-up", "ChatGPT", "Claude", "Benchmarks", "Comparison"]

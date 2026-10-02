@@ -262,9 +262,10 @@ test("Bassett progress navigation shows every actual form section", () => {
   const edit = renderForm("bassett", { id: "run-1", result: "Critical Fail" });
   const editNavigation = edit.container.querySelector('[aria-label="Test entry sections"]');
   expect([...editNavigation.querySelectorAll("button")].map((button) => button.textContent)).toEqual([
-    "1. Setup", "2. Records & prompt", "3. Bassett result", "4. Rubric", "5. Findings", "6. Sources", "7. Follow-up",
+    "1. Setup", "2. Records & prompt", "3. Bassett result", "4. Rubric", "5. Findings", "6. Sources",
   ]);
-  expect(edit.container.textContent).toContain("Section 1 of 7: Setup");
+  expect(edit.container.textContent).toContain("Section 1 of 6: Setup");
+  expect(edit.container.textContent).not.toContain("7. Follow-Up & Retesting");
 
   act(() => create.root.unmount());
   act(() => edit.root.unmount());

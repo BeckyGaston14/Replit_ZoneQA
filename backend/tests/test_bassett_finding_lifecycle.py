@@ -67,3 +67,22 @@ def test_create_forces_bassett_scope_and_primary_link(monkeypatch):
 def test_new_finding_requires_title():
     with pytest.raises(HTTPException):
         asyncio.run(server.create_bassett_finding({"title": " "}, ADMIN))
+
+
+def test_archive_run_delete_preserves_links_and_requires_confirmation(monkeypatch):
+    store = SimpleNamespace(update_one=AsyncMock())
+    monkeypatch.setattr(server, "db", SimpleNamespace(bassett_issues=store))
+    monkeypatch.setattr(server, "_bassett_ref", AsyncMock(return_value={"id": "run", "title": "Run", "archived": True, "finding_id": "finding"}))
+    monkeypatch.setattr(server, "_bassett_history", AsyncMock())
+    with pytest.raises(HTTPException):
+        asyncio.run(server.bassett_delete_archived_issue("run", {}, ADMIN))
+    store.update_one.assert_not_called()
+    asyncio.run(server.bassett_delete_archived_issue("run", {"confirmation_title": "Run"}, ADMIN))
+    update = store.update_one.call_args.args[1]["$set"]
+    assert update["deleted_at"]
+    assert "finding_id" not in update
+
+
+def test_deleted_records_excluded_even_when_samples_visible():
+    for collection in ("bassett_issues", "findings"):
+        assert server._filter_sample_scope(collection, [{"id": "a"}, {"id": "b", "deleted_at": "now"}], True) == [{"id": "a"}]
