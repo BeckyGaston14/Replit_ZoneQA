@@ -10,6 +10,7 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 jest.mock("@tanstack/react-query", () => ({ useQuery: jest.fn() }));
 jest.mock("jspdf", () => ({ __esModule: true, default: jest.fn() }));
+jest.mock("../lib/api", () => ({ api: { get: jest.fn() } }));
 jest.mock("html2canvas", () => jest.fn());
 jest.mock("sonner", () => ({ toast: { success: jest.fn(), error: jest.fn() } }));
 jest.mock("../lib/executivePdf", () => ({
@@ -184,14 +185,28 @@ test("offers Bassett-only, Model Comparison, and combined executive scopes", () 
   expect([...selector.options].map((option) => option.textContent)).toEqual([
     "Bassett Only", "Model Comparison", "Both",
   ]);
-  expect(useQuery).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["executive", "both"] }));
+  expect(useQuery).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["executive", "both", ""] }));
 
   act(() => {
     selector.value = "bassett";
     selector.dispatchEvent(new Event("change", { bubbles: true }));
   });
-  expect(useQuery).toHaveBeenLastCalledWith(expect.objectContaining({ queryKey: ["executive", "bassett"] }));
+  expect(useQuery).toHaveBeenLastCalledWith(expect.objectContaining({ queryKey: ["executive", "bassett", ""] }));
   view.unmount();
+});
+
+test("project shortcut scopes the request and clearing it restores all projects", () => {
+  window.history.replaceState({}, "", "/executive?project_id=p1");
+  const view = renderPage();
+  expect(useQuery).toHaveBeenLastCalledWith(expect.objectContaining({ queryKey: ["executive", "both", "p1"] }));
+  const selector = view.container.querySelector('[aria-label="Summary testing project"]');
+  act(() => {
+    selector.value = "";
+    selector.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  expect(useQuery).toHaveBeenLastCalledWith(expect.objectContaining({ queryKey: ["executive", "both", ""] }));
+  view.unmount();
+  window.history.replaceState({}, "", "/");
 });
 
 test("renders the complete model legend outside the chart capture area", () => {

@@ -14,15 +14,17 @@ import { MODEL_COLORS, MODEL_ORDER } from "../lib/modelColors";
 import { captureExecutiveChart, renderExecutivePdf } from "../lib/executivePdf";
 import { QueryState } from "../components/PageState";
 import { SafeResponsiveContainer } from "../components/SafeResponsiveContainer";
+import ProjectReportSelector, { initialReportProject } from "../components/ProjectReportSelector";
 
 export const localDateStamp = (date = new Date()) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 
 export default function Executive() {
   const [reportScope, setReportScope] = useState("both");
+  const [projectId, setProjectId] = useState(initialReportProject);
   const query = useQuery({
-    queryKey: ["executive", reportScope],
-    queryFn: async ({ signal } = {}) => (await api.get("/analytics/executive", { params: { report_scope: reportScope }, signal })).data,
+    queryKey: ["executive", reportScope, projectId],
+    queryFn: async ({ signal } = {}) => (await api.get("/analytics/executive", { params: { report_scope: reportScope, project_id: projectId }, signal })).data,
   });
   const { data: d } = query;
   const trendChartRef = useRef(null);
@@ -64,7 +66,7 @@ export default function Executive() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `Bassett-Executive-Summary-${reportScope}-${localDateStamp()}.pdf`;
+      link.download = `Bassett-Executive-Summary-${d.project?.name?.replace(/[^a-z0-9-]/gi, "-") || "all-projects"}-${reportScope}-${localDateStamp()}.pdf`;
       document.body.appendChild(link);
       link.click();
       window.setTimeout(() => {
@@ -144,6 +146,7 @@ export default function Executive() {
   return (
     <div data-testid="exec-pdf-surface">
        <PageHeader title="Executive Summary" subtitle={`${d.scope || ""} · Generated ${new Date().toLocaleDateString()}.`}>
+        <ProjectReportSelector value={projectId} onChange={setProjectId} />
         <label className="flex items-center gap-2 text-sm" data-html2canvas-ignore="true">
           <span className="font-medium text-[var(--navy)]">Report scope</span>
           <select aria-label="Executive summary scope" value={reportScope} onChange={(event) => setReportScope(event.target.value)} className="h-9 rounded-md border bg-background px-3 text-sm">
@@ -157,6 +160,14 @@ export default function Executive() {
           {exportStatus === "generating" ? "Generating PDF…" : exportStatus === "saving" ? "Saving PDF…" : "Download PDF"}
         </Button>
       </PageHeader>
+      {d.project && <section className="mb-5 rounded-xl border bg-card p-4" aria-label="Testing project summary">
+        <h2 className="font-semibold">{d.project.name}</h2>
+        {d.project.description && <p className="mt-1 text-sm">{d.project.description}</p>}
+        <p className="mt-2 font-medium">{d.project.linked_test_count} {d.project.required_test_count ? `of ${d.project.required_test_count} required tests linked` : "tests linked · no target set"}</p>
+        <p className="mt-1 text-xs text-muted-foreground">Linked tests include unfinished records. Quality metrics below use only qualifying evaluations within this project.</p>
+        <h3 className="mt-4 font-semibold">Unresolved findings & retesting</h3>
+        {(d.project_findings || []).length ? <ul className="mt-2 space-y-2">{d.project_findings.map((finding) => <li key={finding.id} className="border-t pt-2 text-sm"><strong>{finding.title}</strong><span className="block">{finding.severity} · {finding.workflow_status} · Retest: {finding.retest_status}</span></li>)}</ul> : <p className="text-sm mt-2">No unresolved findings in the selected project and report scope.</p>}
+      </section>}
       {d.insufficient_evidence && <div className="mb-4 rounded-xl border border-slate-300 bg-slate-50 p-4 text-sm text-slate-800" data-testid="executive-insufficient-evidence">Insufficient Evidence: this {d.report_scope === "both" ? "combined" : d.report_scope || "selected"} report has {d.release_evidence?.evaluated || 0} of {d.minimum_qualifying_tests} qualifying tests completed. This report remains informational and will not emit a Go recommendation.</div>}
       <SampleDataBanner show={sampleDataShown} />
       {limitedDataMessage && <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" data-testid="limited-data-warning">{limitedDataMessage}</div>}

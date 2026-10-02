@@ -306,7 +306,7 @@ export function renderExecutivePdf({ doc, data, chartImages = {}, generated = ne
   const strongestCategory = rankedCategories[0];
   const weakestCategory = rankedCategories[rankedCategories.length - 1];
   const failureModes = data?.failure_modes || [];
-  const openHighCriticalFindings = data?.open_high_critical_findings || [];
+  const openHighCriticalFindings = (data?.project ? data.project_findings : data?.open_high_critical_findings) || [];
   const includesComparison = data?.report_scope !== "bassett";
   const takeaways = [
     data?.insufficient_evidence
@@ -350,6 +350,13 @@ export function renderExecutivePdf({ doc, data, chartImages = {}, generated = ne
     `${data?.scope || "Scope unavailable"} · qualifying evidence ${safeText(data?.release_evidence?.evaluated, "0")}/${safeText(data?.minimum_qualifying_tests, "unavailable")}`,
   );
   y += 2;
+  if (data?.project) {
+    y = drawTable(doc, ["Project", "Details"], [
+      [data.project.name, data.project.description || "No description"],
+      ["Linked tests", `${data.project.linked_test_count} ${data.project.required_test_count ? `of ${data.project.required_test_count} required tests` : "tests; no target set"}. Includes unfinished tests; quality metrics use qualifying evaluations only.`],
+    ], y, [45, A4_PAGE.contentWidth - 45], boxes, "Project summary", newPage) + SECTION_GAP;
+    if (y + 100 > A4_PAGE.bottom) y = newPage();
+  }
   y = drawKpiCards(doc, kpis, y, boxes, data?.report_scope, data?.population_counts) + 7;
   y = drawTakeaways(doc, takeaways, y, boxes) + SECTION_GAP;
 
@@ -402,7 +409,7 @@ export function renderExecutivePdf({ doc, data, chartImages = {}, generated = ne
     const startPage = doc.internal.getCurrentPageInfo().pageNumber;
     y = drawSectionTitle(
       doc,
-      "Open High & Critical Findings",
+      data?.project ? "Unresolved Project Findings" : "Open High & Critical Findings",
       y,
       "Actionable findings in the selected scope. Archived and closed findings are excluded.",
     );

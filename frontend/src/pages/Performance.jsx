@@ -119,7 +119,7 @@ export default function Performance() {
 
   return (
     <div>
-      <PageHeader title="Bassett Performance & Reward" subtitle={perf ? `Scope: ${perf.scope}` : "Performance across Bassett-only and Model Comparison testing."} />
+      <PageHeader title="Bassett Performance" subtitle={perf ? `Scope: ${perf.scope}` : "Performance across Bassett-only and Model Comparison testing."} />
       <SampleDataBanner show={sampleScopeIncludesData({ versions, selectedVersion: flt.version, records: [perf] })} />
       {savedView.error && <div role="alert" className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">{savedView.error} <button type="button" className="ml-2 font-semibold underline" onClick={savedView.retry}>Retry saved view</button></div>}
       {failed && <QueryState query={failed} resource="performance data" testId="performance" />}
@@ -157,11 +157,13 @@ export default function Performance() {
         />
       </div>}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      <div className={perf.report_scope === "bassett" ? "max-w-sm mb-6" : "grid grid-cols-2 md:grid-cols-4 gap-3 mb-6"}>
         <StatCard label="Overall Bassett Score" value={bassett ? fmtScore(bassett.avg_score) : "—"} sub="/ 10 avg" accent={MODEL_COLORS.Bassett} icon={Target} testid="perf-overall-score" title="Mean of the latest non-retest Bassett evaluation per test case within the active scope." />
-        <StatCard label="Bassett Wins" value={perf.report_scope === "bassett" ? "—" : perf.wins} sub={perf.report_scope === "bassett" ? "requires Model Comparison" : "beat both benchmarks"} accent="#16a34a" icon={Trophy} />
+        {perf.report_scope !== "bassett" && <>
+        <StatCard label="Bassett Wins" value={perf.wins} sub="beat both benchmarks" accent="#16a34a" icon={Trophy} />
         <StatCard label="Bassett Losses" value={perf.report_scope === "bassett" ? "—" : perf.losses} sub={perf.report_scope === "bassett" ? "requires Model Comparison" : "benchmark outperformed"} accent="#dc2626" icon={TrendingDown} />
         <StatCard label="Shared Failures" value={perf.report_scope === "bassett" ? "—" : perf.shared_failures} sub={perf.report_scope === "bassett" ? "requires Model Comparison" : "all compared models failed"} accent="#64748b" icon={AlertOctagon} />
+        </>}
       </div>
 
       <div className="mb-4">

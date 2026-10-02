@@ -8,6 +8,7 @@ import { buildReportPayload } from "../lib/reportExports";
 import { downloadCsv, tableRowsToCsv } from "../lib/tableData";
 import { useConfig } from "../lib/hooks";
 import { ImportCsvModal } from "../components/ImportCsvModal";
+import ProjectReportSelector, { initialReportProject, projectSummaryUrl } from "../components/ProjectReportSelector";
 
 const EXPORT_REPORTS = [
   { key: "qa_summary", title: "Bassett QA Summary", desc: "Overall pass/fail, accuracy, and open findings." },
@@ -24,6 +25,7 @@ export default function Reports() {
   const [versions, setVersions] = useState([]);
   const [version, setVersion] = useState("");
   const [scope, setScope] = useState("both");
+  const [projectId, setProjectId] = useState(initialReportProject);
   useEffect(() => {
     const request = api.get("/versions");
     if (!request?.then) return;
@@ -88,6 +90,15 @@ export default function Reports() {
         <Button variant="outline" className="w-full sm:w-auto" onClick={() => setImportOpen(true)}><FileText size={15} className="mr-1" /> Import Model Comparison Test Cases</Button>
         <Button variant="outline" className="w-full sm:w-auto" onClick={exportCSV}><FileDown size={15} className="mr-1" /> Export Model Comparison Test Cases</Button>
       </PageHeader>
+      <section className="mb-5 rounded-xl border bg-card p-4" aria-label="Project summary report">
+        <h2 className="font-semibold mb-2">Project Summary & PDF</h2>
+        <p className="text-sm text-muted-foreground mb-3">Choose a project to view its linked tests, results, scores, and findings, then download its PDF from the summary.</p>
+        <div className="flex flex-wrap items-end gap-3">
+          <ProjectReportSelector value={projectId} onChange={setProjectId} />
+          <a className="inline-flex h-9 items-center rounded-md border px-3 text-sm font-medium" href={projectSummaryUrl(projectId)}>View Summary</a>
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">This project selection applies to the summary and its PDF. General data exports below retain their existing scope.</p>
+      </section>
       <div className="flex flex-wrap items-end gap-3 mb-5">
         <label className="text-sm font-medium">Readiness version
           <select className="block mt-1 h-9 rounded-md border bg-background px-2" value={version} onChange={(event) => setVersion(event.target.value)}>

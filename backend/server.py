@@ -4654,7 +4654,7 @@ async def bassett_create_issue(body: Dict[str, Any], user=Depends(get_current_us
         "category_scores": rubric_result["category_scores"],
         "score_count": rubric_result["score_count"],
     })
-    if any(linked.get("catalog_revision") != CATALOG_REVISION for linked in scenarios):
+    if not scenario_rubric_ids and any(linked.get("catalog_revision") != CATALOG_REVISION for linked in scenarios):
         for field in (
             "rubric_revision", "selected_rubric_ids", "additional_rubric_ids",
             "rubric_scores", "rubric_definition_snapshot", "category_scores", "score_count",
@@ -4811,7 +4811,7 @@ async def _prepare_bassett_workflow_document(body: Dict[str, Any], user: Dict[st
             "score_label": "Rubric average",
             "weight_explanation": "Neutral rubric weights; missing and N/A values are excluded.",
         })
-    if any(linked.get("catalog_revision") != CATALOG_REVISION for linked in scenarios):
+    if not scenario_rubric_ids and any(linked.get("catalog_revision") != CATALOG_REVISION for linked in scenarios):
         for field in (
             "rubric_revision", "selected_rubric_ids", "additional_rubric_ids",
             "rubric_scores", "rubric_definition_snapshot", "category_scores", "score_count",
@@ -7289,14 +7289,22 @@ def _metric_model_summary(evaluations):
     ]
 
 
+def _uses_item_rubrics(record):
+    revision = record.get("rubric_revision") or record.get("bassett_rubric_revision")
+    return bool(revision and revision != "legacy12" and (
+        revision == CATALOG_REVISION or record.get("selected_rubric_ids")
+        or record.get("bassett_selected_rubric_ids") or record.get("rubric_definition_snapshot")
+    ))
+
+
 def _metric_scoring_populations(evaluations, dimensions=None):
     current = [
         evaluation for evaluation in evaluations
-        if evaluation.get("rubric_revision") == CATALOG_REVISION
+        if _uses_item_rubrics(evaluation)
     ]
     legacy = [
         evaluation for evaluation in evaluations
-        if evaluation.get("rubric_revision") != CATALOG_REVISION
+        if not _uses_item_rubrics(evaluation)
     ]
     return {
         "current_rubric": current,
@@ -7315,7 +7323,7 @@ def _metric_scoring_populations(evaluations, dimensions=None):
 def _authoritative_bassett_run_scoring(run, dimensions):
     """Calculate a standalone Bassett run with its stored scoring system."""
     rubric_revision = run.get("rubric_revision") or run.get("bassett_rubric_revision")
-    if rubric_revision == CATALOG_REVISION:
+    if _uses_item_rubrics(run):
         snapshot = (
             run.get("rubric_definition_snapshot")
             or run.get("bassett_rubric_definition_snapshot")
@@ -7346,7 +7354,8 @@ def _authoritative_bassett_run_scoring(run, dimensions):
             "score_label": "Rubric average",
             "category_scores": rubric_result["category_scores"],
             "score_count": rubric_result["score_count"],
-            "rubric_revision": CATALOG_REVISION,
+            "rubric_revision": rubric_revision,
+            "rubric_definition_snapshot": snapshot,
             "rubric_scores": rubric_scores,
             "selected_rubric_ids": selected_rubric_ids,
             "scoring_system": "current_rubric",
@@ -7367,7 +7376,7 @@ async def _authoritative_evaluation_read_model(evaluations):
     read_model = []
     for evaluation in evaluations:
         result = evaluation_result_details(evaluation.get("final_result"))
-        rubric_current = evaluation.get("rubric_revision") == CATALOG_REVISION
+        rubric_current = _uses_item_rubrics(evaluation)
         snapshot = evaluation.get("rubric_definition_snapshot") or {}
         rubric_items = list(snapshot.values()) if isinstance(snapshot, dict) and snapshot else list(RUBRIC_CATALOG_ITEMS)
         rubric_result = score_rubrics(
@@ -7398,7 +7407,7 @@ async def _authoritative_evaluation_read_model(evaluations):
                 "category_scores": rubric_result["category_scores"],
                 "score_count": rubric_result["score_count"],
                 "rubric_scores": rubric_scores,
-                "rubric_revision": CATALOG_REVISION,
+                "rubric_revision": evaluation.get("rubric_revision"),
                 "selected_rubric_ids": selected_rubric_ids,
                 "additional_rubric_ids": list(evaluation.get("additional_rubric_ids") or []),
                 "rubric_definition_snapshot": dict(
@@ -9127,19 +9136,38 @@ async def put_sample_visibility(body: Dict[str, Any], user=Depends(get_current_u
     return {"include_sample_records": include_sample}
 
 # ---------- Executive summary ----------
+def _finding_in_project(finding, project_id, issues, testcases):
+    """Include direct and many-to-many linked findings, never other projects."""
+    if finding.get("project_id") == project_id or finding.get("testcase_id") in testcases:
+        return True
+    project_runs = {run.get("id") for run in issues if run.get("project_id") == project_id}
+    links = {finding.get("bassett_issue_id"), *(finding.get("linked_test_run_ids") or [])}
+    return bool(project_runs & links) or any(
+        run.get("id") in project_runs and finding.get("id") in
+        [run.get("finding_id"), *(run.get("finding_ids") or [])] for run in issues
+    )
+
+
 @api.get("/analytics/executive")
 async def analytics_executive(
     user=Depends(get_current_user), report_scope: str = "both",
     include_sample: Optional[bool] = None,
+    project_id: str = "",
 ):
     if report_scope not in {"bassett", "comparison", "both"}:
         raise HTTPException(400, "report_scope must be bassett, comparison, or both")
     include_sample = _sample_scope_enabled(user, include_sample)
+    project = None
+    if project_id:
+        project = next((p for p in await crud_list("projects") if p.get("id") == project_id), None)
+        if not project:
+            raise HTTPException(404, "Testing project not found or unavailable")
     versions = await crud_list("versions")
     sample_versions = _sample_version_names(versions)
     tcs = {
         t["id"]: t for t in await crud_list("testcases")
-        if include_sample or not _is_sample_testcase(t)
+        if (include_sample or not _is_sample_testcase(t))
+        and (not project_id or t.get("project_id") == project_id)
     }
     raw_evaluations = _exclude_sample_scope(
         await crud_list("evaluations"), versions, include_sample,
@@ -9177,6 +9205,8 @@ async def analytics_executive(
     for run in _canonical_bassett_lineages(
         issues, executions, active_scenario_ids=set(scenario_by_id),
     ):
+        if project_id and run.get("project_id") != project_id:
+            continue
         if (
             run.get("id") in comparison_issue_ids
             or run.get("issue_id") in comparison_issue_ids
@@ -9190,32 +9220,7 @@ async def analytics_executive(
         ):
             continue
         scores = run.get("evaluation_scores") or run.get("scores") or {}
-        rubric_revision = run.get("rubric_revision") or run.get("bassett_rubric_revision")
-        rubric_scores = dict(run.get("rubric_scores") or run.get("bassett_rubric_scores") or {})
-        selected_rubric_ids = normalize_rubric_ids(
-            run.get("selected_rubric_ids")
-            or run.get("bassett_selected_rubric_ids")
-            or []
-        )
-        if rubric_revision == CATALOG_REVISION:
-            rubric_result = score_rubrics(rubric_scores, selected_rubric_ids)
-            authoritative = {
-                "overall_score": rubric_result["overall_score"],
-                "weighted_score": rubric_result["overall_score"],
-                "score_mode": "rubric_average",
-                "score_label": "Rubric average",
-                "category_scores": rubric_result["category_scores"],
-                "score_count": rubric_result["score_count"],
-                "rubric_revision": CATALOG_REVISION,
-                "rubric_scores": rubric_scores,
-                "selected_rubric_ids": selected_rubric_ids,
-                "scoring_system": "current_rubric",
-            }
-        else:
-            authoritative = {
-                **score_evaluation(scores, dimensions),
-                "scoring_system": "legacy_dimensions",
-            }
+        authoritative = _authoritative_bassett_run_scoring(run, dimensions)
         result = _canonical_bassett_result(run.get("result"))
         candidate = {
             **run,
@@ -9263,6 +9268,7 @@ async def analytics_executive(
     findings = [
         finding for finding in await crud_list("findings")
         if not finding.get("archived") and finding.get("status") != "Archived"
+        and (not project_id or _finding_in_project(finding, project_id, issues, tcs))
         and (
             (report_scope == "bassett" and is_bassett_finding(finding))
             or (report_scope == "comparison" and not is_bassett_finding(finding) and finding.get("testcase_id") in tcs)
@@ -9275,6 +9281,8 @@ async def analytics_executive(
         f"sample data {'included' if include_sample else 'excluded'} · "
         "all Bassett versions · retests excluded · Pass includes 'Pass with Minor Issues'"
     )
+    if project:
+        scope = f"Project: {project.get('name', project_id)} · {scope}"
 
     def quarter_of(iso):
         try:
@@ -9326,7 +9334,7 @@ async def analytics_executive(
         elif bs < max(others) - 0.5:
             losses += 1
 
-    open_findings = [f for f in findings if f.get("developer_status") not in CLOSED_FINDING]
+    open_findings = [f for f in findings if (f.get("developer_status") or f.get("status")) not in CLOSED_FINDING and (f.get("developer_status") or f.get("status")) != "Closed / Resolved"]
     open_critical = len([f for f in open_findings if _finding_is_high_or_critical(f)])
     open_finding_severity = _finding_severity_counts(open_findings)
     open_high_critical_findings = []
@@ -9438,6 +9446,27 @@ async def analytics_executive(
                   },
               },
               "scope": scope,
+              "project_findings": [{
+                  "id": f.get("id"), "title": f.get("title") or "Untitled finding",
+                  "severity": _canonicalize_finding_severity(f).get("severity"),
+                  "category": f.get("finding_type") or "Uncategorized",
+                  "linked_test_run_count": len({run.get("id") for run in issues
+                      if run.get("project_id") == project_id and (
+                          run.get("id") in [f.get("bassett_issue_id"), *(f.get("linked_test_run_ids") or [])]
+                          or f.get("id") in [run.get("finding_id"), *(run.get("finding_ids") or [])]
+                      )}),
+                  "workflow_status": FINDING_WORKFLOW_LABELS.get(f.get("developer_status") or f.get("status"), f.get("developer_status") or f.get("status") or "Not Started"),
+                  "retest_status": f.get("retest_status") or "Not Started",
+              } for f in open_findings] if project else [],
+              "project": ({
+                  "id": project_id, "name": project.get("name"),
+                  "description": project.get("description") or "",
+                  "required_test_count": project.get("required_test_count"),
+                  "linked_test_count": len(tcs) + len([
+                      run for run in issues if run.get("project_id") == project_id
+                      and run.get("testcase_id") not in tcs
+                  ]),
+              } if project else None),
             "stale_gold_tests": stale_gold, "sample_data_included": include_sample,
              "has_evaluated_data": evaluated_count > 0, "report_scope": report_scope,
              "release_evidence": report_evidence,

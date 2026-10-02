@@ -720,12 +720,11 @@ export default function UnifiedTestEntryForm({
   ), [form.evaluation_scores, form.evaluations, isComparison]);
   const catalogActive = normalizedRubricCatalog.rubric_items.length > 0
     && form.rubric_revision !== LEGACY_RUBRIC_REVISION
-    && (!form.id || form.rubric_revision === normalizedRubricCatalog.revision);
+    && (!form.id || Boolean(form.rubric_revision));
   useEffect(() => {
     if (!catalogActive) return;
     const previousScenarioIds = form.rubric_scenario_ids || (form.rubric_selection_initialized ? activeScenarioIds : []);
-    if (form.rubric_selection_initialized && JSON.stringify(previousScenarioIds) === JSON.stringify(activeScenarioIds)
-      && form.rubric_revision === normalizedRubricCatalog.revision) return;
+    if (form.rubric_selection_initialized && JSON.stringify(previousScenarioIds) === JSON.stringify(activeScenarioIds)) return;
     const reconciled = reconcileScenarioRubricSelection({
       scenarios: selectableScenarios, previousScenarioIds, scenarioIds: activeScenarioIds,
       selectedRubricIds: form.selected_rubric_ids || [], scores: form.evaluation_scores || {},

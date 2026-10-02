@@ -170,10 +170,12 @@ def aggregate_rubric_evaluations(
     }
     evaluation_count = 0
     for evaluation in evaluations if isinstance(evaluations, list) else []:
+        snapshot = evaluation.get("rubric_definition_snapshot") or {}
+        stored_items = list(snapshot.values()) if isinstance(snapshot, dict) and snapshot else rubric_items
         result = aggregate_rubric_categories(
             evaluation.get("rubric_scores") or {},
             evaluation.get("selected_rubric_ids") or [],
-            rubric_items=rubric_items,
+            rubric_items=stored_items,
             categories=category_list,
         )
         if result:

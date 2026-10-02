@@ -3,6 +3,12 @@ import path from "path";
 
 const source = (name) => fs.readFileSync(path.join(__dirname, `${name}.jsx`), "utf8");
 
+test("performance uses its plain title and hides comparison cards for Bassett-only scope", () => {
+  expect(source("Performance")).toContain('title="Bassett Performance"');
+  expect(source("Performance")).not.toContain("Performance & Reward");
+  expect(source("Performance")).toMatch(/perf.report_scope !== "bassett" && <>[\s\S]*label="Bassett Wins"[\s\S]*label="Shared Failures"[\s\S]*<\/>/);
+});
+
 test.each([
   ["CalendarPage", /QueryState query=\{calendarQuery\}/],
   ["Regression", /QueryState query=\{failed\}/],

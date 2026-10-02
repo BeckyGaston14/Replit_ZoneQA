@@ -55,6 +55,22 @@ function assertNoIntersectingTopLevelBoxes(boxes) {
   });
 }
 
+test("project PDF includes project details and lower-severity findings without overlapping", () => {
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const data = {
+    ...reportData(),
+    project: { name: "Use Testing", description: "Project-specific QA review", linked_test_count: 3, required_test_count: 10 },
+    project_findings: [{ title: "Minor citation problem", severity: "Low", workflow_status: "In Review", retest_status: "Pending" }],
+  };
+  const layout = renderExecutivePdf({ doc, data, generated: "2026-10-01" });
+  assertNoIntersectingLayoutBoxes(layout.boxes);
+  const output = doc.output();
+  expect(output).toContain("Use Testing");
+  expect(output).toContain("Unresolved Project Findings");
+  expect(output).toContain("Minor citation problem");
+  expect(output).not.toContain("Incorrect use classification");
+});
+
 function assertNoIntersectingLayoutBoxes(boxes) {
   boxes.forEach((left, index) => {
     boxes.slice(index + 1).forEach((right) => {

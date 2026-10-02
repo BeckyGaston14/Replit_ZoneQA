@@ -1,6 +1,13 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { Projects } from "./Resources";
+import { MUNICIPALITY_SCHEMA } from "../lib/resourceSchemas";
+
+test("municipality form keeps links and notes but removes obsolete code and date inputs", () => {
+  const keys = MUNICIPALITY_SCHEMA.fields.map((field) => field.key);
+  expect(keys).toEqual(expect.arrayContaining(["country", "state", "code_url", "map_url", "notes"]));
+  ["primary_code", "code_effective_date", "last_verified", "latest_amendment_date"].forEach((key) => expect(keys).not.toContain(key));
+});
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 

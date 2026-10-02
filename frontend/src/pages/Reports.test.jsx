@@ -27,7 +27,8 @@ test("offers truthful scoped exports without duplicating application navigation"
 
   expect(container.querySelectorAll("[data-testid='export-qa-data-json']")).toHaveLength(1);
   expect(container.querySelectorAll("[data-testid^='report-']")).toHaveLength(6);
-  expect(container.querySelectorAll("a")).toHaveLength(0);
+  expect(container.querySelector("a").textContent).toBe("View Summary");
+  expect(container.querySelector('[aria-label="Summary testing project"]')).not.toBeNull();
   expect(container.textContent).toContain("Release Readiness Data");
   expect(container.textContent).toContain("Municipality Testing Data");
   expect(container.textContent).not.toContain("Live reports");

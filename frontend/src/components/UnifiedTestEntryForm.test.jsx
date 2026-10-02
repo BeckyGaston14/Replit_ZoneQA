@@ -435,7 +435,7 @@ test("both evaluation form modes keep score labels and the shared rubric without
   }
 });
 
-test("changing one Bassett rubric to N/A preserves every other saved score", () => {
+test.each(["2026-10-01", "2026-09-30"])("changing one Bassett rubric to N/A preserves every other saved score for revision %s", (savedRevision) => {
   const rubricCatalog = {
     revision: "2026-10-01",
     categories: [{ key: "property-zoning", name: "Property & Zoning Rules", rubric_ids: ["R-01", "R-02"] }],
@@ -446,7 +446,7 @@ test("changing one Bassett rubric to N/A preserves every other saved score", () 
   };
   const view = renderForm("bassett", {
     id: "current-run",
-    rubric_revision: rubricCatalog.revision,
+    rubric_revision: savedRevision,
     rubric_selection_initialized: true,
     rubric_scenario_ids: [scenario.id],
     selected_rubric_ids: ["R-01", "R-02"],

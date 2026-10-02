@@ -22,6 +22,7 @@ export function Projects() {
     : [...current, runId]);
   return <ResourceList
     {...PROJECT_SCHEMA}
+    columns={[...PROJECT_SCHEMA.columns, { key: "summary", label: "Summary", render: (project) => <button type="button" className="rounded border px-3 py-2 text-sm font-medium" onClick={() => navigate(`/executive?project_id=${encodeURIComponent(project.id)}`)}>View Summary</button> }]}
     rowLink={(project) => navigate(`/bassett/issues?project_id=${encodeURIComponent(project.id)}`)}
     rowAction={{
       label: (project) => `Add test run to ${project.name}`,

@@ -8,6 +8,21 @@ import server
 from postgres_store import _matches
 
 
+def test_older_item_rubric_revision_remains_scored_from_stored_snapshot():
+    item = dict(server.RUBRIC_CATALOG_ITEMS[0])
+    item["rubric_id"] = "R-99"
+    run = {"rubric_revision": "2026-09-30", "selected_rubric_ids": ["R-99"],
+           "rubric_scores": {"R-99": 8}, "rubric_definition_snapshot": {"R-99": item}}
+    scored = server._authoritative_bassett_run_scoring(run, [])
+    assert scored["overall_score"] == 8
+    assert scored["rubric_revision"] == "2026-09-30"
+    populations = server._metric_scoring_populations([{**scored, "model": "Bassett"}])
+    assert len(populations["current_rubric"]) == 1
+    assert sum(row["denominator"] for row in populations["current_categories"]) == 1
+    assert next(row for row in populations["current_categories"] if row["denominator"])["average"] == 8
+    assert not server._uses_item_rubrics({"rubric_revision": "legacy12", "selected_rubric_ids": ["R-99"]})
+
+
 class Cursor:
     def __init__(self, rows):
         self.rows = rows
@@ -702,6 +717,25 @@ def test_executive_uses_latest_qualifying_bassett_run_per_scenario(monkeypatch):
     assert executive["kpis"]["total_evaluated"] == 1
     assert executive["kpis"]["bassett_avg"] == 8
     assert executive["kpis"]["pass_rate"] == 100.0
+
+    # A newer result from another project must not replace this project's result.
+    rows["projects"] = [{"id": "p1", "name": "First project", "required_test_count": 5}, {"id": "p2", "name": "Other project"}]
+    rows["bassett_issues"][0]["project_id"] = "p1"
+    rows["bassett_issues"][1]["project_id"] = "p2"
+    rows["findings"] = [
+        {"id": "linked", "title": "Linked finding", "finding_scope": "bassett", "linked_test_run_ids": ["run-old"], "severity": "Low", "status": "New"},
+        {"id": "other", "finding_scope": "bassett", "project_id": "p2", "severity": "Critical", "status": "New"},
+        {"id": "closed", "finding_scope": "bassett", "project_id": "p1", "status": "Closed"},
+    ]
+    scoped = asyncio.run(server.analytics_executive({"id": "viewer"}, report_scope="bassett", project_id="p1"))
+    assert scoped["kpis"]["bassett_avg"] == 2
+    assert scoped["kpis"]["pass_rate"] == 0
+    assert scoped["project"]["linked_test_count"] == 1
+    assert scoped["project"]["required_test_count"] == 5
+    assert [f["id"] for f in scoped["project_findings"]] == ["linked"]
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(server.analytics_executive({"id": "viewer"}, project_id="missing"))
+    assert error.value.status_code == 404
 
 def test_dashboard_legacy_quality_fields_use_active_version_and_latest_regression(monkeypatch):
     evaluations = []
