@@ -101,7 +101,6 @@ export default function BassettTestBank() {
   const { data: scenarios = [], isLoading } = useTestBank({ includeArchived: true });
   const { data: metrics } = useQuery({ queryKey: ["bassett-metrics"], queryFn: async () => (await api.get("/bassett/metrics")).data });
   const { data: projects = [] } = useCollection("projects");
-  const { data: testcases = [] } = useCollection("testcases");
   const { data: versions = [] } = useCollection("versions");
   const { data: municipalities = [] } = useCollection("municipalities");
   const { data: properties = [] } = useCollection("properties");
@@ -397,9 +396,6 @@ export default function BassettTestBank() {
       <details className="rounded-xl border p-4">
         <summary className="cursor-pointer font-semibold text-sm text-[var(--navy)]">Optional links</summary>
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Bassett version"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.version_id} onChange={(e) => setScenarioField("version_id", e.target.value)}><option value="">Any version</option>{versions.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select></Field>
-          <Field label="Project"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.project_id} onChange={(e) => setScenarioField("project_id", e.target.value)}><option value="">Not linked</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
-          <Field label="Linked Model Comparison Test Case"><select aria-label="Linked Model Comparison Test Case" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.testcase_id} onChange={(e) => setScenarioField("testcase_id", e.target.value)}><option value="">Not linked</option>{testcases.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></Field>
           <div className="sm:col-span-2">
             <Field label="Linked Findings">
               <p className="mb-2 text-xs text-muted-foreground">Optional. Link one or more existing Bassett findings that relate to this scenario.</p>

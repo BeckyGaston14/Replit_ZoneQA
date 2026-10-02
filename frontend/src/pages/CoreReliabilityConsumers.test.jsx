@@ -13,6 +13,10 @@ test("Test Bank run entry receives existing linked records and all shared lookup
   expect(text).toContain('enabled: Boolean(form || execute)');
   expect(text).toContain('["P0 - Immediate", "P1 - High", "P2 - Medium", "P3 - Low"]');
   expect(text).not.toContain('"P2 - Medium", "Critical"');
+  expect(text).not.toContain('<Field label="Bassett version">');
+  expect(text).not.toContain('<Field label="Project">');
+  expect(text).not.toContain('<Field label="Linked Model Comparison Test Case">');
+  expect(text).toContain('<Field label="Linked Findings">');
 });
 
 test("performance uses its plain title and hides comparison cards for Bassett-only scope", () => {
