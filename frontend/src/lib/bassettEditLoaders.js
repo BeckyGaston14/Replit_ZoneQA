@@ -1,6 +1,10 @@
 import { api } from "./api";
 import { LEGACY_RUBRIC_REVISION } from "./rubricCatalog";
 
+export function scenarioPriority(value) {
+  return ({ Critical: "P0 - Immediate", High: "P1 - High", Medium: "P2 - Medium", Low: "P3 - Low" })[value] || value || "P2 - Medium";
+}
+
 export async function loadBassettTestRunForEdit(issue, apiClient = api) {
   const { data } = await apiClient.get(`/bassett/issues/${issue.id}`);
   const scenarioIds = [...new Set([

@@ -1,6 +1,10 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { loadBassettScenarioForEdit } from "../lib/bassettEditLoaders";
+import { loadBassettScenarioForEdit, scenarioPriority } from "../lib/bassettEditLoaders";
+
+test.each([["Critical", "P0 - Immediate"], ["High", "P1 - High"], ["Medium", "P2 - Medium"], ["Low", "P3 - Low"], ["P3 - Low", "P3 - Low"]])("scenario priority %s maps to %s without altering test-run priorities", (input, expected) => {
+  expect(scenarioPriority(input)).toBe(expected);
+});
 import { SortableTableHeader } from "../components/SortableTableHeader";
 import { validateScenarioDraft } from "../lib/formValidation";
 

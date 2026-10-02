@@ -27,13 +27,13 @@ import { TABLE_ACTION_CELL_CLASS, TABLE_CELL_CLASS, TABLE_CLASS, TABLE_EMPTY_CEL
 import { ConfirmActionDialog } from "../components/ConfirmActionDialog";
 import { useCollection, useConfig, useRubricCatalog, useSavedView, useTestBank } from "../lib/hooks";
 import { focusFormError, validateScenarioDraft } from "../lib/formValidation";
-import { loadBassettScenarioForEdit } from "../lib/bassettEditLoaders";
+import { loadBassettScenarioForEdit, scenarioPriority } from "../lib/bassettEditLoaders";
 import { rubricCategoryKey, rubricCategoryName } from "../lib/rubricCatalog";
 
 const emptyScenario = {
   workflow_stage: "", test_scenario: "",
   complexity: "Medium", why_it_matters: "", what_bassett_should_do: "",
-  success_criteria: "", priority: "Medium", test_type: "Analysis", scoring_category: "",
+  success_criteria: "", priority: "P2 - Medium", test_type: "Analysis", scoring_category: "",
   project_id: "", testcase_id: "", version_id: "", catalog_revision: "",
   finding_ids: [],
 };
@@ -103,12 +103,16 @@ export default function BassettTestBank() {
   const { data: projects = [] } = useCollection("projects");
   const { data: testcases = [] } = useCollection("testcases");
   const { data: versions = [] } = useCollection("versions");
+  const { data: municipalities = [] } = useCollection("municipalities");
+  const { data: properties = [] } = useCollection("properties");
+  const { data: users = [] } = useQuery({ queryKey: ["users"], queryFn: async () => (await api.get("/users")).data, enabled: Boolean(execute) });
+  const { data: evidenceRecords = [] } = useQuery({ queryKey: ["evidence"], queryFn: async () => (await api.get("/evidence")).data, enabled: Boolean(execute) });
   const { data: config } = useConfig();
   const { data: rubricCatalog } = useRubricCatalog();
   const { data: availableFindings = [] } = useQuery({
     queryKey: ["bassett-findings-for-test-bank-entry"],
     queryFn: async () => (await api.get("/bassett/findings")).data,
-    enabled: Boolean(form),
+    enabled: Boolean(form || execute),
   });
   const { data: workflowStages = [] } = useCollection("bassett/workflow-stages");
   const visibleScenarioOptions = scenarios.filter((scenario) => Boolean(scenario.archived) === showArchived);
@@ -170,7 +174,7 @@ export default function BassettTestBank() {
     setLoadingScenarioEditId(scenario.id);
     try {
       const data = await loadBassettScenarioForEdit(scenario);
-      const normalized = { ...data, scoring_category: rubricCategoryKey(rubricCatalog, data.scoring_category) };
+      const normalized = { ...data, priority: scenarioPriority(data.priority), scoring_category: rubricCategoryKey(rubricCatalog, data.scoring_category) };
       scenarioBaseline.current = normalized;
       setConflict(null);
       setFormErrors({});
@@ -353,7 +357,7 @@ export default function BassettTestBank() {
        <p>Archived definitions are hidden from the active denominator; incomplete and legacy Blocked runs are not silently counted as passes.</p>
      </MethodologyDisclosure>
 
-    {selected && <ScenarioDetail id={selected} rubricCatalog={rubricCatalog} canManage={canManage} canExecute={canExecute} close={() => setSelected(null)} edit={(scenario) => { const normalized = { ...scenario, scoring_category: rubricCategoryKey(rubricCatalog, scenario.scoring_category) }; scenarioBaseline.current = normalized; setSelected(null); setConflict(null); setFormErrors({}); setScenarioError(""); setForm(normalized); }} run={(scenario) => { setSelected(null); setExecute(createBassettTestRunDraft({ scenario_id: scenario.id }, config?.application_timezone)); }} archive={setConfirmingArchive} restore={restore} />}
+    {selected && <ScenarioDetail id={selected} rubricCatalog={rubricCatalog} canManage={canManage} canExecute={canExecute} close={() => setSelected(null)} edit={(scenario) => { const normalized = { ...scenario, priority: scenarioPriority(scenario.priority), scoring_category: rubricCategoryKey(rubricCatalog, scenario.scoring_category) }; scenarioBaseline.current = normalized; setSelected(null); setConflict(null); setFormErrors({}); setScenarioError(""); setForm(normalized); }} run={(scenario) => { setSelected(null); setExecute(createBassettTestRunDraft({ scenario_id: scenario.id }, config?.application_timezone)); }} archive={setConfirmingArchive} restore={restore} />}
     <ConfirmActionDialog
       open={!!confirmingArchive}
       onOpenChange={(open) => !open && setConfirmingArchive(null)}
@@ -388,7 +392,7 @@ export default function BassettTestBank() {
        <RubricAssociationEditor catalog={rubricCatalog} selectedIds={form.rubric_ids || []} onChange={(ids) => setScenarioField("rubric_ids", ids)} />
       <fieldset className="rounded-xl border p-4">
         <legend className="px-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">Outcome and prioritization</legend>
-        <Field label="Priority"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.priority} onChange={(e) => setScenarioField("priority", e.target.value)}>{["P0 - Immediate", "P1 - High", "P2 - Medium", "Critical", "High", "Medium", "Low"].map((x) => <option key={x}>{x}</option>)}</select></Field>
+        <Field label="Priority"><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={form.priority} onChange={(e) => setScenarioField("priority", e.target.value)}>{["P0 - Immediate", "P1 - High", "P2 - Medium", "P3 - Low"].map((x) => <option key={x}>{x}</option>)}</select></Field>
       </fieldset>
       <details className="rounded-xl border p-4">
         <summary className="cursor-pointer font-semibold text-sm text-[var(--navy)]">Optional links</summary>
@@ -422,7 +426,7 @@ export default function BassettTestBank() {
         {!catalogPreview.already_applied && <label className="flex items-start gap-2"><input type="checkbox" required /> <span>Load these current Test Bank definitions into ZoneQA.</span></label>}
       </div>
     </FormModal>}
-    {execute && <BassettTestRunForm form={execute} setForm={setExecute} scenarios={scenarios} rubricCatalog={rubricCatalog} versions={versions} projects={projects} onSubmit={recordExecution} onCancel={() => setExecute(null)} submitting={savingRun} />}
+    {execute && <BassettTestRunForm form={execute} setForm={setExecute} scenarios={scenarios} rubricCatalog={rubricCatalog} versions={versions} projects={projects} municipalities={municipalities} properties={properties} users={users} evidenceRecords={evidenceRecords} availableFindings={availableFindings} config={config} onSubmit={recordExecution} onCancel={() => setExecute(null)} submitting={savingRun} />}
     {showImport && <FormModal open onOpenChange={(open) => !open && setShowImport(false)} title="Review Spreadsheet Test Scenarios" onSubmit={preview ? commitImport : previewImport} submitLabel={importing ? "Importing…" : preview ? "Confirm Import Accepted Rows" : "Preview Rows"} wide>
       <p className="text-sm text-muted-foreground">Upload the Research/Analysis export as CSV. The preview validates stable IDs before any write. Re-importing the same IDs updates in place; startup never seeds them.</p>
       <Input aria-label="Choose Test Bank CSV" type="file" accept=".csv" onChange={loadCsv} />
