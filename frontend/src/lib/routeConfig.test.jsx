@@ -4,6 +4,14 @@ import { createRoot } from "react-dom/client";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
+test("retired release and regression pages are absent from routes and navigation", () => {
+  const { APP_ROUTES, NAV_SECTIONS } = require("./routeConfig");
+  for (const path of ["/release", "/regression"]) {
+    expect(APP_ROUTES.some((route) => route.path === path)).toBe(false);
+    expect(NAV_SECTIONS.flatMap((section) => section.items).some((item) => item.to === path)).toBe(false);
+  }
+});
+
 const mockDashboardFactory = jest.fn();
 jest.mock("../pages/Dashboard", () => {
   mockDashboardFactory();

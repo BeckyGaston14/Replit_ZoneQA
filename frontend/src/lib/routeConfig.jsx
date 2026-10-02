@@ -12,8 +12,6 @@ const TestCaseDetail = lazy(() => import("../pages/TestCaseDetail"));
 const VariantComparison = lazy(() => import("../pages/VariantComparison"));
 const Comparison = lazy(() => import("../pages/Comparison"));
 const Findings = lazy(() => import("../pages/Findings"));
-const Regression = lazy(() => import("../pages/Regression"));
-const ReleaseReadiness = lazy(() => import("../pages/ReleaseReadiness"));
 const Executive = lazy(() => import("../pages/Executive"));
 const Coverage = lazy(() => import("../pages/Coverage"));
 const Insights = lazy(() => import("../pages/Insights"));
@@ -47,8 +45,6 @@ export const APP_ROUTES = [
   { path: ROUTES.bassettFindings, component: BassettIssues, forceSearch: { view: "findings" } },
   { path: ROUTES.bassettFindingsLegacy, component: BassettIssues, forceSearch: { view: "findings" } },
   { path: ROUTES.bassettBank, component: BassettTestBank },
-  { path: ROUTES.regression, component: Regression },
-  { path: ROUTES.release, component: ReleaseReadiness },
   { path: ROUTES.executive, component: Executive },
   { path: ROUTES.coverage, component: Coverage },
   { path: ROUTES.insights, component: Insights },

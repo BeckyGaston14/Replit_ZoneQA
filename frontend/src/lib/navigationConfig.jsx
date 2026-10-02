@@ -1,7 +1,7 @@
 import {
   BarChart3, Briefcase, Building2, CalendarDays, Columns3, FileText, Flag,
   FlaskConical, FolderKanban, Grid3X3, LayoutDashboard, Library, ListChecks,
-  MapPin, RefreshCw, Rocket, Settings, ShieldCheck, Star, Swords, Trophy,
+  MapPin, Settings, ShieldCheck, Star, Swords, Trophy,
 } from "lucide-react";
 import { ROUTES } from "./routePaths";
 
@@ -55,10 +55,8 @@ export const NAV_SECTIONS = [
   },
   {
     id: "advanced-tools", label: "Advanced Tools",
-    description: "Use specialized release, regression, scheduling, demo, and system-check tools when needed.",
+    description: "Use scheduling, demo, and system-check tools when needed.",
     items: [
-      { to: ROUTES.regression, label: "Regression Testing", icon: RefreshCw },
-      { to: ROUTES.release, label: "Release Readiness", icon: Rocket },
       { to: ROUTES.calendar, label: "Calendar", icon: CalendarDays },
       { to: ROUTES.demos, label: "Demo Library", icon: Star },
       { to: ROUTES.integrity, label: "Data Integrity", icon: ShieldCheck, roles: ["admin", "qa_manager"] },
