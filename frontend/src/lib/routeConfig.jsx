@@ -19,7 +19,6 @@ const CalendarPage = lazy(() => import("../pages/CalendarPage"));
 const Demos = lazy(() => import("../pages/Demos"));
 const Reports = lazy(() => import("../pages/Reports"));
 const Admin = lazy(() => import("../pages/Admin"));
-const DataIntegrity = lazy(() => import("../pages/DataIntegrity"));
 const AccountSecurity = lazy(() => import("../pages/AccountSecurity"));
 const AuditDetail = lazy(() => import("../pages/AuditDetail"));
 const BassettIssues = lazy(() => import("../pages/BassettIssues"));
@@ -53,7 +52,6 @@ export const APP_ROUTES = [
   { path: ROUTES.demos, component: Demos },
   { path: ROUTES.reports, component: Reports },
   { path: ROUTES.admin, component: Admin, roles: ["admin", "qa_manager"] },
-  { path: ROUTES.integrity, component: DataIntegrity, roles: ["admin", "qa_manager"] },
   { path: ROUTES.security, component: AccountSecurity },
   { path: ROUTES.auditDetail, component: AuditDetail, roles: ["admin"] },
 ];
