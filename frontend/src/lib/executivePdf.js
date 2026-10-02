@@ -310,7 +310,7 @@ export function renderExecutivePdf({ doc, data, chartImages = {}, generated = ne
   const includesComparison = data?.report_scope !== "bassett";
   const takeaways = [
     data?.insufficient_evidence
-      ? `Insufficient Evidence: ${safeText(data?.release_evidence?.evaluated, "0")} of ${safeText(data?.minimum_qualifying_tests, "unavailable")} qualifying tests completed. This report is informational and emits no Go recommendation.`
+      ? `Preliminary results: ${safeText(data?.release_evidence?.evaluated, "0")} completed tests in this selection. The reporting minimum is 5 completed tests, with no maximum.`
       : null,
     !includesComparison ? null : number(kpis.bassett_avg) !== null && number(kpis.benchmark_avg) !== null
       ? `Bassett ${number(kpis.bassett_avg) >= number(kpis.benchmark_avg) ? "outscores" : "trails"} benchmark models by ${Math.abs(number(kpis.bassett_avg) - number(kpis.benchmark_avg)).toFixed(1)} points on average (${fmtScore(kpis.bassett_avg)} vs ${fmtScore(kpis.benchmark_avg)} / 10).`

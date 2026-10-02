@@ -11,6 +11,7 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 jest.mock("@tanstack/react-query", () => ({ useQuery: jest.fn() }));
 jest.mock("jspdf", () => ({ __esModule: true, default: jest.fn() }));
 jest.mock("../lib/api", () => ({ api: { get: jest.fn() } }));
+jest.mock("../lib/hooks", () => ({ useTestBank: () => ({ data: [{ id: "s1", test_id: "GR-02", title: "Research use" }] }) }));
 jest.mock("html2canvas", () => jest.fn());
 jest.mock("sonner", () => ({ toast: { success: jest.fn(), error: jest.fn() } }));
 jest.mock("../lib/executivePdf", () => ({
@@ -185,26 +186,26 @@ test("offers Bassett-only, Model Comparison, and combined executive scopes", () 
   expect([...selector.options].map((option) => option.textContent)).toEqual([
     "Bassett Only", "Model Comparison", "Both",
   ]);
-  expect(useQuery).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["executive", "both", ""] }));
+  expect(useQuery).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["executive", "both", "", ""] }));
 
   act(() => {
     selector.value = "bassett";
     selector.dispatchEvent(new Event("change", { bubbles: true }));
   });
-  expect(useQuery).toHaveBeenLastCalledWith(expect.objectContaining({ queryKey: ["executive", "bassett", ""] }));
+  expect(useQuery).toHaveBeenLastCalledWith(expect.objectContaining({ queryKey: ["executive", "bassett", "", ""] }));
   view.unmount();
 });
 
 test("project shortcut scopes the request and clearing it restores all projects", () => {
   window.history.replaceState({}, "", "/executive?project_id=p1");
   const view = renderPage();
-  expect(useQuery).toHaveBeenLastCalledWith(expect.objectContaining({ queryKey: ["executive", "both", "p1"] }));
+  expect(useQuery).toHaveBeenLastCalledWith(expect.objectContaining({ queryKey: ["executive", "both", "p1", ""] }));
   const selector = view.container.querySelector('[aria-label="Summary testing project"]');
   act(() => {
     selector.value = "";
     selector.dispatchEvent(new Event("change", { bubbles: true }));
   });
-  expect(useQuery).toHaveBeenLastCalledWith(expect.objectContaining({ queryKey: ["executive", "both", ""] }));
+  expect(useQuery).toHaveBeenLastCalledWith(expect.objectContaining({ queryKey: ["executive", "both", "", ""] }));
   view.unmount();
   window.history.replaceState({}, "", "/");
 });
@@ -227,8 +228,26 @@ test("shows a consistent limited-data warning for a small evaluated population",
     data: { ...data, kpis: { ...data.kpis, total_evaluated: 3, limited_data: { limited: true, evaluated: 3, threshold: 5 } } },
   });
   const view = renderPage();
-  expect(view.container.textContent).toContain("Limited data — selected tests: 3 evaluated; benchmark model results: 0 evaluated.");
+  expect(view.container.textContent).toContain("Preliminary results — 3 completed tests in this selection.");
   expect(view.container.querySelectorAll('[data-testid="limited-data-warning"]')).toHaveLength(1);
+  view.unmount();
+});
+
+test("keeps more than five completed tests and shows the included records", () => {
+  useQuery.mockReturnValue({ isLoading: false, data: {
+    ...data, release_evidence: { evaluated: 20, sufficient: true },
+    included_tests: [{ id: "las-vegas", name: "Las Vegas", result: "Critical Fail", score: 4 }],
+  } });
+  const view = renderPage();
+  expect(view.container.querySelector('[data-testid="limited-data-warning"]')).toBeNull();
+  expect(view.container.textContent).toContain("Tests included in this summary (1)");
+  expect(view.container.textContent).toContain("Las Vegas · Critical Fail");
+  const scenario = view.container.querySelector('[aria-label="Summary test scenario"]');
+  act(() => {
+    scenario.value = "s1";
+    scenario.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  expect(useQuery).toHaveBeenLastCalledWith(expect.objectContaining({ queryKey: ["executive", "both", "", "s1"] }));
   view.unmount();
 });
 

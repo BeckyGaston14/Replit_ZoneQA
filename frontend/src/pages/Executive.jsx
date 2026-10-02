@@ -15,6 +15,7 @@ import { captureExecutiveChart, renderExecutivePdf } from "../lib/executivePdf";
 import { QueryState } from "../components/PageState";
 import { SafeResponsiveContainer } from "../components/SafeResponsiveContainer";
 import ProjectReportSelector, { initialReportProject } from "../components/ProjectReportSelector";
+import { useTestBank } from "../lib/hooks";
 
 export const localDateStamp = (date = new Date()) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -22,9 +23,11 @@ export const localDateStamp = (date = new Date()) =>
 export default function Executive() {
   const [reportScope, setReportScope] = useState("both");
   const [projectId, setProjectId] = useState(initialReportProject);
+  const [scenarioId, setScenarioId] = useState(() => new URLSearchParams(window.location.search).get("scenario_id") || "");
+  const { data: scenarios = [] } = useTestBank();
   const query = useQuery({
-    queryKey: ["executive", reportScope, projectId],
-    queryFn: async ({ signal } = {}) => (await api.get("/analytics/executive", { params: { report_scope: reportScope, project_id: projectId }, signal })).data,
+    queryKey: ["executive", reportScope, projectId, scenarioId],
+    queryFn: async ({ signal } = {}) => (await api.get("/analytics/executive", { params: { report_scope: reportScope, project_id: projectId, scenario_id: scenarioId }, signal })).data,
   });
   const { data: d } = query;
   const trendChartRef = useRef(null);
@@ -103,13 +106,10 @@ export default function Executive() {
   const openHigh = k.open_high ?? "—";
   const openCritical = k.open_critical_count ?? "—";
   const includesComparison = d.report_scope !== "bassett";
-  const selectedEvaluated = Number(k.limited_data?.evaluated ?? k.total_evaluated ?? 0);
-  const benchmarkEvaluated = Number(k.benchmark_evaluated ?? 0);
-  const limitedDataMessage = includesComparison
-    ? (selectedEvaluated < 5 || benchmarkEvaluated < 5
-      ? `Limited data — selected tests: ${selectedEvaluated} evaluated; benchmark model results: ${benchmarkEvaluated} evaluated.`
-      : "")
-    : (selectedEvaluated < 5 ? `Limited data — ${selectedEvaluated} evaluated ${selectedEvaluated === 1 ? "record" : "records"}.` : "");
+  const selectedEvaluated = Number(d.release_evidence?.evaluated ?? k.total_evaluated ?? 0);
+  const limitedDataMessage = selectedEvaluated < 5
+    ? `Preliminary results — ${selectedEvaluated} completed tests in this selection. Complete ${5 - selectedEvaluated} more to reach the five-test reporting minimum. All matching completed tests count; there is no maximum.`
+    : "";
   const edge = bassettAverage !== null && benchmarkAverage !== null
     ? Math.round((bassettAverage - benchmarkAverage) * 10) / 10
     : null;
@@ -146,8 +146,16 @@ export default function Executive() {
   return (
     <div data-testid="exec-pdf-surface">
        <PageHeader title="Executive Summary" subtitle={`${d.scope || ""} · Generated ${new Date().toLocaleDateString()}.`}>
+        <div className="flex w-full flex-wrap items-end gap-3">
         <ProjectReportSelector value={projectId} onChange={setProjectId} />
-        <label className="flex items-center gap-2 text-sm" data-html2canvas-ignore="true">
+        <label className="flex flex-col gap-1 text-sm" data-html2canvas-ignore="true">
+          <span className="font-medium">Test scenario</span>
+          <select aria-label="Summary test scenario" value={scenarioId} onChange={(event) => setScenarioId(event.target.value)} className="h-9 max-w-[260px] rounded-md border bg-background px-3 text-sm">
+            <option value="">All scenarios</option>
+            {scenarios.map((scenario) => <option key={scenario.id} value={scenario.id}>{scenario.stable_id || scenario.test_id || scenario.id} · {scenario.test_scenario || scenario.title || scenario.name}</option>)}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-sm" data-html2canvas-ignore="true">
           <span className="font-medium text-[var(--navy)]">Report scope</span>
           <select aria-label="Executive summary scope" value={reportScope} onChange={(event) => setReportScope(event.target.value)} className="h-9 rounded-md border bg-background px-3 text-sm">
             <option value="bassett">Bassett Only</option>
@@ -159,6 +167,7 @@ export default function Executive() {
           {exporting ? <Loader2 size={15} className="mr-1 animate-spin" /> : <FileDown size={15} className="mr-1" />}
           {exportStatus === "generating" ? "Generating PDF…" : exportStatus === "saving" ? "Saving PDF…" : "Download PDF"}
         </Button>
+        </div>
       </PageHeader>
       {d.project && <section className="mb-5 rounded-xl border bg-card p-4" aria-label="Testing project summary">
         <h2 className="font-semibold">{d.project.name}</h2>
@@ -168,9 +177,9 @@ export default function Executive() {
         <h3 className="mt-4 font-semibold">Unresolved findings & retesting</h3>
         {(d.project_findings || []).length ? <ul className="mt-2 space-y-2">{d.project_findings.map((finding) => <li key={finding.id} className="border-t pt-2 text-sm"><strong>{finding.title}</strong><span className="block">{finding.severity} · {finding.workflow_status} · Retest: {finding.retest_status}</span></li>)}</ul> : <p className="text-sm mt-2">No unresolved findings in the selected project and report scope.</p>}
       </section>}
-      {d.insufficient_evidence && <div className="mb-4 rounded-xl border border-slate-300 bg-slate-50 p-4 text-sm text-slate-800" data-testid="executive-insufficient-evidence">Insufficient Evidence: this {d.report_scope === "both" ? "combined" : d.report_scope || "selected"} report has {d.release_evidence?.evaluated || 0} of {d.minimum_qualifying_tests} qualifying tests completed. This report remains informational and will not emit a Go recommendation.</div>}
       <SampleDataBanner show={sampleDataShown} />
       {limitedDataMessage && <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" data-testid="limited-data-warning">{limitedDataMessage}</div>}
+      {!!d.included_tests?.length && <details className="mb-4 rounded-lg border p-3 text-sm"><summary className="cursor-pointer font-medium">Tests included in this summary ({d.included_tests.length})</summary><ul className="mt-2 space-y-1">{d.included_tests.map((test) => <li key={test.id}>{test.name} · {test.result} · Score: {fmtScore(test.score)}</li>)}</ul></details>}
       {exportError && (
         <div role="alert" data-testid="pdf-export-error" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           {exportError}
@@ -271,6 +280,7 @@ export default function Executive() {
        <MethodologyDisclosure title="How executive metrics are calculated" testid="executive-methodology">
           <p>Executive KPIs and charts summarize persisted QA evaluations, separate High and Critical findings, and model comparisons for the displayed scope: {d.scope || "current reporting scope"}.</p>
           <p>Pass rate is passing evaluated tests divided by evaluated tests. Rubric category and overall scores use neutral arithmetic means of selected available 0–10 criteria.</p>
+          <p>Each completed Bassett-only run counts once, including repeated runs of the same scenario. Five completed tests is the reporting minimum, with no maximum. Project and scenario filters apply together. Scenarios covered is a separate measure from completed test runs.</p>
          <p>Sample data follows the authenticated user's Show sample records preference. Missing scores are unavailable, not zero; stale Gold Standards are surfaced for reverification.</p>
        </MethodologyDisclosure>
     </div>

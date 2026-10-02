@@ -1,6 +1,6 @@
 """Authoritative release evidence policy shared by API/report calculations."""
 
-MIN_QUALIFYING_TESTS = 50
+MIN_QUALIFYING_TESTS = 5
 
 
 def evidence_status(evaluated: int) -> dict:

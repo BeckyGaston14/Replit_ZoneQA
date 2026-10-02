@@ -7697,7 +7697,7 @@ async def analytics_performance(user=Depends(get_current_user),
                                 version: str = "", environment: str = "", project_id: str = "",
                                 municipality_id: str = "", category: str = "", criticality: str = "",
                                 include_variants: str = "true", date_from: str = "", date_to: str = "",
-                                scope: str = "comparison"):
+                                scope: str = "comparison", scenario_id: str = ""):
     if scope not in {"bassett", "comparison", "both"}:
         raise HTTPException(400, "scope must be bassett, comparison, or both")
     report_scope = scope
@@ -7706,6 +7706,8 @@ async def analytics_performance(user=Depends(get_current_user),
     # Test-case-level filters
     if project_id:
         tcs = {k: v for k, v in tcs.items() if v.get("project_id") == project_id}
+    if scenario_id:
+        tcs = {k: v for k, v in tcs.items() if scenario_id in _record_scenario_ids(v)}
     if municipality_id:
         tcs = {k: v for k, v in tcs.items() if v.get("municipality_id") == municipality_id}
     if criticality:
@@ -7725,7 +7727,7 @@ async def analytics_performance(user=Depends(get_current_user),
         # avoiding the legacy numeric criticality label in visible scope text.
         severity_filter_label = criticality or None
     scope_parts = ["Latest non-retest evaluation for each test case" if scope == "comparison" else
-                   {"bassett": "Bassett-only Test Runs · latest qualifying result per Test Bank definition", "both": "Bassett-only + Model Comparison · latest qualifying result per test definition/model"}[scope],
+                   {"bassett": "Bassett-only · completed test runs", "both": "Completed Bassett-only runs + latest Model Comparison results"}[scope],
                    f"Bassett version: {version}" if version else "regardless of Bassett version",
                    f"environment: {environment}" if environment else None,
                    "variants excluded" if include_variants.lower() == "false" else "variants included",
@@ -7780,6 +7782,7 @@ async def analytics_performance(user=Depends(get_current_user),
             or (version and run.get("bassett_version") != version)
             or (environment and run.get("environment") != environment)
             or (project_id and run.get("project_id") != project_id)
+            or (scenario_id and scenario_id not in _record_scenario_ids(run))
             or (municipality_id and run.get("municipality_id") != municipality_id)
             or (category and _test_bank_category(run, scenario_by_id) != category)
             or (criticality and str(run.get("criticality") or "") != criticality)
@@ -7801,7 +7804,7 @@ async def analytics_performance(user=Depends(get_current_user),
             "_performance_category": _test_bank_category(run, scenario_by_id),
             "_performance_source": "bassett_only",
         }
-        key = run.get("scenario_id") or run.get("test_id") or run.get("id")
+        key = run.get("_lineage_key") or run.get("id")
         current = latest_standalone.get(key)
         if current is None or _dashboard_bassett_order(candidate) > _dashboard_bassett_order(current):
             latest_standalone[key] = candidate
@@ -9216,6 +9219,7 @@ async def analytics_executive(
     user=Depends(get_current_user), report_scope: str = "both",
     include_sample: Optional[bool] = None,
     project_id: str = "",
+    scenario_id: str = "",
 ):
     if report_scope not in {"bassett", "comparison", "both"}:
         raise HTTPException(400, "report_scope must be bassett, comparison, or both")
@@ -9231,6 +9235,7 @@ async def analytics_executive(
         t["id"]: t for t in await crud_list("testcases")
         if (include_sample or not _is_sample_testcase(t))
         and (not project_id or t.get("project_id") == project_id)
+        and (not scenario_id or scenario_id in _record_scenario_ids(t))
     }
     raw_evaluations = _exclude_sample_scope(
         await crud_list("evaluations"), versions, include_sample,
@@ -9270,6 +9275,8 @@ async def analytics_executive(
     ):
         if project_id and run.get("project_id") != project_id:
             continue
+        if scenario_id and scenario_id not in _record_scenario_ids(run):
+            continue
         if (
             run.get("id") in comparison_issue_ids
             or run.get("issue_id") in comparison_issue_ids
@@ -9298,12 +9305,9 @@ async def analytics_executive(
             "_executive_source": "bassett_only",
             "_executive_category": _test_bank_category(run, scenario_by_id),
         }
-        # Executive reporting follows the same canonical population rule as
-        # Dashboard, Performance, Coverage, and Release Readiness: only the
-        # latest qualifying Bassett-only run for each active Test Bank
-        # definition is included. Multiple runs of the same scenario remain in
-        # history, but cannot inflate executive counts or averages.
-        lineage_key = run.get("scenario_id") or run.get("test_id") or run.get("id")
+        # Each completed run is evidence, including repeated testing of the
+        # same scenario. Canonical lineages prevent legacy copies counting twice.
+        lineage_key = run.get("_lineage_key") or run.get("id")
         current = latest_standalone_bassett.get(lineage_key)
         if current is None or _dashboard_bassett_order(candidate) > _dashboard_bassett_order(current):
             latest_standalone_bassett[lineage_key] = candidate
@@ -9332,6 +9336,12 @@ async def analytics_executive(
         finding for finding in await crud_list("findings")
         if not finding.get("archived") and finding.get("status") != "Archived"
         and (not project_id or _finding_in_project(finding, project_id, issues, tcs))
+        and (not scenario_id or scenario_id in _record_scenario_ids(finding)
+             or any(scenario_id in _record_scenario_ids(run) and
+                    (run.get("id") in [finding.get("bassett_issue_id"), *(finding.get("linked_test_run_ids") or [])]
+                     or finding.get("id") in [run.get("finding_id"), *(run.get("finding_ids") or [])])
+                    for run in issues)
+             or finding.get("testcase_id") in tcs)
         and (
             (report_scope == "bassett" and is_bassett_finding(finding))
             or (report_scope == "comparison" and not is_bassett_finding(finding) and finding.get("testcase_id") in tcs)
@@ -9340,12 +9350,15 @@ async def analytics_executive(
     ]
     scope_label = {"bassett": "Bassett Only", "comparison": "Model Comparison", "both": "Bassett Only + Model Comparison"}[report_scope]
     scope = (
-        f"Scope: {scope_label} · latest qualifying result per test definition/model · "
+        f"Scope: {scope_label} · completed Bassett-only runs; latest Model Comparison results · "
         f"sample data {'included' if include_sample else 'excluded'} · "
         "all Bassett versions · retests excluded · Pass includes 'Pass with Minor Issues'"
     )
     if project:
         scope = f"Project: {project.get('name', project_id)} · {scope}"
+    if scenario_id:
+        scenario = scenario_by_id.get(scenario_id, {})
+        scope = f"Scenario: {scenario.get('stable_id') or scenario.get('test_id') or scenario_id} · {scope}"
 
     def quarter_of(iso):
         try:
@@ -9376,7 +9389,9 @@ async def analytics_executive(
     b = [e for e in analytical_evals if e.get("model") == "Bassett"]
     scored = [e for e in b if e.get("overall_score") is not None]
     bassett_avg = average_score(b)
-    bassett_summary = result_summary(b)
+    # Result counts are independent of scoring-system revisions. Historical
+    # completed runs still count even when category charts use current rubrics.
+    bassett_summary = result_summary([e for e in evals if e.get("model") == "Bassett"])
     passed = bassett_summary["passed"]
     failed = bassett_summary["failed"]
     pass_rate = bassett_summary["pass_rate"]
@@ -9509,6 +9524,11 @@ async def analytics_executive(
                   },
               },
               "scope": scope,
+              "included_tests": [{
+                  "id": e.get("id"), "name": e.get("title") or e.get("name") or tcs.get(e.get("testcase_id"), {}).get("name") or e.get("testcase_id"),
+                  "result": e.get("normalized_result") or e.get("final_result"),
+                  "score": e.get("overall_score"),
+              } for e in evals if e.get("model") == "Bassett"],
               "project_findings": [{
                   "id": f.get("id"), "title": f.get("title") or "Untitled finding",
                   "severity": _canonicalize_finding_severity(f).get("severity"),

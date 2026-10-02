@@ -37,6 +37,17 @@ export default function Reports() {
   }, []);
   const exportData = async (kind) => {
     try {
+      if (kind === "qa_summary") {
+        const { data } = await api.get("/analytics/executive", { params: { project_id: projectId, report_scope: "bassett" } });
+        const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "zoneqa-bassett-qa-summary.json";
+        link.click();
+        URL.revokeObjectURL(url);
+        toast.success("Bassett QA summary exported for the selected project");
+        return;
+      }
       const needsRegressionRuns = ["release", "regression"].includes(kind);
       const needsTestRuns = kind === "comparison";
       const selected = kind === "release"
@@ -97,7 +108,7 @@ export default function Reports() {
           <ProjectReportSelector value={projectId} onChange={setProjectId} />
           <a className="inline-flex h-9 items-center rounded-md border px-3 text-sm font-medium" href={projectSummaryUrl(projectId)}>View Summary</a>
         </div>
-        <p className="mt-3 text-xs text-muted-foreground">This project selection applies to the summary and its PDF. General data exports below retain their existing scope.</p>
+        <p className="mt-3 text-xs text-muted-foreground">This project selection applies to the summary, its PDF, and the Bassett QA Summary export. Five completed tests is the reporting minimum, not a maximum. Other raw data exports retain their own scope.</p>
       </section>
       <div className="flex flex-wrap items-end gap-3 mb-5">
         <label className="text-sm font-medium">Readiness version

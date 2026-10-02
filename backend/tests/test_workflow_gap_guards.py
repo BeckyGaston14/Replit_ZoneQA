@@ -671,7 +671,7 @@ def test_all_metric_endpoints_reconcile_to_complete_comparisons(monkeypatch):
     )
 
 
-def test_executive_uses_latest_qualifying_bassett_run_per_scenario(monkeypatch):
+def test_executive_counts_each_completed_bassett_run_per_scenario(monkeypatch):
     rows = {
         "testcases": [], "evaluations": [], "test_runs": [], "findings": [],
         "versions": [{"id": "v1", "name": "Bassett v1", "active": True}],
@@ -713,10 +713,10 @@ def test_executive_uses_latest_qualifying_bassett_run_per_scenario(monkeypatch):
         {"id": "viewer", "role": "viewer"}, report_scope="bassett"
     ))
 
-    assert executive["population_counts"] == {"bassett_only": 1, "model_comparison": 0}
-    assert executive["kpis"]["total_evaluated"] == 1
-    assert executive["kpis"]["bassett_avg"] == 8
-    assert executive["kpis"]["pass_rate"] == 100.0
+    assert executive["population_counts"] == {"bassett_only": 2, "model_comparison": 0}
+    assert executive["kpis"]["total_evaluated"] == 2
+    assert executive["kpis"]["bassett_avg"] == 5
+    assert executive["kpis"]["pass_rate"] == 50.0
 
     # A newer result from another project must not replace this project's result.
     rows["projects"] = [{"id": "p1", "name": "First project", "required_test_count": 5}, {"id": "p2", "name": "Other project"}]
@@ -1061,7 +1061,7 @@ def test_release_readiness_scoped_evidence_boundaries_and_critical_blocker(monke
     assert result["evaluated"] == count
     assert result["open_crit5"] == (1 if count else 0)
     assert result["recommendation"] == (
-        "NO-GO" if count >= 50 and count else "INSUFFICIENT-EVIDENCE"
+        "NO-GO" if count >= 5 and count else "INSUFFICIENT-EVIDENCE"
     )
 
 

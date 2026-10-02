@@ -58,7 +58,7 @@ test("fetches the canonical report population in one operation", async () => {
     await Promise.resolve();
   });
 
-  expect(api.get).toHaveBeenCalledWith("/reports/data?kind=qa_summary");
+  expect(api.get).toHaveBeenCalledWith("/analytics/executive", { params: { project_id: "", report_scope: "bassett" } });
   expect(click).toHaveBeenCalled();
   click.mockRestore();
   delete URL.createObjectURL;

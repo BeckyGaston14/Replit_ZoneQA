@@ -21,7 +21,7 @@ import { QueryState } from "../components/PageState";
 
 const DIM_LABELS = { accuracy: "Accuracy", current_code: "Current Code", interpretation: "Interpretation", calculation: "Calculation", context: "Context", missing_info: "Missing Info", followup: "Follow-Up", citation_accuracy: "Citation", source_quality: "Source Quality", guidance: "Guidance", completeness: "Completeness", usefulness: "Usefulness" };
 const ALL = "";
-const DEFAULT_FILTERS = { scope: "both", version: ALL, environment: ALL, project_id: ALL, municipality_id: ALL, category: ALL, criticality: ALL, include_variants: "true", date_from: ALL, date_to: ALL };
+const DEFAULT_FILTERS = { scope: "both", version: ALL, environment: ALL, project_id: ALL, scenario_id: ALL, municipality_id: ALL, category: ALL, criticality: ALL, include_variants: "true", date_from: ALL, date_to: ALL };
 const MODEL_COLUMNS = [
   { key: "model", label: "Model", type: "natural" },
   { key: "avg_score", label: "Avg Score", type: "score" },
@@ -125,7 +125,7 @@ export default function Performance() {
       {failed && <QueryState query={failed} resource="performance data" testId="performance" />}
       {loading && !failed && <QueryState query={{ isLoading: true }} resource="performance data" testId="performance" />}
       {!loading && !failed && perf && <>
-      {perf.insufficient_evidence && <div className="mb-4 rounded-xl border border-slate-300 bg-slate-50 p-4 text-sm text-slate-800" data-testid="performance-insufficient-evidence">Insufficient Evidence: this {perf.report_scope === "both" ? "combined" : perf.report_scope === "bassett" ? "Bassett-only" : perf.report_scope === "comparison" ? "Model Comparison" : "selected"} report has {perf.release_evidence?.evaluated || 0} of {perf.minimum_qualifying_tests} qualifying tests completed. Findings and metrics remain visible for investigation.</div>}
+      {perf.insufficient_evidence && <div className="mb-4 rounded-xl border border-slate-300 bg-slate-50 p-4 text-sm text-slate-800" data-testid="performance-insufficient-evidence">Preliminary results: {perf.release_evidence?.evaluated || 0} completed tests in this selection. The reporting minimum is 5 completed tests, with no maximum. Available results remain visible.</div>}
       <div className="flex items-center gap-2 mb-4 flex-wrap" data-testid="perf-filter-bar">
         <select value={flt.scope} onChange={(event) => setPerformanceScope(event.target.value)} aria-label="Performance scope" data-testid="perf-filter-scope" className="h-8 text-xs border rounded-lg px-2 bg-card text-[var(--navy)] max-w-[170px]">
           <option value="bassett">Bassett Only</option>
@@ -135,6 +135,7 @@ export default function Performance() {
         {sel("version", versions.map((v) => v.name), "All Bassett versions", "perf-filter-version")}
         {sel("environment", config?.environments || [], "All environments", "perf-filter-environment")}
         {sel("project_id", projects.map((p) => ({ value: p.id, label: p.name })), "All projects", "perf-filter-project")}
+        {sel("scenario_id", scenarios.map((s) => ({ value: s.id, label: `${s.stable_id || s.test_id || s.id} · ${s.test_scenario || s.title || s.name || ""}` })), "All scenarios", "perf-filter-scenario")}
         {sel("municipality_id", munis.map((m) => ({ value: m.id, label: `${m.name}, ${m.state}` })), "All municipalities", "perf-filter-municipality")}
         {sel("category", testBankTypes, "All Test Bank types", "perf-filter-category")}
         {flt.scope !== "bassett" && sel("criticality", SEVERITY_LABELS.map((label, index) => ({ value: String(index + 1), label })), "All severity", "perf-filter-criticality")}
@@ -158,7 +159,7 @@ export default function Performance() {
       </div>}
 
       <div className={perf.report_scope === "bassett" ? "max-w-sm mb-6" : "grid grid-cols-2 md:grid-cols-4 gap-3 mb-6"}>
-        <StatCard label="Overall Bassett Score" value={bassett ? fmtScore(bassett.avg_score) : "—"} sub="/ 10 avg" accent={MODEL_COLORS.Bassett} icon={Target} testid="perf-overall-score" title="Mean of the latest non-retest Bassett evaluation per test case within the active scope." />
+        <StatCard label="Overall Bassett Score" value={bassett ? fmtScore(bassett.avg_score) : "—"} sub="/ 10 avg" accent={MODEL_COLORS.Bassett} icon={Target} testid="perf-overall-score" title="Mean of scored completed Bassett runs in the selected scope; Model Comparison uses the latest complete result per test case." />
         {perf.report_scope !== "bassett" && <>
         <StatCard label="Bassett Wins" value={perf.wins} sub="beat both benchmarks" accent="#16a34a" icon={Trophy} />
         <StatCard label="Bassett Losses" value={perf.report_scope === "bassett" ? "—" : perf.losses} sub={perf.report_scope === "bassett" ? "requires Model Comparison" : "benchmark outperformed"} accent="#dc2626" icon={TrendingDown} />
